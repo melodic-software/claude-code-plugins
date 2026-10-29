@@ -3476,6 +3476,19 @@ test("doneEvidence takes a default-branch commit only when its message closes th
   assert.equal(await doneEvidence(commit("fix: tidy\n\nFixes #77", "2026-09-30T00:00:00Z"), "/repos/o/r", reason, 77), false, "committed before the issue opened");
 });
 
+// Review on #10978: a reason may cite an issue before the pull request that
+// closed it, so each cited number is tried, not only the first.
+test("doneEvidence tries each pull request the reason cites", async () => {
+  const github = evidenceClient([
+    [/\/repos\/o\/r$/, { default_branch: "main" }],
+    [/\/pulls\/60$/, { merged_at: "2026-10-29T14:07:27Z", merge_commit_sha: MERGE_SHA, base: { ref: "main" } }],
+    [new RegExp(`/commits/${MERGE_SHA}$`), { commit: { message: "fix: tidy (#60)\n\nCloses #77" } }],
+    EVIDENCE_ISSUE,
+  ]);
+  assert.equal(await doneEvidence(github, "/repos/o/r", "already-done: duplicate of #50, fixed by #60", 77), true);
+  assert.equal(await doneEvidence(github, "/repos/o/r", "already-done: duplicate of #50, #51 and #52, fixed by #60", 77), false, "past the first three numbers");
+});
+
 test("doneEvidence proves nothing when a read fails", async () => {
   const commit = [/\/commits\/abb359be$/, { commit: { message: "Fixes #77", committer: { date: "2026-10-28T00:00:00Z" } }, files: [] }];
   // The issue read fails, so its time cannot be read.

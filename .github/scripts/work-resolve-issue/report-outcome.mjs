@@ -1628,13 +1628,17 @@ const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?
 // title and body stay editable after the merge. Lane pull requests carry
 // `Closes #N`, so nothing else counts: a release commit once closed an issue
 // it never touched (run 40844966342). A read that fails, or a reason that
-// cites neither, proves nothing.
+// cites neither, proves nothing. The first three cited numbers other than the
+// issue are tried, so a duplicate cited before the closing pull request is no
+// cover.
 export async function doneEvidence(github, repo, reason, issueNumber) {
-  const pr = waitedPull(reason, issueNumber);
+  const prs = [...new Set([...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]))]
+    .filter((number) => Number(number) !== issueNumber)
+    .slice(0, 3);
   // A SHA holds a letter, so a run id or other number is never read as one;
   // the first three such words are tried, so a hex-looking word is no cover.
   const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
-  if (!pr && shas.length === 0) {
+  if (prs.length === 0 && shas.length === 0) {
     return false;
   }
   const issue = await github("GET", `${repo}/issues/${issueNumber}`).catch(() => null);
@@ -1644,19 +1648,20 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
     return false;
   }
   const tied = (commit, at) => Date.parse(at) > opened && closesIssue(String(commit?.commit?.message ?? ""), issueNumber);
-  if (
-    pr &&
-    (await github("GET", `${repo}/pulls/${pr}`)
-      .then(
-        async (pull) =>
-          Boolean(pull?.merged_at) &&
-          pull.base?.ref === base &&
-          /^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? "") &&
-          tied(await github("GET", `${repo}/commits/${pull.merge_commit_sha}`), pull.merged_at),
-      )
-      .catch(() => false))
-  ) {
-    return true;
+  for (const pr of prs) {
+    if (
+      await github("GET", `${repo}/pulls/${pr}`)
+        .then(
+          async (pull) =>
+            Boolean(pull?.merged_at) &&
+            pull.base?.ref === base &&
+            /^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? "") &&
+            tied(await github("GET", `${repo}/commits/${pull.merge_commit_sha}`), pull.merged_at),
+        )
+        .catch(() => false)
+    ) {
+      return true;
+    }
   }
   for (const sha of shas) {
     const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);

@@ -136,7 +136,7 @@ dispatch, PR or babysit step. It works in place:
    `work-class: read-only` issue whose report is the whole result and needs no commit: put the
    report in `summary`, and the lane posts it and closes the issue). Only `intent-change`,
    `design-change`, `security-risk` and `cost-risk` reach a person; a reason with no code is run
-   once more, then stops. `title` is a Conventional
+   again at most once, then stops. `title` is a Conventional
    Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
    work, one string per part, at most 20: with any entry the PR links the issue without closing it
    and lists them, and empty or malformed (a blank entry, a non-string, more than 20), the PR

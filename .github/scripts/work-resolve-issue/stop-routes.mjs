@@ -14,7 +14,9 @@
 //             decision, which stays needs-human's.
 //   retry     keeps agent-ready, so work-unblock starts it again, up to
 //             limits.stop-retries, or the row's `retries` when fewer; past
-//             that it takes retry-spent's route.
+//             that it takes retry-spent's route. The cap counts every retry
+//             since a listed human last added agent-ready, whatever stop
+//             wrote it, so a row's `retries` is a ceiling on that shared count.
 //   wait      keeps agent-ready with the open pull request the run names in
 //             its marker, so work-unblock starts it again once that pull
 //             request merges or closes, up to limits.stop-retries waits;
