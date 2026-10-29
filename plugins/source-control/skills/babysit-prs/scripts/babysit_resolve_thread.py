@@ -66,9 +66,18 @@ Deterministic guards encoded here:
 - `--autonomous` and `--independent-resolver` refuse when the PR author is a
   configured self login (`--self-logins`, including `@me`). Resolving threads on
   the caller's own PR is the same actor signing its own permission slip the
-  unattended guards exist to prevent; there is no autonomous override (mirroring
-  the merge gate's human-only `--allow-unprotected` pattern). Interactive modes
-  are unaffected.
+  unattended guards exist to prevent. Interactive modes are unaffected.
+- `--own-pr-lane-logins` is the one narrow exception, for `--autonomous` only:
+  on a PR whose author is a self login, it admits a thread a pipeline lane has
+  already answered, so the claim that the finding is handled comes from the
+  lane, not from the resolver. Every other `--autonomous` guard still applies
+  (bot opener, `isOutdated`, the severity line, one pinned thread), and the
+  thread must additionally carry a reply from one of the named lane logins
+  other than the opener, with no comment by a self login (on an own PR, the
+  self login is the person who opened it) and no truncated comment page.
+  Anything else is `skipped-own-pr-not-lane-answered`. Without the flag, or
+  with an empty value, the own-PR refusal above is unchanged.
+  `--independent-resolver` keeps the own-PR refusal with no exception.
 - `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
   merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
@@ -188,6 +197,7 @@ from typing import Any, cast
 from babysit_classify import (
     is_bot,
     is_self_login,
+    normalize_login_set,
     normalize_self_logins,
     severity_occurrences,
     strip_classification_rows,
@@ -345,8 +355,16 @@ def project_thread(
     *,
     extra_bot_logins: frozenset[str] = frozenset(),
     self_logins: frozenset[str] = frozenset(),
+    lane_logins: frozenset[str] = frozenset(),
 ) -> dict[str, object]:
     """Map one shared-paginator record to this CLI's thread shape.
+
+    `laneAnswered` is the own-PR exception's signal (`--own-pr-lane-logins`):
+    every comment is a bot's (a self login counts against it here, because on
+    an own PR the self login is the person who opened the PR), and some reply
+    after the opener comes from a `lane_logins` login other than the opener's.
+    Logins compare casefolded with any `[bot]` suffix removed, since the API
+    reports a Bot's login without it. It fails closed on a truncated page.
 
     `botOnly` is TWO conditions, both required. The OPENING comment must be
     bot-authored -- the canonical rule (`reference/review-discipline.md` D7.5)
@@ -403,6 +421,21 @@ def project_thread(
         and all(_author_is_bot(c) or _author_is_self(c) for c in comments)
     )
     total_count = record.get("comments_total_count")
+
+    def _bare(login: object) -> str:
+        return str(login or "").casefold().removesuffix("[bot]")
+
+    opener_bare = _bare(first_author.get("login"))
+    lane_answered = (
+        bot_only
+        and bool(opener_bare)
+        and not any(_author_is_self(c) for c in comments)
+        and any(
+            (login := _bare(_comment_author(c).get("login"))) in lane_logins
+            and login != opener_bare
+            for c in comments[1:]
+        )
+    )
 
     def _severity_scan_body(comment: object) -> str | None:
         body = comment.get("body") if is_json_object(comment) else None
@@ -475,6 +508,7 @@ def project_thread(
         "author": first_author.get("login"),
         "authorType": first_author.get("__typename"),
         "botOnly": bot_only,
+        "laneAnswered": lane_answered,
         "severityFlagged": severity_flagged,
         "findingCount": finding_count,
         # Live count of ALL comments (not just the fetched page) -- the TOCTOU
@@ -516,12 +550,16 @@ def fetch_threads(
     *,
     extra_bot_logins: frozenset[str] = frozenset(),
     self_logins: frozenset[str] = frozenset(),
+    lane_logins: frozenset[str] = frozenset(),
 ) -> list[dict[str, object]]:
     # include_resolved so the caller can see (and skip) already-resolved threads;
     # comments_first=100 to inspect every participant for the bot-only test.
     def _project(record: dict[str, Any]) -> dict[str, object]:
         return project_thread(
-            record, extra_bot_logins=extra_bot_logins, self_logins=self_logins
+            record,
+            extra_bot_logins=extra_bot_logins,
+            self_logins=self_logins,
+            lane_logins=lane_logins,
         )
 
     return [
@@ -575,6 +613,7 @@ def classify(
     include_human: bool = False,
     independent: bool = False,
     pinned_thread: bool = False,
+    own_pr: bool = False,
 ) -> str:
     """Deterministic action label under the active guards.
 
@@ -606,6 +645,11 @@ def classify(
         # unattended: never a security or P1 thread. Default True fails closed
         # when the projection did not compute the signal.
         return "skipped-severity-marked"
+    if own_pr and not thread.get("laneAnswered", False):
+        # The own-PR exception admits only a thread a lane already answered:
+        # the resolver is the PR's author, so the "handled" claim must come
+        # from another actor. Default False fails closed.
+        return "skipped-own-pr-not-lane-answered"
     if independent and not _is_single_finding(thread):
         # Resolution is a THREAD-level act while a disposition is a claim about ONE
         # finding, so a thread carrying several findings cannot be cleared on one
@@ -1040,6 +1084,15 @@ def main() -> int:
             "your gh login (ships empty)"
         ),
     )
+    parser.add_argument(
+        "--own-pr-lane-logins",
+        default=None,
+        help=(
+            "--autonomous only: comma-separated pipeline lane logins. On a PR "
+            "whose author is a self login, admit a thread one of these lanes "
+            "already answered instead of refusing the PR; empty keeps the refusal"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int = 2, **envelope: object) -> int:
@@ -1179,6 +1232,13 @@ def main() -> int:
                     "a fix in this PR is the fixed disposition (--fix-commit)"
                 )
 
+    lane_logins = normalize_login_set(parse_csv_set(args.own_pr_lane_logins))
+    if args.own_pr_lane_logins is not None and not args.autonomous:
+        return _refuse(
+            "--own-pr-lane-logins requires --autonomous; it is the worker "
+            "tier's own-PR exception and widens no other mode"
+        )
+
     if args.resolve and args.autonomous and not args.thread_id:
         return _refuse(
             "--autonomous --resolve requires a single pinned "
@@ -1243,12 +1303,14 @@ def main() -> int:
             if token.strip().casefold() != "@me"
         )
 
+    own_pr = False
     if args.autonomous or args.independent_resolver:
         try:
             pr_author = fetch_pull_request_author(repo, number)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             return _refuse(f"{type(exc).__name__}: {exc}")
-        if is_self_login(pr_author, self_logins):
+        own_pr = is_self_login(pr_author, self_logins)
+        if own_pr and not (args.autonomous and lane_logins):
             print(
                 json.dumps(
                     {
@@ -1271,7 +1333,11 @@ def main() -> int:
 
     try:
         threads = fetch_threads(
-            repo, number, extra_bot_logins=extra_bot_logins, self_logins=self_logins
+            repo,
+            number,
+            extra_bot_logins=extra_bot_logins,
+            self_logins=self_logins,
+            lane_logins=lane_logins,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         return _refuse(f"{type(exc).__name__}: {exc}")
@@ -1297,6 +1363,7 @@ def main() -> int:
             include_human=args.include_human,
             independent=args.independent_resolver,
             pinned_thread=bool(args.thread_id),
+            own_pr=own_pr,
         )
         entry: dict[str, object] = {
             "id": thread["id"],
@@ -1305,6 +1372,7 @@ def main() -> int:
             "path": thread["path"],
             "isOutdated": thread["isOutdated"],
             "botOnly": thread["botOnly"],
+            "laneAnswered": thread.get("laneAnswered"),
             "severityFlagged": thread.get("severityFlagged"),
             "findingCount": thread.get("findingCount"),
             "commentCount": thread.get("commentCount"),
@@ -1374,6 +1442,7 @@ def main() -> int:
                         "expected_last_updated": args.expected_last_updated,
                         "is_outdated": thread.get("isOutdated"),
                         "severity_flagged": thread.get("severityFlagged"),
+                        "own_pr": own_pr,
                     }
                 )
         results.append(entry)
@@ -1392,6 +1461,7 @@ def main() -> int:
                 "action": "resolve" if args.resolve else "list",
                 "onlyOutdated": args.only_outdated,
                 "includeHuman": args.include_human,
+                "ownPr": own_pr,
                 # Count only threads whose OPENING author is human. `botOnly`
                 # (every comment in the thread is a bot) is the wrong gate: a
                 # bot-opened thread carrying a later human reply is `botOnly:
@@ -1410,6 +1480,9 @@ def main() -> int:
                 "skippedNotOutdated": acted("skipped-not-outdated"),
                 "skippedSeverityMarked": acted("skipped-severity-marked"),
                 "skippedMultiFinding": acted("skipped-multi-finding-thread"),
+                "skippedOwnPrNotLaneAnswered": acted(
+                    "skipped-own-pr-not-lane-answered"
+                ),
                 # Independent-resolver refusals, rolled up alongside the other
                 # skip counters so a caller sees "the evidence did not hold"
                 # without re-deriving it from the per-thread action values.

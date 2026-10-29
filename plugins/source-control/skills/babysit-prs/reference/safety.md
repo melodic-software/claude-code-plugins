@@ -598,6 +598,17 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
   the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
   dismiss reviews.
+- **`--own-pr-lane-logins <lane-logins>` rides on every worker `--autonomous` resolve form** when
+  `babysit_lane_logins` is set; omit it when unset. `--autonomous` refuses a PR whose author is a
+  self login, because the resolver would be the actor whose permission slip it is. This flag is
+  the one exception: on such a PR it admits a thread only when a lane login other than the opener
+  has replied to it, so the claim that the finding is handled comes from the lane. Every other
+  `--autonomous` guard still holds (bot opener, `isOutdated`, the severity line that keeps a
+  CRITICAL or security thread with a person, one pinned thread). A comment by a self login in the
+  thread refuses it too: on an own PR that login is the person who opened the PR. Any other thread
+  reports `skipped-own-pr-not-lane-answered`. The flag is refused outside `--autonomous`, and
+  `--independent-resolver` keeps the own-PR refusal. No permission is added: the resolve runs under
+  the PR author's own login ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#resolve-identity-on-a-person-opened-pr)).
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED, so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
@@ -1355,10 +1366,10 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --own-pr-lane-logins <lane-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
-for the unattended-worker case, or
+for the unattended-worker case (`--own-pr-lane-logins` omitted when `babysit_lane_logins` is unset), or
 
 ```text
 bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
