@@ -591,12 +591,16 @@ bcd::shell_write() {
 }
 
 # bcd::text_redirects <folded text>: deny a BCD_REDIR_RE redirection whose
-# target is an identity file. Each pass cuts the text past its match.
+# target is an identity file. Each pass cuts the text past its match. The
+# groups are copied first: bcd::identity_file's own `=~` on Windows replaces
+# BASH_REMATCH.
 bcd::text_redirects() {
-  local t="$1"
+  local t="$1" m target
   while [[ -z "$BCD_DENY" && "$t" =~ $BCD_REDIR_RE ]]; do
-    bcd::identity_file "${BASH_REMATCH[3]}" && bcd::deny "a redirection writes ${BASH_REMATCH[3]}"
-    t=${t#*"${BASH_REMATCH[0]}"}
+    m=${BASH_REMATCH[0]}
+    target=${BASH_REMATCH[3]}
+    bcd::identity_file "$target" && bcd::deny "a redirection writes $target"
+    t=${t#*"$m"}
   done
   return 0
 }
