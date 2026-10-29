@@ -84,3 +84,9 @@ git add -A
 git commit -q -m "Admin console and shop with their control skills"
 # Name the starting branch main whatever branch an existing repository started on.
 git branch -M main
+# Give the pass the origin remote it fetches the default branch from. The bare repository sits under
+# .git, so it stays out of git status.
+origin="$(git rev-parse --absolute-git-dir)/origin.git"
+git init -q --bare -b main "$origin"
+git remote add origin "$origin" 2>/dev/null || git remote set-url origin "$origin"
+git push -q origin main
