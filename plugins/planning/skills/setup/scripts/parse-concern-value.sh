@@ -29,8 +29,8 @@
 #   --ref <ref>   read <file> as committed at <ref>: a 40-hex commit id or
 #                 `origin/<name>`. Validated before any git call and passed to
 #                 git after --end-of-options.
-#   --strict      exit 3 on a parse error instead of taking the fallback; a key
-#                 repeated in one mapping is a parse error too
+#   --strict      exit 3 on a parse error, such as a key repeated in one
+#                 mapping, instead of taking the fallback
 #
 # Output: the resolved value, or empty when nothing resolves (the caller
 # applies its documented default). Exit 0 for a well-formed invocation,

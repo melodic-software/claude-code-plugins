@@ -412,7 +412,8 @@ const indentOf = (line) => line.length - line.replace(/^ +/, "").length;
 
 // quotedKey(s) scans the quoted key opening s, the way yaml-subset.awk's qscan
 // does: `''` inside single quotes is one quote; inside double quotes `\"`,
-// `\\`, `\/` and `\t` are unescaped and any other `\x` is kept as written.
+// `\\`, `\/` and `\t` are unescaped and any other `\x` is kept as written (in
+// a file the parser accepted, that is only `\n`).
 // Returns { value, end } with end the index after the closing quote, or null
 // when the quote is unclosed.
 function quotedKey(s) {
