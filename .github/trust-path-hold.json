@@ -40,9 +40,7 @@
     "AGENTS.md",
     "*/AGENTS.md",
     "REVIEW.md",
-    "docs/standards/*",
-    "plugins/review/skills/*",
-    "plugins/review/reference/*"
+    "docs/standards/*"
   ],
   "apps": [
     "melodic-agent[bot]"

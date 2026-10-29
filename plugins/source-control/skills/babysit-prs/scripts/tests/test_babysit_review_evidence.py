@@ -482,8 +482,6 @@ class LaneSourceTests(Base):
                 result = self.bound(path)
                 for lane in LANES:
                     self.assertTrue(result[lane].bound, lane)
-                    # A pull_request-bound review never lane-arms (Q7).
-                    self.assertIs(result[lane].main_run, False, lane)
 
     def test_unrelated_changes_bind_as_before(self) -> None:
         result = self.bound(
@@ -1030,8 +1028,6 @@ class MainRunReviewTests(Base):
             self.assertTrue(result[lane].bound, lane)
             self.assertIsNone(result[lane].unbound_reason)
             self.assertEqual(result[lane].open_findings, 0)
-            # Owner decision Q7: only this binding lane-arms a `gate` path.
-            self.assertIs(result[lane].main_run, True, lane)
         self.assertEqual(result["claude-security-review"].blocking_findings, 0)
 
     def test_a_verdict_on_a_diff_with_a_line_past_the_cap_does_not_bind(self) -> None:
@@ -1063,7 +1059,6 @@ class MainRunReviewTests(Base):
         result = self.main_bind([main_review("claude-review")])
         self.assertTrue(result["claude-review"].bound)
         self.assertUnbound(result["claude-security-review"], "lane-source-changed")
-        self.assertIs(result["claude-security-review"].main_run, False)
 
     def test_a_review_of_another_head_or_tree_does_not_bind(self) -> None:
         for review in (
@@ -1073,7 +1068,6 @@ class MainRunReviewTests(Base):
             with self.subTest(review["verdict"]):
                 result = self.main_bind([review])
                 self.assertUnbound(result["claude-review"], "lane-source-changed")
-                self.assertIs(result["claude-review"].main_run, False)
 
     def test_a_run_not_from_mains_definition_does_not_bind(self) -> None:
         for fields in (

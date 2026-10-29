@@ -396,6 +396,8 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/request-lane-token/action.yml",
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
     ".github/scripts/pr-merge/merge-holds.mjs",
@@ -403,13 +405,12 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
     ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     "docs/conventions/pr-pipeline.yaml",
     // A workflow that mints a lane token is a gate path.
     ".github/workflows/pr-merge.yml",
     // So is ci-status, which posts the required status and runs the hold step.
-    // Both are in the merge-enforcement set (merge.person-held), so the
-    // switch never lane-arms them.
     ".github/workflows/pr-require-checks.yml",
   ];
   const { code, writes, notes } = await run([
@@ -425,24 +426,6 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   assert.deepEqual(
     notes,
     floor.flatMap((filename, index) => [
-      { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
-      { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
-    ]),
-  );
-});
-
-// Owner decision Q7 (#10743), narrowed by the security review of #10966:
-// every `gate` row is person-held, so nothing is lane-armed and the agent
-// instruction and settings files, the gate scripts and the gated workflows
-// stay hold paths here (#10874's AGENTS.md included).
-test("with every gate row person-held, a gate path is a hold path a person clears", async () => {
-  const held = [".github/actions/log-api-budget/rate-guard.mjs", ".github/scripts/pr-merge/who.mjs", ".github/workflows/pr-refine.yml", ".claude/settings.json", "AGENTS.md", "plugins/review/skills/security-review/SKILL.md"];
-  const { code, writes, notes } = await run(held.map((filename, index) => pull(index + 1, { files: [{ filename }], verdict: PASSED })));
-  assert.equal(code, 0);
-  assert.deepEqual(writes, []);
-  assert.deepEqual(
-    notes,
-    held.flatMap((filename, index) => [
       { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
       { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
     ]),

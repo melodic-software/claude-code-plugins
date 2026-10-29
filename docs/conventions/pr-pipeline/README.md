@@ -12,7 +12,6 @@
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
 - [Review-lane holds](#review-lane-holds)
-- [Lane-armed gate paths](#lane-armed-gate-paths)
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
@@ -998,8 +997,7 @@ the rules that only tighten in
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
     `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
     `head-ref-map.mjs`.
-  - `gate`, a person merges it ([Lane-armed gate paths](#lane-armed-gate-paths): every row is
-    person-held): the rest of the merge gate's own code, which is the rate guard
+  - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
     `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
@@ -1013,8 +1011,7 @@ the rules that only tighten in
     named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
     can dispatch those credentialed workflows, `intake-reenter.yml` and
     `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
-    patch hold, so a model verdict alone never clears it; every gated workflow is person-held
-    ([Lane-armed gate paths](#lane-armed-gate-paths)). 23 workflows are gated.
+    patch hold, so a model verdict alone never clears it. 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
     `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
@@ -1134,7 +1131,10 @@ the rules that only tighten in
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
-  floor, with every pr-merge script as `gate`. No other path
+  floor, with every pr-merge script as `gate`. It also requires what the merge-enforcement code
+  (every `trust` row, and the pr-merge, action and main-run review scripts on a `gate` row)
+  imports or runs to sit on a `trust` or `gate` row; the paths it reaches today that do not are
+  pinned in `OFF_FLOOR_ALLOWED`, so a new one fails the test. No other path
   is held for being trusted (owner direction 2026-10-24): the trusted-actor list and every other
   path merge on the review lanes, which judge them. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
@@ -2448,57 +2448,6 @@ fails while the queued PR carries `pr-verify-failed`, which a pass at a new comm
 `pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
 the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
-
-## Lane-armed gate paths
-
-Owner decision Q7 ([#10743](https://github.com/melodic-software/claude-code-plugins/pull/10743#issuecomment-6486023647)):
-`merge.lane-arm-gate: true` lets a pull request held only by lane-armed `gate` floor paths merge
-with no person. A lane-armed path's hold clears only when all of these are true at the current
-head:
-
-- both review lanes are bound by the main-run review (`pr-review-main.yml`,
-  `babysit_review_evidence._main_lane`), never by a pull_request run;
-- each lane counts no open finding, any severity;
-- the pull request has no unresolved review thread (`babysit_merge.with_open_threads`).
-
-**No path is lane-armed today.** `merge.person-held` holds every `gate` row, as an independent
-security review of [#10966](https://github.com/melodic-software/claude-code-plugins/pull/10966)
-required. Every `trust` path waits for a person as well. The person-held list covers:
-
-- the pr-merge scripts with every module and script they import or run, the rate guard
-  (`rate-guard.mjs`, `rate-limits.json`) and `.github/actions/report-check-run/**`;
-- the main-run review's scripts (`.github/scripts/pr-review-main/**`);
-- the review criteria and the agent settings and instruction files (owner decision Q11):
-  `REVIEW.md`, `docs/standards/**`, the untrusted-content and instruction-exception conventions,
-  `**/.claude/**`, `**/.claude-lane/**`, `**/.mcp.json`, `**/AGENTS.md`, `**/CLAUDE.md`,
-  `**/CLAUDE.local.md`, and `plugins/review/skills/**` and `plugins/review/reference/**`, which the
-  main-run review copies from main;
-- every gated workflow. `scripts/sync-hold-floor.py` adds each row `babysit_risk.gated_workflow`
-  derives, so a workflow that gains a secret, a lane or App token, OIDC or `actions: write` is
-  person-held at once.
-
-The repository rulesets stay the owner's.
-
-`scripts/sync-hold-floor.py` controls what the switch can do:
-
-- It reads both keys through the shared YAML reader. The switch is on only when it reads exactly
-  `true`.
-- It writes them into the `LANE_ARM` blocks of `babysit_risk.py` and `merge-holds.mjs`.
-- It refuses a person-held entry that is not a `trust` or `gate` floor row.
-- With the switch on, it refuses to leave any `gate` row lane-armed.
-
-A lane-armed path would hold nothing in ci-status on its own, and two controls are still missing:
-
-- Nothing yet attests at the head that the lane-arm conditions held.
-  `pr-merge/unarmed`'s `success` cannot serve, because any token with `statuses: write` can post
-  it as the GitHub Actions bot.
-- A closure check that no person-held file loads the path.
-  `test_merge_holds_sync.py` checks only that the closure of the person-held files contains no
-  lane-armed path.
-
-The scorer, the clear-escalations same-head clear (`armedCause`) and the approval-carry refusal
-(`ungatedSince`) are built and tested against a sample lane-armed set, so they work once a set is
-allowed.
 
 ## Trust-root paths
 

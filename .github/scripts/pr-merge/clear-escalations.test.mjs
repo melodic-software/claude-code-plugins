@@ -96,12 +96,12 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
   return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
 }
 
-const run = async (w, env = {}, laneArmed = undefined) => {
+const run = async (w, env = {}) => {
   const logs = [];
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader, ...(laneArmed ? { laneArmed } : {}) }), logs };
+    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader }), logs };
   } finally {
     console.log = original;
   }
@@ -786,92 +786,6 @@ test("a lane-class label comes off at its head once nothing refuses", async () =
     assert.equal(w.reads.length, 1, reason);
     assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`, reason);
     assert.deepEqual(w.writes()[1], DELETE, reason);
-  }
-});
-
-// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a refusal recorded
-// only on `gate` paths the switch lane-arms (#10874's shape: "it changes
-// AGENTS.md, a hold path", or the risk score's `high-path:` on one) is read
-// again at its head and comes off only when the reader refuses nothing there.
-const AGENTS_PATH = "it changes AGENTS.md, a hold path";
-// The generated LANE_ARMED_FLOOR is empty while every `gate` row is
-// person-held, so these tests give the rule rows of their own.
-const ARMED = ["**/AGENTS.md", "**/.claude/**", ".github/workflows/pr-refine.yml"];
-const AGENTS_RISK = risk("high-path:**/AGENTS.md: AGENTS.md");
-test("a refusal on lane-armed gate paths alone comes off at its head once the gate's reader refuses nothing", async () => {
-  for (const reason of [
-    AGENTS_PATH,
-    `${AGENTS_PATH}\nit changes .claude/settings.json, a hold path`,
-    AGENTS_RISK,
-    risk("high-path:.github/workflows/pr-refine.yml: .github/workflows/pr-refine.yml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; evidence-unbound:claude-review: not bound: rerun-allowed"),
-  ]) {
-    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE, ARMED);
-    assert.equal(code, 0, logs.join("\n"));
-    assert.equal(w.reads.length, 1, reason);
-    assert.equal(w.writes().length, 2, reason);
-    assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`, reason);
-    assert.match(w.writes()[0].body.body, /merge\.lane-arm-gate lane-arms its gate paths/, reason);
-    assert.deepEqual(w.writes()[1], DELETE, reason);
-  }
-});
-
-test("a refusal on lane-armed gate paths stays while the gate's reader refuses anything at its head", async () => {
-  for (const evidence of [
-    // Still the person's high-path hold: a lane unbound or not main-run, a finding, an open thread.
-    reviewsNow("high-path:**/AGENTS.md: AGENTS.md"),
-    // A lane cause a lane-class label would tolerate is not enough here.
-    reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed"),
-    reviewsNow("unreadable: no agent identity"),
-    refusing("verify:fail"),
-    refusing("verify:missing"),
-    (pull) => ({ ...clean(pull), head: "c".repeat(40) }),
-  ]) {
-    for (const reason of [AGENTS_PATH, AGENTS_RISK]) {
-      const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
-      const { code, logs } = await run(w, NATIVE, ARMED);
-      assert.equal(code, 0, logs.join("\n"));
-      assert.equal(w.reads.length, 1, reason);
-      assert.deepEqual(w.writes(), [], `${reason} ${evidence}`);
-      assert.match(logs.join("\n"), /still needs a person/, reason);
-    }
-  }
-});
-
-test("with the real config every gate row is person-held, so #10874's refusal is never read or lifted", async () => {
-  for (const reason of [AGENTS_PATH, AGENTS_RISK, "it changes .claude/settings.json, a hold path"]) {
-    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE);
-    assert.equal(code, 0, logs.join("\n"));
-    assert.deepEqual(w.reads, [], reason);
-    assert.deepEqual(w.writes(), [], reason);
-    assert.match(logs.join("\n"), /one a person clears/, reason);
-  }
-});
-
-test("a refusal naming a merge-enforcement or trust path is never read or lifted at its head", async () => {
-  for (const reason of [
-    "it changes .github/workflows/pr-require-checks.yml, a hold path",
-    "it changes .github/scripts/pr-merge/merge-holds.mjs, a hold path",
-    "it changes .github/scripts/pr-merge/enable-auto-merge.mjs, a hold path",
-    "it changes .github/workflows/pr-review-main.yml, a hold path",
-    `${AGENTS_PATH}\nit changes .github/workflows/pr-merge.yml, a hold path`,
-    risk("high-path:.github/workflows/pr-require-checks.yml: .github/workflows/pr-require-checks.yml"),
-    risk("high-path:.github/actions/request-lane-token/**: .github/actions/request-lane-token/action.yml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; high-path:docs/conventions/pr-pipeline.yaml: docs/conventions/pr-pipeline.yaml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; security-finding: 1 open"),
-    // A path off the floor is a configured denied path: a person's.
-    "it changes docs/held.md, a hold path",
-    // A path a lane-armed glob matches that a trust glob matches too.
-    "it changes .github/actions/request-lane-token/.claude/x.json, a hold path",
-  ]) {
-    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE, ARMED);
-    assert.equal(code, 0, logs.join("\n"));
-    assert.deepEqual(w.reads, [], reason);
-    assert.deepEqual(w.writes(), [], reason);
-    assert.match(logs.join("\n"), /one a person clears/, reason);
   }
 });
 

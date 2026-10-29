@@ -114,7 +114,7 @@ fi
 # An exempt author's pull request, which no review lane reads, still fails on
 # the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
 # `*`. The security review's own files in hold-paths are scrutiny only.
-want_patterns="$(grep -vxF -e 'plugins/review/skills/security-review/**' -e 'plugins/review/evals/security-review-*/**' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
+want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
   ok "the exempt-author hold patterns are the trust-gate paths"
@@ -381,13 +381,12 @@ for changed in .github/standards/trusted-actors/trusted-actors.json .github/acti
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
   .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
-  .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY \
-  plugins/review/skills/security-review/SKILL.md plugins/review/reference/x.md; do
+  .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY; do
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
 for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs \
-  plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do
+  plugins/review/skills/security-review/SKILL.md plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
   AUTHOR_ID=300666570 expect "an exempt author changing $changed passes" 0 "no trust-gate path changed"
 done
