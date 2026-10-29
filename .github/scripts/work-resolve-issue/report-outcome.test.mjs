@@ -33,6 +33,7 @@ import {
   RESUMABLE,
   reusePlan,
   HOLD_LINE,
+  HUMAN_MERGE_HOLD,
   trustedLabeler,
   unmarkedAnswer,
 } from "./report-outcome.mjs";
@@ -762,7 +763,13 @@ function fakeFetch(routes) {
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
     // An issue no open PR closes, unless a route says otherwise.
-    const none = path === "/graphql" ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }] : null;
+    // A held PR's human-merge-hold label write succeeds, unless a route says otherwise.
+    const none =
+      path === "/graphql"
+        ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }]
+        : method === "POST" && /\/issues\/90\/labels$/.test(path)
+          ? [method, /./, 200, []]
+          : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
@@ -1037,7 +1044,7 @@ test("main refuses an escalation reason it does not know and writes nothing", as
   });
 });
 
-test("main on done opens a ready PR from the branch and adds no label to it", async () => {
+test("main on done opens a ready PR from the branch, labels it human-merge-hold when it holds, and writes nothing to the issue", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
@@ -1056,7 +1063,8 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
-      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
+      assert.ok(pull.body.split("\n").includes(HOLD_LINE), pull.body);
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
     },
   );
@@ -1154,7 +1162,8 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
+      // No denied-path list reads here, so the PR holds and carries the hold label.
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
@@ -1221,7 +1230,7 @@ test("main on a rerun reuses the open PR from the branch", async () => {
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
-      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
     },
   );
 });
@@ -2523,7 +2532,8 @@ test("a reused branch with another run's or no outcome opens a held PR with none
       assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
       assert.ok(!pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("model title"), pull.body);
       assert.ok(pull.body.includes("https://example/o/r/actions/runs/400"), pull.body);
-      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/labels")), Object.keys(files).join());
+      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
     });
   }
 });
@@ -2687,7 +2697,7 @@ test("a branch's own outcome wins over a summary, so the summary never stands in
 
 // main on a done run of an issue with these labels and `labeled` events, under
 // a resolved config that denies no path, so only the label can hold the PR.
-async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST }) {
+async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST, open = [], labelStatus = 200 }) {
   return withAsyncDir(
     {
       "work-outcome.json": JSON.stringify(done),
@@ -2703,14 +2713,21 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
         branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
-        ["GET", /\/pulls$/, 200, []],
+        ["GET", /\/pulls$/, 200, open],
         ["POST", /\/pulls$/, 201, { number: 90 }],
+        ["POST", /\/issues\/90\/labels$/, labelStatus, []],
+        ["PATCH", /\/pulls\/90$/, 200, {}],
+        ...HISTORY,
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       const code = await main({
         env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json"), TRUSTED_ACTORS: join(dir, "trusted.json") },
         fetch,
+        sleep: async () => {},
       });
-      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body.body };
+      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body };
     },
   );
 }
@@ -2733,6 +2750,50 @@ test("main without merge: human holds no PR and reads no label events", async ()
   const { body, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
   assert.ok(!holds(body), body);
   assert.ok(!calls.some((c) => c.path.endsWith("/events")));
+});
+
+// The hold line is body text the lanes App can edit, so a held PR also
+// carries a label only a listed person's removal lifts (ci-status's
+// human-merge hold step).
+const holdLabelPosts = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels"));
+
+test("main labels a held PR human-merge-hold right after it opens", async () => {
+  assert.equal(HUMAN_MERGE_HOLD, "human-merge-hold");
+  const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
+  assert.ok(!calls.some((c) => c.method === "PATCH"));
+});
+
+test("main puts no human-merge-hold label on a PR that does not hold", async () => {
+  const { code, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls), []);
+});
+
+test("main labels a held PR it reuses from an earlier attempt", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    open: [{ number: 90, user: { login: BOT } }],
+  });
+  assert.equal(code, 0);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+  assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["human-merge-hold"] }]);
+});
+
+test("main closes a held PR it cannot label and retries the issue", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    labelStatus: 500,
+  });
+  assert.equal(code, 0);
+  assert.ok(holdLabelPosts(calls).length >= 2, "the label write is resent");
+  assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments")).body.body;
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=retry"), comment);
+  assert.match(comment, /`hold-label-failed`/);
 });
 
 test("main ignores merge: human from a labeler who is not a listed human or the lanes App", async () => {
