@@ -364,6 +364,42 @@
         "order": 16,
         "procedure": null
       }
+    },
+    {
+      "id": "icons",
+      "title": "Icons and illustrations",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "icon set",
+        "iconography",
+        "icon size",
+        "icon stroke weight",
+        "icons look heavy",
+        "icon library",
+        "filled or outlined icons",
+        "icon meaning",
+        "illustration",
+        "spot illustration"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/icons.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [
+        "icons-imagery"
+      ],
+      "audit": {
+        "order": 14,
+        "procedure": null
+      }
     }
   ]
 }
