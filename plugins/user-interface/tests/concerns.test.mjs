@@ -79,7 +79,8 @@ test("an audit.order another row already holds is rejected", () => {
 });
 
 test("rows with distinct audit.order values are accepted", () => {
-  const errors = check(withRow((c, t) => t.concerns.push({ ...structuredClone(c), id: "motion-copy", audit: { ...c.audit, order: 5 } })));
+  const free = Math.max(...table.concerns.map((r) => r.audit.order)) + 1;
+  const errors = check(withRow((c, t) => t.concerns.push({ ...structuredClone(c), id: "motion-copy", audit: { ...c.audit, order: free } })));
   assert.deepEqual(errors, []);
 });
 
