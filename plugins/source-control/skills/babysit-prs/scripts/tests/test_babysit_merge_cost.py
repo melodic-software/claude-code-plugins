@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh
 import babysit_merge_policy as policy
 
 REPO = "owner/repo"
@@ -693,20 +694,92 @@ class CostDecision(unittest.TestCase):
         with self.assertRaisesRegex(policy.PolicyReadError, "runs past 20 pages"):
             policy.branch_activity([full(i * 100) for i in range(20)] + [[]])
 
-    def test_get_pages_reads_every_page_and_fails_on_any(self) -> None:
-        endpoint = "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
-        ok = subprocess.CompletedProcess([], 0, stdout='[[{"id":1}],[{"id":2}]]', stderr="")
-        with mock.patch.object(policy, "gh_capture", return_value=ok) as gh:
-            self.assertEqual(policy._get_pages(endpoint), (200, [[{"id": 1}], [{"id": 2}]]))
-        self.assertEqual(gh.call_args.args[0], ["api", endpoint, "--paginate", "--slurp"])
-        # gh exits nonzero when a later page fails, whatever it printed first.
-        failed = subprocess.CompletedProcess(
-            [], 1, stdout='[{"id":1}]', stderr="gh: Server Error (HTTP 502)"
+    ENDPOINT = "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+
+    def pages(self, bodies: list[Any], cursors: list[str | None]) -> tuple[Any, Any]:
+        """`_get_pages` over gh answers stubbed at the one gh seam: page n
+        answers `bodies[n]` (a status int fails it) with a Link rel="next"
+        naming `after=cursors[n]` (None: no link); `?after=c` reads the page
+        after the one whose cursor is c. Returns the result and the reads."""
+        reads: list[str] = []
+
+        def send(args: list[str], **_: Any) -> tuple[Any, dict[str, str]]:
+            reads.append(args[1])
+            assert len(reads) <= len(bodies), "read past the stubbed pages"
+            after = args[1].partition("&after=")[2]
+            n = cursors.index(after) + 1 if after else 0
+            body, cursor = bodies[n], cursors[n]
+            if isinstance(body, int):
+                return subprocess.CompletedProcess(
+                    args, 1, "", f"gh: Server Error (HTTP {body})"
+                ), {}
+            link = (
+                {}
+                if cursor is None
+                else {
+                    "link": "<https://api.github.com/repositories/1/activity?ref="
+                    f'refs%2Fheads%2Fb&per_page=100&after={cursor}>; rel="next"'
+                }
+            )
+            return subprocess.CompletedProcess(args, 0, body, ""), link
+
+        with mock.patch.object(babysit_gh, "_send", side_effect=send):
+            try:
+                result: Any = policy._get_pages(self.ENDPOINT)
+            except policy.PolicyReadError as exc:
+                result = exc
+        return result, reads
+
+    @staticmethod
+    def page(start: int, size: int = 100) -> str:
+        return str([{"id": start + i} for i in range(size)]).replace("'", '"')
+
+    def test_get_pages_follows_each_cursor_to_a_short_page(self) -> None:
+        bodies = [self.page(0), self.page(100), self.page(200, 3)]
+        result, reads = self.pages(bodies, ["Y3Vy+MQ==", "c2", None])
+        self.assertEqual(result[0], 200)
+        self.assertEqual([len(page) for page in result[1]], [100, 100, 3])
+        # The cursor as the link spells it, a `+` included, after the endpoint.
+        self.assertEqual(
+            reads,
+            [
+                self.ENDPOINT,
+                f"{self.ENDPOINT}&after=Y3Vy+MQ==",
+                f"{self.ENDPOINT}&after=c2",
+            ],
         )
-        with mock.patch.object(policy, "gh_capture", return_value=failed):
-            status, pages = policy._get_pages(endpoint)
-        self.assertNotEqual(status, 200)
-        self.assertIsNone(pages)
+
+    def test_get_pages_stops_at_twenty_reads_on_a_longer_history(self) -> None:
+        bodies = [self.page(i * 100) for i in range(25)]
+        result, reads = self.pages(bodies, [f"c{i}" for i in range(25)])
+        self.assertIsInstance(result, policy.PolicyReadError)
+        self.assertIn("runs past 20 pages", str(result))
+        self.assertEqual(len(reads), 20)
+
+    def test_get_pages_refuses_a_repeated_or_missing_cursor(self) -> None:
+        for cursors, message in (
+            (["c0", "c0", "c0"], "names no new page"),
+            (["c0", None, None], "full page with no next link"),
+        ):
+            with self.subTest(cursors=cursors):
+                bodies = [self.page(0), self.page(100), self.page(200)]
+                result, reads = self.pages(bodies, cursors)
+                self.assertIsInstance(result, policy.PolicyReadError)
+                self.assertIn(message, str(result))
+                self.assertEqual(len(reads), 2)
+
+    def test_get_pages_fails_on_a_later_page_and_stops_on_one_that_is_no_list(
+        self,
+    ) -> None:
+        bodies = [self.page(0), self.page(100), 502, self.page(300)]
+        result, reads = self.pages(bodies, ["c0", "c1", "c2", None])
+        self.assertEqual(result, (502, None))
+        self.assertEqual(len(reads), 3)
+        bodies = [self.page(0), '{"message": "Not Found"}', self.page(200)]
+        result, reads = self.pages(bodies, ["c0", "c1", None])
+        self.assertEqual(result[0], 200)
+        self.assertIsNone(policy.branch_activity(result[1]))
+        self.assertEqual(len(reads), 2)
 
     def test_unran_head_names_the_first_head_pushed_since_with_no_run_of_every_lane(
         self,

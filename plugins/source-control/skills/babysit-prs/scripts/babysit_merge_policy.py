@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
@@ -53,8 +54,10 @@ from babysit_classify import (
 )
 from babysit_gh import (
     flatten_paginated_items,
+    gh_api_with_headers,
     gh_capture,
     gh_http_status,
+    gh_timeout_seconds,
     is_owner_repo_pair,
     pull_request_commits_once,
     record_pull_request_total,
@@ -396,10 +399,48 @@ def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | Non
 def _get_pages(
     endpoint: str, env: Mapping[str, str] | None = None
 ) -> tuple[int | None, Any]:
-    """`_get` of every page of `endpoint`, one payload entry per page: gh's
-    `--paginate` follows each answer's Link rel="next", a cursor included, so
-    it reads an endpoint that ignores `page`. A failure on any page fails it."""
-    return _gh_api(["api", endpoint, "--paginate", "--slurp"], env)
+    """`_get` of the activity `endpoint` page by page, one payload entry per
+    page (merge-holds.mjs `branchActivity`): the API ignores `page`, so each
+    next page is `endpoint` plus the `after` cursor of the answer's Link
+    rel="next", as the link spells it; a short page, or one that is no list,
+    ends the read. A failed read on any page gives its status and None. A full
+    page with no next link, a next link with no new cursor, or a full
+    ACTIVITY_PAGES-th page raises with no further read. The pages share the
+    one timeout a single call gets."""
+    deadline = time.monotonic() + gh_timeout_seconds()
+    pages: list[Any] = []
+    cursors: set[str] = set()
+    path = endpoint
+    while len(cursors) < ACTIVITY_PAGES:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return None, None
+        try:
+            proc, headers = gh_api_with_headers(
+                ["api", path], timeout_seconds=left, env_overrides=env
+            )
+        except (RuntimeError, ValueError, OSError):
+            return None, None
+        if proc.returncode != 0:
+            return gh_http_status(proc.stderr or ""), None
+        try:
+            page = json.loads(proc.stdout) if proc.stdout.strip() else None
+        except ValueError:
+            return None, None
+        pages.append(page)
+        if not is_json_array(page) or len(page) < 100:
+            return 200, pages
+        following = re.search(r'<([^>]*)>;\s*rel="next"', headers.get("link", ""))
+        if following is None:
+            raise PolicyReadError(
+                "the branch's push history has a full page with no next link"
+            )
+        after = re.search(r"[?&]after=([^&#]+)", following[1])
+        if after is None or after[1] in cursors:
+            raise PolicyReadError("the branch's push history names no new page")
+        cursors.add(after[1])
+        path = f"{endpoint}&after={after[1]}"
+    raise PolicyReadError(f"the branch's push history runs past {ACTIVITY_PAGES} pages")
 
 
 def _gh_api(args: list[str], env: Mapping[str, str] | None) -> tuple[int | None, Any]:
@@ -2565,9 +2606,9 @@ def branch_activity(pages: Any) -> list[Any] | None:
     """The head branch's activity from `_get_pages`' one entry per page, newest
     first, read to its end (merge-holds.mjs `branchActivity`): the API keeps a
     branch name's history across deletions, so a name recreated for each sync
-    fills any one page. gh stops at the first answer with no next link, and
-    only a short page ends the history, so a full last page raises, as does
-    more than ACTIVITY_PAGES pages. No page, or a page that is no list, gives
+    fills any one page. Only a short page ends the history, so a full last
+    page raises, as does more than ACTIVITY_PAGES pages; `_get_pages` raises
+    both before reading on. No page, or a page that is no list, gives
     None (`unran_head`'s unreadable)."""
     if (
         not is_json_array(pages)
