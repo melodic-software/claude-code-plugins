@@ -9,8 +9,10 @@ bump: patch
   `trust-path-hold-off[bot]`, a login no App holds, in place of `melodic-agent[bot]`, so neither
   ci-status's inline hold nor ci-workflows' `pr-require-checks-trust-paths` (through the
   regenerated `.github/trust-path-hold.json`) holds an agent App pull request for a person. The
-  list keeps one entry because the shared workflow fails on an empty one. Listing
-  `melodic-agent[bot]` again restores the hold.
+  list keeps one entry because the shared workflow fails on an empty one. Restoring both holds
+  takes two steps: list `melodic-agent[bot]` again and set `merge.diff-check.path-holds` true.
+  Listing the App alone restores only ci-workflows' hold, since ci-status's inline hold runs only
+  while `path-holds` is true.
 - ci-status no longer holds a Dependabot, release-App or standards-sync-App pull request for
   changing a trust-gate path. `scripts/sync-hold-floor.py` writes ci-status's exempt-author
   `hold_patterns` only while `merge.diff-check.path-holds` is true and an empty list otherwise;
