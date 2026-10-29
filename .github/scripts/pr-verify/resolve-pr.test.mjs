@@ -1104,11 +1104,11 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
 test("the done-when items intake's split refinement lists as checks a person runs reach the verifier beside the untouched body", async () => {
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
-  const split = (text = body, extra = {}) => ({
+  const split = (text = body, extra = {}, items = [2]) => ({
     databaseId: 5,
     createdAt: "2026-10-15T00:00:00Z",
     updatedAt: "2026-10-15T00:00:00Z",
-    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine([2])}\n**Refinement.**`,
+    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine(items)}\n**Refinement.**`,
     author: lanes,
     lastEditedAt: null,
     editor: null,
@@ -1126,6 +1126,8 @@ test("the done-when items intake's split refinement lists as checks a person run
     ["a record for another body", [split(`${body}\n- [ ] Added since.`)]],
     ["an edited refinement", [split(body, { lastEditedAt: "2026-10-16T00:00:00Z", editor: lanes })]],
     ["a refinement posted after the pull request opened", [split(body, { createdAt: "2026-10-20T00:00:01Z" })]],
+    ["a record naming an item the lane can perform", [split(body, {}, [1])]],
+    ["a record naming a runnable item beside the person-only one", [split(body, {}, [1, 2])]],
   ]) {
     const result = await entry(nodes, overrides);
     assert.equal(result.body, body, why);

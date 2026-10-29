@@ -54,7 +54,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems } from "../intake-triage/admit.mjs";
+import { loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems, unrunnableCriteria } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -515,7 +515,12 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
     specText: issues.map((issue) => {
       const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
       const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
-      const checks = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList);
+      // Only items the lane cannot perform: with no web-host list every
+      // outside host counts, so each item admission let the record take out
+      // is among them, and a record naming a runnable item names none.
+      const moved = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList);
+      const flagged = new Set(unrunnableCriteria(issue.body, taskList, undefined).found.map(({ n }) => n));
+      const checks = moved.every((n) => flagged.has(n)) ? moved : [];
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
