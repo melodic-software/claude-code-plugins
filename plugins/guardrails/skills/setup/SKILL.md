@@ -265,7 +265,8 @@ full rules. Never runs from bare `apply`.
   `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
   this skill ever performs are `apply install-git-hooks`' entry copies (at `scope=user`, the
-  stable copy under the user's git config directory) and the decisions it applies, the `apply install-read-deny` rules in the settings file its scope names, the
-  confirmed `apply identity-domains` map, and `apply`'s confirmed cleanup of the retired hooks.
+  stable copy under the user's git config directory) and the decisions it applies, the
+  `apply install-read-deny` rules in the settings file its scope names, the confirmed
+  `apply identity-domains` map, and `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.
