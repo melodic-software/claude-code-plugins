@@ -1433,6 +1433,27 @@ class TestBriefIntent(SessionCase):
             ],
         )
 
+    def test_a_repeated_ask_or_note_is_listed_each_time(self):
+        events = [
+            event(1, "Q1", "ask", text="Why?"),
+            event(2, None, "note", text="Nightly only."),
+            event(3, "Q1", "ask", text="Why?"),
+            event(4, None, "note", text="Nightly only."),
+        ]
+        self.session([question("Q1")], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                "none stated",
+                "",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+            ],
+        )
+
     def test_the_note_that_gave_the_intent_is_not_repeated(self):
         events = [
             event(1, None, "note", text="Ship it  so I stop\nbabysitting builds."),

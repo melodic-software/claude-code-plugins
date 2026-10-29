@@ -1115,13 +1115,15 @@ USER_WORDS = {
     "alt": "chose ({alt}) with note",
     "hedged": "accepted on condition",
 }
+CHOICE_WORDS = ("accept", "alt", "hedged")
 
 
 def user_words(rows, events, intent):
     """One Intent bullet per live ask, note, own event and choice typed with a note, in event
     order: its question's Q<N> (a note names none) and its text as typed, whitespace runs one
-    space. An undone or withdrawn event is left out, and so are a repeat of a line already
-    listed and the note that gave the intent paragraph."""
+    space. An undone or withdrawn event is left out, and so are a choice repeating a line already
+    listed and the note that gave the intent paragraph; a repeated ask, note or own answer is
+    listed again."""
     labels = {r["q"]["id"]: brief_label(r) for r in rows}
     undone = {e.get("undoSeq") for e in events if e.get("kind") == "undo"}
     said = " ".join(str(intent or "").split())
@@ -1139,8 +1141,9 @@ def user_words(rows, events, intent):
         label = USER_WORDS[kind].format(alt=clean(e.get("alt")))
         line = f"- {where}{label}: {text}"
         # A Reconfirm posts the kept choice and its note again.
-        if line not in out:
-            out.append(line)
+        if kind in CHOICE_WORDS and line in out:
+            continue
+        out.append(line)
     return out
 
 
