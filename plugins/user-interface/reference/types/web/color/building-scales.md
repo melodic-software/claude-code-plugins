@@ -108,7 +108,8 @@ role assignments swap.
 
 Raised surfaces still have to come out lighter than the surface beneath them after the swap: check
 them against the layering rule in `../color.md`, section 8. How the theme switches
-(`color-scheme`, a theme attribute, first paint) is the `theming` concern.
+(`color-scheme`, a theme attribute) is the `theming` concern; the right theme at first paint is
+the `layout-stability` concern.
 
 ## The case against HSL ramps
 

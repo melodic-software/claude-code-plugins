@@ -60,10 +60,10 @@ it, and what that finding looks like.
    markdown; every concept gets a visual example.
 8. **Blogs and changelogs are feeds.** Ship RSS, balance headings.
 
-Principles 3 and 4 are implemented and checked in the `web-performance` concern (font and image
-preloading, static generation with revalidation); a finding there is counted once, not again here.
-Where the project already has a font loading strategy, that strategy wins over principle 4, as it
-does in the `typography` concern; `web-performance` owns the preload mechanism. Fabricated proof on a marketing page (invented logos, testimonials, user counts) is the
+Principles 3 and 4 are implemented and checked in their own concerns: font preloading in
+`layout-stability`, image preloading and static generation with revalidation in `web-performance`;
+a finding there is counted once, not again here. Where the project already has a font loading
+strategy, that strategy wins over principle 4, as it does in the `typography` concern. Fabricated proof on a marketing page (invented logos, testimonials, user counts) is the
 `generic-defaults` concern's. What to animate, how long and with which easing, and reduced motion
 are the `motion` concern's.
 
@@ -220,7 +220,8 @@ default `name` / `short_name`.
 
 The hero is the LCP element and the first thing that can go wrong. Check it at 375px wide, where a
 long word in a large size overflows the viewport. The rules underneath belong to their own concerns,
-one home each: fonts and the hero image preloaded with dimensions to `web-performance`, the hero's
+one home each: preloaded fonts to `layout-stability`, the hero image preloaded with dimensions to
+`web-performance`, the hero's
 `min-height` in small-viewport units to `touch`, and the balanced headline to `typography`.
 
 **Audit: Important.** A hero that shifts on load or overflows the viewport at 375px wide.

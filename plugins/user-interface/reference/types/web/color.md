@@ -24,7 +24,8 @@ recipe `one-focus-ring-with-focus-visible`. Read the file below that matches the
 | detect reports Tailwind | `color/tailwind.md` |
 
 The colors of a dark theme, including the lightness order of its surfaces, are here (section 8);
-how the theme switches (`color-scheme`, a theme attribute, first paint) is the `theming` concern.
+how the theme switches (`color-scheme`, a theme attribute) is the `theming` concern, and the right
+theme at first paint is the `layout-stability` concern.
 Borders and shadows as depth (which one to use, layered shadows)
 are the `shape-and-depth` concern; the color of a 1px border is here (section 8). The principle of
 semantic tokens and perceptual color spaces is stated in the `web-layout` concern; the detailed

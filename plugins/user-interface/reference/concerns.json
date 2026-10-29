@@ -400,6 +400,42 @@
         "order": 14,
         "procedure": null
       }
+    },
+    {
+      "id": "layout-stability",
+      "title": "Layout stability",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "layout shift",
+        "content jumps",
+        "page jumps on load",
+        "numbers jump",
+        "tabular numbers",
+        "reserve space",
+        "image dimensions",
+        "skeleton size",
+        "bold on hover",
+        "flash on refresh",
+        "banner pushes content",
+        "long names break the layout"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/layout-stability.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 3,
+        "procedure": null
+      }
     }
   ]
 }

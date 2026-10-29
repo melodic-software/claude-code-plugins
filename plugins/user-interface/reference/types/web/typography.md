@@ -80,7 +80,8 @@ timer, price or counter nudges its neighbors on every tick, and a number column 
 tables) doesn't stack and reads as chaos. `font-variant-numeric: tabular-nums` gives all digits one
 width and the jitter disappears. Recipe: `tabular-numbers`.
 
-**Audit: Important.** Proportional figures on a number that updates in place or in a number column.
+**Audit: Important.** Proportional figures in a number column. A number that updates in place is
+graded in the `layout-stability` concern.
 
 ## 2. Hierarchy
 
@@ -148,7 +149,7 @@ add `overflow-wrap: break-word`. Anywhere a mid-label break would read as a bug 
 key-value labels) pin it with `white-space: nowrap`. Recipe:
 `long-text-that-wraps-truncates-or-clamps`.
 
-**Audit: Important.** User-supplied or long unbroken text that can overflow its container.
+Text that overflows its container is graded in the `layout-stability` concern.
 
 **Truncation must leave a path to the full text.** One line: `white-space: nowrap`,
 `overflow: hidden`, `text-overflow: ellipsis`. Several lines: `line-clamp`. Either way you're hiding

@@ -93,7 +93,7 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
 | [reference/foundations.md](reference/foundations.md) | a reset or base stylesheet, color tokens, dark mode, a type or spacing scale |
 | [reference/layout.md](reference/layout.md) | a page container, a card grid, aligned card parts, a sidebar, a component in slots of different widths, overlapping layers, centered content that can overflow |
 | [reference/spacing-and-shape.md](reference/spacing-and-shape.md) | section spacing, stacked elements, one item pushed to the end of a row, nested rounded corners |
-| [reference/text-and-media.md](reference/text-and-media.md) | user or CMS text and images, icons beside labels, off-center labels, numbers in a column |
+| [reference/text-and-media.md](reference/text-and-media.md) | user or CMS text and images, icons beside labels, off-center labels, numbers in a column or that change in place, media that loads late |
 | [reference/interaction.md](reference/interaction.md) | focus, hover and press states, small tap targets, clickable cards, form validation, textareas, parent state, scroll lock behind a modal |
 | [reference/motion.md](reference/motion.md) | easing and duration tokens, one state driving several values, hover shadows, page transitions, a sliding tab indicator |
 | [reference/show-and-hide.md](reference/show-and-hide.md) | a dialog, popover, dropdown menu or accordion |
