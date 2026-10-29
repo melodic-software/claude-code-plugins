@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: map-refreshes-each-control-skill
-description: A bare unattended refresh over two control skills refreshes each in turn on its own upkeep branch and returns to the starting branch between them
+description: A bare unattended refresh over two control skills refreshes each in turn on its own upkeep branch and returns to the starting branch between them. A run needs --scaffold, which seeds both control skills on main
 tags: [map, refresh, branch, unattended, invented]
 expected_outcome: "The reply finds both control skills and, without asking which, plans them one after the other: control-admin's correction committed on control-skill-upkeep/control-admin and control-shop's on control-skill-upkeep/control-shop, each branch created from main, each commit holding only that skill's files and going out in that skill's own pull request. Between the two skills it switches back to main, the branch the pass started on, so the second skill is never refreshed on the first skill's upkeep branch. Nothing is switched, written or committed in this session."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/app-control:map refresh --unattended. Read the control skills, but do not drive the app, switch branches, write or commit anything in this session. The pass starts on main. For each control skill, treat the decide step as printing `run` and the source wave and live pass as already run: control-admin's users feature now lives at `/admin/users` (admin/users.py:4), which works, and `/admin/people` returns 404; control-shop's cart button is now labeled `Add to cart` (shop/cart.py:9) and works. Nothing else differs. In order, name each branch you would be on for each control skill, where each commit goes, which pull request each change goes in, and what happens between the two skills, then stop."
+  prompt: "/app-control:map refresh --unattended. Read the control skills, but do not drive the app, switch branches, write or commit anything in this session. The pass starts on main. There is no shell: `git ls-files` lists every control skill file, and `git status --porcelain --untracked-files=all` from the repository root prints nothing, before and between the two skills. For each control skill, treat the decide step as printing `run` and the source wave and live pass as already run: control-admin's users feature now lives at `/admin/users` (admin/users.py:4), which works, and `/admin/people` returns 404; control-shop's cart button is now labeled `Add to cart` (shop/cart.py:9) and works. Nothing else differs. In order, name each branch you would be on for each control skill, where each commit goes, which pull request each change goes in, and what happens between the two skills, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 10
   timeout_seconds: 400

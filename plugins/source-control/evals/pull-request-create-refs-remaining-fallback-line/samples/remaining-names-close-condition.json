@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #820\n\n## Summary\n\nWrites a UTF-8 byte order mark, the first step on #820.\n\n## Verification\n\n- Unit tests pass.\n\n## Remaining\n\nThis PR delivers the byte order mark; #820 closes once the export opens cleanly in spreadsheet tools.\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #820\n\n## Remaining\n\nIssue #820 is closed when quoting also lands.\n"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #820\n\n## Summary\n\nCloses later.\n\n## Remaining\n\nMore work.\n"
+          }
+        }
+      ],
+      "why": "the close condition sits outside Remaining"
+    }
+  ]
+}
