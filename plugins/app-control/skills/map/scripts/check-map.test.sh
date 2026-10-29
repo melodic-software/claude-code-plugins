@@ -349,6 +349,17 @@ replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
 replace "$SKILL/SKILL.md" "Stop the process the launch started." 'Stop the process the launch started, then run `docker ps`.'
 assert_equals "ready-listing: code span in prose, other sections skipped" "$(run_check)" \
   "ready-listing | SKILL.md | kubectl get pods -l app=shop: $LISTING_DETAIL"
+# A kubectl get that names an object exits 1 when it is missing, so it is not a listing.
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get deploy/shop"
+assert_equals "ready-listing: kubectl get type/name" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -n 'shop' pod shop-db-0 -o wide"
+assert_equals "ready-listing: kubectl get type name, flags around it" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -l 'app=shop' pods -A"
+assert_equals "ready-listing: kubectl get with a quoted flag value is still a listing" "$(run_check)" \
+  "ready-listing | SKILL.md | kubectl get -l 'app=shop' pods -A: $LISTING_DETAIL"
 
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"

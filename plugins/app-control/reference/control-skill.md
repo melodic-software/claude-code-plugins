@@ -53,9 +53,10 @@ the files that implement the feature, relative to the project directory that hol
 ## The Ready command
 
 Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
-it must exit non-zero when the thing it checks is wrong. A listing (`docker ps`, `kubectl get`)
+it must exit non-zero when the thing it checks is wrong. A listing (`docker ps`, `kubectl get pods`)
 exits 0 when its filter matches nothing and it prints no rows, and exits 0 just the same when it
-prints another app's row. End each listing with `grep -q` on the row the app's own instance prints,
+prints another app's row. A `kubectl get` that names an object (`kubectl get deploy/shop`) is not
+a listing: it exits non-zero when the object is missing. End each listing with `grep -q` on the row the app's own instance prints,
 never with the listing alone. A Ready with a url placeholder runs without a shell
 ([Environments](#environments)), where `|` and `&&` are plain arguments: put the listing check in a
 `cli/` command or a script that exits non-zero itself, and name that from Ready.
