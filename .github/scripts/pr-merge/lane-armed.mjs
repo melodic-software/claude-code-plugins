@@ -14,10 +14,15 @@
 // A row attests only when the gate recorded `laneArmed` with no refusal (both
 // review lanes bound to a clean main-run review of the head, no open review
 // thread, a risk score and verdict that pass: babysit_risk.lane_arm_record),
-// the row's head is its pull request's head, and the head does not shrink the
-// hold floor against the base: every FLOOR_CLASSES and HOLD_PATH_CLASSES row
-// of the base stays at the head with its class or a stricter one, and the
-// head lane-arms nothing the base does not. Any read that fails refuses.
+// the row's head is its pull request's head, and its change leaves the hold
+// floor whole (floorChange). The head's text is never parsed: a decoy marker
+// pair in a docstring or block comment, or a row inside an expression that
+// drops it, would fool any text parse short of the language's own. The
+// change is judged instead, against the base's marked regions (main's copy,
+// so trusted): in each floor-definition file a patch line may name a floor
+// marker or a hold identifier only as an added row of the exact generated
+// shape inside a base region. A removed row is a shrink. Any read that fails,
+// a missing patch, or a cut-short file list refuses.
 //
 // Each attestation is one countable record: the line `lane-armed {...}` in
 // the check run's summary, printed again as a `::notice::`. Each refusal
@@ -46,64 +51,164 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]*$/;
 const RISK = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
 const HOLDS = ".github/scripts/pr-merge/merge-holds.mjs";
-const RANK = { enforcement: 1, gate: 2, trust: 3 };
+const LANE_ARMED_MJS = ".github/scripts/pr-merge/lane-armed.mjs";
+// The files that define the floor or how it is read; every other file holding
+// a generated floor block (the review callers, pr-require-checks.yml,
+// scripts/sync-hold-floor.py) is person-held, so the gate never attests it.
+export const FLOOR_FILES = Object.freeze([RISK, HOLDS, LANE_ARMED_MJS]);
+const MARKER = /\b(?:BEGIN|END) (?:floor-rows|hold-floor)\b/;
+// The names that hold the floor tables and the sets derived from them.
+const IDENTIFIER =
+  /\b(?:FLOOR|FLOOR_CLASSES|HOLD_PATH_CLASSES|HOLD_PATH_FLOOR|HIGH_FLOOR|REVIEW_FLOOR|AUTHOR_REVIEW_FLOOR|AUTHOR_REVIEW_CLASSES|PERSON_CLASSES|PERSON_HELD|_NO_AUTHOR_LIFT|GATE_WORKFLOWS|COST_PATHS|LANE_ARM\w*)\b/;
 const LANES = ["claude-review", "claude-security-review"];
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // The marker pairs that bound each file's floor rows and its generated
-// LANE_ARMED list: only rows between them count, so a row kept in a comment
-// or string elsewhere in the file is no decoy.
-const ROW_MARKERS = { [RISK]: "floor-rows FLOOR_CLASSES", [HOLDS]: "hold-floor HOLD_PATH_CLASSES" };
+// LANE_ARMED list, and the one shape each line between them may take: a
+// comment, or exactly what the generator writes. Any other line (a spread, a
+// slice, a block comment, a string spanning lines) could evaluate to a list
+// that differs from its text, so it refuses.
+const GLOB = String.raw`"([^"\\]+)"`;
+const KIND = String.raw`"(trust|gate|enforcement)"`;
+const SHAPES = {
+  [RISK]: {
+    rows: "floor-rows FLOOR_CLASSES",
+    comment: /^\s*#(?: .*)?$/,
+    row: new RegExp(String.raw`^    \(${GLOB}, ${KIND}\),$`),
+    armed: [/^LANE_ARM_GATE = (?:True|False)$/, /^LANE_ARMED: tuple\[str, \.\.\.\] = \($/, /^PERSON_HELD: tuple\[str, \.\.\.\] = \($/, /^\)$/],
+  },
+  [HOLDS]: {
+    rows: "hold-floor HOLD_PATH_CLASSES",
+    comment: /^\s*\/\/(?: .*)?$/,
+    row: new RegExp(String.raw`^  \[${GLOB}, ${KIND}\],$`),
+    armed: [/^export const LANE_ARM_GATE = (?:true|false);$/, /^export const LANE_ARMED = Object\.freeze\(\[$/, /^export const PERSON_HELD = Object\.freeze\(\[$/, /^\]\);$/],
+  },
+};
 const ARMED_MARKER = "hold-floor LANE_ARM";
+const ENTRY = { [RISK]: new RegExp(String.raw`^    ${GLOB},$`), [HOLDS]: new RegExp(String.raw`^  ${GLOB},$`) };
 
-// The text strictly between the one `BEGIN <name>` and the one `END <name>`
-// comment line, or null when either is missing or repeated, END comes first,
-// or the region holds, outside a one-line string, a block comment or a
-// multi-line string that could hide a row from the code.
-export function region(text, name) {
-  const lines = String(text).split("\n");
-  const at = (word) => lines.flatMap((line, i) => (new RegExp(`^\\s*(?:#|//) ${word} ${name}(?::.*)?$`).test(line) ? [i] : []));
+// The 1-based line numbers of the one `BEGIN <name>` and the one
+// `END <name>` comment line, or null when either is missing or repeated, or
+// END comes first.
+export function bounds(lines, name) {
+  const at = (word) => lines.flatMap((line, i) => (new RegExp(`^\\s*(?:#|//) ${word} ${name}(?::.*)?$`).test(line) ? [i + 1] : []));
   const [begin, end] = [at("BEGIN"), at("END")];
-  if (begin.length !== 1 || end.length !== 1 || begin[0] >= end[0]) {
-    return null;
-  }
-  const inside = lines.slice(begin[0] + 1, end[0]).join("\n");
-  // Globs hold `/*`, so string literals are dropped before the check.
-  return /\/\*|\*\/|"""|'''|`/.test(inside.replaceAll(/"[^"\n]*"/g, '""')) ? null : inside;
+  return begin.length === 1 && end.length === 1 && begin[0] < end[0] ? { begin: begin[0], end: end[0] } : null;
 }
 
-// The floor rows and lane-armed globs `path`'s text declares inside its
-// markers: babysit_risk.py `("glob", "class"),` and merge-holds.mjs
-// `["glob", "class"],` rows, and the entries of its generated LANE_ARMED
-// list. Null when a region is unreadable or holds none.
+// The base copy of `path` (a floor table file) read exactly: its rows region
+// and LANE_ARM region, each line between the markers a comment or the shape
+// the generator writes, and which LANE_ARM list each base line sits in. Null
+// on any other line, a marker missing, repeated or out of order, or no row.
 export function floorOf(text, path) {
-  const rowsText = region(text, ROW_MARKERS[path]);
-  const armedText = region(text, ARMED_MARKER);
-  if (rowsText === null || armedText === null) {
+  const shape = SHAPES[path];
+  const lines = String(text).split("\n");
+  const rows = shape && bounds(lines, shape.rows);
+  const armed = shape && bounds(lines, ARMED_MARKER);
+  if (!rows || !armed) {
     return null;
   }
-  const rows = new Map();
-  for (const [, glob, kind] of rowsText.matchAll(/^\s*[[(]"([^"]+)", "(trust|gate|enforcement)"[\])],$/gm)) {
-    rows.set(glob, kind);
+  const kinds = new Map();
+  for (const line of lines.slice(rows.begin, rows.end - 1)) {
+    const row = shape.row.exec(line);
+    if (row) kinds.set(row[1], row[2]);
+    else if (!shape.comment.test(line)) return null;
   }
-  const block = /LANE_ARMED(?::[^=]*)? = (?:Object\.freeze\()?[[(]\n([\s\S]*?)\n\s*[\])]/.exec(armedText);
-  if (rows.size === 0 || !block) {
-    return null;
+  const lists = new Map([[armed.begin, null]]);
+  let list = null;
+  for (let n = armed.begin + 1; n < armed.end; n += 1) {
+    const line = lines[n - 1];
+    if (ENTRY[path].test(line)) {
+      if (list === null) return null;
+    } else if (shape.armed[1].test(line)) list = "LANE_ARMED";
+    else if (shape.armed[2].test(line)) list = "PERSON_HELD";
+    else if (shape.armed[3].test(line)) list = null;
+    else if (!shape.armed[0].test(line) && !shape.comment.test(line)) return null;
+    lists.set(n, list);
   }
-  return { rows, armed: [...block[1].matchAll(/"([^"]+)"/g)].map(([, glob]) => glob) };
+  return kinds.size === 0 ? null : { shape, rows, armed, kinds, lists };
 }
 
-// Why `head` (floorOf) shrinks `base`'s floor, or null.
-export function shrinks(base, head) {
-  if (!base || !head) {
-    return "the floor rows could not be read";
+// Each changed line of a unified-diff `patch`: { sign, text, at }, where `at`
+// is the base line a removed line was, or the base line an added line
+// follows. Null for a patch that is not a well-formed diff.
+export function patchLines(patch) {
+  if (typeof patch !== "string" || !patch.startsWith("@@")) return null;
+  const out = [];
+  let old = null;
+  for (const line of patch.split("\n")) {
+    const hunk = /^@@ -(\d+)(,\d+)? \+\d+(?:,\d+)? @@/.exec(line);
+    if (hunk) {
+      // A pure insertion's header names the line it follows.
+      old = Number(hunk[1]) + (hunk[2] === ",0" ? 1 : 0);
+      continue;
+    }
+    if (old === null) return null;
+    const [sign, text] = [line[0], line.slice(1)];
+    if (sign === " ") old += 1;
+    else if (sign === "-") out.push({ sign, text, at: old++ });
+    else if (sign === "+") out.push({ sign, text, at: old - 1 });
+    else if (sign !== "\\" && line !== "") return null;
   }
-  for (const [glob, kind] of base.rows) {
-    if (!head.rows.has(glob)) return `it removes the floor row ${glob}`;
-    if (RANK[head.rows.get(glob)] < RANK[kind]) return `it moves ${glob} from ${kind} to ${head.rows.get(glob)}`;
+  return out;
+}
+
+// Why the change `patch` to floor-definition file `path` could weaken the
+// floor, or null. `base` is floorOf of the base copy, required for a floor
+// table file.
+export function floorChange(path, patch, base) {
+  const changes = patchLines(patch);
+  if (changes === null) return `${path} has no readable patch`;
+  const table = path !== LANE_ARMED_MJS;
+  if (table && !base) return `the base copy of ${path} cannot be read exactly`;
+  for (const { sign, text, at } of changes) {
+    const what = `${sign === "+" ? "an added" : "a removed"} line of ${path}`;
+    if (MARKER.test(text)) return `${what} names a floor marker`;
+    // A removed line sits strictly between the markers; an added one follows
+    // BEGIN or a line before END.
+    const inside = (r) => (sign === "-" ? r.begin < at && at < r.end : r.begin <= at && at < r.end);
+    if (table && inside(base.rows)) {
+      const row = base.shape.row.exec(text);
+      if (sign === "-" && row) return `it removes the floor row ${row[1]}`;
+      if (sign === "-" ? !base.shape.comment.test(text) : !row) return `${what} inside the floor rows is not a row of the generated shape`;
+      continue;
+    }
+    if (table && inside(base.armed)) {
+      if (sign === "+" && ENTRY[path].test(text) && base.lists.get(at) === "PERSON_HELD") continue;
+      return `${what} changes the generated LANE_ARM block other than by a person-held entry`;
+    }
+    const named = IDENTIFIER.exec(text);
+    if (named) return `${what} names ${named[0]} outside the floor rows`;
   }
-  const added = head.armed.find((glob) => !base.armed.includes(glob));
-  return added === undefined ? null : `it lane-arms ${added}, which the base does not`;
+  return null;
+}
+
+// Every file of pull request `number`, or null when GitHub lists fewer than
+// `changed` (its cap is 3000).
+async function pullFiles(github, repo, number, changed) {
+  const files = [];
+  for (let page = 1; page <= 30; page += 1) {
+    const batch = await github("GET", `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error(`#${number} files page ${page} is not a list`);
+    files.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return Number.isSafeInteger(changed) && files.length >= changed ? files : null;
+}
+
+// Why the pull request's change could weaken the floor, or null.
+async function floorRefusal(github, repo, pull, number) {
+  const files = await pullFiles(github, repo, number, pull.changed_files);
+  if (!files) return "its file list is cut short";
+  for (const file of files) {
+    const touched = [file.filename, file.previous_filename].filter((name) => FLOOR_FILES.includes(name));
+    if (touched.length === 0) continue;
+    if (file.status !== "modified" || file.previous_filename) return `it ${file.status} ${touched[0]}`;
+    const base = file.filename === LANE_ARMED_MJS ? null : floorOf(await text(github, repo, file.filename, pull.base.sha), file.filename);
+    const why = floorChange(file.filename, file.patch, base);
+    if (why) return why;
+  }
+  return null;
 }
 
 // The record an attestation carries, from a summary row and this run.
@@ -182,13 +287,9 @@ export async function main({ env = process.env, github, fetchImpl, mode = proces
           refuse("the head the gate judged is not the pull request's head");
           continue;
         }
-        // Each file against its own base copy: either one is what runs.
-        let shrunk = null;
-        for (const path of [RISK, HOLDS]) {
-          shrunk ??= shrinks(floorOf(await text(github, repo, path, pull.base.sha), path), floorOf(await text(github, repo, path, row.head), path));
-        }
+        const shrunk = await floorRefusal(github, repo, pull, row.pr);
         if (shrunk) {
-          refuse(`the head shrinks the hold floor: ${shrunk}`);
+          refuse(`its change could weaken the hold floor: ${shrunk}`);
           continue;
         }
         const record = recordOf(row, env.GITHUB_RUN_ID);

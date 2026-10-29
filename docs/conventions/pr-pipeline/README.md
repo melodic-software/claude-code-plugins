@@ -2485,12 +2485,18 @@ A lane-armed path clears only when all of these hold at the current head:
 2. Each lane counts no open finding, any severity, and the pull request has no unresolved review
    thread (`babysit_risk.lane_armed`).
 3. The merge gate's risk score and verdict pass (`babysit_risk.lane_arm_record`).
-4. The head does not shrink the hold floor against the base: every `FLOOR_CLASSES` and
-   `HOLD_PATH_CLASSES` row stays with its class or a stricter one, and nothing new is lane-armed
-   (`lane-armed.mjs` `shrinks`). Only rows between each file's markers count (`floor-rows
-   FLOOR_CLASSES` in `babysit_risk.py`, `hold-floor HOLD_PATH_CLASSES` and `hold-floor LANE_ARM`):
-   a marker missing, repeated or out of order, or a block comment or multi-line string inside a
-   region, refuses.
+4. The change does not weaken the hold floor (`lane-armed.mjs` `floorChange`). The head's text is
+   never parsed: a decoy marker pair in a docstring or block comment, or a row inside an
+   expression that drops it, would fool any text parse. The pull request's patch to each
+   floor-definition file (`babysit_risk.py`, `merge-holds.mjs`, `lane-armed.mjs`) is judged
+   against the base's marked regions (`floor-rows FLOOR_CLASSES` in `babysit_risk.py`,
+   `hold-floor HOLD_PATH_CLASSES`, and `hold-floor LANE_ARM` in both), which main's copy holds
+   in the exact generated shape. A changed line refuses when it names a floor marker; when,
+   outside those regions, it names a floor table or a set derived from one (`FLOOR_CLASSES`,
+   `HOLD_PATH_CLASSES`, `HOLD_PATH_FLOOR`, `HIGH_FLOOR`, `REVIEW_FLOOR`, `PERSON_HELD`,
+   `LANE_ARM*` and the rest); or when, inside them, it is anything but an added row of the
+   generated shape or an added person-held entry. A removed row is a shrink. A missing patch, a
+   renamed or deleted floor file, or a file list GitHub cuts short refuses.
 
 Then pr-merge's `lane-armed` job, on a scheduled or hand-started run of main, posts the check run
 `pr-merge/lane-armed` at the head with the run's id as `external_id` and in `details_url`, and
