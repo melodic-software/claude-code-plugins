@@ -16,15 +16,30 @@ inputs:
       extra fetch of their own.
     required: false
     default: "true"
+  filter:
+    description: >
+      A git partial-clone filter for the deepening fetch, such as
+      blob:none: every commit and tree arrives, so merge-base, rev-list and
+      name-only diffs match a full fetch, and a blob outside the checked-out
+      tree is fetched when first read. Empty (the default) fetches every
+      blob. Opt in only from a job whose historical blob reads are few and
+      fail closed (two test-bash suites read four old commits that way):
+      gitleaks in lint-repo reads every blob in its range, and the bump
+      checks in check-plugins and check-skills read base blobs and treat a
+      failed read as empty, so those keep the full fetch.
+    required: false
+    default: ""
 
 runs:
   using: composite
   steps:
     - name: Deepen history
       shell: bash
+      env:
+        FILTER: ${{ inputs.filter }}
       run: |
         if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-          git fetch --prune --unshallow --no-tags
+          git fetch --prune --unshallow --no-tags ${FILTER:+"--filter=$FILTER"}
         fi
 
     - name: Fetch base ref
