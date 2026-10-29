@@ -77,7 +77,7 @@
 // after the newest removal. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -447,11 +447,24 @@ export const chargeHits = (text, { code, cost, costPrivate }, isPublic = false) 
   return [...new Set(found.map((m) => m[0].toLowerCase()))];
 };
 
+let workflowNames;
+// The file names in the default branch's .github/workflows beside this
+// script, read once.
+export function workflowFiles() {
+  workflowNames ??= new Set(
+    readdirSync(new URL("../../workflows/", import.meta.url), { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name),
+  );
+  return workflowNames;
+}
+
 // A repository path a criterion names: a backticked span or a word, less a
-// trailing `:12` or `:3-9` and punctuation. Only a relative path with a `/`,
-// or a root CODEOWNERS or .gitmodules, counts: a bare file name or an
-// absolute runner path names no file of this repository.
-const pathTokens = (text) =>
+// trailing `:12` or `:3-9` and punctuation. A relative path with a `/`, a
+// root CODEOWNERS or .gitmodules, or the bare name of a file in `workflows`
+// (as that workflow's path) counts: any other bare file name or an absolute
+// runner path names no file of this repository.
+const pathTokens = (text, workflows) =>
   [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
     .map((token) =>
       token
@@ -459,6 +472,7 @@ const pathTokens = (text) =>
         .replace(/[.,;:!?"')\]]+$/, "")
         .replace(/:\d+(-\d+)?$/, ""),
     )
+    .map((token) => (workflows.has(token) ? `.github/workflows/${token}` : token))
     .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
 
 // A line that opens its own list item, such as a nested evidence bullet.
@@ -466,15 +480,16 @@ const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
 // The paths the task-list items in `body`, with the wrapped text below each up
 // to its first nested bullet, name that apply-patch refuses under `names`
-// (issuePushRefusals), in order, each once. Pure.
-export function unpushablePaths(body, taskList, names) {
+// (issuePushRefusals), in order, each once, a bare name in `workflows`
+// (workflowFiles) read as that workflow's path. Pure.
+export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const wrapped = (more) => {
     const end = more.findIndex((index) => BULLET.test(lines[index]));
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens([text, ...wrapped(more)].join("\n")).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+    pathTokens([text, ...wrapped(more)].join("\n"), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
   );
   return [...new Set(paths)];
 }
@@ -579,7 +594,7 @@ export function admissionSettled(labels, events, isMark) {
 // `pushRefusals` and `charges`, read from patch-rules.json and
 // charge-words.json when not given; a file that does not read throws out of
 // decide, so no issue is admitted on a guess.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), charges = chargePattern() }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -652,7 +667,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for
   // nothing; this refusal parks at status: confirmed, never with a person.
-  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals);
+  // The title is not read: it names the subject, often a workflow whose
+  // script alone changes.
+  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals, workflows);
   if (unpushable.length > 0) {
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
