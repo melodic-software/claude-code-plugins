@@ -431,9 +431,8 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/work-resolve-issue/stop-routes.json",
   ".github/scripts/work-resolve-issue/stop-routes.mjs",
 ];
-// `gate` paths merge.lane-arm-gate lane-arms (owner decision Q7): the merge
-// gate holds them for a person until both review lanes are bound to a
-// main-run review of the head with no finding and no open review thread.
+// `gate` paths Q7 meant to lane-arm, all person-held since the security
+// review of #10966 (merge.person-held).
 const LANE_ARMED_FILES = [
   ".github/actions/log-api-budget/rate-guard.mjs",
   ".github/actions/log-api-budget/rate-limits.json",
@@ -446,6 +445,9 @@ const LANE_ARMED_FILES = [
   "AGENTS.md",
   "docs/CLAUDE.md",
   "docs/standards/README.md",
+  "plugins/review/skills/security-review/SKILL.md",
+  "plugins/review/reference/x.md",
+  ".github/actions/report-check-run/report-check-run.mjs",
 ];
 test("the floor's enforcement globs and the lane-armed gate globs are the merge gate's, every other one holds here", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
@@ -459,31 +461,20 @@ test("the floor's enforcement globs and the lane-armed gate globs are the merge 
     assert.equal(pathHold([path], []), null, path);
   }
 });
-test("pr-pipeline.yaml turns the switch on, and it lane-arms only gate rows outside the merge-enforcement set", () => {
+test("pr-pipeline.yaml turns the switch on, and every gate row is person-held, so nothing is lane-armed", () => {
   assert.equal(LANE_ARM_GATE, true);
   const kind = new Map(HOLD_PATH_CLASSES);
   for (const glob of PERSON_HELD) {
     assert.ok(["trust", "gate"].includes(kind.get(glob)), glob);
     assert.ok(HOLD_PATH_FLOOR.includes(glob), glob);
-    assert.ok(!LANE_ARMED_FLOOR.includes(glob), glob);
   }
-  for (const glob of LANE_ARMED_FLOOR) {
-    assert.equal(kind.get(glob), "gate", glob);
-  }
-  // The five merge-enforcement trust scripts, this module and ci-status.
-  for (const glob of [
-    ".github/scripts/pr-merge/merge-holds.mjs",
-    ".github/scripts/pr-merge/enable-auto-merge.mjs",
-    ".github/scripts/pr-merge/superseded.mjs",
-    ".github/scripts/pr-merge/clear-escalations.mjs",
-    ".github/scripts/pr-merge/gate-check.mjs",
-    ".github/scripts/pr-merge/head-ref-map.mjs",
-    ".github/workflows/pr-require-checks.yml",
-  ]) {
-    assert.ok(PERSON_HELD.includes(glob), glob);
-  }
+  // Tripwire: a non-empty set would pass ci-status on its own, with nothing
+  // yet attesting the lane-arm conditions at the head (sync-hold-floor.py
+  // refuses to generate one).
+  assert.deepEqual(LANE_ARMED_FLOOR, []);
+  assert.deepEqual(HOLD_PATH_CLASSES.filter(([, k]) => k === "gate").map(([g]) => g).filter((g) => !PERSON_HELD.includes(g)), []);
   for (const path of LANE_ARMED_FILES) {
-    assert.equal(pathHold([path], []), null, path);
+    assert.match(pathHold([path], []), /a hold path$/, path);
   }
 });
 test("the switch off, or anything but true, lane-arms nothing", () => {
@@ -494,14 +485,12 @@ test("the switch off, or anything but true, lane-arms nothing", () => {
   assert.deepEqual(laneArmedFloor(true, ["c/**"], classes), ["b/**"]);
   assert.deepEqual(laneArmedFloor(true, null, classes), []);
 });
-test("ci-status leaves a lane-armed gate path to the merge gate, and holds it beside a person-held one", async () => {
+test("ci-status holds each gate path the switch would lane-arm, since every one is person-held", async () => {
   for (const path of LANE_ARMED_FILES) {
-    const passed = await ci([{ filename: path, status: "modified" }]);
-    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
+    const held = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(held.code, 1, `${path}: ${held.out}`);
+    assert.ok(held.out.includes(`it changes ${path}, a hold path`), `${path}: ${held.out}`);
   }
-  const both = await ci([{ filename: "AGENTS.md", status: "modified" }, { filename: ".github/workflows/pr-require-checks.yml", status: "modified" }]);
-  assert.equal(both.code, 1, both.out);
-  assert.ok(both.out.includes("it changes .github/workflows/pr-require-checks.yml, a hold path"), both.out);
 });
 test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
   for (const path of ENFORCEMENT_FILES) {
@@ -875,25 +864,6 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(null, net(TF)), false);
 });
 
-// A base merge that edits the same file above the pull request's hunk shifts
-// the hunk header's line numbers and nothing else: the approval carries. Any
-// change to a hunk's body or context, or to the hunk count, does not.
-const SHIFT_FILE = (patch) => ({ filename: "docs/a.md", status: "modified", patch });
-const HUNK = "@@ -10,3 +10,4 @@ ## Section\n context\n+added\n more\n tail";
-test("sameNetChange ignores hunk header line numbers and nothing else", () => {
-  const shifted = HUNK.replace("@@ -10,3 +10,4 @@", "@@ -14,3 +14,4 @@");
-  assert.equal(sameNetChange(net(SHIFT_FILE(HUNK)), net(SHIFT_FILE(shifted))), true);
-  assert.equal(sameNetChange(net(SHIFT_FILE(`${HUNK}\n@@ -40 +41 @@\n-x\n+y`)), net(SHIFT_FILE(`${shifted}\n@@ -44 +45 @@\n-x\n+y`))), true);
-  for (const [name, other] of [
-    ["a body line", shifted.replace("+added", "+added!")],
-    ["a context line", shifted.replace(" context", " context!")],
-    ["the section heading", shifted.replace("## Section", "## Other")],
-    ["a second hunk", `${shifted}\n@@ -40 +41 @@\n-x\n+y`],
-  ]) {
-    assert.equal(sameNetChange(net(SHIFT_FILE(HUNK)), net(SHIFT_FILE(other))), false, name);
-  }
-});
-
 // The live link a pass binds, by the gate's rule (README "Eligibility"): one
 // closing issue in this repository, or, with none, one plain `Refs: #<n>`
 // issue; a pass binds only the issue it judged, linked the same way
@@ -1254,7 +1224,7 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
 // #10224's own patches: the pull request's hunks sit lower in the shared
 // file, so the base's hunk applies with the same header and context.
 const SHARED_AT_OLD = { filename: ".github/actions/collect-base-activity/collect-base-activity.test.mjs", status: "modified", patch: "@@ -93,6 +93,13 @@ let root;\n context\n+mine" };
-const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context the base edited\n+mine" };
+const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context\n+mine" };
 const SHARED_BASE = { filename: SHARED_AT_OLD.filename, status: "modified", patch: "@@ -10,6 +10,11 @@ import\n+theirs" };
 const REPLAY = { compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: merged([HELD_PATCH, SHARED_AT_HEAD]) }, across: ranges(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])) };
 test("#10224's shape carries when the merges brought exactly the base's changes", async () => {
@@ -1528,6 +1498,10 @@ test("Q10: a push that touches any hold path, a configured one or a file a hold 
     assert.equal(ungatedSince(merges, holdPaths), false, name);
   }
   assert.ok(CARRY_REFUSES.includes("scripts/**"));
+  // A lane-armed path holds nothing in pathHold, yet an approval never
+  // carries over a push touching one (owner decision Q7).
+  assert.equal(ungatedSince(pushed(["docs/armed/a.md"]), [], ["docs/armed/**"]), false);
+  assert.equal(ungatedSince(pushed(["docs/armed/a.md"]), [], []), true);
 });
 
 test("Q10: a compare not read whole, not ahead, or with a dismissal the push did not make refuses", () => {

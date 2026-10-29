@@ -18,8 +18,9 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`).
 - babysit_risk.py and merge-holds.mjs `LANE_ARM`: `merge.lane-arm-gate` (on only when it
   reads exactly `true`) and `merge.person-held` from docs/conventions/pr-pipeline.yaml, read
-  through the shared YAML reader. A person-held entry that is not a `trust` or `gate` floor
-  row, a repeated one, or a file the reader rejects stops the script.
+  through the shared YAML reader, with every gated workflow added to the person-held list. A
+  person-held entry that is not a `trust` or `gate` floor row, a repeated one, a file the
+  reader rejects, or, with the switch on, any `gate` row left lane-armed stops the script.
 """
 
 from __future__ import annotations
@@ -110,8 +111,14 @@ HELD_KEY = "merge.person-held"
 
 
 def lane_arm() -> tuple[bool, list[str]]:
-    """(`merge.lane-arm-gate` is exactly `true`, `merge.person-held`), each
-    held entry checked to be a `trust` or `gate` floor row."""
+    """(`merge.lane-arm-gate` is exactly `true`, the person-held globs):
+    `merge.person-held`, each entry checked to be a `trust` or `gate` floor
+    row, then every gated workflow (`gate_workflows`), so a workflow that
+    gains a credential is person-held at once. With the switch on, a `gate`
+    row left outside them (a lane-armed glob) stops the script: ci-status
+    would pass it on its own, and nothing yet attests at the head that the
+    lane-arm conditions held, nor checks that no person-held file imports or
+    runs it."""
     import babysit_merge_policy  # noqa: PLC0415
 
     text = PIPELINE.read_text(encoding="utf-8")
@@ -128,7 +135,17 @@ def lane_arm() -> tuple[bool, list[str]]:
             f"sync-hold-floor: {HELD_KEY} holds a repeated entry or one that is not a "
             f"trust or gate floor row: {bad or held}"
         )
-    return values[SWITCH_KEY] == ["true"], held
+    on = values[SWITCH_KEY] == ["true"]
+    held = [*held, *(g for g in gate_workflows() if g not in held)]
+    armed = [g for g, c in floor_classes() if c == "gate" and g not in held]
+    if on and armed:
+        raise SystemExit(
+            f"sync-hold-floor: {SWITCH_KEY} would lane-arm {armed}: add them to "
+            f"{HELD_KEY}, or first give ci-status an attestation that the "
+            "lane-arm conditions held at the head and a closure check that no "
+            "person-held file loads them"
+        )
+    return on, held
 
 
 def risk_lane_arm(indent: str) -> list[str]:

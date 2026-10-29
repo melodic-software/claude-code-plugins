@@ -431,46 +431,21 @@ test("a floor path no configured glob names is commented on and labeled human-ga
   );
 });
 
-// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a `gate` path
-// outside the merge-enforcement set is no hold path here. The gate's reader
-// decides it: its risk score holds it for a person (`high-path:`) until both
-// review lanes are bound to a main-run review of the head with no finding and
-// no review thread is open, and then arms it.
-test("a lane-armed gate path arms on the gate's passing read and is a person's on its high-path hold", async () => {
-  const armed = [
-    ".github/actions/log-api-budget/rate-guard.mjs",
-    ".github/scripts/pr-merge/who.mjs",
-    ".github/workflows/pr-refine.yml",
-    ".claude/settings.json",
-    "AGENTS.md",
-  ];
-  const passed = await run(armed.map((filename, index) => pull(index + 1, { files: [{ filename }], verdict: PASSED })));
-  assert.equal(passed.code, 0);
-  assert.deepEqual(
-    passed.writes,
-    armed.map((_, index) => ({ mutation: "arm", id: `PR_${index + 1}`, head: HEAD })),
-  );
-  assert.deepEqual(passed.notes, []);
-  const reviews = "high-path:**/AGENTS.md: AGENTS.md";
-  const held = await run([pull(1, { files: [{ filename: "AGENTS.md" }], verdict: { ...PASSED, reviews, reviewsPerson: true } })]);
-  assert.deepEqual(held.writes, []);
-  assert.deepEqual(held.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(`pr-merge's gate holds it on its risk score (${reviews})`) } },
-    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-  ]);
-});
-
-// #10874's shape after clear-escalations takes the label off: the old person
-// refusal on a now lane-armed hold path still stands in the discussion, the
-// label is off, and the gate passes the head. It arms and puts no label back.
-test("a hold-path refusal the switch lane-armed does not relabel once the gate passes the head", async () => {
-  const discussion = { comments: [lanesSaid(personNote("it changes AGENTS.md, a hold path"))] };
-  const { code, writes, notes } = await run([pull(1, { files: [{ filename: "AGENTS.md" }], verdict: PASSED, discussion })]);
+// Owner decision Q7 (#10743), narrowed by the security review of #10966:
+// every `gate` row is person-held, so nothing is lane-armed and the agent
+// instruction and settings files, the gate scripts and the gated workflows
+// stay hold paths here (#10874's AGENTS.md included).
+test("with every gate row person-held, a gate path is a hold path a person clears", async () => {
+  const held = [".github/actions/log-api-budget/rate-guard.mjs", ".github/scripts/pr-merge/who.mjs", ".github/workflows/pr-refine.yml", ".claude/settings.json", "AGENTS.md", "plugins/review/skills/security-review/SKILL.md"];
+  const { code, writes, notes } = await run(held.map((filename, index) => pull(index + 1, { files: [{ filename }], verdict: PASSED })));
   assert.equal(code, 0);
-  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(writes, []);
   assert.deepEqual(
-    notes.filter((note) => note.path.endsWith("/labels")),
-    [],
+    notes,
+    held.flatMap((filename, index) => [
+      { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
+      { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
+    ]),
   );
 });
 

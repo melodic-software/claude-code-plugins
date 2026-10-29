@@ -992,8 +992,8 @@ the rules that only tighten in
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
     `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
     `head-ref-map.mjs`.
-  - `gate`, a person merges it unless `merge.lane-arm-gate` lane-arms it
-    ([Lane-armed gate paths](#lane-armed-gate-paths)): the rest of the merge gate's own code, which is the rate guard
+  - `gate`, a person merges it ([Lane-armed gate paths](#lane-armed-gate-paths): every row is
+    person-held): the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
     `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
@@ -1007,8 +1007,8 @@ the rules that only tighten in
     named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
     can dispatch those credentialed workflows, `intake-reenter.yml` and
     `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
-    patch hold, so without `merge.lane-arm-gate` a model verdict alone never clears it (with it,
-    see [Lane-armed gate paths](#lane-armed-gate-paths)). 23 workflows are gated.
+    patch hold, so a model verdict alone never clears it; every gated workflow is person-held
+    ([Lane-armed gate paths](#lane-armed-gate-paths)). 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
     `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
@@ -2401,59 +2401,53 @@ the next head, so the pass that removes it would never come.
 ## Lane-armed gate paths
 
 Owner decision Q7 ([#10743](https://github.com/melodic-software/claude-code-plugins/pull/10743#issuecomment-6486023647)):
-`merge.lane-arm-gate: true` lets a pull request held only by `gate` floor paths merge with no
-person. Those are the gated workflows, the merge gate's other scripts, and the agent settings and
-instruction files. The hold clears only when all of these are true at the current head:
+`merge.lane-arm-gate: true` lets a pull request held only by lane-armed `gate` floor paths merge
+with no person. A lane-armed path's hold clears only when all of these are true at the current
+head:
 
-- both review lanes (`claude-review` and `claude-security-review`) are bound by the main-run review
-  (`pr-review-main.yml`, `babysit_review_evidence._main_lane`), never by a pull_request run;
-- each lane counts no open finding. The bound record carries only total and CRITICAL counts, so
-  any finding keeps the person, a SUGGESTION included;
-- the pull request has no unresolved review thread. The gate reads the count only when it could
-  lane-arm a path (`babysit_merge.with_open_threads`).
+- both review lanes are bound by the main-run review (`pr-review-main.yml`,
+  `babysit_review_evidence._main_lane`), never by a pull_request run;
+- each lane counts no open finding, any severity;
+- the pull request has no unresolved review thread (`babysit_merge.with_open_threads`).
 
-`merge.person-held` names the merge-enforcement set. Those paths wait for a person whatever the
-switch says, and so does every `trust` path:
+**No path is lane-armed today.** `merge.person-held` holds every `gate` row, as an independent
+security review of [#10966](https://github.com/melodic-software/claude-code-plugins/pull/10966)
+required. Every `trust` path waits for a person as well. The person-held list covers:
 
-- the pr-merge scripts that apply and enforce the holds (`merge-holds.mjs`,
-  `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs`,
-  `head-ref-map.mjs`);
-- `pr-merge.yml`, which runs both `effect: merge` activities;
-- ci-status (`pr-require-checks.yml`);
-- the review machinery a model verdict cannot judge: `pr-review-hosted.yml`,
-  `pr-review-security-hosted.yml`, `pr-review-main.yml`, `.github/scripts/pr-review-main/**`
-  (which sets the counts) and `pr-verify.yml`.
+- the pr-merge scripts with every module and script they import or run, the rate guard
+  (`rate-guard.mjs`, `rate-limits.json`) and `.github/actions/report-check-run/**`;
+- the main-run review's scripts (`.github/scripts/pr-review-main/**`);
+- the review criteria and the agent settings and instruction files (owner decision Q11):
+  `REVIEW.md`, `docs/standards/**`, the untrusted-content and instruction-exception conventions,
+  `**/.claude/**`, `**/.claude-lane/**`, `**/.mcp.json`, `**/AGENTS.md`, `**/CLAUDE.md`,
+  `**/CLAUDE.local.md`, and `plugins/review/skills/**` and `plugins/review/reference/**`, which the
+  main-run review copies from main;
+- every gated workflow. `scripts/sync-hold-floor.py` adds each row `babysit_risk.gated_workflow`
+  derives, so a workflow that gains a secret, a lane or App token, OIDC or `actions: write` is
+  person-held at once.
 
-The repository rulesets stay the owner's: they live outside this repository.
+The repository rulesets stay the owner's.
 
-A configured denied path is never lane-armed. Anything unread fails closed and keeps the person:
-the switch, a lane's evidence, which run bound it, and the thread count.
+`scripts/sync-hold-floor.py` controls what the switch can do:
 
-`scripts/sync-hold-floor.py` reads both keys through the shared YAML reader. The switch is on
-only when it reads exactly `true`. The script copies both keys into `babysit_risk.py` and
-`merge-holds.mjs` (`LANE_ARM` blocks), and refuses a person-held entry that is not a `trust` or
-`gate` floor row. Its `--check` fails on a stale copy.
+- It reads both keys through the shared YAML reader. The switch is on only when it reads exactly
+  `true`.
+- It writes them into the `LANE_ARM` blocks of `babysit_risk.py` and `merge-holds.mjs`.
+- It refuses a person-held entry that is not a `trust` or `gate` floor row.
+- With the switch on, it refuses to leave any `gate` row lane-armed.
 
-What each surface does with a lane-armed path:
+A lane-armed path would hold nothing in ci-status on its own, and two controls are still missing:
 
-- **The merge gate.** It scores the path `high-path:` (a person's) until the conditions hold, then
-  drops it.
-- **`merge-holds.mjs`.** It holds the path neither in ci-status nor in enable-auto-merge
-  (`LANE_ARMED_FLOOR`), the same treatment an `enforcement` path gets. enable-auto-merge arms only
-  a head the gate passed, and ci-status disarms an armed lanes App pull request on each push.
-- **Approvals.** An approval never carries over a push that touches a lane-armed path
-  (`ungatedSince`).
-- **Escalation labels.** clear-escalations removes the human-gated label at the same head only
-  when the refusal it records names lane-armed paths alone and the gate's reader now refuses
-  nothing (`armedCause`). Removing the label approves nothing: ci-status lifts a hold path only on
-  a trusted person's approving review, and it fails a review-lane hold an App lifted.
+- Nothing yet attests at the head that the lane-arm conditions held.
+  `pr-merge/unarmed`'s `success` cannot serve, because any token with `statuses: write` can post
+  it as the GitHub Actions bot.
+- A closure check that no person-held file loads the path.
+  `test_merge_holds_sync.py` checks only that the closure of the person-held files contains no
+  lane-armed path.
 
-Two limits apply:
-
-- The main-run review runs only for a pull request that changes a lane source. A pull request
-  whose only `gate` paths sit outside the lane sources (the rate guard, the pr-merge gate scripts)
-  is never bound by it, so a person still merges it.
-- ci-status's exempt-author and agent-App `hold_patterns` are unchanged.
+The scorer, the clear-escalations same-head clear (`armedCause`) and the approval-carry refusal
+(`ungatedSince`) are built and tested against a sample lane-armed set, so they work once a set is
+allowed.
 
 ## Trust-root paths
 

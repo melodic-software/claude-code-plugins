@@ -88,8 +88,17 @@ def _high(result) -> list[str]:
     return [r.code for r in result.reasons if r.code.startswith("high-path:")]
 
 
-# Gate paths the switch lane-arms: a credentialed workflow, a job-token
-# writer, the agent settings and instruction files, a gate script.
+# The generated LANE_ARMED_FLOOR is empty while every `gate` row is
+# person-held (security review of #10966), so the rule's tests give it rows of
+# their own: gate globs Q7 meant to lane-arm.
+SAMPLE_FLOOR = (
+    ".github/workflows/pr-refine.yml",
+    ".github/workflows/work-resolve-issue.yml",
+    "**/.claude/**",
+    "**/AGENTS.md",
+    "**/CLAUDE.md",
+    "docs/standards/**",
+)
 ARMED = (
     ".github/workflows/pr-refine.yml",
     ".github/workflows/work-resolve-issue.yml",
@@ -97,7 +106,6 @@ ARMED = (
     "plugins/foo/AGENTS.md",
     "CLAUDE.md",
     "docs/standards/README.md",
-    ".github/scripts/pr-merge/who.mjs",
 )
 # The merge-enforcement set and trust paths: a person whatever the lanes say.
 PERSON = (
@@ -117,6 +125,11 @@ PERSON = (
 
 
 class TheSwitchLaneArmsGatePaths(unittest.TestCase):
+    def setUp(self) -> None:
+        patch = mock.patch.object(babysit_risk, "LANE_ARMED_FLOOR", SAMPLE_FLOOR)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_a_gate_path_with_both_lanes_clean_on_main_and_no_thread_needs_no_person(
         self,
     ) -> None:
@@ -159,10 +172,21 @@ class TheSwitchLaneArmsGatePaths(unittest.TestCase):
                 ),
             ),
         )
+        # An IMPORTANT or SUGGESTION security finding: open but not blocking.
+        below = replace(
+            _input("AGENTS.md"),
+            lanes=(
+                _lanes()[0],
+                LaneEvidence(
+                    "claude-security-review", True, None, 1, False, 0, main_run=True
+                ),
+            ),
+        )
         missing = replace(_input("AGENTS.md"), lanes=_lanes()[:1])
         doubled = replace(_input("AGENTS.md"), lanes=(*_lanes(), _lanes()[0]))
         for name, inp in (
             ("unbound", unbound),
+            ("a security finding below CRITICAL", below),
             ("missing", missing),
             ("doubled", doubled),
         ):
@@ -232,17 +256,49 @@ class TheSwitchLaneArmsGatePaths(unittest.TestCase):
 
 
 class TheMergeEnforcementList(unittest.TestCase):
+    def test_every_gate_row_is_person_held_so_nothing_is_lane_armed(self) -> None:
+        # Tripwire: a non-empty set would pass ci-status on its own, with
+        # nothing yet attesting the lane-arm conditions at the head, so
+        # sync-hold-floor.py refuses to generate one.
+        self.assertIs(babysit_risk.LANE_ARM_GATE, True)
+        self.assertEqual(babysit_risk.LANE_ARMED_FLOOR, ())
+        gate = [g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"]
+        self.assertEqual([g for g in gate if g not in babysit_risk.PERSON_HELD], [])
+        for path in (*ARMED, "plugins/review/skills/security-review/SKILL.md"):
+            with self.subTest(path):
+                self.assertEqual(len(_high(score(_input(path)))), 1, path)
+
+    def test_every_gated_workflow_is_person_held_without_being_listed(self) -> None:
+        listed = _sync_module().lane_arm  # the yaml list plus GATE_WORKFLOWS
+        on, held = listed()
+        self.assertIs(on, True)
+        self.assertEqual(tuple(held), babysit_risk.PERSON_HELD)
+        workflows = [
+            g
+            for g, c in babysit_risk.FLOOR_CLASSES
+            if c == "gate" and g.startswith(".github/workflows/")
+        ]
+        self.assertGreater(len(workflows), 0)
+        for glob in workflows:
+            self.assertIn(glob, babysit_risk.PERSON_HELD, glob)
+
     def test_it_is_trust_and_gate_rows_and_holds_ci_status_and_the_merge_scripts(
         self,
     ) -> None:
         kinds = dict(babysit_risk.FLOOR_CLASSES)
-        self.assertIs(babysit_risk.LANE_ARM_GATE, True)
         for glob in babysit_risk.PERSON_HELD:
             self.assertIn(kinds.get(glob), ("trust", "gate"), glob)
-            self.assertNotIn(glob, babysit_risk.LANE_ARMED_FLOOR)
-        for glob in babysit_risk.LANE_ARMED_FLOOR:
-            self.assertEqual(kinds[glob], "gate", glob)
         for glob in (
+            "**/.claude/**",
+            "**/AGENTS.md",
+            "REVIEW.md",
+            "docs/standards/**",
+            "plugins/review/skills/**",
+            "plugins/review/reference/**",
+            ".github/scripts/pr-merge/who.mjs",
+            ".github/scripts/pr-merge/rotation.mjs",
+            ".github/actions/report-check-run/**",
+            ".github/actions/log-api-budget/rate-guard.mjs",
             ".github/scripts/pr-merge/merge-holds.mjs",
             ".github/scripts/pr-merge/enable-auto-merge.mjs",
             ".github/scripts/pr-merge/superseded.mjs",
@@ -283,18 +339,31 @@ class TheGeneratorReadsTheSwitchFailClosed(unittest.TestCase):
             with mock.patch.object(sync, "PIPELINE", path):
                 return sync.lane_arm()
 
+    # Every non-workflow `gate` row, so the switch on leaves nothing armed.
+    FULL = "  person-held:\n" + "".join(
+        f'    - "{g}"\n'
+        for g, c in babysit_risk.FLOOR_CLASSES
+        if c == "gate" and not g.startswith(".github/workflows/")
+    )
+
     def test_only_a_literal_true_turns_it_on(self) -> None:
-        held = "  person-held:\n    - .github/workflows/pr-merge.yml\n"
-        self.assertEqual(
-            self.lane_arm(f"  lane-arm-gate: true\n{held}"),
-            (True, [".github/workflows/pr-merge.yml"]),
-        )
+        on, held = self.lane_arm(f"  lane-arm-gate: true\n{self.FULL}")
+        self.assertIs(on, True)
+        self.assertIn(".github/workflows/pr-require-checks.yml", held)
         # The shared reader unquotes a scalar, so 'true' reads as true.
         for value in (None, "false", "yes", "True", "1", "on", "~"):
             with self.subTest(value=value):
                 line = "" if value is None else f"  lane-arm-gate: {value}\n"
-                on, _ = self.lane_arm(f"{line}{held}")
+                on, _ = self.lane_arm(f"{line}{self.FULL}")
                 self.assertIs(on, False)
+
+    def test_with_the_switch_on_a_gate_row_left_lane_armed_stops_it(self) -> None:
+        short = self.FULL.replace('    - "**/AGENTS.md"\n', "")
+        with self.assertRaises(SystemExit):
+            self.lane_arm(f"  lane-arm-gate: true\n{short}")
+        on, held = self.lane_arm(f"  lane-arm-gate: false\n{short}")
+        self.assertIs(on, False)
+        self.assertNotIn("**/AGENTS.md", held)
 
     def test_a_person_held_entry_off_the_floor_or_repeated_stops_it(self) -> None:
         for entries in (

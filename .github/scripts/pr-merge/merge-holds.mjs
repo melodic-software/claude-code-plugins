@@ -294,7 +294,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
-  [".github/actions/report-check-run/posting-run.mjs", "gate"],
+  [".github/actions/report-check-run/**", "gate"],
   ["scripts/sync-hold-floor.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
@@ -352,6 +352,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["**/AGENTS.md", "gate"],
   ["REVIEW.md", "gate"],
   ["docs/standards/**", "gate"],
+  ["plugins/review/skills/**", "gate"],
+  ["plugins/review/reference/**", "gate"],
   [".github/workflows/dependabot-fragments.yml", "gate"],
   [".github/workflows/eval-browser-dispatch.yml", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
@@ -399,13 +401,56 @@ export const PERSON_HELD = Object.freeze([
   ".github/scripts/pr-merge/clear-escalations.mjs",
   ".github/scripts/pr-merge/gate-check.mjs",
   ".github/scripts/pr-merge/head-ref-map.mjs",
+  ".github/scripts/pr-merge/carry-run-cache.mjs",
+  ".github/scripts/pr-merge/lane-records.mjs",
+  ".github/scripts/pr-merge/last-report.mjs",
+  ".github/scripts/pr-merge/rate-stop.bash",
+  ".github/scripts/pr-merge/refire-refused.mjs",
+  ".github/scripts/pr-merge/rotation.mjs",
+  ".github/scripts/pr-merge/sweep-summary.mjs",
+  ".github/scripts/pr-merge/who.mjs",
+  ".github/scripts/pr-merge/post-unarmed-status.mjs",
+  ".github/scripts/pr-merge/verify-answers.mjs",
+  ".github/scripts/pr-merge/listing-carry.mjs",
+  ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
+  ".github/actions/report-check-run/**",
+  ".github/scripts/pr-review-main/**",
+  "**/.claude/**",
+  "**/.claude-lane/**",
+  "docs/conventions/instruction-exception-register/**",
+  "docs/conventions/untrusted-content/**",
+  "**/.mcp.json",
+  "**/CLAUDE.md",
+  "**/CLAUDE.local.md",
+  "**/AGENTS.md",
+  "REVIEW.md",
+  "docs/standards/**",
+  "plugins/review/skills/**",
+  "plugins/review/reference/**",
+  ".github/workflows/dependabot-fragments.yml",
+  ".github/workflows/eval-browser-dispatch.yml",
+  ".github/workflows/intake-reenter.yml",
+  ".github/workflows/intake-triage.yml",
+  ".github/workflows/maintenance-audit-lane-runs.yml",
+  ".github/workflows/maintenance-reconcile-lost-runs.yml",
+  ".github/workflows/post-merge-demotion-alert.yml",
+  ".github/workflows/post-merge-test-mutation.yml",
+  ".github/workflows/pr-feedback-dispatch.yml",
   ".github/workflows/pr-merge.yml",
+  ".github/workflows/pr-refine.yml",
   ".github/workflows/pr-require-checks.yml",
   ".github/workflows/pr-review-hosted.yml",
-  ".github/workflows/pr-review-security-hosted.yml",
   ".github/workflows/pr-review-main.yml",
-  ".github/scripts/pr-review-main/**",
+  ".github/workflows/pr-review-security-hosted.yml",
+  ".github/workflows/pr-run-activity-read.yml",
+  ".github/workflows/pr-run-activity-write.yml",
+  ".github/workflows/pr-unblock-dispatch.yml",
+  ".github/workflows/pr-unblock.yml",
   ".github/workflows/pr-verify.yml",
+  ".github/workflows/release-publish-plugins.yml",
+  ".github/workflows/work-resolve-issue.yml",
+  ".github/workflows/work-unblock.yml",
 ]);
 // END hold-floor LANE_ARM
 // The `gate` globs the switch `on` lane-arms: every `gate` row of `classes`
@@ -793,17 +838,12 @@ const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastE
 
 // Whether two compare answers (base...head) show the same net change of the
 // pull request: the same filenames, each with the same status,
-// previous_filename and patch. Each hunk header's line numbers are dropped
-// before the patches compare (HUNK_LINES), so a base merge that edits the
-// same file above the pull request's hunk, shifting its offsets, carries;
-// the hunk bodies, their context lines and the hunk count still compare
-// exactly. A list of 300 files or more (the compare
+// previous_filename and patch. A list of 300 files or more (the compare
 // API's cap), a file with no patch, a filename listed twice, or an answer
 // with no file list is not the same (babysit_merge_policy.same_net_change).
 // The compare API reports no file mode, so a change that only flips a
 // file's mode (such as making it executable) reads as the same: a known
 // residual a merge can carry.
-const HUNK_LINES = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/gm;
 export function sameNetChange(decided, current) {
   const net = (compare) => {
     const files = compare?.files;
@@ -811,7 +851,7 @@ export function sameNetChange(decided, current) {
     const byName = new Map();
     for (const f of files) {
       if (typeof f?.filename !== "string" || typeof f.patch !== "string" || byName.has(f.filename)) return null;
-      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch.replace(HUNK_LINES, "@@")]));
+      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch]));
     }
     return byName;
   };
@@ -952,12 +992,13 @@ export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/act
 // its commit list read whole, and fewer than the compare API's 300 files
 // listed, each named. Any edit to such a file, a test or a comment included,
 // needs a new approval.
-export function ungatedSince(merges, holdPaths) {
+// `armed` is LANE_ARMED_FLOOR, a parameter so tests can give it rows.
+export function ungatedSince(merges, holdPaths, armed = LANE_ARMED_FLOOR) {
   const files = merges?.files;
   if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
   if (!files.every((f) => typeof f?.filename === "string")) return false;
   const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
-  const loaded = [...REVIEW_FLOOR, ...LANE_ARMED_FLOOR, ...CARRY_REFUSES];
+  const loaded = [...REVIEW_FLOOR, ...armed, ...CARRY_REFUSES];
   return Array.isArray(holdPaths) && pathHold(paths, holdPaths) === null && !paths.some((path) => loaded.some((glob) => matchesHoldPath(path, glob)));
 }
 

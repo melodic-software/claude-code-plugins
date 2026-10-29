@@ -522,15 +522,15 @@ done
 path=.github/workflows/pr-require-checks.yml
 STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
 expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
-# Owner decision Q7: a lane-armed gate path (a job-token dispatcher of a gated
-# workflow, the rate guard, a gate script, an agent instruction file) is the
-# merge gate's, which holds it for a person until both lanes are bound to a
-# clean main-run review of the head with no open thread.
+# Owner decision Q7 under the security review of #10966: every `gate` path is
+# person-held (merge.person-held), so nothing is lane-armed and ci-status holds
+# each of these for a person.
 for path in .github/workflows/intake-reenter.yml .github/actions/log-api-budget/rate-guard.mjs \
   .github/actions/log-api-budget/rate-limits.json .github/scripts/pr-merge/who.mjs \
-  AGENTS.md .claude/settings.json; do
+  AGENTS.md .claude/settings.json plugins/review/skills/security-review/SKILL.md \
+  plugins/review/reference/x.md .github/actions/report-check-run/report-check-run.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the gate, not ci-status, holds lane-armed $path" 0 3 "no hold path"
+  expect "ci-status holds person-held gate path $path" 1 3 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"

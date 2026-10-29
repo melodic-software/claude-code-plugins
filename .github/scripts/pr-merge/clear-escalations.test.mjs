@@ -96,12 +96,12 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
   return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
 }
 
-const run = async (w, env = {}) => {
+const run = async (w, env = {}, laneArmed = undefined) => {
   const logs = [];
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader }), logs };
+    return { code: await main({ env: { ...ENV, ...env }, github: w.github, checks: w.checks, verify: w.verify, reader: w.reader, ...(laneArmed ? { laneArmed } : {}) }), logs };
   } finally {
     console.log = original;
   }
@@ -794,6 +794,9 @@ test("a lane-class label comes off at its head once nothing refuses", async () =
 // AGENTS.md, a hold path", or the risk score's `high-path:` on one) is read
 // again at its head and comes off only when the reader refuses nothing there.
 const AGENTS_PATH = "it changes AGENTS.md, a hold path";
+// The generated LANE_ARMED_FLOOR is empty while every `gate` row is
+// person-held, so these tests give the rule rows of their own.
+const ARMED = ["**/AGENTS.md", "**/.claude/**", ".github/workflows/pr-refine.yml"];
 const AGENTS_RISK = risk("high-path:**/AGENTS.md: AGENTS.md");
 test("a refusal on lane-armed gate paths alone comes off at its head once the gate's reader refuses nothing", async () => {
   for (const reason of [
@@ -804,7 +807,7 @@ test("a refusal on lane-armed gate paths alone comes off at its head once the ga
     risk("high-path:**/AGENTS.md: AGENTS.md; evidence-unbound:claude-review: not bound: rerun-allowed"),
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE);
+    const { code, logs } = await run(w, NATIVE, ARMED);
     assert.equal(code, 0, logs.join("\n"));
     assert.equal(w.reads.length, 1, reason);
     assert.equal(w.writes().length, 2, reason);
@@ -827,12 +830,23 @@ test("a refusal on lane-armed gate paths stays while the gate's reader refuses a
   ]) {
     for (const reason of [AGENTS_PATH, AGENTS_RISK]) {
       const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
-      const { code, logs } = await run(w, NATIVE);
+      const { code, logs } = await run(w, NATIVE, ARMED);
       assert.equal(code, 0, logs.join("\n"));
       assert.equal(w.reads.length, 1, reason);
       assert.deepEqual(w.writes(), [], `${reason} ${evidence}`);
       assert.match(logs.join("\n"), /still needs a person/, reason);
     }
+  }
+});
+
+test("with the real config every gate row is person-held, so #10874's refusal is never read or lifted", async () => {
+  for (const reason of [AGENTS_PATH, AGENTS_RISK, "it changes .claude/settings.json, a hold path"]) {
+    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
+    const { code, logs } = await run(w, NATIVE);
+    assert.equal(code, 0, logs.join("\n"));
+    assert.deepEqual(w.reads, [], reason);
+    assert.deepEqual(w.writes(), [], reason);
+    assert.match(logs.join("\n"), /one a person clears/, reason);
   }
 });
 
@@ -853,7 +867,7 @@ test("a refusal naming a merge-enforcement or trust path is never read or lifted
     "it changes .github/actions/request-lane-token/.claude/x.json, a hold path",
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE);
+    const { code, logs } = await run(w, NATIVE, ARMED);
     assert.equal(code, 0, logs.join("\n"));
     assert.deepEqual(w.reads, [], reason);
     assert.deepEqual(w.writes(), [], reason);

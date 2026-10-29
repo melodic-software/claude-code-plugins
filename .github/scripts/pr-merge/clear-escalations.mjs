@@ -170,7 +170,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT, HOLD_PATH_FLOOR, LANE_ARMED_FLOOR, matchesHoldPath } from "./merge-holds.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT, HOLD_PATH_CLASSES, LANE_ARMED_FLOOR, matchesHoldPath } from "./merge-holds.mjs";
 import { holdPathOnly, pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -254,14 +254,17 @@ const onLaneCauses = (kind, code) => LANE_CAUSES[kind].some((entry) => (entry.en
 //   with the glob on LANE_ARMED_FLOOR, and at least one is the latter.
 // - A hold-path refusal (merge-holds pathHoldKind's "it changes <path>, a
 //   hold path", every reason line one): each path matches a LANE_ARMED_FLOOR
-//   glob and no HOLD_PATH_FLOOR glob.
-const armedCode = (code) => code.startsWith("high-path:") && LANE_ARMED_FLOOR.includes(code.slice("high-path:".length));
-export function armedCause(refusal) {
-  if (LANE_ARMED_FLOOR.length === 0 || refusal === null) {
+//   glob and no other `trust` or `gate` floor glob.
+// `armed` is LANE_ARMED_FLOOR, a parameter so tests can give it rows: the
+// generated set is empty while every `gate` row is person-held.
+export function armedCause(refusal, armed = LANE_ARMED_FLOOR) {
+  if (armed.length === 0 || refusal === null) {
     return false;
   }
+  const armedCode = (code) => code.startsWith("high-path:") && armed.includes(code.slice("high-path:".length));
   if (refusal.kind === "path") {
-    return refusal.paths.length > 0 && refusal.paths.every((path) => LANE_ARMED_FLOOR.some((glob) => matchesHoldPath(path, glob)) && !HOLD_PATH_FLOOR.some((glob) => matchesHoldPath(path, glob)));
+    const held = HOLD_PATH_CLASSES.filter(([glob, kind]) => kind !== "enforcement" && !armed.includes(glob)).map(([glob]) => glob);
+    return refusal.paths.length > 0 && refusal.paths.every((path) => armed.some((glob) => matchesHoldPath(path, glob)) && !held.some((glob) => matchesHoldPath(path, glob)));
   }
   if (refusal.kind !== "risk") {
     return false;
@@ -555,7 +558,7 @@ function pairedWithPrMerge(appComments, since) {
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
+async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, laneArmed }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -619,7 +622,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     const native = lanePrs === "native" && isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label, pull.head.sha) : null;
     // A person's recorded cause stays until a person removes the label or the
     // head moves (owner decision Q-CLEAR B): no reader answer lifts it.
-    const armed = armedCause(native);
+    const armed = armedCause(native, laneArmed);
     if (native !== null && !armed && (native.kind === "path" || !laneCause(native.kind, native.reason))) {
       return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
     }
@@ -731,7 +734,7 @@ function trustedIds(path) {
   }
 }
 
-export async function main({ env = process.env, github, checks, verify, reader } = {}) {
+export async function main({ env = process.env, github, checks, verify, reader, laneArmed = LANE_ARMED_FLOOR } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -768,7 +771,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
         continue;
       }
       try {
-        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
+        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted, laneArmed });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;

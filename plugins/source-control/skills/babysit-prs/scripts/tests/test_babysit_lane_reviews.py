@@ -236,7 +236,7 @@ BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "+q"}
 # net change moved by hunk headers while main's own hunk applies the same.
 SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
 SHARED_OLD = {"filename": SHARED, "status": "modified", "patch": "@@ -93 +93 @@\n+mine"}
-SHARED_HEAD = SHARED_OLD | {"patch": "@@ -98 +98 @@\n context the base edited\n+mine"}
+SHARED_HEAD = SHARED_OLD | {"patch": "@@ -98 +98 @@\n+mine"}
 SHARED_BASE = {"filename": SHARED, "status": "modified", "patch": "@@ -10 +10 @@\n+theirs"}
 # GitHub's stale-review dismissal on the base merge's push.
 STALE = {

@@ -2546,16 +2546,10 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     return decided if unran_head(activity, ran, decided, at) is None else None
 
 
-_HUNK_LINES = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@", re.MULTILINE)
-
-
 def same_net_change(decided: Any, current: Any) -> bool:
     """Whether two compare answers (base...head) show the same net change of
     the pull request: the same filenames, each with the same status,
-    previous_filename and patch, each hunk header's line numbers dropped
-    (`_HUNK_LINES`), so a base merge that shifts the hunk's offsets carries
-    while the hunk bodies, their context and the hunk count still compare
-    exactly. A list of 300 files or more (the compare
+    previous_filename and patch. A list of 300 files or more (the compare
     API's cap), a file with no patch, a filename listed twice, or an answer
     with no file list is not the same (merge-holds.mjs `sameNetChange`). The
     compare API reports no file mode, so a change that only flips a file's
@@ -2571,11 +2565,7 @@ def same_net_change(decided: Any, current: Any) -> bool:
             name, patch = f.get("filename"), f.get("patch")
             if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
                 return None
-            by_name[name] = (
-                f.get("status"),
-                f.get("previous_filename"),
-                _HUNK_LINES.sub("@@", patch),
-            )
+            by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
         return by_name
 
     then, now = net(decided), net(current)

@@ -346,7 +346,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 106)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 108)
         self.assertEqual(len(risk.REVIEW_FLOOR), 40)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
@@ -390,6 +390,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "**/AGENTS.md",
             "REVIEW.md",
             "docs/standards/**",
+            "plugins/review/skills/**",
+            "plugins/review/reference/**",
         }
         self.assertEqual(
             list(risk.AUTHOR_REVIEW_FLOOR),
@@ -430,8 +432,33 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), NATIVE_FLOOR)
-        self.assertEqual(len(risk.HIGH_FLOOR), 66)
-        self.assertEqual(len(NATIVE_FLOOR), 66 - len(risk.LANE_ARMED_FLOOR))
+        self.assertEqual(len(risk.HIGH_FLOOR), 68)
+        self.assertEqual(len(NATIVE_FLOOR), 68 - len(risk.LANE_ARMED_FLOOR))
+
+    def test_no_person_held_file_loads_a_lane_armed_path(self) -> None:
+        # Security review of #10966: a person-held file must not import or
+        # run a path the switch lane-arms, or a model verdict could change
+        # what the merge-enforcement code does. loaded_closure walks what the
+        # floor's workflows, actions and modules import or run.
+        # loaded_closure's roots, plus every person-held module by name:
+        # head-ref-map.mjs, for one, imports rotation.mjs, which no workflow
+        # or FLOOR_ENTRIES root reaches.
+        roots = tuple(
+            g
+            for g in risk.PERSON_HELD
+            if g.endswith(".mjs") and "*" not in g and (ROOT / g).is_file()
+        )
+        files = sorted({*loaded_closure(), *import_closure(roots)})
+        self.assertIn(".github/scripts/pr-merge/rotation.mjs", files)
+
+        def armed_in(floor: tuple[str, ...]) -> list[str]:
+            return [f for f in files if any(risk.glob_match(g, f) for g in floor)]
+
+        self.assertEqual(armed_in(risk.LANE_ARMED_FLOOR), [])
+        # The check can fail: the closure loads the rate guard, which a
+        # lane-armed glob would name.
+        guard = ".github/actions/log-api-budget/rate-guard.mjs"
+        self.assertEqual(armed_in((guard,)), [guard])
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -1350,7 +1377,7 @@ _SHARED_OLD = {
     "status": "modified",
     "patch": "@@ -93,6 +93,13 @@ let root;\n context\n+mine",
 }
-_SHARED_HEAD = _SHARED_OLD | {"patch": "@@ -98,6 +98,13 @@ let root;\n context the base edited\n+mine"}
+_SHARED_HEAD = _SHARED_OLD | {"patch": "@@ -98,6 +98,13 @@ let root;\n context\n+mine"}
 _SHARED_BASE = {
     "filename": _SHARED,
     "status": "modified",
