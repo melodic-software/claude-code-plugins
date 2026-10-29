@@ -386,14 +386,14 @@ commit_all phase1
 git -C "$REPO" checkout -q -b phase2
 printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/phase2.sh"
 commit_all phase2
-expect "a new branch on an unpushed branch verifies that branch's files too" "1|phase1.sh:1: ${FLAG_FINDING/in run.sh/in phase1.sh}" \
+expect "a new branch on an unpushed branch verifies that branch's files too" "1|phase1.sh:2: ${FLAG_FINDING/in run.sh/in phase1.sh}" \
   "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 git -C "$REPO" push -q --no-verify origin phase1 2>/dev/null
 expect "a new branch stacked on a pushed branch does not verify that branch's files" "0|" \
   "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/phase2.sh"
 commit_all phase2-bogus
-expect "a new stacked branch is judged on the lines it adds" "1|phase2.sh:1: ${FLAG_FINDING/in run.sh/in phase2.sh}" \
+expect "a new stacked branch is judged on the lines it adds" "1|phase2.sh:3: ${FLAG_FINDING/in run.sh/in phase2.sh}" \
   "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 git -C "$REPO" checkout -q main
 
