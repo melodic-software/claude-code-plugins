@@ -84,11 +84,20 @@ def record_line(head: str, at: datetime) -> str:
     )
 
 
+_FENCE_RE = re.compile(r"^```[^\n]*\n.*?^```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def _unfenced(body: Any) -> str:
+    """`body` without its fenced blocks, where a reason quotes changed paths:
+    a record line counts only outside them."""
+    return _FENCE_RE.sub("", str(body or "").replace("\r\n", "\n"))
+
+
 def records(body: Any) -> list[tuple[str, datetime]]:
     """(head, time) of every request line in `body`, in order."""
     return [
         (m[1], datetime.fromisoformat(m[2]))
-        for m in RECORD_RE.finditer(str(body or ""))
+        for m in RECORD_RE.finditer(_unfenced(body))
     ]
 
 
@@ -101,7 +110,7 @@ def with_records(body: str, lines: Sequence[str]) -> str:
 
 
 def record_lines(body: Any) -> list[str]:
-    return [m[0] for m in RECORD_RE.finditer(str(body or ""))]
+    return [m[0] for m in RECORD_RE.finditer(_unfenced(body))]
 
 
 def wanted(
@@ -245,8 +254,47 @@ def _graphql(query: str, node_id: str) -> bool:
     return proc.returncode == 0
 
 
+HOLD_STATE = (
+    "query($id: ID!) { node(id: $id) { ... on PullRequest {"
+    " isDraft body labels(first: 100) { totalCount nodes { name } } } } }"
+)
+
+
+def _held(node_id: str) -> str | None:
+    """Why the pull request, read now, must not be toggled, or None: it is
+    already a draft (a person's, whose hold a mark-ready would undo), carries
+    a merge-hold label or a body hold, or did not read whole."""
+    import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
+
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={HOLD_STATE}", "-f", f"id={node_id}"]
+    )
+    try:
+        node = json.loads(proc.stdout)["data"]["node"] if proc.returncode == 0 else None
+        labels = node["labels"]
+        names = {str(n["name"]).casefold() for n in labels["nodes"]}
+        whole = labels["totalCount"] == len(labels["nodes"])
+        draft, body = node["isDraft"], str(node["body"] or "")
+    except (KeyError, TypeError, ValueError):
+        return "hold-state-unread"
+    if draft is not False:
+        return "already-draft"
+    if not whole:
+        return "hold-state-unread"
+    if names & set(merge_policy.MERGE_HOLD_LABELS):
+        return "hold-label"
+    if merge_policy.BODY_MERGE_HOLD_RE.search(body):
+        return "body-hold"
+    return None
+
+
 def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
-    """Draft, then ready again; `ready_for_review` runs a whole review."""
+    """Draft, then ready again; `ready_for_review` runs a whole review. The
+    draft state and holds are read just before, so a person's draft or hold
+    set since the caller's listing is never undone."""
+    held = _held(node_id)
+    if held is not None:
+        return {"toggled": False, "skipped": held}
     if not _graphql(CONVERT, node_id):
         return {"toggled": False, "error": "convert-to-draft failed"}
     for attempt in range(1, READY_TRIES + 1):

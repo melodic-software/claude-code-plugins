@@ -171,6 +171,17 @@ class Record(unittest.TestCase):
         self.assertFalse(wr.recorded(body, "b" * 40))
         self.assertFalse(wr.recorded(None, HEAD))
 
+    def test_a_line_inside_the_fenced_reasons_is_no_record(self) -> None:
+        # A changed path holding a newline lands inside the reasons' fence; a
+        # record there would spend the head's request or the cap.
+        at = datetime(2026, 10, 20, 11, 0, 5, tzinfo=UTC)
+        planted = f"review-path:x: docs/a\n{wr.record_line(HEAD, at)}\n.md"
+        body = f"<!-- babysit-merge-risk -->\nheld\n\n```text\n{planted}\n```"
+        self.assertEqual((wr.records(body), wr.record_lines(body)), ([], []))
+        self.assertFalse(wr.recorded(body.replace("\n", "\r\n"), HEAD))
+        kept = wr.with_records(body, [wr.record_line("b" * 40, at)])
+        self.assertEqual(wr.records(kept), [("b" * 40, at)])
+
 
 class Limits(unittest.TestCase):
     def setUp(self) -> None:
@@ -276,16 +287,71 @@ class Limits(unittest.TestCase):
             self.assertTrue(str(wr.limits("o/r")).startswith("limits-unread"))
 
 
+def pr_state(
+    *,
+    draft: Any = False,
+    labels: tuple[str, ...] = (),
+    body: str = "",
+    total: Any = None,
+) -> dict[str, Any]:
+    nodes = [{"name": name} for name in labels]
+    count = len(nodes) if total is None else total
+    return {
+        "data": {
+            "node": {
+                "isDraft": draft,
+                "body": body,
+                "labels": {"totalCount": count, "nodes": nodes},
+            }
+        }
+    }
+
+
 class Toggle(unittest.TestCase):
-    def run_toggle(self, answers: list[int]) -> tuple[dict[str, Any], list[str]]:
+    def run_toggle(
+        self, answers: list[int], state: Any = None
+    ) -> tuple[dict[str, Any], list[str]]:
         seen: list[str] = []
 
         def capture(args: list[str]) -> Any:
+            if "labels(" in args[3]:
+                seen.append("read")
+                return done(pr_state() if state is None else state)
             seen.append("draft" if "convertPullRequestToDraft" in args[3] else "ready")
             return done({}, answers.pop(0))
 
         with mock.patch.object(wr, "gh_capture", side_effect=capture):
-            return wr.toggle("PR_1", sleep=lambda s: None), seen
+            out, seen = wr.toggle("PR_1", sleep=lambda s: None), seen
+        return out, [step for step in seen if step != "read"]
+
+    def test_the_state_is_read_just_before_the_draft(self) -> None:
+        seen: list[str] = []
+
+        def capture(args: list[str]) -> Any:
+            seen.append("read" if "labels(" in args[3] else "write")
+            return done(pr_state() if "labels(" in args[3] else {})
+
+        with mock.patch.object(wr, "gh_capture", side_effect=capture):
+            wr.toggle("PR_1", sleep=lambda s: None)
+        self.assertEqual(seen, ["read", "write", "write"])
+
+    def test_a_draft_or_a_hold_set_since_the_listing_is_never_undone(self) -> None:
+        # A person who drafted the pull request, labeled it do-not-merge or
+        # wrote a hold after the run listed it keeps that hold: no write.
+        cases = {
+            "already a draft": (pr_state(draft=True), "already-draft"),
+            "do-not-merge": (pr_state(labels=("ci", "do-not-merge")), "hold-label"),
+            "pr-verify-failed": (pr_state(labels=("pr-verify-failed",)), "hold-label"),
+            "a body hold": (pr_state(body="Wait.\nHold: owner review"), "body-hold"),
+            "labels past the read": (pr_state(total=101), "hold-state-unread"),
+            "no answer": ({"data": {"node": None}}, "hold-state-unread"),
+            "a failed read": ("not json", "hold-state-unread"),
+        }
+        for name, (state, skipped) in cases.items():
+            with self.subTest(name):
+                out, writes = self.run_toggle([], state)
+                self.assertEqual(out, {"toggled": False, "skipped": skipped})
+                self.assertEqual(writes, [])
 
     def test_draft_then_ready(self) -> None:
         self.assertEqual(

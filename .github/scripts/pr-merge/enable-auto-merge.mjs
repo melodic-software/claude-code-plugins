@@ -133,8 +133,13 @@
 // answers a record line, which the lane's comment carries from then on; once
 // the comment is written, `toggle` drafts the pull request and marks it
 // ready again, and the security lane reviews the whole head on
-// ready_for_review. A draft such a toggle left is marked ready on the next
-// reader run (`recover`).
+// ready_for_review. The toggle restarts every lane that runs on
+// ready_for_review, not only the security review (both review lanes, and any
+// other workflow on that event). Just before its first write, `toggle` reads
+// the pull request again and refuses one already a draft (a person's draft,
+// which a mark-ready would undo), one with a merge-hold label or a body hold,
+// and one whose state did not read. A draft such a toggle left, carrying no
+// hold (holdReason), is marked ready on the next reader run (`recover`).
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. Before it arms, the run
 // posts the gate's pin comment for that head (pinBody) unless the lanes App's
@@ -770,11 +775,21 @@ const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001
 // kept on every rewrite of a lane's comment, since it holds the once-per-head
 // and per pull request caps.
 export const WHOLE_REVIEW_RECORD = /^Whole review requested at head `[0-9a-f]{40}` at \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ: .*$/;
-const recordLines = (body) =>
-  String(body ?? "")
+// Only outside the fenced reasons, which quote changed paths verbatim, so a
+// path holding a newline plants no record.
+export const recordLines = (body) => {
+  let fenced = false;
+  return String(body ?? "")
     .split("\n")
     .map((line) => line.replace(/\r$/, ""))
-    .filter((line) => WHOLE_REVIEW_RECORD.test(line));
+    .filter((line) => {
+      if (line.startsWith("```")) {
+        fenced = !fenced;
+        return false;
+      }
+      return !fenced && WHOLE_REVIEW_RECORD.test(line);
+    });
+};
 
 // `records`: a lane's comment's whole-review record lines, before its last.
 export function refusalBody(person, reason, head, label, since = null, partial = false, records = []) {
@@ -1436,7 +1451,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
     // A lanes App draft a whole-review toggle left (the run ended between its
     // two writes) is marked ready, as the merge job recovers its candidates',
     // inside the verdict reads' budget.
-    const drafts = pulls.filter((pull) => lanes(pull) && pull.isDraft === true);
+    const drafts = pulls.filter((pull) => lanes(pull) && pull.isDraft === true && holdReason(pull, humanGated) === null);
     if (reads && write && stopped === null && drafts.length > 0) {
       try {
         const listed = drafts.map((pull) => ({ number: pull.number, id: pull.id, head: pull.headRefOid, updatedAt: pull.updatedAt, labels: (pull.labels?.nodes ?? []).map((node) => node?.name) }));

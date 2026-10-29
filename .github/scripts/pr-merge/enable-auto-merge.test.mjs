@@ -37,6 +37,7 @@ import {
   pythonRoom,
   pythonVerify,
   pythonWholeReview,
+  recordLines,
   WHOLE_REVIEW_RECORD,
   ReaderRateLimited,
   costLine,
@@ -504,6 +505,24 @@ test("a lanes App draft a toggle may have left goes to recover; another author's
   assert.ok(lines.includes("enable-auto-merge: #1 marked ready again: a whole-review toggle left it a draft"));
   assert.deepEqual((await run([draft], { EVENT_NAME: "pull_request_target" })).asked, []);
   assert.deepEqual((await run([draft], { REPORT_ONLY: "true" })).asked, []);
+});
+
+test("a record line inside the fenced reasons is not one, so a changed path cannot plant it", () => {
+  const planted = ["<!-- babysit-merge-risk -->", "held", "", "```text", `review-path:x: docs/a`, RECORD, "```", "", recordAt("c".repeat(40), "2026-10-20T09:00:00Z")].join("\r\n");
+  assert.deepEqual(recordLines(planted), [recordAt("c".repeat(40), "2026-10-20T09:00:00Z")]);
+});
+
+test("a lanes App draft carrying a hold is not handed to recover", async () => {
+  const draft = (number, overrides) => pull(number, { isDraft: true, updatedAt: "2026-10-23T09:00:00Z", ...overrides });
+  const held = [
+    draft(1, { labels: labels("do-not-merge") }),
+    draft(2, { labels: labels("needs-human") }),
+    draft(3, { body: `Closes #1003\n\n${HOLD_LINE}` }),
+    draft(4, { labels: { totalCount: 101, nodes: [] } }),
+  ];
+  assert.deepEqual((await run(held)).asked, []);
+  const { asked } = await run([...held, draft(5)]);
+  assert.deepEqual(asked.map(([kind, drafts]) => [kind, drafts.map(({ number }) => number)]), [["recover", [5]]]);
 });
 
 test("the record line format is babysit_whole_review.record_line's", () => {
