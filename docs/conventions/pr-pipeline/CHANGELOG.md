@@ -1,5 +1,84 @@
 # Changelog for the PR pipeline convention
 
+## [7.6.2] - 2026-10-29
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+## [7.6.1] - 2026-10-29
+
+### Fixed
+
+- At the address-feedback round cap, a finding from a review bot listed in
+  `review-threads.reviewer-ids` (such as `chatgpt-codex-connector[bot]`) is a bot finding: it goes
+  to the fresh fixer round instead of a person. It still goes to a person when a trusted person
+  directed it, or when the security-review lane held its head as `CRITICAL`.
+- A security-review finding rated `IMPORTANT` at the round cap is a code fix first: it gets the
+  fresh fixer round, and goes to a person only when that round was given it and left it open. A
+  `CRITICAL` or unrated security finding still goes to a person at once.
+- The fresh fixer round's thread file carries a fixed `retry.brief` (fix each finding in code;
+  never weaken a test or check to close one), which the read runner adds to the skill's preamble.
+
+## [7.6.0] - 2026-10-29
+
+### Changed
+
+- pr-unblock settles a security-review `manifest dependencies: flag` rated below `CRITICAL` without a person when the lane's `INCORRECT` reply holds up. `hardRequire` in `adjudicate-feedback.mjs` reads the flagged `plugins/<p>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` at the PR head. It checks that the plugin is a marketplace entry, that each `dependencies` entry is a bare name of another entry with a `./` source in this repository, that the dependency adds nothing Claude Code runs at the PR's base and head (a manifest of metadata and `userConfig` only, a marketplace entry of listing fields only, and no `hooks/`, `.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`), and that the lane cited a line of the plugin's skills, agents or commands, outside a `## Next` section, where `/<entry>:` starts a token with no gate, condition, fallback or negation word within two lines, in a file that already holds such an unguarded call at the PR's base, so the call-site evidence is read at both the base and the head. The reply job then posts a fixed reply naming those lines and resolves the thread. Such a flag takes no adjudicator slot, and one the check does not settle escalates `feedback-disputed`: a cross-marketplace, object-form (versioned) or externally sourced entry, a dependency that ships hooks, servers, monitors, executables or dependencies of its own, an optional collaborator or a failed read. A `CRITICAL` or unrated flag, an `UNCERTAIN` or `VALID-defer` reply and every other security-review finding route as before.
+
+### Fixed
+
+- A pr-review-main run whose first attempt failed before any lane's verdict write started (every
+  credential leg stopped) is now re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is, so a lane-source pull request no longer waits for its next push to be
+  reviewed from main.
+
+## [7.5.3] - 2026-10-29
+
+### Added
+
+- A "Write identities" section lists which workflows write as `GITHUB_TOKEN`, the lanes App, the
+  release App or the owner token, and why each split exists.
+
+### Fixed
+
+- The pr-verify fail note no longer scrolls sideways. Each line of the verifier's quoted summary
+  and notes is wrapped at a space within 100 columns, continuations indented two spaces, with a
+  word longer than that (a URL or path) kept whole; a quote over 20 lines folds into a
+  `<details>` block. The text stays in its `text` fence, so a mention, reference, link or HTML in
+  it stays inert.
+
+## [7.5.2] - 2026-10-29
+
+### Fixed
+
+- work-unblock's hourly sweep no longer re-admits an `admission-deferred` issue on fewer checks than intake's admission. A deferred issue that now carries `do-not-merge`, or whose `work-class: untrusted-provenance` label someone unlisted removed, stays deferred, as one with `needs-human` or the untrusted-provenance label already did. One that lost `status: ready` loses `admission-deferred`. One that gained `area: security`, or whose body was edited, after its newest `admission-deferred` add gets the admission comment and loses `status: ready` and `admission-deferred`. It parks at `status: needs-decision` for the security area, else at `status: confirmed`. Before, the sweep added `agent-ready` to any of these issues once its blockers were closed. `decide()`, which judges a person's mark on a deferred issue, refuses an issue that carries `do-not-merge` or `needs-human`, or that changed in the same ways, whatever `admission-rules.json` lists. A mark refused that way parks at `status: needs-decision`, as any refused mark does ([#10733](https://github.com/melodic-software/claude-code-plugins/issues/10733)).
+
+## [7.5.1] - 2026-10-29
+
+### Fixed
+
+- The main-run review (`pr-review-main.yml`) runs on the review lanes' credential chain instead of the API key alone: a lane whose key leg credit-stops, is refused with a 401 or 402, or has no key is reviewed on the reviews role's subscription token, and a lane that leg hands off (a limit stop, a credit stop, a 401 or 402, or no token) on `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`. Each leg is its own job holding one credential, writes the same verdict, and stays green when it hands off, so an exhausted key no longer leaves every lane-source pull request unbound.
+- When the main-run review's whole-file diff is over its size cap, a file moved unchanged shows as its rename lines alone, so a pull request of pure moves fits. A move into or out of a lane source, a mode change, a moved symlink or submodule, a move that may run or load (an executable, a skills, agents, commands or hooks path, or a file a tool reads by name), and a move an added line names still show whole, and the reviewer is told a rename-only entry is unseen.
+
+## [7.5.0] - 2026-10-29
+
+### Added
+
+- A base-branch trust-path hold: `pr-require-checks-trust-paths.yml` runs ci-workflows' shared hold from `pull_request_target`, which posts a failing `ci-status` status when an agent App touched a pull request that changes a path in `.github/trust-path-hold.json`. `scripts/sync-hold-floor.py` generates that file from the same floor and `merge.trust-path-hold-apps` as the inline hold, which stays.
+
+### Fixed
+
+- Intake admission no longer parks host work at `status: needs-decision`. An issue whose done-when items are all ones an unattended lane run cannot perform now parks at `status: confirmed`, with `host-run` added, the host queue's label, when nothing else refuses or waits, and an issue that already carries `host-run` parks at `status: confirmed` whatever its items. A `host-run` label counts only when a listed human or the lanes App added it last. Only an issue without such a label that mixes such items with items the lane can do still holds at needs-decision, where refine.mjs splits it, and so does any issue with a paid-eval item, since a paid eval can bill the owner; the admission comment now names the host queue, or the owner for a paid eval, instead of a person. An issue held for a person, or with any other refusal, wait or pending split, gets no `host-run`, since that label starts an unattended host run. Before, the owner's release of [#9293](https://github.com/melodic-software/claude-code-plugins/issues/9293) with `host-run` added was re-held for a person.
+- The issue lane's `issue.json` carries `split_parent`, the body of the native parent a size split filed the issue from, when the issue counts as that parent's text (admit.mjs `splitChildBody`) and a listed human wrote, and last edited before the label if ever, that body. The split copies only the parent's task-list lines, so a part lost the parent's notes and plan, and the lane pushed back on missing text ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176), [#10205](https://github.com/melodic-software/claude-code-plugins/issues/10205)). The split-child trust rule is unchanged: the part's body still holds only copied task-list lines.
+
 ## [7.4.1] - 2026-10-29
 
 ### Fixed

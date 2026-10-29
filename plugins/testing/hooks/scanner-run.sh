@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # Shared by test-weaken.sh (the PreToolUse hook), test-scan.sh (the scan
-# wrapper no hook row runs) and the judge calibration harness
-# (skills/audit/evals/judge-calibration/metrics.sh, before judge-lib.sh), which
-# set HOOK_DIR before sourcing. It only defines functions.
+# wrapper no hook row runs), the judge calibration harness
+# (skills/audit/evals/judge-calibration/metrics.sh, before judge-lib.sh) and
+# skills/audit/scripts/judge-check.sh, which set HOOK_DIR before sourcing. It
+# only defines functions.
 # shellcheck disable=SC2034,SC2154 # HOOK_DIR and SCANNER come from the hook; DATA, PKEY and SCAN_RC go back to it
 
 # Windows' native jq.exe writes its stdout in text mode, turning every LF into

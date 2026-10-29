@@ -326,6 +326,11 @@ The merge gate reads severity from two plain-text lines, never HTML comments:
 
 A comment or summary without its one readable line counts every finding it holds as CRITICAL.
 
+An inline comment for a `manifest <field>: flag` opens with that flag's summary line as plain text,
+with no backticks, bold or quote marker: `manifest <field>: flag, <reason>`. Its severity line is
+then the last line above the footer. The pr-unblock lane matches that first line to find a
+`dependencies` flag it may settle.
+
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the
 findings or files. A `critical-security` hold (one or more CRITICAL findings, a CRITICAL

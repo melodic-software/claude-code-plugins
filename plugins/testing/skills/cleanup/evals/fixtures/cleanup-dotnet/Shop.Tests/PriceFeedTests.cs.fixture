@@ -1,0 +1,30 @@
+using System;
+using Xunit;
+
+namespace Shop.Tests;
+
+public class PriceFeedTests
+{
+    private static readonly ShopOptions Options =
+        new() { PriceFeedUrl = new Uri("https://prices.example.test") };
+
+    [Fact]
+    public void Prices_a_sku_by_its_length()
+    {
+        var feed = new PriceFeed(Options);
+        Assert.Equal(3m, feed.PriceOf("ABC"));
+    }
+
+    [Fact]
+    public void Feed_is_created()
+    {
+        var feed = new PriceFeed(Options);
+        Assert.NotNull(feed);
+    }
+
+    [Fact]
+    public void Rejects_options_without_a_url()
+    {
+        Assert.Throws<InvalidOperationException>(() => new PriceFeed(new ShopOptions()));
+    }
+}

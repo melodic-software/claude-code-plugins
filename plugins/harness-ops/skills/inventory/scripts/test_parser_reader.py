@@ -744,7 +744,8 @@ class TestFlowQuery(unittest.TestCase):
                 self.assertEqual(self.reader.keys_used(src, "pY"), used)
 
     def _sinks(self, src: str, names: tuple[str, ...] = ("includes",)) -> list[str]:
-        return [kind for kind, _, _ in self.reader.sinks(src, 0, len(src), list(names))]
+        found = self.reader.sinks(src, 0, len(src), list(names))
+        return [kind for kind, _, _ in found["hits"]]
 
     def test_sinks_are_writes_of_a_trusted_name_on_a_possible_prototype(self) -> None:
         """#5891 second verifier: the sink rule. Every way to reach a
@@ -818,6 +819,21 @@ class TestFlowQuery(unittest.TestCase):
             ("var P=Function.prototype;", ["function-constructor"]),
             ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
             ("Function.prototype instanceof H;", ["function-constructor"]),
+            # #9990: a loop head, `arguments` or a block function declaration
+            # can hand a fresh-looking target any object; a destructured
+            # `__defineGetter__` defines, and code built from a string loads
+            # unseen.
+            ("x={};for(var x of[P])x.includes=f;", ["write"]),
+            ("function g(o){arguments[0]=P;o.includes=f}g({});", ["write"]),
+            ("{function g(o){o.includes=f}}g(P);", ["write"]),
+            ('var{__defineGetter__:g}=Object;g.call(P,"x",f);', ["definer-escape"]),
+            # A destructured reflective read hands out a definer to call.
+            ('var{get:g}=Reflect;g(P,"__defineGetter__").call(P,k,f);', ["definer-escape"]),
+            (
+                'var{getOwnPropertyDescriptor:d}=Object;d(P,"__defineGetter__").value.call(P,k,f);',
+                ["definer-escape"],
+            ),
+            ("Function(\"return import('/b.js')\")();", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
@@ -841,10 +857,7 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
             ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
-            (
-                'var o=Object.create(null);Object.defineProperty(o,"includes",{});',
-                ["argument"],
-            ),
+            ('var o=Object.create(null);Object.defineProperty(o,"includes",{});', []),
             ('var o={};Object.defineProperty(o,"includes",{});', []),
             ('Reflect.set({},"includes",f,Array.prototype);', ["argument"]),
             ('Reflect.set({},"includes",f,{});', []),
@@ -859,6 +872,37 @@ class TestFlowQuery(unittest.TestCase):
         ):
             with self.subTest(src=src):
                 self.assertEqual(self._sinks(src), kinds)
+
+    def test_a_cleared_target_reports_what_it_relies_on(self) -> None:
+        """#9990: an `Object.create` result is fresh only while nothing
+        replaces `Object` or `create`, a definer's result only while nothing
+        replaces `Object` or the definer, and a `this` every reference binds
+        only through `bind`. A target that is an exported function's
+        parameter waits on that function's importers."""
+        for src, trusted, pending in (
+            (
+                'var o=Object.create(null);Object.defineProperty(o,"includes",{});',
+                ["Object", "create"],
+                [],
+            ),
+            (
+                'var{defineProperty:f}=Object;var o=f({},"x",{});o[k]=1;',
+                ["Object", "defineProperty"],
+                [],
+            ),
+            (
+                "function r(a){this[a]=1}var g=(a,b)=>r.bind(b,a);export{g};",
+                ["bind"],
+                [("computed-write", [("g", 1)])],
+            ),
+        ):
+            with self.subTest(src=src):
+                found = self.reader.sinks(src, 0, len(src), ["includes"])
+                self.assertEqual(found["hits"], [])
+                self.assertEqual(found["trusted"], trusted)
+                self.assertEqual(
+                    [(kind, needs) for kind, _, _, needs in found["pending"]], pending
+                )
 
     def test_a_flow_reports_the_names_it_trusted(self) -> None:
         got = self._flow(

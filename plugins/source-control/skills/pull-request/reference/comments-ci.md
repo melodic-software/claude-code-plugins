@@ -57,6 +57,14 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file
    `check-paths` refuses, or is too large for one scoped change. A file outside the thread's own
    path may still be in scope: run `check-paths` on it before deciding.
+   A security-review `manifest dependencies: flag` on a plugin's `plugin.json` is the exception
+   the code can settle. When each entry is a bare name of another plugin in the repository's own
+   `.claude-plugin/marketplace.json`, and the flagged plugin cannot work without it (it invokes
+   the dependency with no "if installed" check and no fallback), record `INCORRECT`. Cite, for
+   each entry, a line in one of the flagged plugin's own skills, agents or commands that invokes
+   `/<entry>:`, outside a `## Next` section, with no gate, condition, fallback or negation in the
+   lines around it. When any entry is
+   optional (presence-gated, with a fallback), record `UNCERTAIN`.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.

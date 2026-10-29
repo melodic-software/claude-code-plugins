@@ -645,19 +645,16 @@ export function decidedHead(notices, at) {
 
 // Why the head branch's push history shows a lane run missing before a
 // decision made at `at`, else null (babysit_merge_policy.unran_head, and
-// ci-status's cost-hold step). `activity` is one page of the repository
-// activity API for the branch, newest first, which deleting a run leaves;
-// `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-// `at`. Every head the branch moved to after its last push of `decided`
-// before `at` needs a run of every lane: with one deleted, an older notice
-// would become the decided head (#10437). No push of `decided` before `at`
-// or a full page, which may not reach it, keeps the hold too.
+// ci-status's cost-hold step). `activity` is the repository activity API for
+// the branch read to its end (branchActivity), newest first, which deleting a
+// run leaves; `ran` lists, per REVIEW_LANES entry, the heads of its runs
+// started before `at`. Every head the branch moved to after its last push of
+// `decided` before `at` needs a run of every lane: with one deleted, an older
+// notice would become the decided head (#10437). No push of `decided` before
+// `at` keeps the hold too.
 export function unranHead(activity, ran, decided, at) {
   if (!Array.isArray(activity)) {
     return "the branch's push history is unreadable";
-  }
-  if (activity.length >= 100) {
-    return "the branch's push history fills a page";
   }
   if (!Array.isArray(ran) || ran.length !== REVIEW_LANES.length || !ran.every(Array.isArray)) {
     return "the lane runs do not cover every review lane";
@@ -748,8 +745,47 @@ async function noticedHead(read, repo, branch, base, at) {
   if (decided === null) {
     return null;
   }
-  const activity = await read("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
-  return unranHead(activity, ran, decided, at) === null ? decided : null;
+  return unranHead(await branchActivity(read, repo, branch), ran, decided, at) === null ? decided : null;
+}
+
+// The Link header a reader (fetchGitHub, check-trusted-trigger's
+// createGitHub) keeps on a list answer, under a registered symbol so this
+// file imports no repository file.
+export const LINK = Symbol.for("github.link");
+export const ACTIVITY_PAGES = 20;
+
+// The head `branch`'s activity in `repo`, newest first, read to its end: the
+// API keeps a branch name's history across deletions, so a name recreated
+// for each sync fills any one page. It ignores `page`, so each next page is
+// the `after` cursor of the answer's Link rel="next"; only a short page ends
+// it. A page that is no list gives null (unranHead's unreadable); a full page
+// with no next link, a next link with no new cursor, or more than
+// ACTIVITY_PAGES pages throws, as a failed read does.
+export async function branchActivity(read, repo, branch) {
+  const path = `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`;
+  const rows = [];
+  const cursors = new Set();
+  for (let after = null; cursors.size < ACTIVITY_PAGES; ) {
+    const page = await read("GET", after === null ? path : `${path}&after=${after}`);
+    if (!Array.isArray(page)) {
+      return null;
+    }
+    rows.push(...page);
+    if (page.length < 100) {
+      return rows;
+    }
+    const next = /<([^>]*)>;\s*rel="next"/.exec(String(page[LINK] ?? ""));
+    if (!next) {
+      throw new Error("the branch's push history has a full page with no next link");
+    }
+    // The cursor as the link spells it, encoded: decoding would read a `+` as a space.
+    after = /[?&]after=([^&#]+)/.exec(next[1])?.[1];
+    if (!after || cursors.has(after)) {
+      throw new Error("the branch's push history names no new page");
+    }
+    cursors.add(after);
+  }
+  throw new Error(`the branch's push history runs past ${ACTIVITY_PAGES} pages`);
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.
@@ -1214,6 +1250,9 @@ const fetchGitHub = (env) => async (method, path, body) => {
   if (json === null || json.errors?.length) {
     throw new Error(`${method} ${path} failed with status ${response.status}`);
   }
+  if (Array.isArray(json)) {
+    Object.defineProperty(json, LINK, { value: response.headers.get("link") });
+  }
   return json;
 };
 
@@ -1438,8 +1477,13 @@ export function humanGatedLabel(tracker) {
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
+// The label report-outcome puts on a lanes App pull request that holds for a
+// person (report-outcome.mjs HUMAN_MERGE_HOLD). Only a listed person's own
+// removal lifts it (ci-status's `Fail a human-merge hold` step).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
+
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label and `pr-verify-failed`, one reason each. `labels` are
+// human-gated label, `pr-verify-failed` and HUMAN_MERGE_HOLD, one reason each. `labels` are
 // names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
@@ -1452,6 +1496,8 @@ export function labelHolds(labels, tracker, number) {
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has("pr-verify-failed") &&
       `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+    names.has(HUMAN_MERGE_HOLD) &&
+      `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
   ].filter(Boolean);
 }
 
