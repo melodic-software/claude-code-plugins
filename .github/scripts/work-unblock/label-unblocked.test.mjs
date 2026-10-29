@@ -3458,6 +3458,16 @@ test("a person's mark on an issue a merged Refs pull request may have done parks
   ]);
 });
 
+test("a person's mark refused for a merged Refs pull request and another reason keeps needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
+  assert.equal(await sweep({ github, admission: admissionFor(4242) }, PAUSING), 0);
+  const posted = writes(calls);
+  assert.ok(posted.includes(`POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`), posted.join("\n"));
+  assert.ok(!posted.some((call) => call.includes("status: confirmed")), posted.join("\n"));
+  assert.match(posted[0], /merged pull request #41 names it/);
+});
+
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
   t.mock.method(console, "log", () => {});
   const refusedWrites = (reasons) => [

@@ -708,11 +708,12 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     // The comment first, then the hold before status: ready comes off, and
     // admission-deferred last: a failed write leaves the issue either still
     // marked, for the next sweep, or held, which no sweep admits. The hold is
-    // needs-decision, except that a refusal for a manual external step or a
-    // merged Refs pull request asks no decision: status: confirmed, beside
-    // attended (itself a hold) for the external step.
+    // needs-decision, except that a refusal for a manual external step, or one
+    // for a merged Refs pull request alone, asks no decision: status:
+    // confirmed, beside attended (itself a hold) for the external step.
     await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
-    const status = decision.hold || !(decision.attended || decision.done) ? NEEDS_DECISION : CONFIRMED;
+    const doneOnly = decision.done !== undefined && decision.reasons.length === 1;
+    const status = decision.hold || !(decision.attended || doneOnly) ? NEEDS_DECISION : CONFIRMED;
     await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
