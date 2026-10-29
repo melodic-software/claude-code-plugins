@@ -72,3 +72,25 @@ and [REST API: list check run annotations](https://docs.github.com/en/rest/check
 As of: 2026-10-21, read from runs 39610040287 and 39610040502. Recheck trigger: the reusable
 workflows rename `failure-class` or `skipped-validation`, or stop writing the class as an
 annotation.
+
+## The test lanes on one head
+
+With `--head <sha>` the script reads every check run on that commit, up to five pages of 100; a
+fifth full page means the listing may be cut short, and the line reads `local absent`:
+
+```bash
+gh api "repos/{owner}/{repo}/commits/<sha>/check-runs?filter=all&per_page=100&page=1"
+```
+
+It keeps the runs whose `app.slug` is `github-actions` and whose `name` is `test` or starts with
+`test` followed by `-`, `(` or a space. Per name it takes the newest run (highest `id`) whose
+`conclusion` is not `skipped`, else the newest run, and judges its `status` and `conclusion`.
+`filter=all` instead of the default `latest`, because a label or body edit re-runs a workflow on
+the same commit and that run can post the test lanes skipped (this repository's
+`pr-require-checks.yml` does): the newest run per name would then be the skip, hiding a failure.
+A re-run that passed still replaces its failed attempt. A `status` other than `completed` (`queued`, `in_progress`,
+`waiting`, `requested`, `pending`) reads `pending`; a `conclusion` other than `success`, `skipped`
+or `neutral` reads `failing`. Pointer: the endpoint, `filter` and both field value sets are read at
+[REST API: list check runs for a Git reference](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference).
+As of: 2026-10-29. Recheck trigger: that section renames `filter`, changes its default, or adds a
+`status` or `conclusion` value.

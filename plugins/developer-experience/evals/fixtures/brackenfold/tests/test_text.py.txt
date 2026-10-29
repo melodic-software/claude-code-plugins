@@ -1,0 +1,15 @@
+import unittest
+
+from bfk.text import slugify
+
+
+class SlugifyTests(unittest.TestCase):
+    def test_joins_words_with_hyphens(self):
+        self.assertEqual(slugify("Hello World"), "hello-world")
+
+    def test_strips_punctuation(self):
+        self.assertEqual(slugify("  Release notes!  "), "release-notes")
+
+
+if __name__ == "__main__":
+    unittest.main()

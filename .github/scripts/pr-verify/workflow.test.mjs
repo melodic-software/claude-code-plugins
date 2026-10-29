@@ -184,8 +184,9 @@ test("each secret appears only in its own job", () => {
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
-// A failed upstream run reaches resolve-pr, which judges it only when its one
-// failure is a hold an approving review of the head lifts (heldOnly).
+// A failed upstream run reaches resolve-pr, which judges it only when it
+// failed on nothing but holds an approving review of the head lifts, the
+// `do-not-merge` label, or both (heldOnly).
 test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
   assert.equal(
     keyGate(),

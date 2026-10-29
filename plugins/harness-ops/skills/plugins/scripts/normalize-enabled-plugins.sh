@@ -20,7 +20,19 @@
 #     aborted rather than applied.
 #   - Permission denial and parse failure are loud (exit 2), never silent.
 #
-# Exit: 0 already-sorted or wrote a reorder (or --report-project and sorted);
+# Output, one line on stdout:
+#   already-sorted keys=N             the map is in order; nothing written
+#   normalized moved=K keys=N         wrote a reorder that moved K of N keys
+#   would-normalize moved=K keys=N    --check: a reorder would move K of N keys
+#   missing-file keys=0               the --file path does not exist; nothing
+#                                     written, exit 0 (a machine with no user
+#                                     settings file yet is not an error)
+#   project-absent | project-sorted keys=N | project-unsorted keys=N
+#                                     --report-project
+# K is the fewest keys the reorder moves: N less the longest subsequence of
+# keys already in sorted order, so one appended key reads moved=1 at any N.
+#
+# Exit: 0 already-sorted, missing-file, or wrote a reorder (or --report-project);
 #       1 --check found unsorted keys (would normalize; no write);
 #       2 usage / refused (parse, semantic-diff, write-denied, project write).
 set -euo pipefail
@@ -41,7 +53,7 @@ Usage:
 --check reports whether a reorder is needed without writing.
 --report-project inspects a project-scope settings file and never writes it.
 
-Exit: 0 already sorted, or wrote a reorder, or --report-project ran;
+Exit: 0 already sorted, no such --file, or wrote a reorder, or --report-project ran;
 1 --check found unsorted keys; 2 usage error, jq missing, or a refused write.
 EOF
 }
@@ -95,6 +107,13 @@ key_count() {
   jq -er '(.enabledPlugins // {}) | keys_unsorted | length' "$1"
 }
 
+moved_count() {
+  jq -er '(.enabledPlugins // {}) | keys_unsorted as $k
+    | reduce range(0; $k | length) as $i ([];
+        . + [([range(0; $i) as $j | select($k[$j] < $k[$i]) | .[$j]] | max // 0) + 1])
+    | ($k | length) - (max // 0)' "$1"
+}
+
 is_sorted() {
   local cur sorted
   cur=$(jq -c '(.enabledPlugins // {}) | keys_unsorted' "$1") || return 2
@@ -133,7 +152,7 @@ fi
 FILE="${FILE:-${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}}"
 
 if [[ ! -f "$FILE" ]]; then
-  echo "already-sorted keys=0"
+  echo "missing-file keys=0"
   exit 0
 fi
 
@@ -152,8 +171,9 @@ if [[ "$sorted_rc" -eq 0 ]]; then
   exit 0
 fi
 
+moved=$(moved_count "$FILE")
 if [[ "$CHECK" -eq 1 ]]; then
-  echo "would-normalize keys=$n"
+  echo "would-normalize moved=$moved keys=$n"
   exit 1
 fi
 
@@ -226,5 +246,5 @@ if ! mv -f "$sib" "$FILE"; then
   exit 2
 fi
 
-echo "normalized keys=$n"
+echo "normalized moved=$moved keys=$n"
 exit 0

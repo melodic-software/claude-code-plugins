@@ -8,6 +8,30 @@
     },
     {
       "answer": "Measure stresses, not syllables."
+    },
+    {
+      "answer": "Raw syllables don't tell you line length here; the stresses do.",
+      "why": "negation follows the raw count"
+    },
+    {
+      "answer": "Weigh the lines by stresses, not by raw syllables.",
+      "why": "negation precedes the raw count"
+    },
+    {
+      "answer": "By stress it's 4/3/4/4. Measure in stressed syllables, never raw syllables: a raw-syllable count answers a different question.",
+      "why": "the meter-prosody skill's own wording"
+    },
+    {
+      "answer": "Don't go by raw syllables; the chorus is 4/3/4/4 by stress."
+    },
+    {
+      "answer": "Ignore the raw syllable count and count stresses instead."
+    },
+    {
+      "answer": "Balance comes from stresses, not syllable count."
+    },
+    {
+      "answer": "The raw syllable count says nothing about balance."
     }
   ],
   "fail": [
@@ -17,6 +41,29 @@
     {
       "answer": "The syllable count is close enough to call it balanced.",
       "why": "accepts the raw count"
+    },
+    {
+      "answer": "The raw syllable counts, 8/9/9/8, show the chorus is nicely balanced.",
+      "why": "names the raw count to endorse it"
+    },
+    {
+      "answer": "By raw syllables it's 8/9/9/8, a perfect mirror, so the balance holds.",
+      "why": "endorses the raw count"
+    },
+    {
+      "answer": "The raw syllable counts, 8/9/9/8, show the chorus is nicely balanced; it doesn't need work.",
+      "why": "a later negation about something else"
+    },
+    {
+      "answer": "Your syllable counts are balanced and I don't see a problem.",
+      "why": "a later negation about something else"
+    },
+    {
+      "answer": "Your syllable count isn't perfectly even, but 8/9/9/8 is balanced enough.",
+      "why": "a hedged endorsement of the raw count"
+    },
+    {
+      "answer": ""
     }
   ]
 }
