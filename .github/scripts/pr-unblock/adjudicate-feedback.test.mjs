@@ -650,8 +650,9 @@ test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own
 
 // A security-review flag on a plugin manifest's `dependencies` (the #10049
 // shape: planning -> work-items), rated IMPORTANT. The script checks the
-// manifest and the marketplace at the adjudicated head itself, and the lane's
-// cited call site, before it settles the flag without a person.
+// manifest and the marketplace at the adjudicated head itself, the marketplace
+// at the PR's base, and the lane's cited call site, before it settles the flag
+// without a person.
 const FLAG_PATH = "plugins/planning/.claude-plugin/plugin.json";
 const SITE = "plugins/planning/skills/wayfind/SKILL.md:2";
 const GUARDED_SITE = "plugins/planning/skills/wayfind/SKILL.md:6";
@@ -692,17 +693,27 @@ const FLAG_FILES = {
   "plugins/work-items/skills/track/SKILL.md": "Run `/work-items:track add` for each item.\n",
 };
 
-const settleFlag = async ({ files = FLAG_FILES, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
+// The PR's base, where the marketplace must already list each dependency.
+const BASE = "d".repeat(40);
+const settleFlag = async ({ files = FLAG_FILES, baseMarketplace = FLAG_FILES[MARKETPLACE], baseSha = BASE, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
   const posts = [];
   let resolved = false;
   const result = await settleDisputes({
     headSha,
     api: {
+      getPull: async (pr) => {
+        assert.equal(pr, 42);
+        return { base: { sha: baseSha } };
+      },
       getText: async (file, ref) => {
-        assert.equal(ref, headSha ?? HEAD, "files are read at the PR head");
         if (files === null) {
           throw new Error("GET returned 502");
         }
+        if (ref === BASE) {
+          assert.equal(file, MARKETPLACE, "only the marketplace is read at the PR base");
+          return baseMarketplace;
+        }
+        assert.equal(ref, headSha ?? HEAD, "files are read at the PR head");
         return files[file] ?? null;
       },
       readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2, 3] }),
@@ -788,6 +799,11 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     ["unsettled SUGGESTION flag", { body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] }],
     ["CRITICAL rating", { body: FLAG.replace("IMPORTANT", "CRITICAL") }],
     ["flagged plugin not in the marketplace", { files: { ...FLAG_FILES, [MARKETPLACE]: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/work-items" }] }) } }],
+    // The same PR adds the dependency's marketplace entry: only the head lists it.
+    ["dependency not in the marketplace at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "planning", source: "./plugins/planning" }] }) }],
+    ["dependency at another source at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/other" }] }) }],
+    ["no marketplace at the PR base", { baseMarketplace: null }],
+    ["unknown PR base", { baseSha: undefined }],
     ["a failed read", { files: null }],
   ];
   for (const [label, options] of cases) {

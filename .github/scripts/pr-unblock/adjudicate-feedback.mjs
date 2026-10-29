@@ -157,12 +157,17 @@ const parseObject = (text) => {
 // Whether every dependency of the flagged manifest at `sha` is a hard require
 // on a plugin of this repository's marketplace: the flagged plugin is an
 // entry there; each dependency is a bare name of another entry whose source is
-// a path in this repository; and `evidence` (the lane's path:line list) cites,
-// for each one, a line of the flagged plugin's skills, agents or commands that
-// invokes `/<name>:` with no GUARDED word within GUARD_LINES of it. Returns
-// {sites}, the cited line per dependency, or {why}. `getText(path, ref)` reads
-// a file, null when absent.
-export async function hardRequire({ getText, sha, path, evidence }) {
+// a path in this repository, and an entry of the marketplace at `baseSha` (the
+// PR's base) with that same source, so the PR that adds the dependency cannot
+// also add the plugin it trusts; and `evidence` (the lane's path:line list)
+// cites, for each one, a line of the flagged plugin's skills, agents or
+// commands that invokes `/<name>:` with no GUARDED word within GUARD_LINES of
+// it. Returns {sites}, the cited line per dependency, or {why}.
+// `getText(path, ref)` reads a file, null when absent.
+export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
+  if (!SHA.test(String(baseSha ?? ""))) {
+    return { why: "the PR's base commit is unknown" };
+  }
   const read = new Map();
   const text = (file) => {
     if (!read.has(file)) {
@@ -181,6 +186,8 @@ export async function hardRequire({ getText, sha, path, evidence }) {
   if (!Array.isArray(dependencies) || dependencies.length === 0) {
     return { why: "the manifest lists no dependencies" };
   }
+  const basePlugins = parseObject(await getText(MARKETPLACE, baseSha))?.plugins;
+  const baseEntries = Array.isArray(basePlugins) ? basePlugins.filter((entry) => entry !== null && typeof entry === "object") : [];
   const sites = [];
   for (const dependency of dependencies) {
     if (typeof dependency !== "string" || !BARE_NAME.test(dependency)) {
@@ -189,6 +196,9 @@ export async function hardRequire({ getText, sha, path, evidence }) {
     const source = entries.find((entry) => entry.name === dependency)?.source;
     if (dependency === manifest.name || typeof source !== "string" || !IN_REPOSITORY.test(source) || DOT_SEGMENT.test(source.slice(2))) {
       return { why: `${dependency} is not another plugin of ${MARKETPLACE} with a source in this repository` };
+    }
+    if (!baseEntries.some((entry) => entry.name === dependency && entry.source === source)) {
+      return { why: `${dependency} is not an entry of ${MARKETPLACE} at the PR base with the source ${source}` };
     }
     let site = null;
     for (const cited of evidence) {
@@ -407,7 +417,7 @@ export function hardRequireReply(path, sites, headSha) {
     FINDING_ANSWERED,
     "**pr-unblock / adjudicate-feedback: hard requires on this marketplace's plugins, resolved**",
     "",
-    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists with a source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
+    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists, here and at the PR's base, with the same source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
     "",
     evidenceLine(sites),
   ].join("\n");
@@ -451,8 +461,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   reviewed yet is deferred: no verdict, no escalation, and the round skips
 //   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
 // - an INCORRECT reply on a dependencyFlag thread: when hardRequire settles
-//   it at the PR head (`headSha`, which headMoved checks before the reply),
-//   the fixed hardRequireReply, then the thread is resolved, with no verdict
+//   it at the PR head (`headSha`, which headMoved checks before the reply)
+//   against the marketplace at the PR's base, the fixed hardRequireReply, then the thread is resolved, with no verdict
 //   and no person; otherwise feedback-disputed;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
@@ -560,7 +570,8 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
     if (disposition === "INCORRECT" && dependencyFlag(comments, path)) {
       let found;
       try {
-        found = await hardRequire({ getText: (file, ref) => api.getText(file, ref), sha: headSha, path, evidence: byThread.get(thread)?.evidence ?? [] });
+        const baseSha = (await api.getPull(pr))?.base?.sha;
+        found = await hardRequire({ getText: (file, ref) => api.getText(file, ref), sha: headSha, baseSha, path, evidence: byThread.get(thread)?.evidence ?? [] });
       } catch (error) {
         found = { why: `a read failed: ${String(error?.message ?? error).slice(0, 300)}` };
       }
