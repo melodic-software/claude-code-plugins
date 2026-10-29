@@ -909,6 +909,66 @@ class TestOpenFindings(unittest.TestCase):
             table=False,
         )
 
+    # #5901 slice 7: the runtime chunk's helpers define on objects they are
+    # given. Each quoted shape is 2.1.310's, the rest Bun's runtime source;
+    # the chunk is /b.js.
+    HELPERS = (
+        "var k=Object.create;"
+        "var{getPrototypeOf:l,defineProperty:f,getOwnPropertyNames:m}=Object;"
+        "var h=Object.prototype.hasOwnProperty;function n(a){return this[a]}"
+        "var Ce=(a,b,c)=>{c=a!=null?k(l(a)):{};"
+        'let e=b||!a||!a.__esModule?f(c,"default",{value:a,enumerable:!0}):c;'
+        "for(let g of m(a))if(!h.call(e,g))f(e,g,{get:n.bind(a,g),enumerable:!0});"
+        "return e};var q=(a)=>a;function r(a,b){this[a]=q.bind(null,b)}"
+        "var $r=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})},"
+        "ovi=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})};"
+        "export{Ce,$r,ovi};"
+    )
+    INCLUDES = 'import{pY}from"/a.js";pY.includes("x");'
+    PATCH = '{includes:()=>function(){this.push("B");return!0}}'
+
+    def test_the_bun_runtime_helpers_on_fresh_objects_clear(self) -> None:
+        """`Ce` defines on an object `Object.create` or `{}` just made, and
+        `$r` on the objects each importer passes it, here a fresh `var X={}`
+        and an object literal, whose setter `r` writes through a bound
+        `this`. With nothing else in the bundle the list stays literal."""
+        importer = (
+            'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
+        )
+        self.assert_across_modules(False, self.HELPERS, importer, self.INCLUDES)
+
+    def test_a_runtime_helper_on_a_builtin_prototype_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";$r(Array.prototype,{self.PATCH});',
+            self.INCLUDES,
+        )
+
+    def test_a_runtime_helper_on_a_parameter_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";function g(o){{$r(o,{self.PATCH})}}g(Array.prototype);',
+            self.INCLUDES,
+        )
+
+    def test_an_escaped_runtime_helper_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True, self.HELPERS, 'import{$r}from"/b.js";var e=$r;s(e);', self.INCLUDES
+        )
+
+    def test_a_namespace_load_of_the_runtime_module_stays_partial(self) -> None:
+        """A whole load of the chunk hands `$r` out unseen."""
+        for importer in (
+            f'import*as R from"/b.js";R.$r(Array.prototype,{self.PATCH});',
+            f'var R=import.meta.require("/b.js");R.$r(Array.prototype,{self.PATCH});',
+        ):
+            with self.subTest(importer=importer):
+                self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+
     def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
         """A `.require` read that is only tested never hands the loader on:
         a `&&` operand other than the last, an `if`, loop or `?:` test, a
