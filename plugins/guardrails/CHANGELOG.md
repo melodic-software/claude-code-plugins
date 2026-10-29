@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.3] - 2026-10-29
+
+### Changed
+
+- A clean Write, Edit or NotebookEdit costs the PreToolUse guard row 7 processes on Linux instead of 14. With telemetry off (the default), hardcoded-path-check decides clean content with its builtin prefilter before running `git rev-parse` or `git check-ignore`. secret-pattern-detection opens a capture subshell only when a pattern matched. No verdict changes.
+
 ## [0.63.2] - 2026-10-29
 
 ### Changed
