@@ -132,6 +132,8 @@ printf '[]\n' >"$TMP/empty.json"
 # A stuck-section read that finds no label holding anything, for every run that
 # gives the brief a repo but is not about the Stuck section.
 printf '{}\n' >"$TMP/stuck-empty.json"
+# Likewise an owner-touch read with no events.
+printf '{"owner": "op-user", "pages": []}\n' >"$TMP/touch-empty.json"
 
 # Stuck-section fixture: label -> search page documents. NOW is 2026-07-20T08:00Z.
 #   #201 issue — "status: ready" since 07-01 (19d); an older labeled event and a
@@ -486,7 +488,7 @@ assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry is
 
 # --- Graceful: queue labels absent in consuming repo -------------------------
 OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -511,7 +513,7 @@ assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL
 assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "needs-triage"
 
 OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --queue-labels "bug, enhancement" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
@@ -523,7 +525,7 @@ assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
 assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
 
 OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -532,7 +534,7 @@ OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -542,7 +544,7 @@ OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "empty label inventory degrades queue section" "$OUT_EMPTY_LABELS" "no queue labels found in this repo"
 
 OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -695,7 +697,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 8 sections unreadable: stranded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 9 sections unreadable: stranded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -789,7 +791,7 @@ OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
 RC_STUCK_ERR=$?
 assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
 assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
-assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 8 sections unreadable: stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 9 sections unreadable: stuck"
 printf '[]\n' >"$TMP/stuck-array.json"
 assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
   "UNREADABLE: --stuck-json is not an object"
@@ -802,6 +804,111 @@ bash "$BRIEF" --stuck-days x >/dev/null 2>&1
 assert_exit "non-numeric --stuck-days exits 3" 3 "$?"
 bash "$BRIEF" --stuck-limit x >/dev/null 2>&1
 assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
+
+# --- Owner touches: per UTC day, from timeline events -------------------------
+# The window is 2026-07-19 and 2026-07-20 (NOW is 2026-07-20T08:00Z). The
+# operator is op-user; the lane identity lanes-app[bot] shows up as lanes-app.
+#  #301 PR: op approves 07-19 (another reviewer's approval does not count), a
+#    lane escalation 07-19 (pr-unblock, reason ci-fix-round-cap), needs-human
+#    on 07-19T09:00 and off by the operator 07-19T12:30 (a 3h 30m wait), op
+#    lifts do-not-merge 07-20 and merges 07-20.
+#  #302 PR: a marker from mallory (not trusted) and one from before the window
+#    do not count; a pr-merge escalation 07-20 (reason risk, from its second
+#    marker line); needs-human on 07-17T08:00, off by another person
+#    07-20T02:00 (2d 18h); a do-not-merge lift by someone else does not count.
+#  #303 issue: a work-resolve-issue escalation 07-20 (reason pushback, from the
+#    outcome marker), a ratify-c3 marker with no reason 07-19, needs-human off
+#    by the operator 07-19T20:00 with no apply event read, and more events
+#    than the read took.
+cat >"$TMP/touch.json" <<'EOF'
+{"owner": "Op-User", "laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"__typename": "PullRequest", "number": 301,
+   "acts": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "PullRequestReview", "createdAt": "2026-07-19T10:00:00Z", "author": {"login": "op-user"}, "state": "APPROVED"},
+     {"__typename": "PullRequestReview", "createdAt": "2026-07-19T10:05:00Z", "author": {"login": "someone"}, "state": "APPROVED"},
+     {"__typename": "PullRequestReview", "createdAt": "2026-07-19T10:06:00Z", "author": {"login": "op-user"}, "state": "COMMENTED"},
+     {"__typename": "MergedEvent", "createdAt": "2026-07-20T07:00:00Z", "actor": {"login": "op-user"}},
+     {"__typename": "IssueComment", "createdAt": "2026-07-19T09:00:00Z", "author": {"login": "lanes-app"},
+      "body": "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=abc -->\nStopped.\n\n- Reason: `ci-fix-round-cap`"}]},
+   "labels": {"nodes": [
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-19T09:00:00Z", "actor": {"login": "lanes-app"}, "label": {"name": "needs-human"}},
+     {"__typename": "UnlabeledEvent", "createdAt": "2026-07-19T12:30:00Z", "actor": {"login": "op-user"}, "label": {"name": "needs-human"}},
+     {"__typename": "UnlabeledEvent", "createdAt": "2026-07-20T06:00:00Z", "actor": {"login": "op-user"}, "label": {"name": "do-not-merge"}}]}},
+  {"__typename": "PullRequest", "number": 302,
+   "acts": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"__typename": "IssueComment", "createdAt": "2026-07-19T11:00:00Z", "author": {"login": "mallory"},
+      "body": "<!-- work-items:escalation lane=pr-merge kind=escalated -->\nspoof"},
+     {"__typename": "IssueComment", "createdAt": "2026-07-18T23:00:00Z", "author": {"login": "lanes-app"},
+      "body": "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nold"},
+     {"__typename": "IssueComment", "createdAt": "2026-07-20T01:00:00Z", "author": {"login": "lanes-app"},
+      "body": "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge risk."}]},
+   "labels": {"nodes": [
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-17T08:00:00Z", "actor": {"login": "lanes-app"}, "label": {"name": "needs-human"}},
+     {"__typename": "UnlabeledEvent", "createdAt": "2026-07-20T02:00:00Z", "actor": {"login": "other-person"}, "label": {"name": "needs-human"}},
+     {"__typename": "UnlabeledEvent", "createdAt": "2026-07-20T03:00:00Z", "actor": {"login": "other-person"}, "label": {"name": "do-not-merge"}}]}},
+  {"__typename": "Issue", "number": 303,
+   "acts": {"pageInfo": {"hasNextPage": true}, "nodes": [
+     {"__typename": "IssueComment", "createdAt": "2026-07-20T03:00:00Z", "author": {"login": "lanes-app"},
+      "body": "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\n<!-- work-resolve-issue outcome=pushback run=5 -->\nPushed back."},
+     {"__typename": "IssueComment", "createdAt": "2026-07-19T05:00:00Z", "author": {"login": "lanes-app"},
+      "body": "<!-- work-items:escalation lane=work-loop kind=ratify-c3 -->\nRatify?"}]},
+   "labels": {"nodes": [
+     {"__typename": "UnlabeledEvent", "createdAt": "2026-07-19T20:00:00Z", "actor": {"login": "op-user"}, "label": {"name": "needs-human"}}]}}
+]}}}]}
+EOF
+
+run_touch() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" \
+    --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json" "${CLEAR_COST_ARGS[@]}" \
+    --touch-json "$TMP/touch.json" "$@" 2>&1
+}
+OUT_TOUCH="$(run_touch)"
+TOUCH_SEC="$(section "$OUT_TOUCH" "== Owner touches")"
+assert_contains "touches: the heading names the window" "$TOUCH_SEC" "== Owner touches (last 2 UTC days) =="
+assert_contains "touches: the operator and the trusted escalation authors are named" "$TOUCH_SEC" \
+  "  operator: op-user; escalations trusted from: lanes-app, op-user"
+assert_contains "touches: the first day's row" "$TOUCH_SEC" \
+  "  2026-07-19          1        0        0        1        2        2                     2"
+assert_contains "touches: the second day's row" "$TOUCH_SEC" \
+  "  2026-07-20          0        1        1        0        1        2                     0"
+assert_contains "touches: hold waits pair each lift with its apply event" "$TOUCH_SEC" \
+  "  hold waits (needs-human applied to lifted): n=2, median 3h 30m, max 2d 18h, 1 with no apply event read"
+assert_contains "touches: an escalation reason from a Reason line" "$TOUCH_SEC" "       1  pr-unblock escalated ci-fix-round-cap"
+assert_contains "touches: an escalation reason from the pr-merge marker" "$TOUCH_SEC" "       1  pr-merge escalated risk"
+assert_contains "touches: an escalation reason from the outcome marker" "$TOUCH_SEC" "       1  work-resolve-issue escalated pushback"
+assert_contains "touches: a marker with no reason" "$TOUCH_SEC" "       1  work-loop ratify-c3 unspecified"
+assert_not_contains "touches: an untrusted author's marker does not count" "$TOUCH_SEC" "pr-merge escalated unspecified"
+assert_contains "touches: items ranked by operator actions and escalations" "$TOUCH_SEC" \
+  $'    #301 PR  approve 1, dnm-lift 1, escalate 1, hold-off 1, merge 1\n    #303 issue  escalate 2, hold-off 1\n    #302 PR  escalate 1'
+assert_contains "touches: an item past the event cap is PARTIAL" "$TOUCH_SEC" "  PARTIAL: more than 100 events in the window on #303"
+assert_contains "touches: the login caveat is printed" "$TOUCH_SEC" "including any agent session that holds it"
+
+TOUCH_ONE_SEC="$(section "$(run_touch --touch-days 1)" "== Owner touches")"
+assert_contains "touches: --touch-days sets the window" "$TOUCH_ONE_SEC" "(last 1 UTC days)"
+assert_not_contains "touches: a day before the window has no row" "$TOUCH_ONE_SEC" "2026-07-19"
+assert_contains "touches: an event before the window is not counted" "$TOUCH_ONE_SEC" \
+  "  2026-07-20          0        1        1        0        1        2                     0"
+assert_contains "touches: a hold lifted in the window counts its wait from before it" "$TOUCH_ONE_SEC" "n=1, median 2d 18h, max 2d 18h"
+
+assert_contains "touches: --owner-login beats the fixture's owner" \
+  "$(section "$(run_touch --owner-login other-person)" "== Owner touches")" \
+  "  2026-07-20          0        0        1        0        1        2                     1"
+assert_contains "touches: --hold-label picks the hold label" \
+  "$(section "$(run_touch --hold-label do-not-merge)" "== Owner touches")" "n=0, 2 with no apply event read"
+assert_contains "touches: a quiet window says so" \
+  "$(section "$(run_touch --touch-json "$TMP/touch-empty.json")" "== Owner touches")" "  escalations: none in the window"
+
+printf '{"pages": []}\n' >"$TMP/touch-noowner.json"
+assert_contains "touches: no operator login is UNREADABLE" \
+  "$(section "$(run_touch --touch-json "$TMP/touch-noowner.json")" "== Owner touches")" "UNREADABLE: no operator login (pass --owner-login)"
+printf '{"errors": [{"message": "boom touches"}]}\n' >"$TMP/touch-error.json"
+OUT_TOUCH_ERR="$(run_touch --touch-json "$TMP/touch-error.json")"
+assert_exit "touches: an error document exits 6" 6 "$?"
+assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 9 sections unreadable: touches"
+assert_contains "touches: no repo and no fixture is an empty state" "$(section "$OUT3" "== Owner touches")" \
+  "(no repo resolved — pass --repo or --touch-json)"
+bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
+assert_exit "touches: --touch-days 0 exits 3" 3 "$?"
 
 # --- Degraded-mode contract: an unreadable source is never an all-clear -------
 # A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
@@ -821,7 +928,8 @@ assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
 #            Keys: label-list, pr-list, issue-list-label-<sanitized label>,
 #            issue-list-search, issue-view-<n>, and api-graphql-<cursor> (first
 #            page: api-graphql-first), and api-graphql-stuck-<sanitized label>-
-#            <cursor> for a label search; any other `api` call is served by its
+#            <cursor> for a label search, api-graphql-touch-<YYYY-MM-DD>-<cursor>
+#            for an owner-touch day search; any other `api` call is served by its
 #            repos/ path, sanitized as in rest. `api graphql --paginate` follows the
 #            cursors to the last page, as gh does. Every key served is logged
 #            to MB_GH_LOG when set; a missing fixture fails the call.
@@ -902,6 +1010,14 @@ case "$mode" in
     done
     case "$cmd" in
       "api graphql")
+        if [[ "$squery" == *" updated:"* ]]; then
+          # The owner-touch section's per-day search: one page per call, keyed
+          # by the day the updated: range starts on and the cursor.
+          day="${squery#* updated:}"
+          page="$(serve "api-graphql-touch-${day:0:10}-$(san "$cursor")")" || exit 1
+          printf '%s\n' "$page"
+          exit 0
+        fi
         if [[ -n "$squery" ]]; then
           # The stuck section's label search: one page per call, keyed by the
           # label inside `label:"..."` and the cursor.
@@ -1003,11 +1119,12 @@ COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 run_stub() {
   # run_stub MODE args... — runs the brief with the gh and az doubles on PATH.
   # The gql double serves the stranded fixtures by cursor alone, so a gql run
-  # takes its stuck read from an empty fixture unless MB_STUCK_LIVE is set; a
-  # later --stuck-json in "$@" wins.
+  # takes its stuck and owner-touch reads from empty fixtures unless MB_STUCK_LIVE
+  # or MB_TOUCH_LIVE is set; a later --stuck-json or --touch-json in "$@" wins.
   local mode="$1" stuck=()
   shift
   [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
+  [[ "$mode" == gql && -z "${MB_TOUCH_LIVE:-}" ]] && stuck+=(--touch-json "$TMP/touch-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" \
     "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
@@ -1022,7 +1139,7 @@ OUT_FAIL="$(run_stub fail)"
 RC_FAIL=$?
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "8 of 8 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "9 of 9 sections unreadable"
 assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
 assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
 COST_BLOCKED="$(section "$OUT_BLOCKED" "== Cost")"
@@ -1058,11 +1175,11 @@ OUT_ONE="$(run_stub blocked \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
-  --stuck-json "$TMP/stuck-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 8 sections unreadable: stranded"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 9 sections unreadable: stranded"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
@@ -1092,10 +1209,10 @@ if have git; then
     --decisions-json "$TMP/decisions.json" \
     --stuck-json "$TMP/stuck-empty.json" 2>&1)"
   RC_REMOTE=$?
-  assert_exit "git remote fallback: renders (exit 6, four of eight unreadable)" 6 "$RC_REMOTE"
+  assert_exit "git remote fallback: renders (exit 6, five of nine unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "4 of 8 sections unreadable: telemetry stranded lanes cost"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "5 of 9 sections unreadable: telemetry stranded lanes touches cost"
 fi
 
 # --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
@@ -1198,7 +1315,7 @@ assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issu
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
-assert_contains "rest: header counts the two lost sections" "$OUT_REST" "2 of 8 sections unreadable: stuck stranded"
+assert_contains "rest: header counts the three lost sections" "$OUT_REST" "3 of 9 sections unreadable: stuck stranded touches"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
@@ -1223,7 +1340,7 @@ cat >"$TMP/same-telemetry.json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
-  --stuck-json "$TMP/stuck-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
   --repo-labels-json "$TMP/same-labels.json" \
   --counts-json "$TMP/same-counts.json" \
   --pr-json "$TMP/same-pr.json" \
@@ -1289,7 +1406,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 8 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 9 sections unreadable: merge-ready decisions telemetry stranded"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1525,6 +1642,43 @@ assert_not_contains "stuck live: a contradicted empty search never renders an al
 mkdir -p "$TMP/gql-stuck-none"
 OUT_STUCK_FAIL="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$TMP/gql-stuck-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
 assert_contains "stuck live: a failed search renders UNREADABLE, never empty" "$(section "$OUT_STUCK_FAIL" "== Stuck")" "UNREADABLE: needs-triage: no fixture"
+
+# --- Owner touches, live: one paged search per UTC day ------------------------
+# The same three items as touch.json: #301 on 2026-07-19's first page, #302 on
+# its second page (cursor t2), #303 on 2026-07-20. The operator comes from
+# `gh api user`, the lane identity from the default branch's pr-pipeline.yaml.
+TCH="$TMP/gql-touch"
+mkdir -p "$TCH"
+printf '{"login": "Op-User"}\n' >"$TCH/api_user.json"
+printf 'merge:\n  rung: C2\n  agent-identity: lanes-app[bot] # the lanes App\nother:\n  agent-identity: not-this\n' \
+  >"$TCH/$(rest_key "$R/contents/docs/conventions/pr-pipeline.yaml").json"
+touch_page() { # touch_page ITEM-INDEX HAS-NEXT CURSOR
+  jq --argjson i "$1" --argjson next "$2" --arg c "$3" \
+    '{data: {search: {issueCount: 1, pageInfo: {hasNextPage: $next, endCursor: (if $c == "" then null else $c end)}, nodes: [.pages[0].data.search.nodes[$i]]}}}' \
+    "$TMP/touch.json"
+}
+touch_page 0 true t2 >"$TCH/api-graphql-touch-2026-07-19-first.json"
+touch_page 1 false "" >"$TCH/api-graphql-touch-2026-07-19-t2.json"
+touch_page 2 false "" >"$TCH/api-graphql-touch-2026-07-20-first.json"
+OUT_TOUCH_LIVE="$(MB_TOUCH_LIVE=1 MB_GH_FIXTURES="$TCH" MB_GH_LOG="$TMP/log-touch" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
+TOUCH_LIVE_SEC="$(section "$OUT_TOUCH_LIVE" "== Owner touches")"
+assert_contains "touches live: the operator and lane identity are read" "$TOUCH_LIVE_SEC" \
+  "  operator: op-user; escalations trusted from: lanes-app, op-user"
+assert_contains "touches live: the first day reads both its pages" "$TOUCH_LIVE_SEC" \
+  "  2026-07-19          1        0        0        1        2        2                     2"
+assert_contains "touches live: the second day is its own search" "$TOUCH_LIVE_SEC" \
+  "  2026-07-20          0        1        1        0        1        2                     0"
+assert_contains "touches live: the page past the first is read" "$(cat "$TMP/log-touch")" "api-graphql-touch-2026-07-19-t2"
+OUT_TOUCH_PINNED="$(MB_TOUCH_LIVE=1 MB_GH_FIXTURES="$TCH" MB_GH_LOG="$TMP/log-touch-pinned" run_stub gql "${FIX_ARGS[@]}" \
+  --merged-json "$TMP/merged-clean.json" --owner-login other-person --lane-identity nobody)"
+assert_contains "touches live: --owner-login and --lane-identity pin both logins" "$(section "$OUT_TOUCH_PINNED" "== Owner touches")" \
+  "  operator: other-person; escalations trusted from: nobody, other-person"
+assert_not_contains "touches live: pinned logins skip both reads" "$(cat "$TMP/log-touch-pinned")" "api_user"
+mkdir -p "$TMP/gql-touch-none"
+printf '{"login": "op-user"}\n' >"$TMP/gql-touch-none/api_user.json"
+assert_contains "touches live: a failed search renders UNREADABLE, never empty" \
+  "$(section "$(MB_TOUCH_LIVE=1 MB_GH_FIXTURES="$TMP/gql-touch-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")" "== Owner touches")" \
+  "UNREADABLE: no fixture api-graphql-touch-2026-07-19-first"
 
 # --- Lanes: failures by class, limit stops, restarts, turn headroom -----------
 # The window is 2026-07-13T08:00Z to NOW. intake-triage: three runs in the
@@ -2011,7 +2165,7 @@ OUT_COST_403="$(cost_brief --billing-usage-json "$TMP/billing-403.json" --billin
 RC_COST_403=$?
 COST_403="$(section "$OUT_COST_403" "== Cost")"
 assert_exit "cost 403: a billing read refused for want of an org admin counts the section as lost" 6 "$RC_COST_403"
-assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 8 sections unreadable: cost"
+assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 9 sections unreadable: cost"
 assert_contains "cost 403: the usage line is UNREADABLE with the fix" "$COST_403" \
   "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
 assert_contains "cost 403: the minutes line is UNREADABLE too" "$COST_403" \
@@ -2053,7 +2207,7 @@ OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" 
 RC_COST_ONE=$?
 COST_ONE="$(section "$OUT_COST_ONE" "== Cost")"
 assert_exit "cost one unreadable: the brief exits 6" 6 "$RC_COST_ONE"
-assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 8 sections unreadable: cost"
+assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 9 sections unreadable: cost"
 assert_contains "cost one unreadable: the failed read is its own UNREADABLE line" "$COST_ONE" "UNREADABLE Azure Defender plans: no pricings in --azure-json"
 assert_contains "cost one unreadable: the reads beside it still print" "$COST_ONE" "OK         Azure budget budget-example: spent 1.5, forecast 3.25"
 printf '{"usageItems": "not a list"}\n' >"$TMP/billing-usage-bad.json"
@@ -2067,8 +2221,8 @@ assert_contains "cost unparsable: a usage response of the wrong shape is UNREADA
 OUT_COST_ONLY="$(run_stub blocked)"
 RC_COST_ONLY=$?
 assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
-assert_contains "cost only: the header counts the seven lost sections" "$OUT_COST_ONLY" \
-  "7 of 8 sections unreadable: queues stuck merge-ready decisions telemetry stranded lanes"
+assert_contains "cost only: the header counts the eight lost sections" "$OUT_COST_ONLY" \
+  "8 of 9 sections unreadable: queues stuck merge-ready decisions telemetry stranded lanes touches"
 
 # A fixture run with no cost fixtures reads nothing live: every cost line is
 # UNREADABLE with the fix, six GitHub lines and ten Azure lines.
@@ -2157,7 +2311,7 @@ OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azur
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
-assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "3 of 8 sections unreadable: stuck stranded cost"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "4 of 9 sections unreadable: stuck stranded touches cost"
 jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
 assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
