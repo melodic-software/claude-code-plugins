@@ -1801,6 +1801,43 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertFalse(evidence.needs_human)
 
+    def test_a_too_old_pull_request_still_names_its_own_fails(self) -> None:
+        # The capped close quotes them for the fresh attempt: the age refusal
+        # comes before the listing loop, so they are read for it alone. A
+        # sibling's FAIL and a foreign run's are not this pull request's.
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            artifact(named(IN_PR, "fail"), 3),
+            artifact(named(UNRELATED, "fail", SIBLING), 4),
+            artifact(named(UNRELATED, "fail"), 5),
+            runs={
+                2: judged(2, OLDER_START),
+                3: judged(3, OLDER_START),
+                4: judged(4, OLDER_START),
+                5: run(5, path=".github/workflows/other.yml"),
+            },
+        )
+        fake.records[named(EARLIER, "fail")] = record(
+            PR, EARLIER, verdict="fail", summary="misses the error path"
+        )
+        del fake.runs[3]
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            evidence = reader.evidence(
+                PR, HEAD, pull(created_at="2026-07-27T23:00:00Z")
+            )
+            findings = reader.fail_findings(PR)
+        self.assertEqual(evidence.refusal, "verify:too-old")
+        self.assertEqual(
+            [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
+        )
+        self.assertEqual(findings[0]["summary"], "misses the error path")
+        self.assertIn("unreadable", findings[1])
+
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
 

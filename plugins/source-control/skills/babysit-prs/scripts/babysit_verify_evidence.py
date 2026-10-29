@@ -1839,9 +1839,13 @@ class Reader:
         counted wrote: head, run, and the verdict file's summary and notes
         (`_record`), one entry per artifact, heads sorted. A record that
         cannot be read (an expired artifact, a failed download) is named by
-        its run with `unreadable`, never skipped."""
+        its run with `unreadable`, never skipped. A judgment that never
+        reached the listing (`verify:too-old`) left none, so the pull
+        request's own FAILs are read from the listing here (`_own_fails`)."""
+        if number not in self.fail_artifacts:
+            self.fail_artifacts[number] = self._own_fails(number)
         found: list[dict[str, Any]] = []
-        for sha, artifacts in sorted(self.fail_artifacts.get(number, {}).items()):
+        for sha, artifacts in sorted(self.fail_artifacts[number].items()):
             for run_id, name, artifact_id in artifacts:
                 entry: dict[str, Any] = {"head": sha, "run": run_id}
                 try:
@@ -1856,6 +1860,29 @@ class Reader:
                     )
                 found.append(entry)
         return found
+
+    def _own_fails(self, number: int) -> dict[str, list[tuple[int, str, Any]]]:
+        """The pull request's own FAIL artifacts in the listing, by head,
+        whose runs are not of another origin; one whose run cannot be read
+        is kept, so `fail_findings` names it unreadable."""
+        own: dict[str, list[tuple[int, str, Any]]] = {}
+        for item in map(json_object, self._listing()):
+            match = verdict_name(str(item.get("name") or ""))
+            run_id = json_object(item.get("workflow_run")).get("id")
+            if (
+                item.get("expired") is not False
+                or not match
+                or int(match[1]) != number
+                or match[3] in PASSES
+                or not isinstance(run_id, int)
+                or isinstance(run_id, bool)
+                or self._run_state(run_id, shared=True) == FOREIGN
+            ):
+                continue
+            own.setdefault(match[2], []).append(
+                (run_id, str(item.get("name")), item.get("id"))
+            )
+        return own
 
     def link_refusal(self, number: int) -> str | None:
         """Why the pull request's issue link is not one the pr-merge lane
@@ -3487,7 +3514,10 @@ def capped_close(
         if (refusal := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
             return {"closed": False, "reason": refusal}
     issues = sorted(n for n in live if type(n) is int)
-    findings = reader.fail_findings(number)
+    try:
+        findings = reader.fail_findings(number)
+    except _Unreadable as exc:
+        raise RuntimeError(f"FAIL findings: {exc}") from exc
     repo = reader.repo
     plan: list[tuple[int, list[dict[str, Any]], tuple[int, int], bool]] = []
     for issue in issues:
