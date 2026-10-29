@@ -1,8 +1,10 @@
 # shellcheck shell=bash
 # The test judge's run, ledger and validation pieces, kept for the judge
-# calibration harness (skills/audit/evals/judge-calibration/metrics.sh), which
-# no hook runs. Source after scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID
-# (the run) and TPATH (a transcript path) set.
+# calibration harness (skills/audit/evals/judge-calibration/metrics.sh) and
+# the judge pass's shape and comment-only checks
+# (skills/audit/scripts/judge-check.sh); no hook runs them. Source after
+# scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID (the run) and TPATH (a
+# transcript path) set.
 #
 # State under $DATA:
 #   sessions/<pkey>/<sid>/<tool_use_id>.json  a record of each file to judge
