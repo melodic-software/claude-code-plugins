@@ -1,6 +1,6 @@
 # Home plugin customization in `docs/conventions/<concern>.yaml`, validated by a JSON Schema
 
-- Status: accepted; Decisions 2 and 3 (the fixed root) and Decision 8 (its layer list) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md); Decisions 4 and 6 stand
+- Status: accepted; Decisions 2 and 3 (the fixed root) and Decision 8 (its layer list) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md); Decisions 4 and 6 stand, Decision 6 amended 2026-10-27 for `docs/contracts/`
 - Date: 2026-10-04
 - Supersedes, for structured configuration: [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   Decisions 1 and 2 (the fenced config block in `docs/conventions/<concern>.md` as the default team
@@ -53,9 +53,13 @@ from a pipeline-shaped file.
    declare no `userConfig` option (`execution-target` is the first).
 6. **Schema home.** A plugin concern's schema ships in the plugin at
    `plugins/<plugin>/schemas/<concern>.schema.json`, so it versions with the code that reads it. A
-   cross-plugin convention's schema sits in its convention folder, as
-   `docs/conventions/pr-pipeline/pr-pipeline.schema.json` and
-   `docs/conventions/ecosystem-commands/ecosystem.schema.json` already do.
+   cross-plugin contract's schema sits in its contract folder under `docs/contracts/<name>/`, as
+   `docs/contracts/ecosystem-commands/ecosystem.schema.json` does; the PR pipeline's
+   `docs/conventions/pr-pipeline/pr-pipeline.schema.json` stays put until that contract moves
+   under its own gate. `docs/conventions/` keeps only this repository's settings files. Amended
+   2026-10-27 (owner decision on
+   [#7537](https://github.com/melodic-software/claude-code-plugins/issues/7537#issuecomment-6347194183)):
+   contract folders moved out of `docs/conventions/`, each leaving a stub README at its old path.
 7. **Validation.** This repository's CI checks each committed `docs/conventions/*.yaml` against its
    schema with `scripts/check-convention-yaml.sh`, which runs the `check-jsonschema` CLI pinned in
    `.github/requirements-ci.txt` (the ci-workflows action takes one schema per call, so it cannot
