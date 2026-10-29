@@ -131,7 +131,7 @@ fi
 # The cases below exercise the hold with the hardened list, so turning
 # path-holds back on is tested before it is needed.
 cp "$TMP_ROOT/body.sh" "$TMP_ROOT/body.live.sh"
-hardened="hold_patterns=($(sed "s/.*/'&'/" <<<"$want_patterns" | paste -sd' '))"
+hardened="hold_patterns=($(awk -v q="'" '{ printf "%s%s%s%s", (NR > 1 ? " " : ""), q, $0, q }' <<<"$want_patterns"))"
 awk -v line="$hardened" '/^ *hold_patterns=\(/ { match($0, /^ */); print substr($0, 1, RLENGTH) line; next } { print }' \
   "$TMP_ROOT/body.sh" >"$TMP_ROOT/body.hardened" && mv "$TMP_ROOT/body.hardened" "$TMP_ROOT/body.sh"
 
