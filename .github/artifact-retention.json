@@ -29,7 +29,9 @@
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
       "reason": "A verdict that reported findings must outlive a later clean review of the same tree, or its expiry would lower the count the gate reads; the gate counts the most findings any unexpired verdict of the tree reported.",
       "uploads": [
-        ".github/workflows/pr-review-main.yml#review"
+        ".github/workflows/pr-review-main.yml#review",
+        ".github/workflows/pr-review-main.yml#review-subscription",
+        ".github/workflows/pr-review-main.yml#review-fallback"
       ]
     },
     "pr-merge-dispatched-*": {
