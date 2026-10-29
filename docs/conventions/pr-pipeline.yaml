@@ -49,8 +49,11 @@ activities:
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      # A PR that is only behind stays with the merge queue.
-      mergeable: [conflicting]
+      # clean lets a hand dispatch merge the default branch into a PR that is
+      # only behind (a required check that reads the base can fail on a stale
+      # one); the select job skips a head already up to date. The dispatcher
+      # still sends only conflicting PRs (dispatch.mjs isCandidate).
+      mergeable: [conflicting, clean]
       # The human-gated label holds it in the select job unless another
       # lane's escalation put it on (lane-hold.mjs).
       labels-absent: [do-not-merge]

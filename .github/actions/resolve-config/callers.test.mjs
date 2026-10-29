@@ -5671,6 +5671,10 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
   assert.equal(evaluate(notRun.if, context("false", head, { state: "clean" })), true);
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
   assert.equal(evaluate(notRun.if, context("false", head, { activity: "fix-ci" })), false);
+  // A neutral check handles its head for good in dispatch.mjs, so a hand
+  // dispatch on an up-to-date head posts none: a later conflict on the same
+  // head stays the dispatcher's.
+  assert.equal(evaluate(notRun.if, context("false", head, { skip: "up-to-date" })), false);
   for (const [given, summary] of [
     [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
     [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
@@ -5708,8 +5712,8 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
   // proceed: true only for a conflicted merge, false for a skip, a clean merge
   // or an escalation, empty for a stop before the merge.
-  const proceed = (applies, state, held = applies === "true" ? "false" : "") =>
-    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.prepare.outputs.merge-state": state });
+  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "") =>
+    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state });
   assert.equal(proceed("true", "conflicted"), "true");
   assert.equal(proceed("true", "clean"), "false");
   assert.equal(proceed("true", "escalate"), "false");
@@ -5720,14 +5724,32 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   // merge: held skips awaiting-human; a failed read stops it.
   assert.equal(proceed("true", "", "true"), "false");
   assert.equal(proceed("true", "", ""), "", "a hold read that failed");
-  const skip = evaluate(select.outputs["skip-reason"], { "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true" });
+  const skip = evaluate(select.outputs["skip-reason"], { "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true", "steps.behind.outputs.behind": "" });
   assert.equal(skip, "awaiting-human");
   assert.equal(step("hold").if, "steps.slot.outputs.applies == 'true'");
   assert.equal(step("hold").env.ACTIVITY, "resolve-conflicts");
   assert.equal(step("hold").run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
-  for (const id of ["base-sha", "merge-bin", "prepare"]) {
+  for (const id of ["base-sha", "merge-bin", "behind"]) {
     assert.equal(step(id).if, "steps.hold.outputs.held == 'false'", id);
   }
+  // A clean PR passes the slot so a hand dispatch can refresh a stale base;
+  // a head that already holds the base has nothing to merge, so prepare.sh
+  // (whose --no-ff merge would leave no MERGE_HEAD) never runs on it.
+  const ran = (behind) => evaluate(`\${{ ${step("prepare").if} }}`, { "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind });
+  assert.equal(ran("true"), true);
+  assert.equal(ran("false"), false);
+  assert.equal(ran(""), false, "a behind check that failed");
+  const outputs = (behind) => {
+    const values = { "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "" };
+    return [evaluate(select.outputs.proceed, values), evaluate(select.outputs["skip-reason"], values).trim()];
+  };
+  assert.deepEqual(outputs("false"), ["false", "up-to-date"]);
+  assert.deepEqual(outputs(""), ["", ""], "a behind check that failed stops before deciding");
+  assert.equal(step("behind")["working-directory"], "head");
+  assert.equal(step("behind").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
+  assert.equal(step("behind").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
+  const order = select.steps.map((s) => s.id ?? s.name);
+  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare"));
   const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
   assert.equal(apply.with["patch-fix-requested"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated }}");
 });
