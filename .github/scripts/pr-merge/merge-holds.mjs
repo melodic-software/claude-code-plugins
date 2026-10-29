@@ -1438,8 +1438,13 @@ export function humanGatedLabel(tracker) {
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
+// The label report-outcome puts on a lanes App pull request that holds for a
+// person (report-outcome.mjs HUMAN_MERGE_HOLD). Only a listed person's own
+// removal lifts it (ci-status's `Fail a human-merge hold` step).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
+
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label and `pr-verify-failed`, one reason each. `labels` are
+// human-gated label, `pr-verify-failed` and HUMAN_MERGE_HOLD, one reason each. `labels` are
 // names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
@@ -1452,6 +1457,8 @@ export function labelHolds(labels, tracker, number) {
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has("pr-verify-failed") &&
       `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+    names.has(HUMAN_MERGE_HOLD) &&
+      `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
   ].filter(Boolean);
 }
 

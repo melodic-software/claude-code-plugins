@@ -116,7 +116,8 @@ BODY_MERGE_HOLD_RE = re.compile(
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 # `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
 # ci-status enforces only in the merge queue: held here, it is never queued.
-MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed")
+# `human-merge-hold` is the lanes App's label on a pull request a person merges.
+MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed", "human-merge-hold")
 # An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
 # none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720

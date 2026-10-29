@@ -4692,6 +4692,87 @@ jobs:
             exit 1
           fi
           echo "$actor_login, a person on the trusted-actor list, lifted the review-lane hold on #$PR_NUMBER."
+      # A HUMAN-MERGE HOLD LIFTS ONLY BY A LISTED PERSON. report-outcome puts
+      # `human-merge-hold` on a lanes App pull request a person merges (#9437):
+      # its body's `Hold: a human merges this` line is text the App can edit.
+      # While the label is on this fails. Once it is off, it fails unless the
+      # first removal at or after the newest time any account added it was by
+      # a `human` of the base commit's trusted-actor list, matched by numeric
+      # id, acting directly and not through an App. It reads no other step's
+      # outcome, so neither the human-gated label nor a recorded cost decision
+      # lifts it. Labels and events are read live; an unreadable label list,
+      # event list or trusted-actor list fails closed. Pinned by
+      # scripts/ci-hold-human-merge.test.sh, which runs this body.
+      - name: Fail a human-merge hold a listed person has not lifted
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          label=human-merge-hold
+          for attempt in 1 2 3; do
+            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          if grep -qixF -- "$label" <<<"$labels"; then
+            echo "::error::#$PR_NUMBER carries '$label': a person merges it. A person on the trusted-actor list removing the label approves it."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          held_at=$(jq -rs --arg label "$label" '[add[] | select(.event == "labeled" and (.label.name | ascii_downcase) == $label)
+            | .created_at] | max // empty' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          if [ -z "$held_at" ]; then
+            echo "No human-merge hold on #$PR_NUMBER."
+            exit 0
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          if [ ! -d "$BASE_CONFIG" ] || ! actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."
+            exit 1
+          fi
+          humans=$(jq -er '[.actors[] | select(.kind == "human") | .id | numbers | tostring] | select(length > 0) | join(" ")' <<<"$actors") || {
+            echo "::error::the trusted-actor list at $BASE_SHA names no person."
+            exit 1
+          }
+          lifted=$(jq -rs --arg label "$label" --arg held_at "$held_at" '[add[] | select(.event == "unlabeled"
+              and (.label.name | ascii_downcase) == $label and .created_at >= $held_at)]
+            | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account"),
+              (.performed_via_github_app | if . == null then "" else .slug // .name // "an unnamed App" end)] | @tsv' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          IFS=$'\t' read -r lifted_at actor_id actor_login via_app <<<"$lifted"
+          if [ -z "$lifted_at" ]; then
+            echo "::error::'$label' was added to #$PR_NUMBER at $held_at, and no removal since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
+            exit 1
+          fi
+          if [[ " $humans " != *" $actor_id "* ]]; then
+            echo "::error::$actor_login removed '$label' from #$PR_NUMBER and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
+            exit 1
+          fi
+          if [ -n "$via_app" ]; then
+            echo "::error::$actor_login removed '$label' from #$PR_NUMBER through the App $via_app, which is not a person's own approval. Add the label back; a person on the trusted-actor list removing it directly approves this pull request."
+            exit 1
+          fi
+          echo "$actor_login, a person on the trusted-actor list, lifted the human-merge hold on #$PR_NUMBER."
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller

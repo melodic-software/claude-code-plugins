@@ -1471,6 +1471,7 @@ test("queueHolds: each hold label holds with ci-status's text", () => {
     ["do-not-merge", "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."],
     ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
     ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
+    ["human-merge-hold", "#7 carries 'human-merge-hold': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge."],
   ]) {
     assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }), statuses: [] }), [want], label);
   }
