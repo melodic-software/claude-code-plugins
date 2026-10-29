@@ -1,5 +1,5 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
 argument-hint: "[check|apply] [install-git-hooks [scope]|install-read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
@@ -128,7 +128,7 @@ file.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## `apply install-git-hooks [scope=local|shared]` (explicit argument only)
+## `apply install-git-hooks [scope=local|shared|user]` (explicit argument only)
 
 Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
 manager, so the checks cover every commit, not only Claude's tool calls:
@@ -145,7 +145,10 @@ with your own edit tools. Never runs from bare `apply`.
    (this clone only, nothing committed) or `shared` (committed, so every teammate and agent
    gets it; with lefthook, every clone then runs the hooks on the plugin repository's `main`
    branch, fetched hourly, rather than a copy the repository reviewed). When nobody can answer, use
-   `local`.
+   `local`. `user` is offered beside them and never chosen for the user: it installs only the
+   `commit-msg-convention` entry, once, as a git config hook covering every repository an
+   `includeIf` condition matches. For `user`, follow
+   [context/install-commit-msg.md](context/install-commit-msg.md) in place of the steps below.
 2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
    --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook
    manager yet, the committed `lefthook.yml` gets one `remotes:` entry that fetches the hooks
@@ -261,8 +264,8 @@ full rules. Never runs from bare `apply`.
 - Write the plugin cache or `pluginConfigs`, or user settings other than the two
   `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
-  this skill ever performs are `apply install-git-hooks`' entry copies and the decisions
-  it applies, the `apply install-read-deny` rules in the settings file its scope names, the
+  this skill ever performs are `apply install-git-hooks`' entry copies (at `scope=user`, the
+  stable copy under the user's git config directory) and the decisions it applies, the `apply install-read-deny` rules in the settings file its scope names, the
   confirmed `apply identity-domains` map, and `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.
