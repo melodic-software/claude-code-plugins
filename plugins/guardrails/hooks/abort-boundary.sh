@@ -30,7 +30,7 @@
 #
 #   open    exit 0, after emitting the same text as a `systemMessage` on
 #           stdout, for the user (stderr on exit 0 reaches only the debug log,
-#           see docs/conventions/hook-observability/). The tool call proceeds,
+#           see docs/contracts/hook-observability/). The tool call proceeds,
 #           as it did before, and the notice says it was not checked. The
 #           model gets nothing: it cannot fix a hook.
 #   closed  exit 2 with the notice on stderr, the channel a blocking exit feeds

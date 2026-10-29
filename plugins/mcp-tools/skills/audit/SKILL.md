@@ -26,7 +26,7 @@ and naming issues before they degrade LLM tool selection accuracy.
 
 This skill runs as a **blocking fork** (`context: fork`, `background: false`; what that changes is
 owned by the
-[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md)).
+[invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-context/README.md)).
 `$ARGUMENTS` (an optional path) and the working tree are the whole input.
 
 ## Server discovery configuration

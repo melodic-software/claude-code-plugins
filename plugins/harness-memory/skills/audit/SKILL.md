@@ -181,7 +181,7 @@ plugin's own data directory, never in the consuming repo.
 **A rolling latest is a separate decision from keying, and this skill keeps one on purpose.**
 `last-audit.md` is replaced by the next run *of the same project*; the report is a working artifact,
 not a trend series. That is only safe because the key makes "the same project" mean something. See
-[`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+[`docs/contracts/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-data-report-keying/README.md)
 for when a writer owes a per-run history instead.
 
 ## Report mode

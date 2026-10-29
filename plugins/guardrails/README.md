@@ -112,7 +112,7 @@ repository, from Claude, a person, an IDE or another agent, and report at commit
 push time rather than after each edit. `/guardrails:setup apply install-git-hooks [scope=local|shared]`
 registers them with the repository's hook manager (lefthook, husky or plain git
 hooks) under the check-placement convention's contract
-(`docs/conventions/check-placement/README.md` in the marketplace repository): local
+(`docs/contracts/check-placement/README.md` in the marketplace repository): local
 scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
 committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
 `main` branch (`git-hooks/lefthook-remote.yml`), refetched hourly: whoever can merge to that
@@ -1021,7 +1021,7 @@ the guards' own per-call work (the subshell fork itself, and the external progra
 guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
 three PreToolUse processes to one, three PostToolUse processes to one.
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
 plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the surface that
@@ -1089,7 +1089,7 @@ Each guard is toggled by its own `userConfig` boolean, default **on**, except th
 behavioral-class advisories `workflow-resilience-check` and `flag-commit-pr-skill-bypass`, which
 have been default **off** since 0.20.0 per #2021, and `block-credential-read`, default
 **off** because its measured precision is below the bar
-([guard precision](../../docs/conventions/hook-precision/guard-precision.md)). Set a switch to `true` to opt in, or to `false`
+([guard precision](../../docs/contracts/hook-precision/guard-precision.md)). Set a switch to `true` to opt in, or to `false`
 for a clean no-op. Each per-hook switch
 disables one guard without touching the others. The [git hooks](#git-hooks) run without
 Claude Code, so they have no switch here: a clone turns one off by declining its entry.
@@ -1218,7 +1218,7 @@ repo-specific policy of their own:
 
 ## Telemetry (opt-in)
 
-Every guard emits one structured [hook-telemetry](../../docs/conventions/hook-telemetry/README.md)
+Every guard emits one structured [hook-telemetry](../../docs/contracts/hook-telemetry/README.md)
 envelope per run to whatever `HOOK_TELEMETRY_SINK` names, carrying `status`
 (`blocked` on a guard block, `ok` otherwise), `duration_ms`, and a privacy-safe
 `data` payload (category **labels** only, never a secret value, matched path,

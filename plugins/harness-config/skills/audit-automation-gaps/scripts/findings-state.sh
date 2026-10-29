@@ -20,7 +20,7 @@
 #   <plugin-data>/audit-automation-gaps/<state-key>/
 #
 # where `<state-key>` comes from `lib/state-key.sh` and nothing else. That is
-# rule 1 of docs/conventions/plugin-data-report-keying/README.md, and the reason
+# rule 1 of docs/contracts/plugin-data-report-keying/README.md, and the reason
 # is the whole point of this file: `${CLAUDE_PLUGIN_DATA}` is keyed to the plugin
 # identifier alone, so an unkeyed findings file is one file per MACHINE and a
 # later `--implement` would be served another repository's approved items and its

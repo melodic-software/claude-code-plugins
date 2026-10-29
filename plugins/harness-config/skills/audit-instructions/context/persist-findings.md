@@ -1,7 +1,7 @@
 # Persisting findings: this skill's read of the detector-findings contract
 
 **Read the producer contract before the first write**:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
 obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
 an `audit-instructions` run decides for itself and cites the contract for the rest. Where the two

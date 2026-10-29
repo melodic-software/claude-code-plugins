@@ -31,7 +31,7 @@ the wrong thing. It also reports each still span (no change in picture, measured
 
 Videos are views: they are written to the directory the user names or to
 `${CLAUDE_PLUGIN_DATA}/videos/<slug>/`, never inside a
-[record bundle](../../docs/conventions/record-bundle/README.md).
+[record bundle](../../docs/contracts/record-bundle/README.md).
 
 ## Narration
 

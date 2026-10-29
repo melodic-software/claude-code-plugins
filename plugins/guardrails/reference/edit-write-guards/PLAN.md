@@ -38,7 +38,7 @@ Event:      n/a (one dispatcher process per event; peers are not in this metric)
 Unit:       n/a
 Floor:      shell-form `exit 0` is spawns=1. `exec bash <script>` with no further program is spawns=2 (sh exec plus bash exec, 0 clones). A program the check must start is part of k.
 Realistic:  the oracle floor in the table, not a lower number
-Ideal:      k × S, k from docs/conventions/hook-budget/README.md
+Ideal:      k × S, k from docs/contracts/hook-budget/README.md
 Percentiles: p50, p95 over n=22 (house convention; p95 floor is 20)
 Scaling:    n/a for the Bash payload (fixed command). The PostToolUse finding reads git history, which grows with the repo; the deleted-path set is keyed by HEAD and is not re-walked on the warm fire (growth of that walk is 0 across repeats at one HEAD).
 Done when:  the PreToolUse Write|Edit|NotebookEdit row has a CI spawn ratchet whose goal records Ideal k × S, each row is at or under its ceiling, verdicts on the existing corpus are unchanged, and no row is made async. Merge is in scope. Ideal wall k × S is not the success test: it is below the floor, recorded under Claim.

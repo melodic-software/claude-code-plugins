@@ -8,7 +8,7 @@
 - Does a higher enforcement level (compiler, analyzer, build-time) already catch what the hook would catch?
 - A reusable command is a skill, and an external-service tool is an MCP server; those stay on the checklists below. A mod, a plugin of function hooks, is the candidate only when the need goes past what a settings hook, a skill, or an MCP server can do: draw in the interface (a pane, band, status entry or toast), rewrite a prompt or model request, or read in-process session state. The verdict says so, and whoever writes it loads the built-in `plugin-authoring` skill first, because that skill carries the type declarations for the running Claude Code build.
 
-The placement rules above, the 1 s and 60 s lines among them, are this marketplace's house rules, not upstream guidance: [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric). A consuming repo that documents its own placement rules overrides them.
+The placement rules above, the 1 s and 60 s lines among them, are this marketplace's house rules, not upstream guidance: [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric). A consuming repo that documents its own placement rules overrides them.
 
 - **Pointer**: for what `PostToolBatch` receives and when it fires, fetch [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
 - **As of**: 2026-10-15
