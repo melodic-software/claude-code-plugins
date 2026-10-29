@@ -827,6 +827,12 @@ class TestFlowQuery(unittest.TestCase):
             ("function g(o){arguments[0]=P;o.includes=f}g({});", ["write"]),
             ("{function g(o){o.includes=f}}g(P);", ["write"]),
             ('var{__defineGetter__:g}=Object;g.call(P,"x",f);', ["definer-escape"]),
+            # A destructured reflective read hands out a definer to call.
+            ('var{get:g}=Reflect;g(P,"__defineGetter__").call(P,k,f);', ["definer-escape"]),
+            (
+                'var{getOwnPropertyDescriptor:d}=Object;d(P,"__defineGetter__").value.call(P,k,f);',
+                ["definer-escape"],
+            ),
             ("Function(\"return import('/b.js')\")();", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.

@@ -1425,12 +1425,13 @@ function definerNamed(home, name) {
 
 // The statics of `Object` and `Reflect` that define nothing and hand out
 // no code to run, which a declarator may destructure freely; any other
-// key (`__defineGetter__`, `constructor`) is a definer escape.
+// key (`__defineGetter__`, `constructor`) is a definer escape. `Reflect.get`
+// and `getOwnPropertyDescriptor(s)` are not inert: each reads a definer off
+// a prototype (`g(Array.prototype,"__defineGetter__")`, `.value`) for a
+// call the scan does not follow.
 const INERT_STATICS = new Set([
   "getPrototypeOf",
   "getOwnPropertyNames",
-  "getOwnPropertyDescriptor",
-  "getOwnPropertyDescriptors",
   "getOwnPropertySymbols",
   "keys",
   "values",
@@ -1445,7 +1446,6 @@ const INERT_STATICS = new Set([
   "seal",
   "preventExtensions",
   "fromEntries",
-  "get",
   "has",
   "ownKeys",
 ]);
