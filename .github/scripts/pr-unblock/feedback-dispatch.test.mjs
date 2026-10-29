@@ -92,8 +92,10 @@ function fakeApi({
   workflowRunId = 38779200001,
   permissions = { "kyle-sexton": "admin" },
   labelEvents = [],
+  reviewComments = [],
+  reviews = [],
 } = {}) {
-  const calls = { dispatch: [], permission: [], labelEvents: 0 };
+  const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -119,6 +121,11 @@ function fakeApi({
       calls.labelEvents += 1;
       return labelEvents;
     },
+    async listReviewComments(number, since) {
+      calls.reviewReads.push(since);
+      return reviewComments;
+    },
+    listReviews: async () => reviews,
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -1994,34 +2001,57 @@ test("on an owner PR a thread a person wrote or answered stays the person's and 
   }
 });
 
-// A lane escalation's needs-human holds an owner PR's round as any other
-// source does; a write-access fix request still lifts it, as on a lanes App PR.
-test("an owner PR a lane escalation gated dispatches nothing for a reviewer-bot thread", async () => {
-  const api = ownerApi({ pulls: ownerPull({ labels: [{ name: "needs-human" }] }), comments: [...reviewed, escalationComment()], labelEvents: [appLabeled] });
+// On an owner PR a lane escalation's needs-human lets the round work only as
+// it lets fix-ci work there (gate-source.mjs prHold): another lane's
+// escalation with no person speaking since the label does; address-feedback's
+// own escalation, or a person's review comment since the label, holds it, and
+// then only a write-access fix request dispatches. A lanes App PR reads the
+// escalation through gateSource alone, as before.
+const ownFeedbackEscalation = () =>
+  escalationComment({ body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`feedback-round-cap\`` });
+// The review markers as the REST API returns them, typed Bot, so they are no
+// person speaking.
+const botReviewed = [marker("claude-review", HEAD, ACTIONS_USER), marker("claude-security-review", HEAD, ACTIONS_USER)];
+const ownerGated = (options = {}) =>
+  ownerApi({ pulls: ownerPull({ labels: [{ name: "needs-human" }] }), comments: [...botReviewed, escalationComment()], labelEvents: [appLabeled], ...options });
+const personSpoke = [{ user: { login: KYLE_LOGIN.login, id: KYLE.databaseId, type: "User" }, created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
+
+test("an owner PR another lane's escalation gated dispatches for a reviewer-bot thread when no person spoke since", async () => {
+  const api = ownerGated();
   const { result, lines } = await decideOwner(api);
-  assert.equal(result, null, lines.join("\n"));
-  assert.match(lines.at(-1), /#42 is labeled needs-human \(owner PR: any source holds\) and has no thread a trusted person with write access asked the lane to fix/);
-  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  // The review comments are read from a second before the label went on.
+  assert.deepEqual(api.calls.reviewReads, ["2026-10-18T09:59:59Z"]);
 });
 
-test("an owner PR a lane escalation gated dispatches for a write-access trusted person's fix request", async () => {
-  const api = ownerApi({
-    pulls: ownerPull({ labels: [{ name: "needs-human" }] }),
-    comments: [...reviewed, escalationComment()],
-    labelEvents: [appLabeled],
-    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+for (const [label, options, why] of [
+  ["address-feedback's own escalation", { comments: [...botReviewed, ownFeedbackEscalation()] }, "address-feedback escalated it"],
+  ["a person's review comment since the label", { reviewComments: personSpoke }, "a person commented or reviewed since needs-human went on"],
+]) {
+  test(`an owner PR a lane escalation gated dispatches nothing for a reviewer-bot thread after ${label}`, async () => {
+    const api = ownerGated(options);
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, lines.join("\n"));
+    assert.match(lines.at(-1), new RegExp(`#42 is labeled needs-human \\(held by needs-human: ${why}\\) and has no thread a trusted person with write access asked the lane to fix`));
+    assert.deepEqual(api.calls.dispatch, []);
   });
+}
+
+test("an owner PR a lane escalation holds still dispatches for a write-access trusted person's fix request", async () => {
+  const api = ownerGated({ reviewComments: personSpoke, threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })] });
   const { result, lines } = await decideOwner(api);
   assert.equal(result?.number, 42, lines.join("\n"));
   assert.equal(api.calls.dispatch.length, 1);
   assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
 });
 
-test("a lanes App PR a lane escalation gated still dispatches for a reviewer-bot thread under an adoption section", async () => {
-  const api = ownerApi({ pulls: humanGated(), comments: [...reviewed, escalationComment()], labelEvents: [appLabeled] });
+test("a lanes App PR under its own address-feedback escalation still dispatches for a reviewer-bot thread under an adoption section", async () => {
+  const api = ownerApi({ pulls: humanGated(), comments: [...botReviewed, ownFeedbackEscalation()], labelEvents: [appLabeled], reviewComments: personSpoke });
   const { result, lines } = await decideOwner(api);
   assert.equal(result?.number, 42, lines.join("\n"));
   assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.reviewReads, []);
 });
 
 test("a lanes App PR is decided as before under an adoption section: no idle read", async () => {

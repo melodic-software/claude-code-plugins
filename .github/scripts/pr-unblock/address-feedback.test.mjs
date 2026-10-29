@@ -1651,22 +1651,38 @@ test("on an adopted owner PR a Hold: body line added after dispatch skips awaiti
   assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's Hold: line");
 });
 
-// On an adopted owner PR the human-gated label holds whoever put it on, a
-// lane escalation included; a write-access fix request still lifts it. A
-// lanes App PR keeps working past a lane escalation (the test above).
-test("on an adopted owner PR a lane escalation's needs-human holds a reviewer-bot thread; a write-access fix request proceeds", async () => {
+// On an adopted owner PR a lane escalation's needs-human lets the round work
+// only as it lets fix-ci work there (gate-source.mjs prHold): another lane's
+// escalation with no person speaking since the label does; address-feedback's
+// own escalation, or a person's review comment since it, holds the PR, and
+// then only a write-access fix request is kept. A lanes App PR reads the
+// escalation through gateSource alone, as before. Every author is typed as the
+// REST API returns it, so a bot is no person speaking.
+test("on an adopted owner PR a lane escalation's needs-human lets the round work only as fix-ci's prHold does", async () => {
   const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
   const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
-  const gate = { labels: ["needs-human"], issueComments: [reviewedHead, LANE_ESCALATION], labelEvents: APP_LABELED };
-  const botOnly = await adopted(fakeApi({ ...gate, opener: HUMAN }));
-  assert.equal(botOnly.decision, "skip");
-  assert.equal(botOnly.skipReason, "awaiting-human");
-  const asked = await adopted(fakeApi({ ...gate, ...escalated({ replies: [[102, HUMAN, REQUEST]] }), opener: HUMAN }));
-  assert.equal(asked.decision, "proceed");
-  assert.equal(asked.fixRequested, true);
+  const escalation = (reason) => ({ ...LANE_ESCALATION, body: `${LANE_ESCALATION.body}\n\n- Reason: \`${reason}\`` });
+  const bot = { id: REVIEWER, login: LOGINS[REVIEWER], type: "Bot" };
+  const gate = (reason, extra = []) => ({
+    labels: ["needs-human"],
+    issueComments: [{ ...reviewedHead, user: { id: ACTIONS_BOT, type: "Bot" } }, escalation(reason)],
+    labelEvents: APP_LABELED,
+    reviewComments: [comment(100, REVIEWER, { user: bot, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T09:00:00Z" }), ...extra],
+    reviews: [{ id: 10, user: bot, commit_id: HEAD, submitted_at: "2026-10-18T09:00:00Z" }],
+  });
+  const other = await adopted(fakeApi({ ...gate("ci-fix-round-cap"), opener: HUMAN }));
+  assert.equal(other.decision, "proceed", "another lane's escalation, no person since");
+  assert.equal(other.fixRequested, true);
+  const own = await adopted(fakeApi({ ...gate("feedback-round-cap"), opener: HUMAN }));
+  assert.deepEqual([own.decision, own.skipReason], ["skip", "awaiting-human"], "address-feedback's own escalation");
+  const spoke = comment(101, HUMAN, { created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" });
+  const person = await adopted(fakeApi({ ...gate("ci-fix-round-cap", [spoke]), opener: HUMAN }));
+  assert.deepEqual([person.decision, person.skipReason], ["skip", "awaiting-human"], "a person's review comment since the label");
+  const asked = await adopted(fakeApi({ ...gate("feedback-round-cap"), ...escalated({ replies: [[102, HUMAN, REQUEST]] }), opener: HUMAN }));
+  assert.equal(asked.decision, "proceed", "a write-access fix request on a held owner PR");
   assert.deepEqual(asked.file.threads.map((thread) => thread.root_comment_id), [100]);
-  const appPr = await adopted(fakeApi(gate));
-  assert.equal(appPr.decision, "proceed", "a lanes App PR under the same adoption section");
+  const appPr = await adopted(fakeApi(gate("feedback-round-cap", [spoke])));
+  assert.equal(appPr.decision, "proceed", "a lanes App PR under its own escalation");
 });
 
 test("on an owner PR a thread a person opened is never kept", async () => {

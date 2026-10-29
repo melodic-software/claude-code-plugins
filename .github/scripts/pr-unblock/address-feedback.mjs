@@ -24,10 +24,11 @@
 //           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
-//           awaiting-human when there are none, unless the PR is the lanes
-//           App's, a lane escalation put the label on and no review lane
-//           holds the PR (gate-source.mjs). On an adopted owner PR a body
-//           line starting `Hold:` skips awaiting-human.
+//           awaiting-human when there are none, unless a lane escalation put
+//           the label on and no review lane holds the PR (gate-source.mjs),
+//           and on an adopted owner PR only as prHold lets fix-ci work it.
+//           On an adopted owner PR a body line starting `Hold:` skips
+//           awaiting-human.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -39,7 +40,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, laneHold, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { commentItems, gateSource, laneHold, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 import { retryRung, stopSkip } from "./escalation-routes.mjs";
@@ -55,6 +56,8 @@ export const FRESH_FIXER_ROUNDS = 1;
 // How the round marker and the neutral checks show the count.
 export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
+// The activity select decides, as escalation-routes.json names it.
+const ACTIVITY = "address-feedback";
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =
@@ -620,19 +623,29 @@ export async function select({
   }
   // The human-gated label holds the PR except for threads a trusted person
   // with write access asked the lane to fix, unless a lane escalation put it
-  // on and no review lane holds the PR (gate-source.mjs) on a lanes App PR.
-  // On an owner PR the label holds whoever put it on. The label stays on.
+  // on and no review lane holds the PR (gate-source.mjs). On an owner PR the
+  // lane escalation lets the round work only as it lets fix-ci work there
+  // (prHold): not after address-feedback's own escalation, nor once a person
+  // spoke after the label went on. The label stays on.
   const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-  const escalated =
+  const timeline = async () => [...commentItems(issueComments), ...(await api.listLabelEvents(pr))];
+  const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
+  const gated =
     labeled &&
-    !owner &&
-    gateSource({
-      timeline: [...commentItems(issueComments), ...(await api.listLabelEvents(pr))],
-      label: humanGatedLabel,
-      head: headSha,
-      isLanesApp: (user) => user?.id === appId && user?.type === "Bot",
-    }).source === "lane-escalation";
-  const gated = labeled && !escalated;
+    (owner
+      ? (
+          await prHold({
+            labels: pull.labels.map((label) => label.name),
+            holdLabels: [],
+            gateLabel: humanGatedLabel,
+            head: headSha,
+            activity: ACTIVITY,
+            appId,
+            readTimeline: timeline,
+            readReviews: async () => ({ comments: reviewComments, reviews }),
+          })
+        ).held
+      : gateSource({ timeline: await timeline(), label: humanGatedLabel, head: headSha, isLanesApp }).source !== "lane-escalation");
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const heads = reviewedHeads(issueComments);
   const kept = keepThreads({
@@ -738,7 +751,7 @@ export async function select({
     maxRounds: bound,
     // True drops the human-gated label from the write runner's holds: every
     // kept thread carries a write-access fix request, or a lane escalation
-    // put the label on a lanes App PR.
+    // that lets this activity work put the label on.
     fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
