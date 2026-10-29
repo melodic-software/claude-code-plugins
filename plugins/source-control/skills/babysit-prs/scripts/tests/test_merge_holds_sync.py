@@ -15,7 +15,9 @@ workflow change after auto-merge is armed.
   `COST_PATHS`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
-  matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
+  matches over `NATIVE_FLOOR`, `babysit_risk.HIGH_FLOOR` (its `trust` and
+  `gate` globs) less the `gate` globs `merge.lane-arm-gate` lane-arms
+  (`babysit_risk.LANE_ARMED_FLOOR`), which the gate holds instead, case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate` or, for the scripts that apply the
@@ -24,7 +26,8 @@ workflow change after auto-merge is armed.
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
   lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
-  `pathHold`, which judges only lanes App pull requests, holds all of it.
+  `pathHold`, which judges only lanes App pull requests, holds all of it
+  that is not lane-armed.
 - The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
@@ -63,6 +66,9 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
+# What pathHold holds for a person: the person floor less what the switch
+# lane-arms (owner decision Q7), which the merge gate holds instead.
+NATIVE_FLOOR = tuple(g for g in risk.HIGH_FLOOR if g not in risk.LANE_ARMED_FLOOR)
 # The floor actions' entry points and the floored scripts that enforce the
 # floor (owner decision Q-ENFORCE (A)): every module they load is code main
 # runs with their verdict, so the floor holds it too.
@@ -349,7 +355,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):
             with self.subTest(path):
-                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                on_floor = any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 self.assertEqual(held, on_floor)
                 self.assertEqual(
                     configured,
@@ -395,15 +401,24 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         )
         self.assertEqual(len(risk.AUTHOR_REVIEW_FLOOR), 14)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
-        self.assertEqual(module(samples)["held"], [True] * len(samples))
+        self.assertEqual(
+            module(samples)["held"],
+            [any(risk.glob_match(g, p) for g in NATIVE_FLOOR) for p in samples],
+        )
+        # What stays held natively is exactly the person-held `gate` rows.
+        self.assertEqual(
+            [g for g in gate if g in NATIVE_FLOOR],
+            [g for g in gate if g in risk.PERSON_HELD],
+        )
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk.HIGH_FLOOR, entry
-        # for entry and in order: the trust and gate globs a person clears.
+        # HOLD_PATH_FLOOR (merge-holds.mjs) is NATIVE_FLOOR, entry for entry
+        # and in order: the trust and gate globs a person clears, less the
+        # lane-armed ones (owner decision Q7).
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
             % json.dumps(MODULE.as_uri())
@@ -414,8 +429,9 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
+        self.assertEqual(tuple(json.loads(proc.stdout)), NATIVE_FLOOR)
         self.assertEqual(len(risk.HIGH_FLOOR), 66)
+        self.assertEqual(len(NATIVE_FLOOR), 66 - len(risk.LANE_ARMED_FLOOR))
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -432,7 +448,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 )
 
     def test_the_floor_holds_the_code_that_acts_on_a_stop_route(self) -> None:
@@ -445,7 +461,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 )
 
     def test_every_pr_merge_script_is_held_for_a_person(self) -> None:

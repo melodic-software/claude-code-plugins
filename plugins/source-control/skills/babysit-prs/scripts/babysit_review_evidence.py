@@ -417,7 +417,8 @@ def _main_lane(
     pull_request review left open (`_carried_blocking`), and the most any
     main-run review recorded on another head of this pull request
     (`_recorded_critical`), so a finding any of them reported holds, bound
-    or not."""
+    or not. Bound evidence is marked `main_run`, the only binding that
+    lane-arms a `gate` path (`babysit_risk.lane_armed`)."""
     try:
         found = _main_bound(lane, head, records, context)
     except Exception:  # noqa: BLE001 - any doubt is unbound
@@ -426,7 +427,7 @@ def _main_lane(
     if lane != SEVERITY_LANE:
         if found is None or recorded is None:
             return _unbound(lane, "lane-source-changed", head, *carried)
-        return LaneEvidence(lane, True, None, found[0], False, None)
+        return LaneEvidence(lane, True, None, found[0], False, None, main_run=True)
     runs, comments, threads, is_human, head_file = carried
     left = _carried_blocking(head, runs, comments, threads, is_human, head_file)
     if found is None or recorded is None:
@@ -436,7 +437,9 @@ def _main_lane(
         )
     findings, critical = found
     blocking = max(critical, left or 0, recorded)
-    return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
+    return LaneEvidence(
+        lane, True, None, max(findings, blocking), False, blocking, main_run=True
+    )
 
 
 def _recorded_critical(lane: str, context: Mapping[str, Any] | None) -> int | None:

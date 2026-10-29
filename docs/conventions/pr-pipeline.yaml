@@ -955,6 +955,36 @@ merge:
     - melodic-agent[bot]
   # true: report each decision and write nothing.
   report-only: false
+  # Owner decision Q7 (#10743): true lets a pull request held only by `gate`
+  # floor paths (the gated workflows, the merge gate's other scripts, the
+  # agent settings and instruction files) merge without a person once both
+  # review lanes are bound to the main-run review at its head with no finding
+  # and no review thread is open. `trust` paths and `person-held` below wait
+  # for a person either way. Anything but true keeps every `gate` path for a
+  # person. scripts/sync-hold-floor.py copies this and `person-held` into
+  # babysit_risk.py and merge-holds.mjs; its --check fails on a stale copy.
+  lane-arm-gate: true
+  # The merge-enforcement set, held for a person whatever lane-arm-gate says:
+  # the pr-merge scripts that apply and enforce the holds, both `effect:
+  # merge` activities' code (enable-auto-merge.mjs, and pr-merge.yml, which
+  # runs it and merge-pr), ci-status, which posts the one required status,
+  # and the review machinery a model verdict cannot judge: the review
+  # workflows, the main-run review's scripts that set its counts, and the
+  # verifier. Each entry must be a `trust` or `gate` floor row.
+  person-held:
+    - .github/scripts/pr-merge/merge-holds.mjs
+    - .github/scripts/pr-merge/enable-auto-merge.mjs
+    - .github/scripts/pr-merge/superseded.mjs
+    - .github/scripts/pr-merge/clear-escalations.mjs
+    - .github/scripts/pr-merge/gate-check.mjs
+    - .github/scripts/pr-merge/head-ref-map.mjs
+    - .github/workflows/pr-merge.yml
+    - .github/workflows/pr-require-checks.yml
+    - .github/workflows/pr-review-hosted.yml
+    - .github/workflows/pr-review-security-hosted.yml
+    - .github/workflows/pr-review-main.yml
+    - .github/scripts/pr-review-main/**
+    - .github/workflows/pr-verify.yml
   # true: post-merge-dispatch starts a full run of main inside its 30-minute
   # cap when an unverified lane merge has no started full run covering it,
   # one run for the whole batch, so the lane's in-flight room frees after one

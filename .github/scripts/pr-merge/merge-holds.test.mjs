@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, LANE_ARM_GATE, LANE_ARMED_FLOOR, PERSON_HELD, PULL_OPENED_QUERY, REVIEW_FLOOR, laneArmedFloor, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -381,8 +381,6 @@ const FLOOR_FILES = [
   ".github/actions/request-lane-token/action.yml",
   ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
   ".github/actions/check-kill-switch/check-kill-switch.mjs",
-  ".github/actions/log-api-budget/rate-guard.mjs",
-  ".github/actions/log-api-budget/rate-limits.json",
   ".github/CODEOWNERS",
   "plugins/foo/codeowners",
   ".gitmodules",
@@ -392,8 +390,15 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/superseded.mjs",
   ".github/scripts/pr-merge/clear-escalations.mjs",
   ".github/scripts/pr-merge/gate-check.mjs",
-  ".github/scripts/pr-merge/who.mjs",
-  ".github/scripts/pr-merge/rate-stop.bash",
+  ".github/scripts/pr-merge/head-ref-map.mjs",
+  // The merge-enforcement set's `gate` rows (merge.person-held).
+  ".github/workflows/pr-merge.yml",
+  ".github/workflows/pr-require-checks.yml",
+  ".github/workflows/pr-review-hosted.yml",
+  ".github/workflows/pr-review-security-hosted.yml",
+  ".github/workflows/pr-review-main.yml",
+  ".github/scripts/pr-review-main/write-verdict.mjs",
+  ".github/workflows/pr-verify.yml",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
@@ -426,14 +431,77 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/work-resolve-issue/stop-routes.json",
   ".github/scripts/work-resolve-issue/stop-routes.mjs",
 ];
-test("the floor's enforcement globs are the merge gate's, every other one holds here", () => {
+// `gate` paths merge.lane-arm-gate lane-arms (owner decision Q7): the merge
+// gate holds them for a person until both review lanes are bound to a
+// main-run review of the head with no finding and no open review thread.
+const LANE_ARMED_FILES = [
+  ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/rate-limits.json",
+  ".github/scripts/pr-merge/who.mjs",
+  ".github/scripts/pr-merge/rate-stop.bash",
+  ".github/workflows/pr-refine.yml",
+  ".github/workflows/work-resolve-issue.yml",
+  ".claude/settings.json",
+  "plugins/foo/.claude/rules/x.md",
+  "AGENTS.md",
+  "docs/CLAUDE.md",
+  "docs/standards/README.md",
+];
+test("the floor's enforcement globs and the lane-armed gate globs are the merge gate's, every other one holds here", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
-  assert.deepEqual(HOLD_PATH_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
+  assert.deepEqual(
+    HOLD_PATH_FLOOR,
+    HOLD_PATH_CLASSES.filter(([glob, kind]) => kind === "trust" || (kind === "gate" && !LANE_ARMED_FLOOR.includes(glob))).map(([glob]) => glob),
+  );
   assert.deepEqual([...new Set(HOLD_PATH_CLASSES.map(([, kind]) => kind))].sort(), ["enforcement", "gate", "trust"]);
   for (const path of ENFORCEMENT_FILES) {
     assert.ok(REVIEW_FLOOR.includes(path), path);
     assert.equal(pathHold([path], []), null, path);
   }
+});
+test("pr-pipeline.yaml turns the switch on, and it lane-arms only gate rows outside the merge-enforcement set", () => {
+  assert.equal(LANE_ARM_GATE, true);
+  const kind = new Map(HOLD_PATH_CLASSES);
+  for (const glob of PERSON_HELD) {
+    assert.ok(["trust", "gate"].includes(kind.get(glob)), glob);
+    assert.ok(HOLD_PATH_FLOOR.includes(glob), glob);
+    assert.ok(!LANE_ARMED_FLOOR.includes(glob), glob);
+  }
+  for (const glob of LANE_ARMED_FLOOR) {
+    assert.equal(kind.get(glob), "gate", glob);
+  }
+  // The five merge-enforcement trust scripts, this module and ci-status.
+  for (const glob of [
+    ".github/scripts/pr-merge/merge-holds.mjs",
+    ".github/scripts/pr-merge/enable-auto-merge.mjs",
+    ".github/scripts/pr-merge/superseded.mjs",
+    ".github/scripts/pr-merge/clear-escalations.mjs",
+    ".github/scripts/pr-merge/gate-check.mjs",
+    ".github/scripts/pr-merge/head-ref-map.mjs",
+    ".github/workflows/pr-require-checks.yml",
+  ]) {
+    assert.ok(PERSON_HELD.includes(glob), glob);
+  }
+  for (const path of LANE_ARMED_FILES) {
+    assert.equal(pathHold([path], []), null, path);
+  }
+});
+test("the switch off, or anything but true, lane-arms nothing", () => {
+  const classes = [["a/**", "trust"], ["b/**", "gate"], ["c/**", "gate"], ["d/**", "enforcement"]];
+  for (const off of [false, undefined, null, "true", 1]) {
+    assert.deepEqual(laneArmedFloor(off, [], classes), [], String(off));
+  }
+  assert.deepEqual(laneArmedFloor(true, ["c/**"], classes), ["b/**"]);
+  assert.deepEqual(laneArmedFloor(true, null, classes), []);
+});
+test("ci-status leaves a lane-armed gate path to the merge gate, and holds it beside a person-held one", async () => {
+  for (const path of LANE_ARMED_FILES) {
+    const passed = await ci([{ filename: path, status: "modified" }]);
+    assert.equal(passed.code, 0, `${path}: ${passed.out}`);
+  }
+  const both = await ci([{ filename: "AGENTS.md", status: "modified" }, { filename: ".github/workflows/pr-require-checks.yml", status: "modified" }]);
+  assert.equal(both.code, 1, both.out);
+  assert.ok(both.out.includes("it changes .github/workflows/pr-require-checks.yml, a hold path"), both.out);
 });
 test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
   for (const path of ENFORCEMENT_FILES) {
@@ -441,9 +509,9 @@ test("ci-status leaves an enforcement path to the merge gate's security review",
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
   }
   // Beside a gate path it still holds on that one.
-  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/who.mjs", status: "modified" }]);
+  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/gate-check.mjs", status: "modified" }]);
   assert.equal(both.code, 1, both.out);
-  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
+  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/gate-check.mjs, a hold path"), both.out);
 });
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
@@ -1430,6 +1498,10 @@ test("Q10: a push that touches any hold path, a configured one or a file a hold 
     ["a script ci-status runs", ["scripts/check-stale-base-overlap.sh"], []],
     ["an action a hold-path workflow uses", [".github/actions/report-check-run/report-check-run.mjs"], []],
     ["a workflow", [".github/workflows/pr-review-hosted.yml"], []],
+    // A lane-armed gate path holds nothing in ci-status, but an approval never
+    // carries over one (owner decision Q7).
+    ["a lane-armed agent instruction file", ["AGENTS.md"], []],
+    ["a lane-armed agent settings file", [".claude/settings.json"], []],
   ]) {
     const merges = pushed(files);
     if (name === "a rename off a gated file") merges.files[0].previous_filename = ".github/actions/request-lane-token/action.yml";

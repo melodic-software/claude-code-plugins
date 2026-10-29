@@ -16,6 +16,10 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   security review's own files (scrutiny only).
 - ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`).
+- babysit_risk.py and merge-holds.mjs `LANE_ARM`: `merge.lane-arm-gate` (on only when it
+  reads exactly `true`) and `merge.person-held` from docs/conventions/pr-pipeline.yaml, read
+  through the shared YAML reader. A person-held entry that is not a `trust` or `gate` floor
+  row, a repeated one, or a file the reader rejects stops the script.
 """
 
 from __future__ import annotations
@@ -100,10 +104,61 @@ def hold_patterns(indent: str) -> list[str]:
     return [f"{indent}hold_patterns=({quoted})"]
 
 
+PIPELINE = ROOT / "docs/conventions/pr-pipeline.yaml"
+SWITCH_KEY = "merge.lane-arm-gate"
+HELD_KEY = "merge.person-held"
+
+
+def lane_arm() -> tuple[bool, list[str]]:
+    """(`merge.lane-arm-gate` is exactly `true`, `merge.person-held`), each
+    held entry checked to be a `trust` or `gate` floor row."""
+    import babysit_merge_policy  # noqa: PLC0415
+
+    text = PIPELINE.read_text(encoding="utf-8")
+    values = babysit_merge_policy._concern_values(
+        text, [(SWITCH_KEY, False), (HELD_KEY, True)]
+    )
+    if values is None:
+        raise SystemExit(f"sync-hold-floor: the shared YAML reader rejects {PIPELINE}")
+    held = values[HELD_KEY]
+    rows = dict(floor_classes())
+    bad = [g for g in held if rows.get(g) not in ("trust", "gate")]
+    if bad or len(set(held)) != len(held):
+        raise SystemExit(
+            f"sync-hold-floor: {HELD_KEY} holds a repeated entry or one that is not a "
+            f"trust or gate floor row: {bad or held}"
+        )
+    return values[SWITCH_KEY] == ["true"], held
+
+
+def risk_lane_arm(indent: str) -> list[str]:
+    on, held = lane_arm()
+    return [
+        f"{indent}LANE_ARM_GATE = {on}",
+        f"{indent}PERSON_HELD: tuple[str, ...] = (",
+        *(f"{indent}    {json.dumps(g)}," for g in held),
+        f"{indent})",
+    ]
+
+
+def mjs_lane_arm(indent: str) -> list[str]:
+    on, held = lane_arm()
+    return [
+        f"{indent}export const LANE_ARM_GATE = {json.dumps(on)};",
+        f"{indent}export const PERSON_HELD = Object.freeze([",
+        *(f"{indent}  {json.dumps(g)}," for g in held),
+        f"{indent}]);",
+    ]
+
+
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
 BLOCKS = {
-    RISK: {"GATE_WORKFLOWS": gate_workflow_rows},
-    MERGE_HOLDS: {"COST_PATHS": cost_rows, "HOLD_PATH_CLASSES": class_rows},
+    RISK: {"GATE_WORKFLOWS": gate_workflow_rows, "LANE_ARM": risk_lane_arm},
+    MERGE_HOLDS: {
+        "COST_PATHS": cost_rows,
+        "HOLD_PATH_CLASSES": class_rows,
+        "LANE_ARM": mjs_lane_arm,
+    },
     ".github/workflows/pr-review-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-review-security-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-require-checks.yml": {"hold_patterns": hold_patterns},

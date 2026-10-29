@@ -396,8 +396,6 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/request-lane-token/action.yml",
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/check-kill-switch/check-kill-switch.mjs",
-    ".github/actions/log-api-budget/rate-guard.mjs",
-    ".github/actions/log-api-budget/rate-limits.json",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
     ".github/scripts/pr-merge/merge-holds.mjs",
@@ -405,12 +403,13 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
     ".github/scripts/pr-merge/gate-check.mjs",
-    ".github/scripts/pr-merge/who.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
     "docs/conventions/pr-pipeline.yaml",
     // A workflow that mints a lane token is a gate path.
     ".github/workflows/pr-merge.yml",
     // So is ci-status, which posts the required status and runs the hold step.
+    // Both are in the merge-enforcement set (merge.person-held), so the
+    // switch never lane-arms them.
     ".github/workflows/pr-require-checks.yml",
   ];
   const { code, writes, notes } = await run([
@@ -430,6 +429,35 @@ test("a floor path no configured glob names is commented on and labeled human-ga
       { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
     ]),
   );
+});
+
+// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a `gate` path
+// outside the merge-enforcement set is no hold path here. The gate's reader
+// decides it: its risk score holds it for a person (`high-path:`) until both
+// review lanes are bound to a main-run review of the head with no finding and
+// no review thread is open, and then arms it.
+test("a lane-armed gate path arms on the gate's passing read and is a person's on its high-path hold", async () => {
+  const armed = [
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/scripts/pr-merge/who.mjs",
+    ".github/workflows/pr-refine.yml",
+    ".claude/settings.json",
+    "AGENTS.md",
+  ];
+  const passed = await run(armed.map((filename, index) => pull(index + 1, { files: [{ filename }], verdict: PASSED })));
+  assert.equal(passed.code, 0);
+  assert.deepEqual(
+    passed.writes,
+    armed.map((_, index) => ({ mutation: "arm", id: `PR_${index + 1}`, head: HEAD })),
+  );
+  assert.deepEqual(passed.notes, []);
+  const reviews = "high-path:**/AGENTS.md: AGENTS.md";
+  const held = await run([pull(1, { files: [{ filename: "AGENTS.md" }], verdict: { ...PASSED, reviews, reviewsPerson: true } })]);
+  assert.deepEqual(held.writes, []);
+  assert.deepEqual(held.notes, [
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(`pr-merge's gate holds it on its risk score (${reviews})`) } },
+    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+  ]);
 });
 
 // Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or

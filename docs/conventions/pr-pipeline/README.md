@@ -12,6 +12,7 @@
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
 - [Review-lane holds](#review-lane-holds)
+- [Lane-armed gate paths](#lane-armed-gate-paths)
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
@@ -2394,6 +2395,63 @@ fails while the queued PR carries `pr-verify-failed`, which a pass at a new comm
 `pull_request` run does not read that label: a red ci-status there stops `pr-verify` from judging
 the next head, so the pass that removes it would never come.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
+
+## Lane-armed gate paths
+
+Owner decision Q7 ([#10743](https://github.com/melodic-software/claude-code-plugins/pull/10743#issuecomment-6486023647)):
+`merge.lane-arm-gate: true` lets a pull request held only by `gate` floor paths merge with no
+person. Those are the gated workflows, the merge gate's other scripts, and the agent settings and
+instruction files. The hold clears only when all of these are true at the current head:
+
+- both review lanes (`claude-review` and `claude-security-review`) are bound by the main-run review
+  (`pr-review-main.yml`, `babysit_review_evidence._main_lane`), never by a pull_request run;
+- each lane counts no open finding. The bound record carries only total and CRITICAL counts, so
+  any finding keeps the person, a SUGGESTION included;
+- the pull request has no unresolved review thread. The gate reads the count only when it could
+  lane-arm a path (`babysit_merge.with_open_threads`).
+
+`merge.person-held` names the merge-enforcement set. Those paths wait for a person whatever the
+switch says, and so does every `trust` path:
+
+- the pr-merge scripts that apply and enforce the holds (`merge-holds.mjs`,
+  `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs`,
+  `head-ref-map.mjs`);
+- `pr-merge.yml`, which runs both `effect: merge` activities;
+- ci-status (`pr-require-checks.yml`);
+- the review machinery a model verdict cannot judge: `pr-review-hosted.yml`,
+  `pr-review-security-hosted.yml`, `pr-review-main.yml`, `.github/scripts/pr-review-main/**`
+  (which sets the counts) and `pr-verify.yml`.
+
+The repository rulesets stay the owner's: they live outside this repository.
+
+A configured denied path is never lane-armed. Anything unread fails closed and keeps the person:
+the switch, a lane's evidence, which run bound it, and the thread count.
+
+`scripts/sync-hold-floor.py` reads both keys through the shared YAML reader. The switch is on
+only when it reads exactly `true`. The script copies both keys into `babysit_risk.py` and
+`merge-holds.mjs` (`LANE_ARM` blocks), and refuses a person-held entry that is not a `trust` or
+`gate` floor row. Its `--check` fails on a stale copy.
+
+What each surface does with a lane-armed path:
+
+- **The merge gate.** It scores the path `high-path:` (a person's) until the conditions hold, then
+  drops it.
+- **`merge-holds.mjs`.** It holds the path neither in ci-status nor in enable-auto-merge
+  (`LANE_ARMED_FLOOR`), the same treatment an `enforcement` path gets. enable-auto-merge arms only
+  a head the gate passed, and ci-status disarms an armed lanes App pull request on each push.
+- **Approvals.** An approval never carries over a push that touches a lane-armed path
+  (`ungatedSince`).
+- **Escalation labels.** clear-escalations removes the human-gated label at the same head only
+  when the refusal it records names lane-armed paths alone and the gate's reader now refuses
+  nothing (`armedCause`). Removing the label approves nothing: ci-status lifts a hold path only on
+  a trusted person's approving review, and it fails a review-lane hold an App lifted.
+
+Two limits apply:
+
+- The main-run review runs only for a pull request that changes a lane source. A pull request
+  whose only `gate` paths sit outside the lane sources (the rate guard, the pr-merge gate scripts)
+  is never bound by it, so a person still merges it.
+- ci-status's exempt-author and agent-App `hold_patterns` are unchanged.
 
 ## Trust-root paths
 

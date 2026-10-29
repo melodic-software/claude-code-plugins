@@ -1138,6 +1138,18 @@
           "default": [],
           "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
         },
+        "lane-arm-gate": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: a pull request held only by `gate` floor paths (the gated workflows, the merge gate's other scripts, the agent settings and instruction files) merges without a person when both review lanes are bound to the main-run review at its head with no finding and no review thread is open (README.md, Lane-armed gate paths). Every `trust` path and every person-held path still waits for a person. Absent, false or any other value: every `gate` path waits for a person. scripts/sync-hold-floor.py copies it into babysit_risk.py and merge-holds.mjs."
+        },
+        "person-held": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "default": [],
+          "description": "The merge-enforcement set: `trust` or `gate` floor globs that wait for a person whatever lane-arm-gate says (README.md, Lane-armed gate paths). scripts/sync-hold-floor.py refuses an entry that is not a `trust` or `gate` floor row."
+        },
         "diff-check": {
           "type": "object",
           "additionalProperties": false,
