@@ -304,8 +304,8 @@ def test_report_only_reasons_attribute_basis_numbers_to_the_reference_machine(da
 def test_metrics_without_a_canary_are_listed_unchecked(data_dir):
     write_store(data_dir, record("s1"))
     unchecked = {row["what"]: row["reason"] for row in envelope(sweep(data_dir))["data"]["unchecked"]}
-    assert "canary" in unchecked["tools.denials"] and "canary" in unchecked["subagents.count"]
-    assert "tokens.main" not in unchecked
+    assert "canary" in unchecked["tools.denials"]
+    assert "tokens.main" not in unchecked and "subagents.count" not in unchecked
 
 
 def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):
