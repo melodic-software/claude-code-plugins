@@ -390,7 +390,7 @@ SIBLING_UNREADABLE = "a FAIL run of a pull request for the same issue"
 # comment on the closed pull request and on its issue. On the issue it names
 # the fresh attempt it started, or ` parked` when `merge.verify-cap-attempts`
 # were spent. `_elsewhere` leaves the named pull request's FAILs out of the
-# cap's count; label-unblocked.mjs skips its closed-PR hand-off for it;
+# cap's count once the issue lists it closed; label-unblocked.mjs skips its closed-PR hand-off for it;
 # write-issue.mjs passes it to the next attempt as data.
 CAPPED_CLOSE_RE = re.compile(
     r"<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=((?:[0-9a-f]{40},)*(?:[0-9a-f]{40})?)"
@@ -408,7 +408,7 @@ ISSUE_FIELDS = (
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "body author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}"
+    "nodes{number state repository{nameWithOwner}}}"
 )
 # The issue parts `_closing_issues` reads whole: a cut list refuses.
 ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
@@ -1898,9 +1898,10 @@ class Reader:
             self.linked_issue[number] = issue.get("number")
         return refusal
 
-    def _closers(self, live: dict[Any, Any]) -> set[int]:
-        """The pull requests in this repository, open or closed, that close
-        any of the closing issues `live` holds."""
+    def _closers(self, live: dict[Any, Any], *, closed: bool = False) -> set[int]:
+        """The pull requests in this repository, open or closed (only the
+        ones not open with `closed`), that close any of the closing issues
+        `live` holds."""
         return {
             node.get("number")
             for issue in live.values()
@@ -1910,6 +1911,7 @@ class Reader:
             )
             if json_object(node.get("repository")).get("nameWithOwner") == self.repo
             and type(node.get("number")) is int
+            and (not closed or node.get("state") in ("CLOSED", "MERGED"))
         }
 
     def _commits(self, number: int, head: str) -> set[str]:
@@ -2176,12 +2178,15 @@ class Reader:
         one of them, and of every counted FAIL whose name carries one of them
         (`named_issues`: a `Refs:` pull request's FAILs count only so), from
         the listing already read. A pull request the pr-merge lane closed at
-        the cap for a fresh attempt (`capped_closed`) counts no more, so each
-        fresh attempt starts its own count; `merge.verify-cap-attempts`
-        bounds how many there are. A FAIL among those whose run cannot be
+        the cap for a fresh attempt (`capped_closed`) counts no more once an
+        issue lists it closed, so each fresh attempt starts its own count;
+        the record goes on before the close, so one whose close failed still
+        counts. `merge.verify-cap-attempts` bounds how many there are. A FAIL among those whose run cannot be
         read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
         live = self._closing_issues(number)
-        capped = capped_closed(live, self.agent_identity) - {number}
+        capped = (
+            capped_closed(live, self.agent_identity) & self._closers(live, closed=True)
+        ) - {number}
         others = self._closers(live) - {number} - capped
         unread = set().union(*(unread_issues.get(n, set()) for n in live)) - capped
         if others & unread_prs or unread:
@@ -3416,19 +3421,24 @@ def capped_close(
     *,
     attempts: int,
     holds: tuple[str, ...] = (),
+    issue_holds: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Close a lanes App pull request the verifier refuses for good
     (`VERIFY_FINAL`) at `head`, judged again here, for a fresh attempt at its
     issue (owner decision 2026-10-29; no person's label on this path). In
     order, so a failed write leaves the pull request open for the next run,
     which finds its comments and writes the rest: the record on the pull
-    request, then on each issue; the issue's `agent-ready` comes off; the
-    pull request closes; `agent-ready` goes back on (tried twice), which
-    starts the fresh attempt. An issue that already had `attempts` fresh
-    attempts (`merge.verify-cap-attempts`) is parked instead, at
-    `status: confirmed` with `status: ready` and `agent-ready` off, before the
-    close. A pull request not open at `head`, not the lanes App's, or carrying
-    a hold label (`holds`) is left alone. Raises `RuntimeError` on a failed
+    request, then on each issue; the issue's `agent-ready` comes off and
+    goes back on (tried twice), which starts the fresh attempt; the pull
+    request closes, so a closed one never leaves its issue without
+    `agent-ready`. An issue that already had `attempts` fresh attempts
+    (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
+    with `status: ready` and `agent-ready` off, before the close. A pull
+    request not open at `head`, not the lanes App's, or carrying a hold label
+    (`holds`) is left alone, and so is one whose issue link the pr-merge lane
+    does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
+    or whose issue carries an `issue_holds` label (`issue_hold_refusal`; none
+    resolved refuses). Raises `RuntimeError` on a failed
     write or a failed issue read, `PostMergeReadError` on a failed comments
     read."""
     identity = reader.agent_identity or ""
@@ -3456,11 +3466,17 @@ def capped_close(
         }
     if held := sorted(labels & {h.lower() for h in holds}):
         return {"closed": False, "reason": f"it carries {', '.join(held)}"}
-    findings = reader.fail_findings(number)
+    if (refusal := reader.link_refusal(number)) is not None:
+        return {"closed": False, "reason": refusal}
     try:
-        issues = sorted(n for n in reader._closing_issues(number) if type(n) is int)
+        live = reader._closing_issues(number)
     except _Unreadable as exc:
         raise RuntimeError(f"issue link: {exc}") from exc
+    for node in live.values():
+        if (refusal := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
+            return {"closed": False, "reason": refusal}
+    issues = sorted(n for n in live if type(n) is int)
+    findings = reader.fail_findings(number)
     repo = reader.repo
     plan: list[tuple[int, list[dict[str, Any]], tuple[int, int], bool]] = []
     for issue in issues:
@@ -3545,22 +3561,9 @@ def capped_close(
             f"#{issue} {AGENT_READY}",
             missing_ok=True,
         )
-    _gh_write(
-        ["api", "-X", "PATCH", f"repos/{repo}/pulls/{number}", "-f", "state=closed"],
-        "close",
-    )
-    restarted: list[int] = []
-    for issue, _, _, parked in plan:
         if parked:
             continue
-        args = [
-            "api",
-            "-X",
-            "POST",
-            f"repos/{repo}/issues/{issue}/labels",
-            "-f",
-            f"labels[]={AGENT_READY}",
-        ]
+        args = ["api", "-X", "POST", base, "-f", f"labels[]={AGENT_READY}"]
         try:
             _gh_write(args, f"#{issue} {AGENT_READY}")
         except RuntimeError:
@@ -3568,7 +3571,11 @@ def capped_close(
                 args,
                 f"#{issue} {AGENT_READY} was removed for a fresh attempt but not added back",
             )
-        restarted.append(issue)
+    _gh_write(
+        ["api", "-X", "PATCH", f"repos/{repo}/pulls/{number}", "-f", "state=closed"],
+        "close",
+    )
+    restarted = [issue for issue, _, _, parked in plan if not parked]
     return {
         "closed": True,
         "refusal": evidence.refusal,
@@ -3595,12 +3602,22 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
         )
         reader.listing_max_age = None
         holds = tuple(h for h in args.hold_label if h)
+        owner, _, name = args.repo.partition("/")
+        # The labels that hold the issue, as the merge gate resolves them
+        # (`merge_policy.issue_hold_labels`).
+        issue_holds = merge_policy.issue_hold_labels(
+            config,
+            None
+            if config.issue_holds
+            else postmerge._role_label(owner, name, strict=True),
+        )
         result = capped_close(
             reader,
             args.number,
             args.head,
             attempts=config.verify_cap_attempts,
             holds=holds,
+            issue_holds=issue_holds,
         )
     except (
         RuntimeError,

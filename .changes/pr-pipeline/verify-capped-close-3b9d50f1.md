@@ -10,11 +10,12 @@ bump: patch
   `merge.lane-prs: gate`) closes it for a fresh attempt at its issue. It posts a
   `<!-- verify-capped-close -->` record quoting each FAILed head's verdict findings on the pull
   request and its issue, then takes `agent-ready` off and puts it back, which starts the fresh
-  attempt. New `merge.verify-cap-attempts` (default 1) bounds the fresh attempts per issue; past
+  attempt, before the close. It leaves open a pull request whose issue link the arm path refuses
+  or whose issue carries an issue hold label. New `merge.verify-cap-attempts` (default 1) bounds the fresh attempts per issue; past
   it the issue is parked at `status: confirmed`.
 - The cross-pull-request FAIL cap leaves out a pull request the lanes App's capped-close record
-  names, so a fresh attempt starts its own count. A record anyone else wrote or edited excuses
-  nothing.
+  names once the issue lists it closed, so a fresh attempt starts its own count. A record anyone
+  else wrote or edited excuses nothing.
 - `label-unblocked.mjs` hands no issue to triage for a lane pull request closed at the cap, and
   `write-issue.mjs` passes the capped-close record to the next attempt as
   `author_kind: verify-findings`, the only other lanes App comment it keeps.

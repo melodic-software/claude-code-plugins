@@ -235,6 +235,9 @@ class FakeGitHub:
         # The pull requests, open or closed, that close each issue:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
+        # Each closing pull request's state: the one judged is open, others
+        # closed unless named.
+        self.closer_states: dict[int, str] = {}
         self.closers_total: dict[int, int] = {}
         # The pull requests each issue's cross-reference timeline shows:
         # (number, repository), or None for an issue as the source; and a
@@ -367,7 +370,13 @@ class FakeGitHub:
                     n, len(self.closers.get(n, [(PR, REPO)]))
                 ),
                 "nodes": [
-                    {"number": pr, "repository": {"nameWithOwner": repo}}
+                    {
+                        "number": pr,
+                        "state": self.closer_states.get(
+                            pr, "OPEN" if pr == PR else "CLOSED"
+                        ),
+                        "repository": {"nameWithOwner": repo},
+                    }
                     for pr, repo in self.closers.get(n, [(PR, REPO)])
                 ],
             },
@@ -1404,6 +1413,20 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         fake = self.sibling_fails(*SIBLING_HEADS)
         fake.closing_comments[7] = [self.capped_record(SIBLING, LANES_APP_ACTOR)]
         self.assertIsNone(self.read_as_lane(fake).refusal)
+
+    def test_a_record_naming_a_pull_request_still_open_excuses_nothing(self) -> None:
+        # The record goes on before the close: a close that failed leaves the
+        # pull request open, and its FAILs still count.
+        for state in ("OPEN", None):
+            with self.subTest(state):
+                fake = self.sibling_fails(*SIBLING_HEADS)
+                fake.closing_comments[7] = [
+                    self.capped_record(SIBLING, LANES_APP_ACTOR)
+                ]
+                fake.closer_states[SIBLING] = state  # type: ignore[assignment]
+                self.assertEqual(
+                    self.read_as_lane(fake).refusal, "verify:repeated-fail"
+                )
 
     def test_a_capped_close_record_anyone_else_wrote_or_edited_excuses_nothing(
         self,
@@ -4115,7 +4138,12 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 self.assertEqual((number, head), (unattended.PR, unattended.HEAD))
                 self.assertEqual(reader.agent_identity, unattended.IDENTITY)
                 self.assertEqual(
-                    kwargs, {"attempts": 2, "holds": ("do-not-merge", "needs-human")}
+                    kwargs,
+                    {
+                        "attempts": 2,
+                        "holds": ("do-not-merge", "needs-human"),
+                        "issue_holds": ("needs-human",),
+                    },
                 )
 
     def test_a_refusal_that_can_clear_closes_nothing(self) -> None:

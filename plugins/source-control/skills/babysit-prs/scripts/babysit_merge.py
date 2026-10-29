@@ -3911,7 +3911,8 @@ def close_capped(
 ) -> dict[str, Any]:
     """`verify_evidence.capped_close` for the gate's pull request at its
     head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
-    label hold it open."""
+    label hold it open, and the issue's hold labels
+    (`merge_policy.issue_hold_labels`) keep it so."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     try:
         label = human_gated_label(repo)
@@ -3926,6 +3927,7 @@ def close_capped(
         head,
         attempts=config.verify_cap_attempts,
         holds=("do-not-merge", label),
+        issue_holds=merge_policy.issue_hold_labels(config, label),
     )
 
 

@@ -34,12 +34,21 @@ class StubReader:
     findings and the issue link."""
 
     def __init__(
-        self, refusal: str = ve.REPEATED_FAIL, issues: tuple[int, ...] = (ISSUE,)
+        self,
+        refusal: str = ve.REPEATED_FAIL,
+        issues: tuple[int, ...] = (ISSUE,),
+        link: str | None = None,
+        issue_labels: tuple[str, ...] = (),
     ) -> None:
         self.repo = REPO
         self.agent_identity = BOT
         self.refusal = refusal
         self.issues = issues
+        self.link = link
+        self.issue_labels = issue_labels
+
+    def link_refusal(self, number: int) -> str | None:
+        return self.link
 
     def evidence(self, number: int, head: str) -> ve.Evidence:
         return ve.Evidence(self.refusal, head, (), 0, "fails at 3 heads, the cap is 3")
@@ -56,7 +65,11 @@ class StubReader:
         ]
 
     def _closing_issues(self, number: int) -> dict[int, Any]:
-        return {n: {} for n in self.issues}
+        labels = [{"name": name} for name in self.issue_labels]
+        return {
+            n: {"number": n, "labels": {"totalCount": len(labels), "nodes": labels}}
+            for n in self.issues
+        }
 
 
 def comment(body: str, login: str = BOT) -> dict[str, Any]:
@@ -101,6 +114,7 @@ class World:
         reader: StubReader | None = None,
         attempts: int = 1,
         holds: tuple[str, ...] = (),
+        issue_holds: tuple[str, ...] = ("needs-human",),
     ) -> dict[str, Any]:
         with (
             mock.patch.object(ve.merge_policy, "pull_request", return_value=self.pr),
@@ -108,7 +122,12 @@ class World:
             mock.patch.object(ve.postmerge, "gh_capture", side_effect=self.gh),
         ):
             return ve.capped_close(
-                reader or StubReader(), PR, HEAD, attempts=attempts, holds=holds
+                reader or StubReader(),
+                PR,
+                HEAD,
+                attempts=attempts,
+                holds=holds,
+                issue_holds=issue_holds,
             )
 
     def calls(self) -> list[str]:
@@ -131,19 +150,20 @@ class ClosesForAFreshAttempt(unittest.TestCase):
                 "parked": [],
             },
         )
-        # The records first, agent-ready off before the close and back on after
-        # it, so a failed write leaves the pull request open for the next run.
+        # The records first, then agent-ready off and back on, all before the
+        # close, so a failed write leaves the pull request open for the next
+        # run and a closed one never leaves its issue without agent-ready.
         self.assertEqual(
             world.calls(),
             [
                 f"POST repos/{REPO}/issues/{PR}/comments",
                 f"POST repos/{REPO}/issues/{ISSUE}/comments",
                 f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
-                f"PATCH repos/{REPO}/pulls/{PR}",
                 f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                f"PATCH repos/{REPO}/pulls/{PR}",
             ],
         )
-        self.assertIn("labels[]=agent-ready", world.writes[-1])
+        self.assertIn("labels[]=agent-ready", world.writes[-2])
         heads = f"{FAILED[0]},{FAILED[1]}"
         self.assertEqual(
             world.body(0).split("\n")[0],
@@ -223,8 +243,8 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             world.calls(),
             [
                 f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
-                f"PATCH repos/{REPO}/pulls/{PR}",
                 f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                f"PATCH repos/{REPO}/pulls/{PR}",
             ],
         )
 
@@ -233,8 +253,25 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         world.fail_once.add(f"POST repos/{REPO}/issues/{ISSUE}/labels")
         self.assertEqual(world.run()["restarted"], [ISSUE])
         self.assertEqual(
-            world.calls()[-2:], [f"POST repos/{REPO}/issues/{ISSUE}/labels"] * 2
+            world.calls()[-3:-1], [f"POST repos/{REPO}/issues/{ISSUE}/labels"] * 2
         )
+
+    def test_a_re_add_that_fails_twice_leaves_the_pull_request_open(self) -> None:
+        # Closed with agent-ready off, the issue would be stranded: the closed
+        # pull request is never revisited, and label-unblocked.mjs skips the
+        # hand-off for a pull request its capped-close record names.
+        world = World()
+
+        def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            world.writes.append(args)
+            if " ".join(args[2:4]) == f"POST repos/{REPO}/issues/{ISSUE}/labels":
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        world.gh = gh  # type: ignore[method-assign]
+        with self.assertRaises(RuntimeError):
+            world.run()
+        self.assertNotIn(f"PATCH repos/{REPO}/pulls/{PR}", world.calls())
 
     def test_a_label_already_off_is_no_failure(self) -> None:
         world = World()
@@ -249,19 +286,6 @@ class ClosesForAFreshAttempt(unittest.TestCase):
 
         world.gh = gh  # type: ignore[method-assign]
         self.assertTrue(world.run()["closed"])
-
-    def test_with_no_issue_it_only_records_and_closes(self) -> None:
-        world = World()
-        result = world.run(StubReader(issues=()))
-        self.assertEqual(result["restarted"], [])
-        self.assertEqual(
-            world.calls(),
-            [
-                f"POST repos/{REPO}/issues/{PR}/comments",
-                f"PATCH repos/{REPO}/pulls/{PR}",
-            ],
-        )
-        self.assertIn("links no issue", world.body(0))
 
     def test_too_old_closes_too(self) -> None:
         self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
@@ -285,6 +309,35 @@ class LeavesItAlone(unittest.TestCase):
         ):
             self.assertFalse(world.run()["closed"])
             self.assertEqual(world.writes, [])
+
+    def test_a_link_the_pr_merge_lane_does_not_take_keeps_it_open(self) -> None:
+        # One closing issue (or the `Refs:` one) clearing the trust hold, as
+        # the arm path reads it (`Reader.link_refusal`): no issue, two
+        # issues, or an untrusted-provenance label refuses.
+        for link in ("linked-issues:0", "linked-issues:2", "untrusted-provenance"):
+            with self.subTest(link):
+                world = World()
+                result = world.run(StubReader(link=link))
+                self.assertEqual(result, {"closed": False, "reason": link})
+                self.assertEqual(world.writes, [])
+
+    def test_an_issue_hold_label_keeps_it_open(self) -> None:
+        world = World()
+        result = world.run(StubReader(issue_labels=("Needs-Human",)))
+        self.assertEqual(
+            result,
+            {"closed": False, "reason": "closing-issue-held:needs-human"},
+        )
+        self.assertEqual(world.writes, [])
+
+    def test_no_resolved_issue_hold_keeps_it_open(self) -> None:
+        world = World()
+        result = world.run(issue_holds=())
+        self.assertEqual(
+            result,
+            {"closed": False, "reason": "closing-issue-holds-unresolved"},
+        )
+        self.assertEqual(world.writes, [])
 
     def test_a_hold_label_keeps_it_open(self) -> None:
         world = World(labels=["Do-Not-Merge"])
@@ -315,13 +368,18 @@ class TheCommand(unittest.TestCase):
 
     def test_it_closes_under_the_lower_config_with_the_hold_labels(self) -> None:
         config = mock.Mock(
-            error=None, max_verify_fails=3, agent_identity=BOT, verify_cap_attempts=2
+            error=None,
+            max_verify_fails=3,
+            agent_identity=BOT,
+            verify_cap_attempts=2,
+            issue_holds=(),
         )
         with (
             mock.patch.object(ve.merge_policy, "config_at", return_value=config),
             mock.patch.object(
                 ve.merge_policy, "with_default_branch", return_value=config
             ),
+            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
             mock.patch.object(
                 ve, "capped_close", return_value={"closed": True}
             ) as close,
@@ -333,7 +391,12 @@ class TheCommand(unittest.TestCase):
         (reader, number, head), kwargs = close.call_args
         self.assertEqual((reader.agent_identity, number, head), (BOT, PR, HEAD))
         self.assertEqual(
-            kwargs, {"attempts": 2, "holds": ("do-not-merge", "needs-human")}
+            kwargs,
+            {
+                "attempts": 2,
+                "holds": ("do-not-merge", "needs-human"),
+                "issue_holds": ("needs-human",),
+            },
         )
 
     def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
