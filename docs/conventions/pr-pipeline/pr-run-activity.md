@@ -960,8 +960,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    over it under `feedback/` with an empty `feedback/state/`; after the head checkout the run job
    copies them to `.lane/feedback/` and makes the files, the wrapper and the directory read-only,
    all but `state/`. Edit, Write and NotebookEdit are denied on each staged file. The skill gets
-   the tool set of a read skill that hands on a patch and one Bash rule, the wrapper's absolute
-   path, bare and double-quoted, and the preamble names that path and its three subcommands. The
+   the tool set of a read skill that hands on a patch and two Bash rules, the wrapper's absolute
+   path, bare and double-quoted, and `chmod -x`, and the preamble names that path and its three
+   subcommands and says `chmod -x` reverts an executable bit the pull request added. The patch
+   carries the mode, and the `review-threads` row pushes no new executable bit (`new-exec-bit`) and
+   a mode change only back to the merge base's (`pr-mode-revert`). The
    tool lists the kept threads, checks paths, and records a reply in `state/replies.jsonl`: it
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
