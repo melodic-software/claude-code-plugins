@@ -590,7 +590,9 @@ class LowRatedShapes(_Finding):
             "-    timeout-minutes: 300",
             "+    timeout-minutes: 300",
         )
-        self.assertCharge(_file(WORKFLOW, patch=patch, contents=(_jobs("30"), _jobs("200"))))
+        self.assertCharge(
+            _file(WORKFLOW, patch=patch, contents=(_jobs("30"), _jobs("200")))
+        )
         unread = _file(WORKFLOW, patch=patch, contents=None)
         self.assertIn(COST_CODE, _codes(_cost([unread], public=False)))
 
@@ -623,7 +625,9 @@ class LowRatedShapes(_Finding):
     def test_a_timeout_set_to_an_expression(self):
         line = "+    timeout-minutes: ${{ inputs.minutes }}"
         head = _jobs("${{ inputs.minutes }}")
-        self.assertCharge(_file(WORKFLOW, patch=_patch(line), contents=(_jobs("30"), head)))
+        self.assertCharge(
+            _file(WORKFLOW, patch=_patch(line), contents=(_jobs("30"), head))
+        )
         self.assertCharge(_file(WORKFLOW, patch=_patch(line), contents=None))
 
     def test_a_flow_style_timeout(self):
@@ -647,7 +651,9 @@ class LowRatedShapes(_Finding):
                 )
                 wf = _file(
                     WORKFLOW,
-                    patch=_patch("-    timeout-minutes: 30", "+    timeout-minutes: 90"),
+                    patch=_patch(
+                        "-    timeout-minutes: 30", "+    timeout-minutes: 90"
+                    ),
                     contents=(head.replace("90", "30"), head),
                 )
                 self.assertCharge(wf)
@@ -674,9 +680,7 @@ class LowRatedShapes(_Finding):
             )
 
         checkout = "      - uses: actions/checkout@v4\n        with:\n          x: 0\n"
-        local = (
-            "jobs:\n  a:\n{line}    steps:\n      - uses: ./.github/actions/setup\n"
-        )
+        local = "jobs:\n  a:\n{line}    steps:\n      - uses: ./.github/actions/setup\n"
         for base, head, line in (
             # A whole leg step removed beside steps that remain.
             (_jobs("30", steps=checkout + leg("10") + leg("20")),
@@ -751,7 +755,10 @@ class LowRatedShapes(_Finding):
         self.assertNotIn(AGENT_SURFACE_CODE, codes)
 
     def test_a_composite_action_with_no_patch_holds_for_security(self):
-        for action in (".github/actions/judge/action.yml", ".github/actions/judge/action.yaml"):
+        for action in (
+            ".github/actions/judge/action.yml",
+            ".github/actions/judge/action.yaml",
+        ):
             with self.subTest(action=action):
                 result = _cost([_file(action, patch=None)], public=True)
                 self.assertSecurityHold(result, AGENT_SURFACE_CODE)
@@ -795,7 +802,14 @@ class LowRatedShapes(_Finding):
                 patch=None,
             ),
             _file(action, status="removed", additions=0, deletions=40, patch=None),
-            _file(action, additions=0, deletions=0, mode="100755", previous_mode="100644", patch=None),
+            _file(
+                action,
+                additions=0,
+                deletions=0,
+                mode="100755",
+                previous_mode="100644",
+                patch=None,
+            ),
         ):
             with self.subTest(status=changed.status):
                 codes = _codes(_cost([changed], public=True))
@@ -892,13 +906,18 @@ class LowRatedShapes(_Finding):
         )
         big = "ubuntu-24.04-16-cores"
         for base, head in (
-            (matrix.format(os="ubuntu-24.04"), matrix.format(os=f"ubuntu-24.04, {big}")),
+            (
+                matrix.format(os="ubuntu-24.04"),
+                matrix.format(os=f"ubuntu-24.04, {big}"),
+            ),
             (block.format(extra=""), block.format(extra=f"          - os: {big}\n")),
             (inputs.format(os="ubuntu-24.04"), inputs.format(os=big)),
             (options.format(extra=""), options.format(extra=f"          - {big}\n")),
         ):
             with self.subTest(head=head):
-                wf = _file(WORKFLOW, patch=_patch(f"+        - {big}"), contents=(base, head))
+                wf = _file(
+                    WORKFLOW, patch=_patch(f"+        - {big}"), contents=(base, head)
+                )
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
     def test_a_runner_expression_gaining_a_free_label_does_not_hold(self):
@@ -943,7 +962,9 @@ class LowRatedShapes(_Finding):
             )
 
         big = "          - {os: ubuntu-24.04-16-cores}\n"
-        wf = _file(WORKFLOW, patch=_patch("+" + big.rstrip()), contents=(text(""), text(big)))
+        wf = _file(
+            WORKFLOW, patch=_patch("+" + big.rstrip()), contents=(text(""), text(big))
+        )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
     def test_a_wrapped_flow_list_gaining_a_larger_runner_holds(self):
@@ -965,7 +986,9 @@ class LowRatedShapes(_Finding):
         for text in (matrix, options, runs_on):
             with self.subTest(text=text):
                 contents = (text.format(os="ubuntu-22.04"), text.format(os=big))
-                wf = _file(WORKFLOW, patch=_patch(f"+             {big}]"), contents=contents)
+                wf = _file(
+                    WORKFLOW, patch=_patch(f"+             {big}]"), contents=contents
+                )
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
 
