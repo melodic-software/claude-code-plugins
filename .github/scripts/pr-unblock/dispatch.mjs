@@ -37,6 +37,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
@@ -307,8 +308,10 @@ export function createGitHubApi({
   repository,
   apiUrl,
   graphqlUrl,
-  fetch = globalThis.fetch,
+  fetch: rawFetch = globalThis.fetch,
 }) {
+  // Each request's rate-limit reading goes to the job-end api-calls notice.
+  const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   // Connection: close ends each socket after its answer, so no request goes
   // out on a pooled one that sat idle through dispatchConflicting's waits and

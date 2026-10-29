@@ -379,7 +379,7 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
   assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
 });
 
-test("main reads the ci-status log through the redirect, without the token", async () => {
+test("main reads the ci-status log through the redirect, without the token, and counts each API request but not the storage read", async () => {
   const dir = tempDir("resolve-pr-held-");
   const env = {
     GITHUB_TOKEN: "t0ken",
@@ -395,7 +395,9 @@ test("main reads the ci-status log through the redirect, without the token", asy
   writeFileSync(env.GITHUB_OUTPUT, "");
   const github = fake({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
   const storage = [];
+  let apiRequests = 0;
   const fetchImpl = async (url, init = {}) => {
+    apiRequests += url.startsWith("https://api.github.com/") ? 1 : 0;
     if (url === `https://api.github.com/repos/${REPO}/actions/jobs/9001/logs`) {
       assert.equal(init.redirect, "manual");
       assert.equal(init.headers.Authorization, "Bearer t0ken");
@@ -409,9 +411,22 @@ test("main reads the ci-status log through the redirect, without the token", asy
     const json = await github(init.method, new URL(url).pathname + new URL(url).search, body);
     return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
   };
-  await main(env, { fetchImpl });
+  const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+  Object.assign(process.env, { RUNNER_TEMP: dir, API_BUDGET_TOKEN: "github-token" });
+  try {
+    await main(env, { fetchImpl });
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\npr-number=41\n/);
   assert.deepEqual(storage, [{}]);
+  // One reading per GitHub API request, the log's 302 among them; none for storage.
+  const readings = readFileSync(path.join(dir, "api-budget", "github-token"), "utf8").trim().split("\n");
+  assert.equal(readings.length, apiRequests);
+  assert.equal(readings.filter((line) => line.startsWith("302 ")).length, 1);
 });
 
 test("anything but exactly one open same-repository PR into main at that head starts nothing", async () => {

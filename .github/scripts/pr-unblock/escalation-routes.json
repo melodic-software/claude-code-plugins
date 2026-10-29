@@ -25,7 +25,7 @@
   "feedback-question-design": { "activity": "address-feedback", "route": "hold", "why": "an adjudicator found that a disputed review finding turns on a design choice, which a person decides" },
   "feedback-question-security": { "activity": "address-feedback", "route": "hold", "why": "an adjudicator found that a disputed review finding, other than a security-review finding rated below IMPORTANT, turns on a security judgment, which a person decides" },
   "dependency-round-cap": { "activity": "review-dependency", "route": "hold", "why": "the lane has reviewed this dependency update as many rounds as its cap allows" },
-  "dependency-invalid": { "activity": "review-dependency", "route": "hold", "why": "the dependency review verdict did not pass validation, so the lane acted on none of it" },
+  "dependency-invalid": { "activity": "review-dependency", "route": "fail", "why": "the dependency review verdict did not pass validation, so the lane acted on none of it" },
   "dependency-fix-not-landed": { "activity": "review-dependency", "route": "hold", "why": "the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but the versions in npm or pip manifest and lock files outside .github/)" },
   "dependency-security-close": { "activity": "review-dependency", "route": "hold", "why": "the dependency review would close a security update, which the lane never closes" },
   "dependency-escalate": { "activity": "review-dependency", "route": "hold", "why": "the dependency review found a risk the lane does not decide alone" },

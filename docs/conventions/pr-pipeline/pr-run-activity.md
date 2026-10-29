@@ -1282,7 +1282,10 @@ warns of a [classifier gap](README.md#classifier-gaps).
      select job's; a scan that refused an oversize patch escalates `dependency-fix-not-landed`,
      and any other case `dependency-invalid`. The dispatcher dispatches a head whose newest
      verdict job skipped `no-model-turn` again on its next run, a limit stop aside; the round cap
-     bounds those retries;
+     bounds those retries. `dependency-invalid` routes to a failing status, not a person
+     (`escalation-routes.json`): the verdict check skips `lane-stopped`, and the dispatcher
+     dispatches that head again until `limits.limit-stops-per-head` such stops stand on it. Every
+     other `dependency-*` reason holds for a person;
    - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
      started at the reviewed head (its issue or marker is there), which resumes. `merge`,
      `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the
