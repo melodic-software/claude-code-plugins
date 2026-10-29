@@ -389,8 +389,9 @@ rung-up retry could not fix, or one the model could fix only through a path the 
 push or by weakening a required check) also queue the PR with `needs-session` for a session
 builder. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
-person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to the
+`needs-session` queue (a failing status and the label) and `flaky` to a failing status, both
+without a rung-up. `weaken-required` on the head's first
 fix-ci attempt stops `ci-fix-weaken-retry` instead, a failing status: the dispatcher retries the
 head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (fix the
 code under test and keep every test's assertions and expected values). A
