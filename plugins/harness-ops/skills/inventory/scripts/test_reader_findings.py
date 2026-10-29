@@ -929,7 +929,7 @@ class TestOpenFindings(unittest.TestCase):
     INCLUDES = 'import{pY}from"/a.js";pY.includes("x");'
     PATCH = '{includes:()=>function(){this.push("B");return!0}}'
 
-    def test_the_bun_runtime_helpers_stay_partial_on_their_computed_reads(
+    def test_the_bun_runtime_helpers_on_fresh_objects_stay_partial_on_computed_reads(
         self,
     ) -> None:
         """`Ce` and `$r` define only on fresh objects here, but the verbatim
@@ -947,6 +947,18 @@ class TestOpenFindings(unittest.TestCase):
         found = type(self).reader.sinks(h, 0, len(h), ["includes"])
         self.assertEqual(
             sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
+        )
+
+    def test_a_named_import_passing_a_fresh_object_clears_a_helper(self) -> None:
+        """A helper with no computed read, defining by a computed key on its
+        parameter, clears when its one importer imports it by name and
+        passes a fresh `var X={}` (#9990): a named import is no whole load."""
+        helper = (
+            "var{defineProperty:f}=Object;"
+            "var $r=(a,b)=>{for(var c in b)f(a,c,{value:1})};export{$r};"
+        )
+        self.assert_across_modules(
+            False, helper, 'import{$r}from"/b.js";var X={};$r(X,{q:1});', self.INCLUDES
         )
 
     def test_a_runtime_helper_on_a_builtin_prototype_stays_partial(self) -> None:
