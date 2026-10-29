@@ -2185,7 +2185,7 @@ head:
   2026-10-29): a pull request the pr-merge lane closed at the cap or as too old, named by the lanes
   App's capped-close record on the issue (`<!-- verify-capped-close pr=<n> ... -->` as its first
   line, written by the App and edited by no one else, so a forged one excuses nothing), counts no
-  more once the issue lists it closed (a close that failed after the record leaves its FAILs
+  more once it is closed (a close that failed after the record leaves its FAILs
   counted), so the fresh attempt it started starts its own count. Past that many the lane parks the
   issue instead of starting another, so the re-rolls stay bounded. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a

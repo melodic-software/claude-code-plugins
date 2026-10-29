@@ -1576,6 +1576,34 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         fake.mentions[7], fake.mentions_total[7] = mentions, 101
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
+    def test_a_capped_close_record_excuses_a_refs_pull_request_once_it_is_closed(
+        self,
+    ) -> None:
+        # A `Refs:` pull request is in no closing list, so its state is read
+        # on its own; a failed read is unreadable, never an excuse.
+        same_issue = FailsOnAnotherPullRequestForTheSameIssueCount
+        for answer, refusal in (
+            ({"state": "closed"}, None),
+            ({"state": "open"}, "verify:repeated-fail"),
+            (ve.merge_policy.PolicyReadError("gone"), "verify:unreadable"),
+        ):
+            with self.subTest(refusal):
+                fake = self.sibling_fails(*SIBLING_HEADS)
+                fake.closing_comments[7] = [
+                    same_issue.capped_record(SIBLING, LANES_APP_ACTOR)
+                ]
+                kwargs = (
+                    {"side_effect": answer}
+                    if isinstance(answer, Exception)
+                    else {"return_value": answer}
+                )
+                with mock.patch.object(
+                    ve.merge_policy, "pull_request", **kwargs
+                ) as pull_request:
+                    evidence = same_issue.read_as_lane(same_issue(), fake)
+                self.assertEqual(evidence.refusal, refusal)
+                pull_request.assert_called_once_with(REPO, SIBLING)
+
 
 class AFailNamingTheIssueCounts(unittest.TestCase):
     """A FAIL whose artifact name carries `-i` and the issue numbers its

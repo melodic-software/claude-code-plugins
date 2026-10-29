@@ -13,4 +13,4 @@ bump: patch
   `unattended_writes`. Neither refusal needs a person (`NEEDS_HUMAN` holds only
   `verify:untrusted-spec`). The cap's `verify:repeated-fail` detail now lists the FAILed heads.
 - The cross-pull-request FAIL count leaves out a pull request the lanes App's capped-close record on
-  the issue names, once the issue lists it closed. An unreadable sibling FAIL run refuses with the `SIBLING_UNREADABLE` detail.
+  the issue names, once it is closed. An unreadable sibling FAIL run refuses with the `SIBLING_UNREADABLE` detail.

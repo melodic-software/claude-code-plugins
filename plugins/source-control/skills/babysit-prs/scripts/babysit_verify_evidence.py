@@ -390,8 +390,8 @@ SIBLING_UNREADABLE = "a FAIL run of a pull request for the same issue"
 # comment on the closed pull request and on its issue. On the issue it names
 # the fresh attempt it started, or ` parked` when `merge.verify-cap-attempts`
 # were spent. `_elsewhere` leaves the named pull request's FAILs out of the
-# cap's count once the issue lists it closed; label-unblocked.mjs skips its closed-PR hand-off for it;
-# write-issue.mjs passes it to the next attempt as data.
+# cap's count once it is closed; label-unblocked.mjs skips its closed-PR
+# hand-off for it; write-issue.mjs passes it to the next attempt as data.
 CAPPED_CLOSE_RE = re.compile(
     r"<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=((?:[0-9a-f]{40},)*(?:[0-9a-f]{40})?)"
     r"(?: attempt=([0-9]+) of=([0-9]+)( parked)?)? -->"
@@ -2178,16 +2178,26 @@ class Reader:
         one of them, and of every counted FAIL whose name carries one of them
         (`named_issues`: a `Refs:` pull request's FAILs count only so), from
         the listing already read. A pull request the pr-merge lane closed at
-        the cap for a fresh attempt (`capped_closed`) counts no more once an
-        issue lists it closed, so each fresh attempt starts its own count;
+        the cap for a fresh attempt (`capped_closed`) counts no more once it
+        is closed, so each fresh attempt starts its own count;
         the record goes on before the close, so one whose close failed still
-        counts. `merge.verify-cap-attempts` bounds how many there are. A FAIL among those whose run cannot be
+        counts. A named pull request no issue lists (a `Refs:` one) has its
+        own state read, a failed read raising `_Unreadable`.
+        `merge.verify-cap-attempts` bounds how many there are. A FAIL among those whose run cannot be
         read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
         live = self._closing_issues(number)
-        capped = (
-            capped_closed(live, self.agent_identity) & self._closers(live, closed=True)
-        ) - {number}
-        others = self._closers(live) - {number} - capped
+        named = capped_closed(live, self.agent_identity) - {number}
+        listed = self._closers(live)
+        capped = named & self._closers(live, closed=True)
+        # A `Refs:` pull request is in no closing list: its own state decides.
+        for other in sorted(named - listed):
+            try:
+                state = merge_policy.pull_request(self.repo, other).get("state")
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(f"#{other} state: {exc}") from exc
+            if state == "closed":
+                capped.add(other)
+        others = listed - {number} - capped
         unread = set().union(*(unread_issues.get(n, set()) for n in live)) - capped
         if others & unread_prs or unread:
             raise _Unreadable(SIBLING_UNREADABLE)

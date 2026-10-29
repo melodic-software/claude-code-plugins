@@ -14,7 +14,7 @@ bump: patch
   or whose issue carries an issue hold label. New `merge.verify-cap-attempts` (default 1) bounds the fresh attempts per issue; past
   it the issue is parked at `status: confirmed`.
 - The cross-pull-request FAIL cap leaves out a pull request the lanes App's capped-close record
-  names once the issue lists it closed, so a fresh attempt starts its own count. A record anyone
+  names once it is closed, so a fresh attempt starts its own count. A record anyone
   else wrote or edited excuses nothing.
 - `label-unblocked.mjs` hands no issue to triage for a lane pull request closed at the cap, and
   `write-issue.mjs` passes the capped-close record to the next attempt as
