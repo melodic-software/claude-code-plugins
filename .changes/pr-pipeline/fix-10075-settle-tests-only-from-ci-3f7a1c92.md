@@ -1,0 +1,15 @@
+---
+bump: patch
+---
+
+### Fixed
+
+- A review finding whose only ask is to run tests CI runs no longer stops the address-feedback
+  round. The adjudicator gains a `tests-only` verdict. On an `UNCERTAIN` reply the reply job
+  settles it from the head's CI, which the select job records in `run.json`'s `ci`. The select
+  job runs `scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real
+  run of each covering `test-bash`, `test-python`, `test-node` and `pr-test-windows` check. If
+  every one passed, a fixed reply cites the runs and resolves the thread. If one failed, the
+  thread stays open with no escalation, and fix-ci takes the red head. If a check is pending,
+  missing or skipped, the round ends `feedback-unadjudicated` as before. No job gains a
+  permission.

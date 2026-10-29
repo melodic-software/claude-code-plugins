@@ -1191,7 +1191,7 @@ denied on the base checkout and the runner's temp directory (which holds the lan
 the other slots), Glob, Grep and MCP tools denied, and only that thread's files in the workspace. The prompt
 (`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
 untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
-The call returns `verdict` (`lane`, `reviewer` or `human`) and `question` (`none`, or for `human`
+The call returns `verdict` (`lane`, `reviewer`, `human` or `tests-only`) and `question` (`none`, or for `human`
 `intent`, `design` or `security`) to `adjudicate-feedback.schema.json`, and a leg whose init
 message reports another permission mode keeps no verdict. `collect` writes `verdicts.json`, and
 the job uploads it as `feedback-adjudication-<attempt>` with `overwrite: false`, passing its
@@ -1200,6 +1200,18 @@ write file's `review-adjudication-attempt` and `review-adjudication-sha256` inpu
 verdicts only for the select job's head (`run.json`), the code the adjudicator read, with that
 SHA-256; a round that pushed a fix still applies them. The posted replies are fixed text and the
 lane's validated evidence; no model text reaches the pull request.
+
+A `tests-only` verdict (the finding asks only that tests or checks CI runs be run) is settled with no
+model text, and only on an `UNCERTAIN` reply. The select job holds `checks: read`, so it records
+the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
+`scripts/plan-test-lanes.sh` over the pull request's files, the selection the `select-tests` job
+makes, and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)`,
+`test-python (<leg>)`, `test-node` and each `pr-test-windows.yml` job it names). The state is `red` when one
+failed or was cancelled, `green` when every covering lane has a run and each one passed, and
+`unsettled` otherwise. On `green` the reply job posts a fixed reply citing those runs and resolves
+the thread; on `red` it posts nothing and escalates nothing, since `fix-ci-dispatch.mjs` starts
+fix-ci for a head whose lanes failed; on `unsettled`, or on another reply, the round ends
+`feedback-unadjudicated`. The reply job reads only the snapshot, so it needs no checks permission.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
 App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes

@@ -176,7 +176,7 @@ const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
 export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
-const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
+export const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
 // The aggregate of the others: fixing them fixes it. It also fails on a hold
 // label, so it never stands for the head's CI.
 const AGGREGATE = "ci-status";
@@ -185,11 +185,8 @@ const AGGREGATE = "ci-status";
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
 
-// The latest run of each check name that is not a skip, when it failed or was
-// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
-// dispatcher reads a cancelled head through it too, so the two agree, and
-// clear-escalations reads a fix-ci stop's head through it.
-export function failingChecks(checkRuns) {
+// The latest run of each check name, a real result over a skip: name -> run.
+export function latestRuns(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
@@ -197,7 +194,15 @@ export function failingChecks(checkRuns) {
       latest.set(run.name, run);
     }
   }
-  return [...latest.values()]
+  return latest;
+}
+
+// The latest run of each check name that is not a skip, when it failed or was
+// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
+// dispatcher reads a cancelled head through it too, so the two agree, and
+// clear-escalations reads a fix-ci stop's head through it.
+export function failingChecks(checkRuns) {
+  return [...latestRuns(checkRuns).values()]
     .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
     .sort((a, b) => a.id - b.id);
 }
