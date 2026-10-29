@@ -75,6 +75,7 @@
 .gitattributes
 .gitignore
 .gitleaksignore
+.lycheeignore
 .editorconfig
 .shellcheckrc
 .node-version
