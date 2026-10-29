@@ -74,7 +74,7 @@ designer session and a product owner session), each with its own data dir and li
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
    `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. When a
    named tunnel was asked for and a quick one runs instead, `tunnelFallback` says why (another
-   session serves the link, or a token file is not in place): tell the owner once. A named start
+   session or machine serves the link, the link's answer is unclear, or a token file is not in place): tell the owner once. A named start
    without `tunnel_api_token_file` prints, on stderr, the guest port the tunnel's route must name:
    pass that line on once. `--open` opens the
    owner's own link, which is a credential: never print it, paste it or copy it out of the data
@@ -121,8 +121,8 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
-| userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |
-| userConfig `tunnel_api_token_file` | an absolute path, or empty | empty | none: `--tunnel-api-token-file` (routes the tunnel to the session's guest port) |
+| userConfig `tunnel_token_file` | an absolute path, or one starting with `~/` | empty | none: `--tunnel-token-file` |
+| userConfig `tunnel_api_token_file` | an absolute path, or one starting with `~/`, or empty | empty | none: `--tunnel-api-token-file` (checks the tunnel's connectors and routes it to the session's guest port) |
 
 The `shared_session.*` keys live in the repository's `docs/conventions/planning.yaml` under one
 `shared_session` object; `shared_session_open_browser`, `tunnel_hostname`, `tunnel_token_file` and

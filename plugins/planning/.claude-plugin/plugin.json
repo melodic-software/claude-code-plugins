@@ -39,13 +39,13 @@
     "tunnel_token_file": {
       "type": "string",
       "title": "Shared interview tunnel token file",
-      "description": "Absolute path of a file holding the named tunnel's token, readable only by you; cloudflared runs from it. Used only when tunnel_hostname is set. Default: empty.",
+      "description": "Absolute path, or one starting with ~/, of a file holding the named tunnel's token, readable only by you; cloudflared runs from it. Used only when tunnel_hostname is set. Default: empty.",
       "default": ""
     },
     "tunnel_api_token_file": {
       "type": "string",
       "title": "Shared interview tunnel API token file",
-      "description": "Absolute path of a file holding a tunnel-only Cloudflare API token, readable only by you; each named session points the tunnel at its own guest port with it. Empty (default): the guest port is fixed at 8765. Used only when tunnel_hostname is set. Setup: shared/README.md.",
+      "description": "Absolute path, or one starting with ~/, of a file holding a Cloudflare API token with Cloudflare One Connector: cloudflared Write (it can change every tunnel in the account), readable only by you; sessions check connectors and route the tunnel to their port. Empty: port 8765. See shared/README.md.",
       "default": ""
     },
     "plan_store": {

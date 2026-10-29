@@ -88,8 +88,8 @@ machine, since only one serves the link at a time (the lease below):
 | Option | Value |
 |---|---|
 | `tunnel_hostname` | The tunnel's public hostname, such as `interview.example.com`. Empty (the default) keeps the quick tunnel |
-| `tunnel_token_file` | Absolute path of a file holding the tunnel's token, readable only by you. The token itself never goes in settings, a repository or dotfiles |
-| `tunnel_api_token_file` | Absolute path of a file holding a tunnel-only Cloudflare API token (setup step 1), readable only by you. Set, the session routes the tunnel to whatever guest port it has; empty, the guest port is fixed |
+| `tunnel_token_file` | Absolute path, or one starting with `~/`, of a file holding the tunnel's token, readable only by you. The token itself never goes in settings, a repository or dotfiles |
+| `tunnel_api_token_file` | Absolute path, or one starting with `~/`, of a file holding the connector API token (setup step 1), readable only by you. Set, the session checks the tunnel's connectors and routes the tunnel to whatever guest port it has; empty, the guest port is fixed and only the link probe guards the lease |
 
 The skill passes them as `ensure-running --tunnel-hostname H --tunnel-token-file F
 --tunnel-api-token-file F`; an
@@ -112,30 +112,54 @@ nonce>`, waiting up to 5 seconds:
 
 | Answer | Means | Then |
 |---|---|---|
-| HTTP 530 whose page names error 1033 (no cloudflared connected), or no connection at all | free | the named tunnel starts here |
+| HTTP 530 whose page reads "Error 1033" (no cloudflared connected) | free | the named tunnel starts here |
 | HTTP 404 `{"error": "not-found"}` | another interview session serves the link | a quick tunnel |
 | any other HTTP status, such as 502 (a cloudflared runs elsewhere with no server behind it) | held | a quick tunnel |
-| a timeout or a TLS failure | unknown, counted as held | a quick tunnel |
+| no answer: a DNS failure, a refused connection, a timeout or a TLS failure | unknown, counted as held | a quick tunnel |
+
+With `tunnel_api_token_file` set, a free link is also checked against Cloudflare's list of the
+tunnel's connectors
+([list connections](https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/connections/methods/get/)):
+any connector with an open connection that is not this session's own cloudflared (matched by the
+Connector ID cloudflared logs) means another machine runs the tunnel, and a quick tunnel runs here.
+After the named tunnel starts, the list is read again and the route below is read back: another
+connector, or a rule that no longer names this session's port, means a second machine started at
+the same moment, and this session ends its named tunnel at once and runs a quick one.
 
 A session that already runs the named tunnel (its record names the hostname and its cloudflared
-runs) keeps it without asking. The plugin asks the link itself rather than reading Cloudflare's
-connections list. A quick tunnel that stands in says why on stderr and in the output's
-`tunnelFallback`; once the other session stops, the next `ensure-running` takes the link.
-`python cfdns.py connectors` (below) still lists the machines running the tunnel.
+runs) keeps it without asking, even when a token file has since become unusable: stderr says so,
+and the file matters again only when cloudflared next starts. A quick tunnel that stands in says
+why on stderr and in the output's `tunnelFallback`; once the other session stops, the next
+`ensure-running` takes the link. `python cfdns.py connectors` (below) also lists the machines
+running the tunnel.
+
+When cloudflared exits, the server brings the named tunnel back through the same probe, connector
+check and route. A link another interview session or connector now holds gets a quick tunnel
+instead (its guests reach the other machine, so no open page can learn the new link: share it
+again); an unclear answer leaves the tunnel down and retries after the usual backoff.
+
+What the lease cannot see: a machine that connects or writes the route after this session's check
+after start. The route is one setting for the whole tunnel, so in that window the last write wins
+and every connector sends guests to that port on its own machine. Starting sessions on two
+machines at the same moment is the case to avoid.
 
 **The route.** The tunnel's ingress rule, stored at Cloudflare, names the guest port. With
-`tunnel_api_token_file` set, once the link is free `ensure-running` replaces the rule with
-`<tunnel_hostname>` to `http://127.0.0.1:<this session's guest port>` and a catch-all 404
-([update the tunnel configuration](https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/update/),
-`PUT /accounts/<account>/cfd_tunnel/<tunnel>/configurations`), so the session may use any free port.
+`tunnel_api_token_file` set, once the link is free `ensure-running` reads the tunnel's
+configuration, sets the service of the `<tunnel_hostname>` rule (the one with no `path`) to
+`http://127.0.0.1:<this session's guest port>`, or adds that rule before the catch-all, and writes
+it back only when it changed, keeping every other rule, `originRequest` and `warp-routing`
+([get](https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/get/)
+and [update the tunnel configuration](https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/update/),
+`/accounts/<account>/cfd_tunnel/<tunnel>/configurations`), so the session may use any free port.
 The account and tunnel ids come from the tunnel token (base64 of `{"a": account, "t": tunnel, "s":
 secret}`, cloudflared's `TunnelToken`; its secret is never kept). Without the option, the guest
 port is fixed: `--guest-port`, else 8765, and a busy port refuses the start (exit 2) instead of
 moving.
 
 **Missing setup falls back.** A token file or API token file that is missing, empty or readable by
-others, a tunnel token that names no account and tunnel, or a route the API refuses runs a quick
-tunnel and says why, so the options can be set on every machine before each holds its files.
+others, a tunnel token that names no account and tunnel, or a connector check or route the API
+refuses runs a quick tunnel and says why, so the options can be set on every machine before each
+holds its files.
 
 **Switching.** Setting, changing or clearing `tunnel_hostname` on a running session switches its
 tunnel at the next `ensure-running`; the session keeps its guest port, so without
@@ -158,8 +182,10 @@ as new people, and the owner can merge each with their earlier self.
    - **Setup token**: "Cloudflare One Connector: cloudflared" and Zone > DNS, both at the dashboard's
      Edit level (the API reference calls it Write), limited to
      the one zone, for `cfdns.py` (it reads the token only from the file `--api-token-file` names).
-   - **Tunnel-only token**: "Cloudflare One Connector: cloudflared Write" alone, never DNS, for
-     `tunnel_api_token_file` on every machine that may serve the link. It can change only tunnels.
+   - **Connector token**: "Cloudflare One Connector: cloudflared Write" alone, never DNS, for
+     `tunnel_api_token_file` on every machine that may serve the link. It cannot touch DNS, but it
+     can read and change every tunnel in the account, not only this one: keep the account's tunnels
+     to this use, or create the tunnel in an account of its own.
 
    Account API tokens offer "Cloudflare One Connector: cloudflared" where older guides say
    "Cloudflare Tunnel"; the tunnel endpoints accept either, as the "Accepted Permissions" of the
@@ -186,8 +212,9 @@ as new people, and the owner can merge each with their earlier self.
    means no clash; exit 4 on a clash). `write` lists again and creates exactly that record, only
    when `--confirm` repeats the hostname and nothing is at that name. Taking the zone id as an
    argument keeps the setup token to the two permissions above.
-5. **Set the options**, on as many machines as you like once `tunnel_api_token_file` is set
-   (otherwise on one machine only), then start the session as usual.
+5. **Set the options** on every machine that may serve the link, then start the session as usual.
+   Without `tunnel_api_token_file` the lease is the link probe alone and every machine's session
+   uses the fixed port, so keep that port free on each.
 
 ### Per platform
 
@@ -1026,7 +1053,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `staging/` | server (made at every start) | 0700 | Captures Claude saves for `add-asset` |
 | `.shared-session.json`, `.shared-session.env` | session-bridge `start` | 0600 | Control port, pid, control token, nonce |
 | `.shared-ports.json` | server | 0600 | The guest and control ports, reused on every start |
-| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, processStart, adopted}`, plus `hostname` and `tokenFile` (the path, never the token) for a named tunnel and `retired` (`{pid, url, marker, processStart, adopted, until}`) after a switch |
+| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, processStart, adopted}`, plus `hostname`, `tokenFile` and `apiTokenFile` (paths, never the tokens) and `connector` (the Connector ID cloudflared logged) for a named tunnel and `retired` (`{pid, url, marker, processStart, adopted, until}`) after a switch |
 | `cloudflared.log` | cloudflared | 0600 | Its output, where a quick tunnel's address and a named tunnel's first connection are read |
 | `server.log` (+ `.1`..`.3`) | server | 0600 | One entry per request and per page error report ([Logs](#logs)); rotated at 1 MB, 3 kept |
 | `.shared-server.err` | the server's stderr | 0600 | Why a start failed |
@@ -1150,7 +1177,7 @@ Where each token can be seen:
 | Device credential | That device's `localStorage` (`ownerDevice`); the `X-Owner-Token` header it sends, which Cloudflare's edge sees. It acts as the owner, except for making codes and a new owner link |
 | Guest secret | The guest's browser storage and personal link (`#me=` fragment, also the one a page opens when a tunnel switch moves it); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
 | Tunnel token (named tunnel) | The file `tunnel_token_file` names, which cloudflared reads (`--token-file`) and, with `tunnel_api_token_file` set, `share.py` decodes for the account and tunnel ids only; its path, not the token, is on cloudflared's command line and in `.shared-tunnel.json` |
-| Tunnel API token (named tunnel) | The file `tunnel_api_token_file` names, which only `share.py` reads, sending it in the Authorization header of the one route update to Cloudflare's API; never on a command line, in output or in a log, and an API error quoting it prints `[token]` |
+| Tunnel API token (named tunnel) | The file `tunnel_api_token_file` names, which only `share.py` and the server's restart read, sending it in the Authorization header of the connector and route calls to Cloudflare's API; never on a command line, in output or in a log, and an API error quoting it prints `[token]` |
 | Cloudflare API token | The owner's secret store, and `cfdns.py`'s `Authorization` header to Cloudflare's API; never on a command line or in its output |
 | Watcher key | The guest's clipboard and their own Claude's context, where they paste it; the `X-Watcher-Key` header, which Cloudflare's edge sees. It reads and answers only that guest's own self requests |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
