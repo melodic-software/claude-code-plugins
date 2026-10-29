@@ -13,11 +13,13 @@ analyzer in the roster can follow. Check each one before condemning a candidate.
 |---|---|---|
 | String-name dispatch | the symbol's name appearing as a **string literal** anywhere in the repo: a handler map, a command table, a plugin registry | all |
 | DI / serialization | container registration, `__init__` injection, a constructor invoked only by a framework, a field populated only by a deserializer | C#, Python, TS |
-| Reflection | `getattr`, `globals()`, `importlib`, `Object.keys` over a module namespace, `eval` | Python, JS |
+| Reflection | `getattr`, `globals()`, `importlib`, `Object.keys` over a module namespace, `eval`; `GetMethod`, `GetProperty`, `Activator.CreateInstance` with a built name | Python, JS, C# |
+| Assembly scanning | a type nothing names that implements an interface the composition root discovers: `GetTypes()` filtered by `IsAssignableFrom`, a DI scan registration, MediatR-style handler discovery | C# |
+| Markup and framework conventions | a handler a `.razor` or `.cshtml` view builds by name, a component only `@page` routing reaches, a `[JSInvokable]` alias, a property only a serializer reads, a partial member a source generator implements | C# |
 | Decorator / route registration | `@app.route`, `@click.command`, `@pytest.fixture`, `@task`, where the decorator *is* the caller | Python |
 | Config-declared entry point | a name referenced from `pyproject.toml`, `package.json` `scripts`/`bin`, a CI workflow, a Dockerfile, a systemd unit, a cron entry | all |
 | Test-only usage | referenced only from a test file. Alive, but say so: a symbol whose only caller is its own test is a real finding of a different kind | all |
-| Public API surface | an exported symbol of a published package, or a Go exported identifier. Not decidable from inside the repository | TS, Go, C# |
+| Public API surface | an exported symbol of a published package, a Go exported identifier, or a C# `public` member of a shipped library. Not decidable from inside the repository. An `internal` member a test assembly reaches through `InternalsVisibleTo` is test-only usage | TS, Go, C# |
 | Generated / templated code | a symbol emitted by a generator, or one a template writes by name | all |
 | Shell dynamic invocation | `"$fn"`, `eval`, `trap ... name`, a dispatch `case` matching a command word to a function | shell |
 | Computed path or glob | a loader that builds the path (`"$dir/$name.sh"`, `scripts/*.sh`, `import(variable)`) and never spells this file's basename or repo-relative path. For `unreferenced-file` the verdict is `uncertain`, not `dead` | all |
@@ -36,7 +38,8 @@ counts as a reference, so a re-export still reads alive.
 - **`uncertain`**: a pattern *might* apply and the evidence does not settle it. Emitted at Tier 2.
   This is the honest verdict for most vulture candidates; do not promote one to `dead` to make the
   report tidier. An `unreferenced-file` candidate that a computed path or a glob could load stays
-  `uncertain`, not `dead`.
+  `uncertain`, not `dead`. A C# candidate that reflection, assembly scanning or markup could reach
+  is `uncertain` or `alive`, citing the lookup, the scan or the view, never `dead`.
 - **`alive`**: a specific reference or registration was found. **Never emitted as a record**, and
   every one **cites the evidence that saved it** in the prose report. An unevidenced `alive` is a
   guess wearing a verdict's clothes.
