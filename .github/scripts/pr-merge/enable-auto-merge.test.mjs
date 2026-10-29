@@ -27,6 +27,7 @@ import {
   UNLABELED_QUERY,
   decide,
   describe,
+  holdReason,
   unblockHold,
   liftedByPerson,
   READER_EVENTS,
@@ -1901,6 +1902,24 @@ test("the lane's own hold line holds a lanes App body", async () => {
     pull(3, { body: `Closes #5\n\nquoted: ${HOLD_LINE}`, userContentEdits: appOnly }),
   ]);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
+});
+
+// report-outcome labels a held PR human-merge-hold, so a lanes App edit of
+// the body (the hold line deleted, or the Refs line rewritten to a closing
+// line) leaves it unarmed while the label is on.
+test("a human-merge-hold label holds a lanes App PR whose body lost its hold line or its Refs line", async () => {
+  const appOnly = { totalCount: 0, nodes: [] };
+  const held = labels("human-merge-hold");
+  const { writes } = await run([
+    // The hold line deleted from a Refs PR's body.
+    pull(1, { body: "Refs: #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
+    // The Refs line rewritten to a closing line, the hold line gone with it.
+    pull(2, { body: "Closes #5\n\n## Summary", labels: held, userContentEdits: appOnly }),
+    pull(3, { body: "Closes #5\n\n## Summary", userContentEdits: appOnly }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
+  assert.equal(holdReason({ labels: held, body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
+  assert.equal(holdReason({ labels: labels("Human-Merge-Hold"), body: "Closes #5" }, "needs-human"), "it carries human-merge-hold");
 });
 
 // Owner decision Q-HOLDLINE: report-outcome's own hold line is a cause a
