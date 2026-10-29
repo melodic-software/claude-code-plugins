@@ -13,8 +13,9 @@ bump: patch
   takes two steps: list `melodic-agent[bot]` again and set `merge.diff-check.path-holds` true.
   Listing the App alone restores only ci-workflows' hold, since ci-status's inline hold runs only
   while `path-holds` is true.
-- ci-status no longer holds a Dependabot, release-App or standards-sync-App pull request for
-  changing a trust-gate path. `scripts/sync-hold-floor.py` writes ci-status's exempt-author
-  `hold_patterns` only while `merge.diff-check.path-holds` is true and an empty list otherwise;
-  this repository sets the new key false (owner decision Q21). Setting it true restores the
-  hold. These authors still get no review lane.
+- ci-status no longer holds a release-App or standards-sync-App pull request for changing a
+  trust-gate path, and still holds a Dependabot one, whose action-pin bumps bring in third-party
+  code (owner decisions Q21 and Q24). While `merge.diff-check.path-holds` is false, as this
+  repository sets the new key, `scripts/sync-hold-floor.py` writes a guard after ci-status's
+  exempt-author `hold_patterns` that empties the list for every author but Dependabot. Setting
+  it true holds all three again. These authors still get no review lane.

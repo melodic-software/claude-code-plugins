@@ -8,7 +8,8 @@
 # `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
 # with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id, but
-# not from a trust-gate path, and neither is a pull request an agent App
+# not from a trust-gate path (with merge.diff-check.path-holds false, only
+# Dependabot is held for one), and neither is a pull request an agent App
 # (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
 # to. It fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
@@ -111,29 +112,40 @@ else
   fail "the review callers pin different or no pr-review-cli commits: ${pins//$'\n'/ }"
 fi
 
-# The trust-gate paths in bash form, as sync-hold-floor.py writes them with
-# merge.diff-check.path-holds true: `**/X` is X or */X, a trailing `**` is
-# `*`. The security review's own files in hold-paths are scrutiny only.
+# The trust-gate paths in bash form, as sync-hold-floor.py writes them:
+# `**/X` is X or */X, a trailing `**` is `*`. The security review's own files
+# in hold-paths are scrutiny only.
 want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
-# Owner decision Q21 (2026-10-29): this repository's path-holds is false, so
-# the step carries an empty list and no exempt author is held for its paths.
-if [[ "$(yq '.merge."diff-check"."path-holds" // false' "$ROOT/docs/conventions/pr-pipeline.yaml")" == false && -z "$got_patterns" ]]; then
-  ok "with path-holds false the exempt-author hold patterns are empty"
+if [[ -n "$want_patterns" && "$got_patterns" == "$want_patterns" ]]; then
+  ok "the exempt-author hold patterns are the trust-gate paths"
 else
-  fail "exempt-author hold patterns '$got_patterns' do not follow merge.diff-check.path-holds"
+  fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
-if [[ -n "$want_patterns" ]]; then
-  ok "the hardened exempt-author hold patterns are the trust-gate paths"
+# Owner decisions Q21 and Q24 (2026-10-29): with merge.diff-check.path-holds
+# false a generated guard empties the list for every author but Dependabot,
+# whose action-pin bumps bring in third-party code; true holds them all.
+dependabot_id="$(jq -r '.actors[] | select(.login == "dependabot[bot]") | .id' "$ACTORS")"
+guard="[ \"\$AUTHOR_ID\" = $dependabot_id ] || hold_patterns=()"
+guards="$(grep -cxF "  $guard" "$TMP_ROOT/body.sh")"
+if [[ "$(yq '.merge."diff-check"."path-holds" // false' "$ROOT/docs/conventions/pr-pipeline.yaml")" == false && "$guards" == 1 ]]; then
+  ok "with path-holds false only Dependabot ($dependabot_id) keeps the exempt-author hold"
 else
-  fail "no trust-gate paths to hold"
+  fail "the Dependabot guard '$guard' appears $guards times; it does not follow merge.diff-check.path-holds false"
 fi
-# The cases below exercise the hold with the hardened list, so turning
-# path-holds back on is tested before it is needed.
+# body.live.sh is the step as committed (path-holds false). body.sh, used
+# below, has the block as the generator writes it with path-holds true, so
+# turning path-holds back on is tested before it is needed.
 cp "$TMP_ROOT/body.sh" "$TMP_ROOT/body.live.sh"
 hardened="hold_patterns=($(awk -v q="'" '{ printf "%s%s%s%s", (NR > 1 ? " " : ""), q, $0, q }' <<<"$want_patterns"))"
-awk -v line="$hardened" '/^ *hold_patterns=\(/ { match($0, /^ */); print substr($0, 1, RLENGTH) line; next } { print }' \
+awk -v line="$hardened" '/# BEGIN hold-floor hold_patterns/ { print; match($0, /^ */); print substr($0, 1, RLENGTH) line; skip = 1; next }
+  /# END hold-floor hold_patterns/ { skip = 0 } !skip { print }' \
   "$TMP_ROOT/body.sh" >"$TMP_ROOT/body.hardened" && mv "$TMP_ROOT/body.hardened" "$TMP_ROOT/body.sh"
+if grep -qF 'hold_patterns=()' "$TMP_ROOT/body.sh"; then
+  fail "the path-holds true body still empties the list"
+else
+  ok "the path-holds true body holds every exempt author"
+fi
 
 # The base commit's config names the agent App.
 mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/conventions"
@@ -421,11 +433,21 @@ for changed in .github/standards/trusted-actors/trusted-actors.json .github/acti
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
-# Owner decision Q21 (2026-10-29): the step as committed, path-holds false,
-# holds no exempt author for a trust-gate path.
+# With path-holds true, each exempt author changing a trust-gate path is held.
+for id in 49699333 337859524 300666570; do
+  for changed in CODEOWNERS .github/actions/request-lane-token/action.yml .gitmodules; do
+    STUB_FILES="$(files "$changed")" STUB_CHANGED=1
+    AUTHOR_ID=$id expect "with path-holds on author $id changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: $changed."
+  done
+done
+# The step as committed, path-holds false: Dependabot is still held (owner
+# decision Q24), the release and standards-sync Apps pass (Q21).
 for changed in CODEOWNERS .github/actions/request-lane-token/action.yml .gitmodules; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
-  BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 expect "with path-holds off an exempt author changing $changed passes" 0 "no trust-gate path changed"
+  BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 expect "with path-holds off Dependabot changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: $changed."
+  for id in 337859524 300666570; do
+    BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=$id expect "with path-holds off author $id changing $changed passes" 0 "no trust-gate path changed"
+  done
 done
 for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs \
   plugins/review/skills/security-review/SKILL.md plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do
@@ -478,6 +500,11 @@ if grep -q '/actions/workflows/' "$TMP_ROOT/log"; then fail "a held App change r
 BASE_CONFIG="$ROOT" expect "the repository's own pr-pipeline.yaml holds no agent App while path holds are off (owner decision Q21)" 0 "No agent App opened, wrote or pushed to #77"
 STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
 STUB_AUTHOR="$APP" expect "an App-authored pull request changing a trust-gate path is held" 1 "and melodic-agent[bot] opened it, so no review lane decides it"
+# The committed step (path-holds false): the Dependabot guard empties the
+# shared list for an App author too, so no App hold applies and the review
+# lanes decide.
+STUB_AUTHOR="$APP" BODY="$TMP_ROOT/body.live.sh" expect "with path-holds off an App-authored trust-gate change is not held" 0
+if grep -q '/commits' "$TMP_ROOT/log"; then fail "with path-holds off the App hold read the commits"; else ok "with path-holds off the App hold reads no commit"; fi
 STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")" "$(commit $SHA_B Melodic-Agent[bot] web-flow '')")" STUB_COMMIT_COUNT=2 \
   expect "a commit the App authored, in any letter case, is held" 1 "an agent App authored or committed bbbbbbbbbbbb"
 STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com")")" \

@@ -521,8 +521,8 @@ def _sync_hold_floor() -> Any:
 def _hold_patterns_line() -> str:
     """ci-status's exempt-author `hold_patterns` as the generator writes them
     with `merge.diff-check.path-holds` true: the hardened list. While the
-    switch is false the workflow carries an empty list
-    (test_the_workflow_list_follows_the_path_holds_switch)."""
+    switch is false a guard line after it empties the list for every author
+    but Dependabot (test_the_workflow_list_follows_the_path_holds_switch)."""
     return _sync_hold_floor().hold_patterns("", holds=True)[0]
 
 
@@ -585,12 +585,40 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
         self.assertFalse(any(_shared_glob(g, "README.md") for g in config["paths"]))
 
     def test_the_workflow_list_follows_the_path_holds_switch(self) -> None:
-        # Owner decision Q21 (2026-10-29): with merge.diff-check.path-holds
-        # false, no exempt author's pull request is held for its paths.
+        # Owner decisions Q21 and Q24 (2026-10-29): with
+        # merge.diff-check.path-holds false a guard empties the list for every
+        # author but Dependabot, whose action-pin bumps bring in third-party
+        # code; true holds every exempt author.
         sync = _sync_hold_floor()
-        self.assertEqual(sync.hold_patterns("", holds=False), ["hold_patterns=()"])
-        want = _hold_patterns() if sync.path_holds() else []
-        self.assertEqual(_workflow_hold_patterns(), want)
+        actors = json.loads(
+            (ROOT / ".github/standards/trusted-actors/trusted-actors.json").read_text(
+                encoding="utf-8"
+            )
+        )["actors"]
+        dependabot = [str(a["id"]) for a in actors if a["login"] == "dependabot[bot]"]
+        self.assertEqual(dependabot, [sync.DEPENDABOT_ID])
+        on = sync.hold_patterns("", holds=True)
+        self.assertEqual(on, [_hold_patterns_line()])
+        off = sync.hold_patterns("", holds=False)
+        self.assertEqual(off[0], on[0])
+        self.assertEqual(
+            off[-1], f'[ "$AUTHOR_ID" = {sync.DEPENDABOT_ID} ] || hold_patterns=()'
+        )
+        self.assertTrue(all(line.startswith("#") for line in off[1:-1]))
+        text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+            encoding="utf-8"
+        )
+        block = re.search(
+            r"BEGIN hold-floor hold_patterns.*?\n(.*?)\n *# END hold-floor hold_patterns",
+            text,
+            re.S,
+        )
+        assert block
+        self.assertEqual(
+            [line.strip() for line in block[1].split("\n")],
+            sync.hold_patterns("", sync.path_holds()),
+        )
+        self.assertEqual(_workflow_hold_patterns(), _hold_patterns())
         self.assertTrue(_hold_patterns())
 
     def test_each_list_covers_every_floor_entry(self) -> None:

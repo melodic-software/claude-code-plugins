@@ -1165,7 +1165,7 @@
             "path-holds": {
               "type": "boolean",
               "default": false,
-              "description": "Controls the pr-merge lane's path holds and ci-status's exempt-author and App holds on trust-gate paths. True holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
+              "description": "Controls the pr-merge lane's path holds and ci-status's exempt-author and App holds on trust-gate paths. True holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it, except that ci-status still holds a Dependabot pull request that changes a trust-gate path; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
             },
             "c2-contradictions": {
               "type": "boolean",
