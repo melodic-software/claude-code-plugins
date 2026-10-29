@@ -80,8 +80,10 @@ activities:
     # reply for each one. It posts nothing and holds no write token: the read
     # runner turns its uncommitted fixes into a patch that
     # apply-feedback-patch pushes, and hands its replies to publish-feedback.
-    # pr-feedback-dispatch.yml starts it only on pull requests the lanes App
-    # opened; a trusted person may also dispatch it by hand.
+    # pr-feedback-dispatch.yml starts it on pull requests the lanes App opened
+    # and on adopted owner ones once idle (`adoption` below; pr-pipeline
+    # README, Owner pull requests); a trusted person may also dispatch it by
+    # hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/workflows/, and writes replies to a file.
@@ -890,8 +892,10 @@ red-main:
 # id, a person or an App), with no hold label and no `Hold:` body line, and,
 # for a person's PR, whose activity and head commit are both idle-hours old
 # (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last
-# update). fix-ci fixes its failed ci-status; pr-merge merges it under its
-# usual gates. Without this section nothing is adopted.
+# update). fix-ci fixes its failed ci-status; address-feedback answers a
+# person's PR's lane review threads as the lanes App, under fix-ci's idle
+# rule; pr-merge merges it under its usual gates. Without this section nothing
+# is adopted.
 adoption:
   # 2: a session waiting in the GITHUB_TOKEN gate can be idle up to 2 h during a
   # breaker trip, so 2 h with no trusted-actor push, comment or label change
@@ -971,7 +975,7 @@ merge:
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
   # of it.
-  max-in-flight: 5
+  max-in-flight: 10
   # Paths the PR checks read (git pathspecs). When main changed one since a
   # PR's merge base, the gate updates the PR from main instead of enqueuing
   # it, and a later run enqueues the new head once its checks pass: a head
