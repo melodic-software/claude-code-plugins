@@ -937,13 +937,17 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    a write-access human's fix request created after the newest counted round (its latest marker,
    or the completion of a model check run that ended `success`, `failure`, `cancelled` or
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
-   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
-   finding ending in the `claude-lane: claude-review` footer nor a pr-verify note (a security lane
-   finding, or a `claude[bot]` or listed review bot's finding, whose footer would be model text), or a pr-verify note a
-   trusted person directed, escalates `feedback-round-cap`, which skips `awaiting-human`; otherwise one more round runs on every kept
-   thread (the fresh fixer), and once it has run the select job escalates
-   `feedback-verifier-open` when every kept thread is a pr-verify note, else
-   `feedback-not-converging`; both route to a failing status and skip `lane-stopped`. No escalation or skip runs a
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept
+   thread a person decides (`needsPerson`) escalates `feedback-round-cap`, which skips
+   `awaiting-human`: a security lane finding rated `CRITICAL` or unrated, a `claude[bot]` finding
+   (its footer would be model text), a pr-verify note or listed review bot's finding a trusted
+   person directed, or a listed review bot's finding the security lane's `security` state marks
+   `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
+   carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
+   Once it has run, the select job escalates `feedback-round-cap` when a security lane `IMPORTANT`
+   finding opened by that round's end is still open, else `feedback-verifier-open` when every kept
+   thread is a pr-verify note, else `feedback-not-converging`; those two route to a failing status
+   and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
