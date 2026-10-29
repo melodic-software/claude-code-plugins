@@ -166,6 +166,12 @@ When a bare verb would collide with or under-specify against a sibling in the sa
 topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-encapsulation`,
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
+A name is one verb phrase for the skill's one job. A joiner ("and", "or", "in") breaks that rule
+when it sits between two verbs naming two steps (`tune-and-harvest`), because a joined name
+describes the person's workflow around the skill rather than what the skill does. A joiner that
+names no second step keeps the name: `in` before a place (`continue-in-background`), or `or`
+between alternatives the skill itself weighs (`reuse-or-replace`).
+
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a knowledge router named by
