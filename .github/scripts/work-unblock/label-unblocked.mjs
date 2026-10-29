@@ -212,7 +212,7 @@ import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "..
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { isSplitParent, splitParentClosed } from "../intake-triage/admit.mjs";
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -1716,11 +1716,7 @@ const baseAdmission = (env) => {
     })());
 };
 
-// The rate guard's latch with its readings recorded under token, so a second
-// client's readings never mix with the App token's.
-export function budgetLatch(token, latch = rateLimitLatch) {
-  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
-}
+export { budgetLatch };
 
 export async function main({ env = process.env, github, actions, jobLog, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
