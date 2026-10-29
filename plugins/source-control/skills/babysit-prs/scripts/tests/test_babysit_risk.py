@@ -1975,6 +1975,9 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "      - run: &s |\n          echo a #b ${{ secrets.DEPLOY }}\n",
             "      - run: !!str |\n          echo a #b ${{ secrets.DEPLOY }}\n",
             '      - env:\n          K: &k "a\n            #b ${{ secrets.DEPLOY }}"\n',
+            # A flow mapping's value right after a quoted key's `:`.
+            '    env: {"K":"x\n      #b ${{ secrets.DEPLOY }}"}\n',
+            "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
         ):
             with self.subTest(added):
                 self.assertTrue(babysit_risk.gated_workflow("x", text + added))

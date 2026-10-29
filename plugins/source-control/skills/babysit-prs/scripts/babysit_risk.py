@@ -1700,10 +1700,11 @@ def _uncommented(line: str, quote: str) -> tuple[str, str]:
     """`line` up to a YAML comment, a `#` after whitespace outside quotes,
     and the quote of a quoted scalar still open at its end; `quote` carries
     one in from the line before. A quote opens a scalar only where one can
-    start: the line's start, after `: `, `- ` or `? `, or after `[`, `{` or
-    `,`. A quote inside a plain scalar is text to YAML, but the line is read
-    as if it opened one, to the line's end at most, so a ` #` after it never
-    hides the rest."""
+    start: the line's start, after `: `, `- ` or `? `, after the `:` of a
+    quoted or bracketed key (a flow mapping's `{"K":"v"}`), or after `[`,
+    `{` or `,`. A quote inside a plain scalar is text to YAML, but the line
+    is read as if it opened one, to the line's end at most, so a ` #` after
+    it never hides the rest."""
     carry = bool(quote)
     i = 0
     while i < len(line):
@@ -1727,6 +1728,10 @@ def _uncommented(line: str, quote: str) -> tuple[str, str]:
                 not before
                 or before[-1] in "[{,"
                 or (before[-1] in ":-?" and len(before) < len(head))
+                or (
+                    before[-1] == ":"
+                    and before[:-1].rstrip()[-1:] in ("'", '"', "]", "}")
+                )
             )
             quote = c
         i += 1
