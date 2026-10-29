@@ -916,8 +916,7 @@ class TestRecReviewsAlternatives(DirCase):
             with self.subTest(op=name):
                 out = self.op_refused(name, **self.REC)
                 self.assertIn("Q1", out)
-                self.assertIn("keepAlternatives", out)
-                self.assertIn("keepAlternatives", out)
+                self.assertIn("`keepAlternatives: true`", out)
 
     def test_revise_with_alternatives_records_both_changes(self):
         rc, out, err = self.op("revise", **self.REC, **self.ALTS)
