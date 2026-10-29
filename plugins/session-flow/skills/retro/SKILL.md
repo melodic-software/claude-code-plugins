@@ -1,6 +1,6 @@
 ---
 description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and durable codification of learnings. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[unattended] [session|codify [reviews]|trends|quick]"
+argument-hint: "[unattended] [session [--pattern '<regex>']|codify [reviews]|trends|quick]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-comments.sh:*)"]
@@ -9,7 +9,7 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[unattended] [session|codify [reviews]|trends|quick]`. e.g., /retro, /retro session, /retro codify, /retro codify reviews, /retro trends, /retro quick
+**Arguments.** `[unattended] [session [--pattern '<regex>']|codify [reviews]|trends|quick]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro codify, /retro codify reviews, /retro trends, /retro quick
 
 ## Context. Gather first
 
@@ -71,7 +71,9 @@ Resolve at runtime, never hardcode machine-specific paths:
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
 A leading bare `unattended` in `$ARGUMENTS` is stripped first; it only gates the `/export` step
-(record the suggestion in output, do not ask). Read the mode from the remainder. If it specifies a
+(record the suggestion in output, do not ask). A `--pattern '<regex>'` pair is taken out next and
+kept for session mode's ticket section; it selects `session` when no mode is named, and with
+another mode named, stop and say `--pattern` is session mode's only. Read the mode from the remainder. If it specifies a
 mode, use it. Otherwise infer from context; when the session is long or
 degraded, or compaction has occurred, prefer `quick`; ambiguous → `session`. Read the mode's context
 file before proceeding.
@@ -197,9 +199,10 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
 
 ## Next
 
-/session-flow:audit-sessions sweep
-
-Checks whether what this retro found recurs across every session on the machine.
+- /session-flow:audit-sessions sweep: checks whether what this retro found recurs across every
+  session on the machine.
+- /session-flow:audit-sessions ticket --pattern '<regex>': every stored session for one work item.
+  Session mode calls it when given `--pattern` (`context/session.md`, "Ticket section").
 
 ## Gotchas
 

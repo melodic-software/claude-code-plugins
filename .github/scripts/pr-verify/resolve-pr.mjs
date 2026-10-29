@@ -49,6 +49,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
@@ -652,8 +653,11 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   // A job's log: GitHub answers with a redirect to storage, which is read
   // without the token.
   const send = fetchImpl ?? fetch;
+  // The API request is counted for the job-end api-calls notice; the storage
+  // read it redirects to is not a GitHub API request.
+  const counted = countRequests(send);
   const readLog = async (jobId) => {
-    let response = await send(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
+    let response = await counted(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
       redirect: "manual",
     });

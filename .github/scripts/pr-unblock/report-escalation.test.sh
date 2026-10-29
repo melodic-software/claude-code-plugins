@@ -134,21 +134,27 @@ context_of() {
 
 # The routes: a person only for SAFETY (a path the lane would have to resolve
 # or push, supply-chain trust) or a question only a person answers (intent, design,
-# security, a person's own thread or hold), and every review-dependency stop,
-# whose failing status would be per head while the merge marker comes from the
-# lane's own re-run; every other stop is a failing status and no label,
-# workflow-staged included: the merge is not the lane's to push, but nothing
-# in it is a person's decision, so a session merges main by hand.
+# security, a person's own thread or hold); every other stop is a failing
+# status and no label, workflow-staged included: the merge is not the lane's to
+# push, but nothing in it is a person's decision, so a session merges main by
+# hand. Every review-dependency stop but dependency-invalid holds: a Dependabot
+# head moves only when Dependabot pushes, and a fresh model session on the same
+# head cannot change a cap, a refused or unlanded fix, an unreadable config or
+# truncated listing, or a risk the review itself raised. dependency-invalid is
+# a lane malfunction a fresh session can mend, and dependency-dispatch.mjs
+# retries the head on its lane-stopped verdict check, up to
+# limit-stops-per-head.
 HOLD_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-disputed
   feedback-question-intent feedback-question-design feedback-question-security
-  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-config-unreadable
+  dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited
   dependency-security-close dependency-escalate dependency-fix-refused dependency-workflow-unpinned
   ci-fix-protected-path ci-fix-weaken-required)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
+  dependency-invalid
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \

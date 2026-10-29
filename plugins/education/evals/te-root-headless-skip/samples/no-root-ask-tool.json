@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/education/skills/teach/scripts/list-workspaces.sh\" --default-root",
+            "description": "Resolve the Documents default"
+          }
+        }
+      ],
+      "why": "resolves the ladder without asking"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "Where should learning state live?",
+                "header": "Workspace",
+                "multiSelect": false,
+                "options": [
+                  {"label": "Documents", "description": "~/Documents/Claude Learning/"},
+                  {"label": "Plugin data", "description": "Kept with the plugin"}
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "why": "asks the rung 3 question in an unattended run"
+    }
+  ]
+}
