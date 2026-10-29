@@ -18,6 +18,7 @@ import {
   countRestarts,
   countTurnCapRestarts,
   decide,
+  doneEvidence,
   findPrior,
   findPriorMain,
   main,
@@ -3324,35 +3325,94 @@ test("main waits on an open pull request, and retries when the named one is not 
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /#5 is not an open pull request here, so it retries instead\./);
 });
 
-test("main closes an already-done issue only when its cited commit is on the default branch", async () => {
+test("main closes an already-done issue only when its cited commit is on the default branch and cites the issue", async () => {
+  const tiedCommit = ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "fix(lane): resolve both items (#77)" }, files: [] }];
   const done = await stopRun({
     reason: "already-done: both items are on main at abb359be",
-    routes: [
-      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
-      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }],
-    ],
+    routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }], tiedCommit],
   });
   assert.equal(done.code, 0);
   assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
   assert.ok(done.calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
   const unproven = await stopRun({
     reason: "already-done: both items are on main at abb359be",
-    routes: [
-      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
-      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "diverged" }],
-    ],
+    routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "diverged" }], tiedCommit],
   });
   assert.ok(!unproven.calls.some((c) => c.method === "PATCH"), "no proof, no close");
   assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
-  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no merged pull request or commit the default branch holds/);
-  const later = await stopRun({
-    reason: "already-done: effaced text, then the commit abb359be",
+  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no merged pull request or default-branch commit that cites this issue or changes a path it names/);
+  // Run 40844966342: a release commit on main closed an issue it never touched.
+  const release = await stopRun({
+    reason: "already-done: both items are on main at abb359be",
     routes: [
       ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
-      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "identical" }],
+      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }],
+      ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "chore(release): cut 3.2.0 (#770)" }, files: [{ filename: "CHANGELOG.md" }] }],
     ],
   });
+  assert.ok(!release.calls.some((c) => c.method === "PATCH"), "an unrelated commit on main is no proof");
+  assert.match(release.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
+  const later = await stopRun({
+    reason: "already-done: effaced text, then the commit abb359be",
+    routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "identical" }], tiedCommit],
+  });
   assert.ok(later.calls.some((c) => c.method === "PATCH"), "a hex-looking word before the SHA hides nothing");
+});
+
+// doneEvidence against a fake client: each route answers its path, and a path
+// no route names fails the read, as a GitHub error would.
+const evidenceClient = (routes) => async (method, path) => {
+  const route = routes.find(([pattern]) => pattern.test(path));
+  if (method !== "GET" || !route) {
+    throw new Error(`no route for ${method} ${path}`);
+  }
+  return route[1];
+};
+const ON_MAIN = [
+  [/\/repos\/o\/r$/, { default_branch: "main" }],
+  [/\/compare\/abb359be\.\.\.main$/, { status: "ahead" }],
+];
+
+test("doneEvidence takes a merged pull request only when it cites the issue or changes a path the issue names", async () => {
+  const reason = "already-done: #5 shipped it";
+  const pull = (body, files = [{ filename: "plugins/x/skills/y/SKILL.md" }]) =>
+    evidenceClient([
+      [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", title: "fix: tidy", body }],
+      [/\/pulls\/5\/files/, files],
+      [/\/issues\/77$/, { body: "The table in `docs/lanes.md:12` is stale." }],
+    ]);
+  assert.equal(await doneEvidence(pull("Tidies an unrelated table."), "/repos/o/r", reason, 77), false, "an unrelated merged PR");
+  assert.equal(await doneEvidence(pull("Closes #770"), "/repos/o/r", reason, 77), false, "#770 is not #77");
+  assert.equal(await doneEvidence(pull("Closes #77"), "/repos/o/r", reason, 77), true);
+  assert.equal(await doneEvidence(pull("Tidies a table.", [{ filename: "docs/lanes.md" }]), "/repos/o/r", reason, 77), true, "it changes a path the issue names");
+});
+
+test("doneEvidence takes a default-branch commit only when its message cites the issue or it changes a path the issue names", async () => {
+  const reason = "already-done: on main at abb359be";
+  const commit = (message, files = [{ filename: "CHANGELOG.md" }]) =>
+    evidenceClient([
+      ...ON_MAIN,
+      [/\/commits\/abb359be$/, { commit: { message }, files }],
+      [/\/issues\/77$/, { body: "See https://github.com/o/r/blob/main/.github/scripts/a.mjs#L4 and ./lib/b.mjs." }],
+    ]);
+  assert.equal(await doneEvidence(commit("fix(lane): drop the stale row\n\nRefs #77"), "/repos/o/r", reason, 77), true);
+  assert.equal(await doneEvidence(commit("chore(release): cut 3.2.0"), "/repos/o/r", reason, 77), false, "an unrelated release commit");
+  assert.equal(await doneEvidence(commit("fix: tidy", [{ filename: ".github/scripts/a.mjs" }]), "/repos/o/r", reason, 77), true, "a linked path");
+  assert.equal(await doneEvidence(commit("fix: tidy", [{ filename: "lib/b.mjs" }]), "/repos/o/r", reason, 77), true, "a ./ path ending a sentence");
+});
+
+test("doneEvidence proves nothing when a read fails", async () => {
+  const merged = [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", title: "fix: tidy", body: "" }];
+  const commit = [/\/commits\/abb359be$/, { commit: { message: "fix: tidy" }, files: [{ filename: "docs/lanes.md" }] }];
+  const issue = [/\/issues\/77$/, { body: "docs/lanes.md is stale" }];
+  // The issue read fails, so a path match cannot be made.
+  assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit]), "/repos/o/r", "already-done: abb359be", 77), false);
+  // The commit read fails, though the compare says it is on main.
+  assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, issue]), "/repos/o/r", "already-done: abb359be", 77), false);
+  // The pull request's file list fails.
+  assert.equal(await doneEvidence(evidenceClient([merged, issue]), "/repos/o/r", "already-done: #5", 77), false);
+  // Each read answering, the same evidence holds.
+  assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit, issue]), "/repos/o/r", "already-done: abb359be", 77), true);
 });
 
 test("main posts a delivered report and closes the issue", async () => {

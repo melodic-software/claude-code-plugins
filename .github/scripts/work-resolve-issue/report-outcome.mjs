@@ -1598,13 +1598,41 @@ async function applyHandBack(github, repo, plan) {
 const openPull = (github, repo, pr) =>
   pr ? github("GET", `${repo}/pulls/${pr}`).then((pull) => pull?.state === "open" && pull.merged_at == null, () => false) : Promise.resolve(false);
 
+// The paths an issue body names: each word between spaces, quotes, brackets or
+// colons (so `path:line` counts), less a blob or tree link's prefix, a `#L`
+// anchor, a leading `./` and a trailing period.
+const bodyPaths = (body) =>
+  new Set(
+    String(body ?? "")
+      .split(/[\s`'"()[\]<>,:;]+/)
+      .map((word) => word.replace(/^.*?\/(?:blob|tree)\/[^/]+\//, "").replace(/#.*$/, "").replace(/^\.\//, "").replace(/\.+$/, ""))
+      .filter(Boolean),
+  );
+
 // Whether the commit or pull request an already-done reason cites is on the
-// default branch: a merged pull request (`#<n>`), or a commit SHA the default
-// branch contains (the compare from it is ahead or identical). A read that
-// fails, or a reason that cites neither, proves nothing.
+// default branch and tied to the issue: a merged pull request (`#<n>`), or a
+// commit SHA the default branch contains (the compare from it is ahead or
+// identical), whose title, body or message cites `#<issue>` or whose files
+// include a path the issue body names. Any merged change is not proof: a
+// release commit once closed an issue it never touched (run 40844966342). A
+// read that fails, or a reason that cites neither, proves nothing.
 export async function doneEvidence(github, repo, reason, issueNumber) {
+  const cites = (text) => new RegExp(`[#＃]${issueNumber}(?![0-9])`).test(text);
+  let named;
+  const tied = async (text, files) => {
+    if (cites(text)) {
+      return true;
+    }
+    named ??= await github("GET", `${repo}/issues/${issueNumber}`).then((issue) => bodyPaths(issue?.body));
+    return (await files()).some((file) => named.has(file?.filename));
+  };
   const pr = waitedPull(reason, issueNumber);
-  if (pr && (await github("GET", `${repo}/pulls/${pr}`).then((pull) => Boolean(pull?.merged_at), () => false))) {
+  if (
+    pr &&
+    (await github("GET", `${repo}/pulls/${pr}`)
+      .then((pull) => Boolean(pull?.merged_at) && tied(`${pull.title ?? ""}\n${pull.body ?? ""}`, () => paginate(github, `${repo}/pulls/${pr}/files`)))
+      .catch(() => false))
+  ) {
     return true;
   }
   // A SHA holds a letter, so a run id or other number is never read as one;
@@ -1616,7 +1644,12 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
   const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
   for (const sha of base ? shas : []) {
     const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
-    if (comparison?.status === "ahead" || comparison?.status === "identical") {
+    if (
+      (comparison?.status === "ahead" || comparison?.status === "identical") &&
+      (await github("GET", `${repo}/commits/${encodeURIComponent(sha)}`)
+        .then((commit) => tied(String(commit?.commit?.message ?? ""), () => commit?.files ?? []))
+        .catch(() => false))
+    ) {
       return true;
     }
   }
@@ -1624,8 +1657,8 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
 }
 
 // A stop plan's edits. A wait on a pull request that is not open, and an
-// already-done close whose evidence is not on the default branch, retry
-// instead. A retry, wait or intake first counts its own outcome's markers
+// already-done close whose evidence is not on the default branch or not tied
+// to the issue, retry instead. A retry, wait or intake first counts its own outcome's markers
 // since a listed human last added agent-ready: past its cap it takes
 // retry-spent's route, so an issue intake keeps sending back cannot loop. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
@@ -1637,7 +1670,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
-    const why = "Its reason cites no merged pull request or commit the default branch holds, so it retries instead of closing.";
+    const why = "Its reason cites no merged pull request or default-branch commit that cites this issue or changes a path it names, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (COUNTED.has(plan.action)) {
