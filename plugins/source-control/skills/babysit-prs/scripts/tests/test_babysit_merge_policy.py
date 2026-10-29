@@ -5818,6 +5818,8 @@ class ForeignPaths(unittest.TestCase):
             "CODEOWNERS",
             "docs/CODEOWNERS",
             ".gitmodules",
+            # adjudicate-feedback.mjs reads the linked issues' spec through it.
+            ".github/scripts/pr-verify/resolve-pr.mjs",
         }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},

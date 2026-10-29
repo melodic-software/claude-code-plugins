@@ -25,6 +25,8 @@
     "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
     "docs/conventions/pr-pipeline.yaml",
+    "lib/publish-gate.mjs",
+    "plugins/work-items/scripts/charge-words.json",
     ".claude/*",
     "*/.claude/*",
     ".claude-lane/*",

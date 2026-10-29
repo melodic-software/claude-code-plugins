@@ -354,6 +354,15 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/request-budget.mjs", "enforcement"),
+    # adjudicate-feedback.mjs reads the linked issues' spec text through
+    # resolve-pr.mjs, and a quote from it settles a question.
+    (".github/scripts/pr-verify/resolve-pr.mjs", "enforcement"),
+    (".github/scripts/pr-verify/write-verdict.mjs", "enforcement"),
+    (".github/scripts/intake-triage/admit.mjs", "enforcement"),
+    (".github/actions/select-trusted-text/select-trusted-text.mjs", "enforcement"),
+    ("lib/publish-gate.mjs", "enforcement"),
+    (".github/recurring-schedule.json", "enforcement"),
+    ("plugins/work-items/scripts/charge-words.json", "enforcement"),
     (".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"),
     (".github/scripts/apply-patch/apply-patch.mjs", "enforcement"),
     (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
