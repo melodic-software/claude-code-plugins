@@ -99,9 +99,9 @@ fi
 # .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
 # BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
 # arguments. A labels read fails its first STUB_FAILS calls, then
-# prints STUB_LABELS one per line. A comments read fails when STUB_COMMENTS_FAIL
-# is set, else applies the --jq filter to the STUB_COMMENTS array, as gh does
-# per page.
+# answers STUB_LABELS (comma separated) as the API's label list. A comments
+# read fails when STUB_COMMENTS_FAIL is set, else answers the STUB_COMMENTS
+# array.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -109,12 +109,11 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 */labels*)
   [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { printf '%s\n' "${STUB_FAIL_TEXT:-}" >&2; exit 1; }
-  [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS"
+  jq -cn --arg l "$STUB_LABELS" '$l | split(",") | map(select(. != "") | {name: .})'
   ;;
 */comments*)
   [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
-  while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
-  jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
+  printf '%s\n' "${STUB_COMMENTS:-[]}"
   ;;
 *) exit 1 ;;
 esac
@@ -166,7 +165,7 @@ expect() {
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls labels call(s) got $calls"
-  elif [[ "$calls" -gt 0 && "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name" ]]; then
+  elif [[ "$calls" -gt 0 && "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/6419/labels?per_page=100 --paginate" ]]; then
     fail "$label: unexpected labels call '$(grep '/labels' "$TMP_ROOT/log" | sort -u)'"
   elif grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the tracker config was read through the API: '$(sort -u "$TMP_ROOT/log")'"

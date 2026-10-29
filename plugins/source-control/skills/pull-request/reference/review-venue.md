@@ -13,11 +13,11 @@ Run the bundled script, which changes nothing
 ([GitHub](../../../reference/providers/github/pull-request/review-venue.md)):
 
 ```bash
-"<skill-dir>/scripts/review-venue.sh" [--repo <owner/repo>] [--max-age-days <n>]
+"<skill-dir>/scripts/review-venue.sh" [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]
 ```
 
 Refuse a `--repo` value holding a character outside `A-Za-z0-9._/-`. It prints one line per lane,
-`code-review` first, then `security-review`:
+`code-review` first, then `security-review`, then `tests` when `--head` names a full commit sha:
 
 - **`<lane> ci healthy: <detail>`**: the lane's workflow is enabled and its newest pull request
   run that reached a verdict succeeded within the window. CI covers this lane. A run reaches no
@@ -29,6 +29,20 @@ Refuse a `--repo` value holding a character outside `A-Za-z0-9._/-`. It prints o
 - **`<lane> local failing: <detail>`**: that newest run failed, timed out or did not start. A
   usage-limit stop is a failed run, so it lands here.
 - **`<lane> local stale: <detail>`**: no run with a verdict inside the window.
+
+The `tests` line reads that one commit, not the repository's recent runs. Its lanes are CI's test
+jobs, the GitHub Actions check runs on the head whose name is `test` or starts with `test` followed
+by `-`, `(` or a space. Per name, the newest run that did not skip is the lane's result, so the
+skipped copy a label or body edit posts never hides a failure:
+
+- **`tests ci healthy: <detail>`**: every test-lane check run on the head finished as success,
+  skipped (a lane the change gave no work) or neutral, and at least one succeeded.
+- **`tests local absent: <detail>`**: the head has no test-lane check run, every one skipped, or
+  the head has more check runs than the script reads. A draft skips them, so a draft's head reads
+  `absent`.
+- **`tests local pending: <detail>`**: a test-lane check run on the head has not finished.
+- **`tests local failing: <detail>`**: one concluded otherwise, such as failure, cancelled or timed
+  out.
 
 The window defaults to 7 days (`--max-age-days`). Basis: judgment, long enough to span a weekend
 of no pull requests, short enough that a lane broken for a week stops counting.
@@ -43,13 +57,19 @@ An unread venue never skips a review.
 |---|---|
 | `code-review` | prep's one fresh-context review (§1.2) and the ready step's `code-review` |
 | `security-review` | the ready step's `security-review` |
+| `tests` | the ready step's `verify` suites ([ready-for-review.md](ready-for-review.md) §2.5.3) |
 
-- **`ci`**: skip the local step. Report it as `skipped, the CI <lane> lane covers it: <detail>`.
-- **`local`**: run the local step. Report it as `ran locally in place of the CI <lane> lane
+- **`ci`**, for a review lane: skip the local step. Report it as `skipped, the CI <lane> lane
+  covers it: <detail>`.
+- **`local`**, for a review lane: run the local step. Report it as `ran locally in place of the CI <lane> lane
   (<absent|failing|stale>)`, or `ran locally, no CI <lane> lane` for `absent`.
+- **`tests`**: [ready-for-review.md](ready-for-review.md) §2.5.3 owns the skip, its
+  `--verify-local` override and its report line.
 
 Read the venue once per phase, just before the first review it decides: prep reads it at §1.2, and
-the ready step reads it again at §2.5.3, since a lane can fail between the two. The venue is a
+the ready step reads it again at §2.5.3, since a lane can fail between the two. The ready step
+reads the `tests` line once more, with `--head`, after its commit and before the verify gate. The
+venue is a
 built-in skip like the docs-only skip: `pre_ready` and `--skip` still only remove steps, and a
 person may run a local review anyway.
 
@@ -57,8 +77,8 @@ person may run a local review anyway.
 
 - **Merge evidence.** A local review is never merge evidence. Only the lane's own records on the
   pull request's head count, read by [readiness.md](readiness.md) and the merge gate.
-- **One pull request's coverage.** The venue is read per repository, often before the pull request
-  exists, so it cannot see that a lane skips this one (a fork head, a bot author the lane does not
+- **One pull request's coverage.** The review lanes are read per repository, often before the
+  pull request exists, so the venue cannot see that a lane skips this one (a fork head, a bot author the lane does not
   admit). The backstop is per pull request: monitor's B2 step and readiness Gate 5 substitute a
   local review for a lane that produced nothing on the head, and name it on `Review lanes:`.
 - **Findings.** The venue picks who reviews, never what a review found. Findings from either venue

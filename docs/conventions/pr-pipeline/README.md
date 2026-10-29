@@ -586,7 +586,8 @@ routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` i
 a person settles: a path the lane would itself have to resolve or write that its token may not
 push, or a supply-chain refusal (SAFETY), an intent,
 design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
-security-review or CRITICAL one), or any `review-dependency` stop: its failing status would be per head,
+CRITICAL one, or a security-review one rated `IMPORTANT` or above or with no rating it reads; a
+security-review `SUGGESTION` is adjudicated like a code-review finding), or any `review-dependency` stop: its failing status would be per head,
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
 holds it for a person. Every other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
@@ -2203,7 +2204,8 @@ what it gates, and only a CRITICAL finding there holds. The callers name
 `.github/standards/trusted-actors/**`, every entry of the narrow path floor above
 (`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
-those last two are also the trust-gate paths ci-status's exempt-author check below fails on.
+those last two are also the trust-gate paths ci-status's exempt-author and agent App check below
+fails on.
 `scripts/sync-hold-floor.py` writes both callers' `hold-paths` and that check's `hold_patterns`
 from `babysit_risk.FLOOR`, and `test_merge_holds_sync.py` checks that each matches every floor
 entry.
@@ -2233,7 +2235,15 @@ them on every `pull_request` run, contract-only runs included:
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
   trust-gate path (the hold-paths above less the security review's own files, matched
   case-insensitively), since no lane
-  reviews it; a person merges it. A draft is exempt.
+  reviews it; a person merges it. The same holds a same-repository PR that changes a trust-gate
+  path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
+  `[bot]` logins; this repository names the agent App, `melodic-agent[bot]`) opened it, is the
+  author or committer of one of its commits by account or noreply address, or pushed to its head
+  branch (the repository activity API), since its head can rewrite the review callers; a person
+  merges it. Such a PR still needs both lanes when no trust-gate path changed. ci-status reads the
+  App list, the PR's commits and the branch's push history only once a trust-gate path matched,
+  and an unreadable one, a commit list shorter than the PR, or a full page of pushes fails closed.
+  A draft is exempt.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
@@ -2361,12 +2371,13 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   secret, check each marker against a closed set and build the next leg's matrix
   (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
-  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
-  lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
-  of the slice, workflow, job and the error signature with numbers, SHAs and times removed. A unit
-  whose data lists no jobs (a C unit, a D unit with no green run, an A unit whose runs list no failed
-  job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
-  steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the failed jobs its A
+  unit's data lists, or when any quote is not on its line in the run's main commit, then
+  fingerprints it: a hash of the slice, workflow, job and the error signature with numbers, SHAs and
+  times removed. A C or D unit, or an A unit whose runs list no failed job, leaves the job unbound:
+  a D unit's green samples do not list every job that ran, and its workflow-level findings
+  (duplicate runs, reruns) name none of them. The signature is free text in every slice, so
+  binding does not stop a steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
   per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
   as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
   matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
@@ -2577,10 +2588,10 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
-on the requested threads only. With no such request, a security lane finding, a pr-verify note a
-trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
+on the requested threads only. With no such request, a security lane finding rated `IMPORTANT` or
+`CRITICAL` (or with no rating the lane reads), a pr-verify note a trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
-finding, an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
+finding, a security lane `SUGGESTION` and an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
 round: once it has run, no sweep, schedule or dispatch starts another, and the next select fails
 the head as `feedback-verifier-open` when only pr-verify notes are open, else as
 `feedback-not-converging`, a comment that names the open threads. A round cap is a lane bound, not
@@ -2707,6 +2718,17 @@ the sweep runs intake's admission rules on the open `status: ready` issues in no
 most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
+
+Neither intake nor the sweep adds a new `agent-ready` to an issue whose work a merged pull request
+may already have done: one in this repository whose body names the issue on a `Refs:` line
+(`Refs: #<n>`, a list of issues holding it, or either with a parenthesized note), merged after the issue's
+newest decision comment (a listed human's `**Decision recorded.**`) or lanes-App refinement
+comment, or since it opened when it has neither. The issue is parked at `status: confirmed`, loses
+`status: ready` and `admission-deferred`, and gets the admission comment naming the pull requests.
+An agent checks the work: it closes the issue when the pull request finished it, or posts a
+`**Decision recorded.**` comment saying what is left, which intake-reenter sends back through
+intake with the cutoff past that pull request. Each pass reads its issues in one GraphQL call (at
+most 50 issues a call); a read that fails admits as though no such pull request merged.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
