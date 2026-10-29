@@ -465,21 +465,30 @@ callee, an alias of `Object` or `Reflect` (a destructuring declarator is none wh
 takes, as in `var{defineProperty:f}=Object`, is never written again and only called, each call
 then checked as that definer's, and every other key it takes is a static that defines nothing
 and hands out no code, such as `getPrototypeOf` or `keys`), a prototype swap (`__proto__=`,
-`setPrototypeOf`), and a write to
+`setPrototypeOf`, and a `__proto__` set through `Reflect.set(o,"__proto__",p)` or an own
+`__proto__` property given to `Object.assign`, as in `{["__proto__"]:p}`), and a write to
 an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a string, a
 template without substitutions, or `Symbol.x`. A computed key is known when every value it can
 take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof` result, or a
 variable each write of which is one of those, so a loop counter (`o[i]=`) or a TypeScript enum
 (`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target is cleared only
 when it is provably fresh: a literal, a function, or `new` of a class declared in the module with
-no superclass and no constructor returning a value; a call of the global `Object.create`, or the
-object an `Object` definer returns, which trusts `Object` and `create` or the definer's name,
-since any of them can be replaced first; `this` in the constructor of a class with no superclass
-(a derived class's `this` is whatever `super()` returns), or in a function every reference to
-which binds it to a fresh object (`r.bind(b,c)`, trusting `bind`); a `?:` whose branches both
-are; a variable that only ever holds one of those, or is assigned one before any read in its own
-function; the `prototype` of a function or class declared in the module whose every reference is
-`F.prototype.k` with a named key other than `constructor` (a call, `new`, or
+no superclass and no constructor returning a value; `new` of a built-in constructor named by its
+unshadowed global name (`Error` and the other native errors, `Map`, `Set`, `WeakMap`, `WeakSet`),
+which trusts that name; a call of the global `Object.create`, or the object an `Object` definer
+returns, which trusts `Object` and `create` or the definer's name, since any of them can be
+replaced first; `this` in the constructor of a class with no superclass, or in a function every
+reference to which binds it to a fresh object (`r.bind(b,c)`, trusting `bind`). A derived class's
+`this` is whatever `super()` returns, so it is fresh only in a class extending one of those
+built-ins, trusting that name; `new` of such a class is fresh the same way. `super()` calls the
+class's own prototype, so the class counts only while every reference to it is a `new`, a named
+member read that writes nothing, the right of `instanceof`, a superclass or an `export{...}`.
+These hand the class on only as `new.target`, an instance's `constructor`, `this` in a getter or
+method, or an importer's binding, none of which is a fresh target, so a prototype swap through
+one is a sink. Also fresh: a `?:` whose branches both are; a variable
+that only ever holds one of those, or is assigned one before any read in its own function; the
+`prototype` of a function or class declared in the module whose every reference is `F.prototype.k`
+with a named key other than `constructor` (a call, `new`, or
 `F.prototype.constructor` leads back to F, which could replace it); and a parameter never written,
 when every call of its function passes one (not followed for a function that reads `arguments` or
 is declared in a block, which sloppy code can change or call unseen). For an exported function
@@ -524,7 +533,8 @@ on the result. The folded calls trust the global `Function` itself, so the rule 
 among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
 the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
 given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
-holds a computed write of its own. `Object`, once a cleared target trusts it, counts the same way.
+holds a computed write of its own. `Object` and the built-in constructors above count the same
+way.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -580,6 +590,10 @@ Stated assumptions, not checked:
 
 - Code built from strings is not analyzed, only counted as a sink (above), except a direct call
   of `Function` on constant strings, whose code is scanned as written.
+- An accessor or definer read off a prototype as a value is not followed:
+  `Object.getOwnPropertyDescriptor(Object.prototype,"__pro"+"to__").set` hands out the
+  `__proto__` setter, which swaps any object's prototype when called, and the same read of
+  `__defineGetter__` hands out a definer that takes any key. Neither read is counted.
 - Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
   read of it: `(()=>0).constructor("...")()` builds code no rule counts.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
