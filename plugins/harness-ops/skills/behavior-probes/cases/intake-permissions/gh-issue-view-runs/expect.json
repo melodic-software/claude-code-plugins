@@ -1,0 +1,14 @@
+{
+  "claim": "Control: under dontAsk with only Bash(gh issue view *) allowed, a plain gh issue view 1 runs, and it runs the stub gh.",
+  "tags": ["Bash rule", "compound command", "allowedTools", "dontAsk"],
+  "permission_mode": "dontAsk",
+  "allowed_tools": ["Bash(gh issue view *)"],
+  "platforms": ["linux"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"gh issue view 1\"",
+    "example": { "command": "gh issue view 1" }
+  },
+  "outcome": "ran",
+  "match": "gh-stub-marker"
+}
