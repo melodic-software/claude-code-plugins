@@ -17,6 +17,10 @@
 //
 // Any failure writes nothing and warns: the reader then reads in full.
 //
+// The same artifact holds enable-auto-merge's skip records (SKIP_FILE), read
+// from the one download into EAM_SKIP_PATH; the arm step checks them itself,
+// and a skip only repeats a refusal. A run without them writes none.
+//
 // Environment:
 //   ACTIONS_TOKEN         the job's GITHUB_TOKEN (actions: read)
 //   GITHUB_REPOSITORY     owner/repo
@@ -25,6 +29,7 @@
 //   PR_MERGE_READS_PATH   the job's shared GET answers (rotation.mjs
 //                         sharedReads), if set
 //   VERIFY_ANSWERS_PATH   the file to write
+//   EAM_SKIP_PATH         where the skip records go, if set
 //   GITHUB_API_URL
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -36,6 +41,7 @@ import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";
 export const ANSWERS_FILE = "verify-answers.json";
+export const SKIP_FILE = "eam-skip.json";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -64,6 +70,7 @@ export async function main({ env = process.env, actions, download } = {}) {
     if (!REPO.test(repo)) throw new Error("GITHUB_REPOSITORY is not owner/repo");
     if (!env.VERIFY_ANSWERS_PATH) throw new Error("VERIFY_ANSWERS_PATH is not set");
     rmSync(env.VERIFY_ANSWERS_PATH, { force: true });
+    if (env.EAM_SKIP_PATH) rmSync(env.EAM_SKIP_PATH, { force: true });
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: ANSWERS_ARTIFACT, file: ANSWERS_FILE });
     const found = await readAnswers({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
@@ -74,6 +81,14 @@ export async function main({ env = process.env, actions, download } = {}) {
     writeFileSync(`${env.VERIFY_ANSWERS_PATH}.tmp`, found.text);
     renameSync(`${env.VERIFY_ANSWERS_PATH}.tmp`, env.VERIFY_ANSWERS_PATH);
     console.log(`verifier answers of run ${found.run}: ${found.count} pull requests`);
+    if (env.EAM_SKIP_PATH) {
+      try {
+        writeFileSync(`${env.EAM_SKIP_PATH}.tmp`, download(found.run, SKIP_FILE));
+        renameSync(`${env.EAM_SKIP_PATH}.tmp`, env.EAM_SKIP_PATH);
+      } catch {
+        console.log(`run ${found.run} kept no skip records; each pull request is read`);
+      }
+    }
   } catch (error) {
     console.log(`::warning title=verifier answers::${escapeCommand(error?.message ?? error)}; each pull request is read in full`);
   }

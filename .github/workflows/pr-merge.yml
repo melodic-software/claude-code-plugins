@@ -2151,6 +2151,8 @@ jobs:
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
+          # The arm step's skip records, from the same artifact.
+          EAM_SKIP_PATH: ${{ runner.temp }}/eam-skip-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/verify-answers.mjs
 
@@ -2215,6 +2217,10 @@ jobs:
           # The verifier answers read above, and the file this run keeps.
           VERIFY_ANSWERS_IN: ${{ runner.temp }}/verify-answers-in.json
           VERIFY_ANSWERS_OUT: ${{ runner.temp }}/verify-answers/verify-answers.json
+          # Skip-unchanged (enable-auto-merge.mjs SKIPPABLE): the records read
+          # above, and the file this run keeps beside its answers.
+          EAM_SKIP_IN: ${{ runner.temp }}/eam-skip-in.json
+          EAM_SKIP_OUT: ${{ runner.temp }}/verify-answers/eam-skip.json
           # The lane's room (lane-room): this run's post-merge report and the
           # rung cap as the merge job passes it, empty meaning no cap.
           POSTMERGE_RESULT: ${{ runner.temp }}/post-merge/post-merge.json
@@ -2233,16 +2239,20 @@ jobs:
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
           VERIFY_CACHE=$(yq '.merge."verify-cache" // "shadow"' "$config")
+          SKIP_MAX_MINUTES=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")
+          SKIP_MAX_SKIPS=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")
+          mkdir -p "$(dirname "$EAM_SKIP_OUT")"
           # The commit whose code ran the report's check, for lane-room: none
           # reads the report again.
           POSTMERGE_CODE_SHA=$(cat "$RUNNER_TEMP/post-merge/post-merge-code-sha" 2>/dev/null || true)
+          export SKIP_MAX_MINUTES SKIP_MAX_SKIPS
           export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES VERIFY_CACHE POSTMERGE_CODE_SHA
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
 
       # The answers this run's reader kept, for the next run: refusals only,
-      # each to expire within the hour. A file name of its own: the merge job
-      # uploads pr-merge-head-refs. Only a scheduled or hand-started run's file
-      # is read back.
+      # each to expire within the hour, with the arm step's skip records. A
+      # file name of its own: the merge job uploads pr-merge-head-refs. Only a
+      # scheduled or hand-started run's file is read back.
       - name: Upload the verifier answers for the next run
         if: >-
           always() && steps.arm.outcome != 'skipped'
@@ -2252,7 +2262,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-verify-answers
-          path: ${{ runner.temp }}/verify-answers/verify-answers.json
+          path: |
+            ${{ runner.temp }}/verify-answers/verify-answers.json
+            ${{ runner.temp }}/verify-answers/eam-skip.json
           retention-days: 1
           if-no-files-found: ignore
 

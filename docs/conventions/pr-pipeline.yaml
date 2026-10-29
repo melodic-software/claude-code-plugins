@@ -1033,7 +1033,8 @@ merge:
   # figures come from serve's order. Any other value fails the schema.
   verify-cache: shadow
   # A candidate the last run refused on unchanged inputs is reported with that
-  # refusal instead of gated again (babysit_merge_skip.py); it is gated again
+  # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
+  # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
   # once its refusal is max-minutes old or has been skipped max-skips runs in
   # a row. 3 skips at the 15-minute schedule gate it about hourly; 60 caps
   # the wait whatever else starts runs (judgment). 0 in either: no skips.
