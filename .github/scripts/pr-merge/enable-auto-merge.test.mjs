@@ -3250,3 +3250,24 @@ test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS f
   assert.equal(cli([["infra/main.tf"]], "false").status, 1);
   assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 1);
 });
+
+// The babysit gate's own path holds, recorded in a risk refusal before the
+// switch went off, come off the same way; an unsafe path or any other code stays.
+test("with path holds off, a standing risk refusal naming only path holds comes off", async () => {
+  const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
+  const gate = ".github/scripts/pr-merge/clear-escalations.mjs";
+  const risk = (codes) => `pr-merge's gate holds it on its risk score (${codes})`;
+  const held = (reason) =>
+    pull(2, { files: GATE_SCRIPT, labels: labels("needs-human"), verdict: PASSED, discussion: { comments: [lanesSaid(personNote(reason))] }, timeline: liftTimeline(personNote(reason)).slice(0, 2) });
+  const off = { ...trustedKyle(), ...pathHoldsOff() };
+  const lifted = await run([held(risk(`high-path:${gate}: ${gate}`))], off);
+  assert.deepEqual(lifted.notes, [LIFT], lifted.lines.join("\n"));
+  for (const [why, reason, env] of [
+    ["path holds on", risk(`high-path:${gate}: ${gate}`), trustedKyle()],
+    ["an unsafe path", risk("high-path:**: 'a' mode '120000' (symlink)"), off],
+    ["a path hold beside an unbound review", risk(`high-path:${gate}: ${gate}; evidence-unbound:claude-review: evidence-missing`), off],
+  ]) {
+    const kept = await run([held(reason)], env);
+    assert.ok(!kept.notes.some(({ method }) => method === "DELETE"), `${why} lifts nothing`);
+  }
+});

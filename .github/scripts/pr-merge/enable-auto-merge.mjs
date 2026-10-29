@@ -644,11 +644,22 @@ function personReasons(body, head, label) {
 // (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
 // escalation a trusted person's approval of the head lifts, so the lane may
 // take its label off. A cost, risk or verifier reason, a label a person set
-// with no refusal, or a comment at another head is not one.
+// with no refusal, or a comment at another head is not one, except that with
+// `pathHolds` false a risk reason whose every code is a path hold
+// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
+// `review-path:`) is one too.
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
-export function holdPathOnly(body, head, label) {
+const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
+const pathOnlyRisk = (line) =>
+  line.startsWith(READER_HOLDS.risk) &&
+  line.endsWith(")") &&
+  line
+    .slice(READER_HOLDS.risk.length, -1)
+    .split("; ")
+    .every((part) => PATH_HOLD_CODE.test(part.split(": ")[0]));
+export function holdPathOnly(body, head, label, pathHolds = true) {
   const reasons = personReasons(body, head, label);
-  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line));
+  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line) || (pathHolds === false && pathOnlyRisk(line)));
 }
 
 // Whether the lane lifts `label` off `pull`: its newest refusal at the head
@@ -657,10 +668,13 @@ export function holdPathOnly(body, head, label) {
 // trusted person whose approval binds the head (merge-holds pathLifters, or
 // liftersOf over base merges), or `pathHolds` is false, so no hold path holds.
 export function approvalLift(pull, detail, { bot, label, holdPaths, pathHolds = true }) {
-  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label)) {
+  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label, pathHolds)) {
     return false;
   }
-  if (!Array.isArray(holdPaths) || detail.filesCapped === true || pathHoldKind(detail.files, holdPaths)?.kind !== "hold-path") {
+  // Off, a risk refusal's path may be one only the gate's floor holds, so a
+  // readable listing is enough.
+  const listed = pathHolds === false ? Array.isArray(detail.files) : pathHoldKind(detail.files, holdPaths)?.kind === "hold-path";
+  if (!Array.isArray(holdPaths) || detail.filesCapped === true || !listed) {
     return false;
   }
   return costHold(detail.files, detail.costDecision) === null && (pathHolds === false || (Array.isArray(detail.lifters) && detail.lifters.length > 0));
@@ -1487,7 +1501,7 @@ export async function main({ env = process.env, github, actions, verify, room, s
             // A hold-path refusal with a trusted person's approval in the
             // discussion reads on, for approvalLift below.
             const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && trustedHumans(env).has(item.userId) && item.state === "APPROVED");
-            unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated));
+            unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);

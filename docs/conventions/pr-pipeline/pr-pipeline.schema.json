@@ -1160,7 +1160,7 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way. The local babysit lane always applies the manifest review."
+              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way while path-holds is true. The local babysit lane always applies the manifest review."
             },
             "path-holds": {
               "type": "boolean",
