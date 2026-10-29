@@ -132,6 +132,35 @@ or drop an element so the evaluator can say yes. A user who asks mid-run for an 
 hears the same thing. If no approach gets there, the run ends by laying out the dead end with its
 evidence (what was tried and what blocked each attempt) and handing the decision to the user.
 
+**A step only the user can decide gets an exit the evaluator can credit.** When the intent has
+such a step (a choice, a waiver, an approval, a change of plan), end the condition with an OR exit
+that names those items, like: "...or each of `<the user-gated items>` still unmet is recorded in
+`<named file>` as waiting on the user, with the exact reply or command they must give, and that
+file's contents are shown in this conversation." The exit turns the hand-off above into an ending
+the evaluator can credit. It names only items whose next step is a user decision, never items that
+are merely hard, and where work was attempted the record carries the evidence of what was tried.
+The file survives `/clear` and a session change; the evaluator credits only what the conversation
+shows, so the turn shows the file's contents. Add the exit when drafting, never mid-run to get past
+a stall. A condition with no user-gated step gets no exit.
+
+- **Pointer**: <https://code.claude.com/docs/en/goal#how-evaluation-works>, for the verdicts the
+  evaluator returns and when a loop that makes no progress stops.
+- **As of**: 2026-10-29
+- **Recheck trigger**: that section adds a verdict for a condition waiting on the user, or changes
+  the no-progress stop.
+
+**Refuse a fragile end state.** Refuse a draft, or rewrite it with the user's agreement, when its
+only end state:
+
+- needs a decision the user may make the other way, such as a verifier PASS on a phase the user
+  may waive;
+- names an identifier the user can replace or an account change can kill: a pull request number,
+  an artifact or document URL;
+- fixes an order of work the user may reorder or defer.
+
+Offer the OR exit, a more stable reference (the branch rather than the pull request number, "the
+artifact titled X" rather than its URL), or a wording about the outcome alone.
+
 ### When the outcome is not quantifiable
 
 When the intent has no honest metric, do **not** manufacture one: a made-up number lets a run pass
@@ -156,9 +185,10 @@ If the intent is too vague to name a structure or a content list, settle it with
 
 ## Step 3. Mechanical length check
 
-Validate the draft's character count against the **live limit from Step 1** with the deterministic
-counter (no model estimation). Write the draft to a temp file and pass `--file`; this survives a
-condition containing a single quote, backtick, or `$` that would mangle a piped string:
+Validate the whole draft's character count, any OR exit included, against the **live limit from
+Step 1** with the deterministic counter (no model estimation). Write the draft to a temp file and
+pass `--file`; this survives a condition containing a single quote, backtick, or `$` that would
+mangle a piped string:
 
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/goal-condition-length.sh" --limit <LIMIT_FROM_STEP_1> --file <path-to-draft>
