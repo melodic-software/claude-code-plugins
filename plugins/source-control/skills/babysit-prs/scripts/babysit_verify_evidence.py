@@ -1125,28 +1125,12 @@ class Reader:
         server_now: datetime | None = None
         page = 1
         while True:
-            left = deadline - _listing_clock()
-            if left <= 0:
+            read = self._incremental_page(page, deadline)
+            if read is None:
                 return None
-            try:
-                proc, headers = gh_api_with_headers(
-                    [
-                        "api",
-                        f"repos/{self.repo}/actions/artifacts"
-                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
-                    ],
-                    timeout_seconds=left,
-                    env_overrides=self._env(),
-                )
-                body = json_object(json.loads(proc.stdout))
-            except (RuntimeError, ValueError, OSError):
-                return None
+            body, headers = read
             items = body.get("artifacts")
-            if (
-                proc.returncode != 0
-                or not is_json_array(items)
-                or not all(_listed_entry(a) for a in items)
-            ):
+            if not is_json_array(items) or not all(_listed_entry(a) for a in items):
                 return None
             if page == 1:
                 total = body.get("total_count")
@@ -1199,6 +1183,41 @@ class Reader:
             flush=True,
         )
         return COUNT_MISSED
+
+    def _incremental_page(
+        self, page: int, deadline: float
+    ) -> tuple[dict[str, Any], dict[str, str]] | None:
+        """One incremental page's body and headers, read again after
+        `LISTING_WAITS` while time is left when the read fails transiently
+        (`_transient`) or its body is cut short; None for any other failure,
+        or once the waits or the time run out."""
+        for wait in (*LISTING_WAITS, None):
+            left = deadline - _listing_clock()
+            if left <= 0:
+                return None
+            try:
+                proc, headers = gh_api_with_headers(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    timeout_seconds=left,
+                    env_overrides=self._env(),
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if proc.returncode == 0:
+                try:
+                    return json_object(json.loads(proc.stdout)), headers
+                except ValueError:
+                    pass  # A body cut short: read again.
+            elif not _transient((proc.stderr or "").strip()):
+                return None
+            if wait is None or deadline - _listing_clock() - wait <= 0:
+                return None
+            _listing_sleep(wait)
+        return None
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""

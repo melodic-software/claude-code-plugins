@@ -3361,6 +3361,61 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
                 self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
                 self.sleep.assert_not_called()
 
+    def cut_short(
+        self, times: int, failure: Any
+    ) -> tuple[ve.Reader, ve.Evidence, FakeGitHub]:
+        """The first incremental page fails with `failure` `times` times."""
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        left = [times]
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            if left[0] and args[1].endswith("&page=1"):
+                left[0] -= 1
+                fake.calls.append(args)
+                return failure, {}
+            return fake(args, **kwargs), {"date": DATE}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            return reader, reader.evidence(PR, HEAD, pull()), fake
+
+    def test_a_cut_short_page_is_read_again_without_a_full_listing(self) -> None:
+        # As gh printed it in pr-merge run 40819274416, and a body cut short
+        # that gh still exits 0 on.
+        failures = {
+            "gh error": subprocess.CompletedProcess(
+                [], 1, "", "unexpected end of JSON input"
+            ),
+            "short body": subprocess.CompletedProcess(
+                [], 0, '{"total_count": 5, "art', ""
+            ),
+            "502": subprocess.CompletedProcess([], 1, "", "gh: Bad Gateway (HTTP 502)"),
+        }
+        for label, failure in failures.items():
+            with self.subTest(label):
+                self.saved.unlink(missing_ok=True)
+                self.sleep.reset_mock()
+                reader, evidence, fake = self.cut_short(1, failure)
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertEqual(reader.listing_mode, "incremental")
+                # The failed page, then pages 1 and 2 down to 900.
+                self.assertEqual((fake.pages(), fake.full_listings()), (3, 0))
+                self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0])
+
+    def test_a_page_cut_short_every_time_lists_every_page(self) -> None:
+        failure = subprocess.CompletedProcess([], 1, "", "unexpected end of JSON input")
+        # The first page fails all three reads, so the whole listing follows
+        # and its top-up reads the pages.
+        reader, evidence, fake = self.cut_short(3, failure)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0, 4.0])
+
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
         # The first read's live count is one more than its pages hold, as
         # when a page boundary moves during the read; the next read holds it
