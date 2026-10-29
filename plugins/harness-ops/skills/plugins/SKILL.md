@@ -245,10 +245,27 @@ that predicts zero updates has not established that the fleet is current.
 Step 6 is rendered by the script. `sync-run.sh --render` prints the fixed-section report after the
 digest line, every run writes the same text to `<run_dir>/report.txt`, and
 `jq -r -f "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/render-report.jq <run_dir>/digest.json`
-reproduces it from a run directory later. Every section, conditional row, annotation, and
+reproduces it from a run directory later.
+
+The layout is fixed and reads the same on every platform. The first line is the verdict. It is
+`Result: <N> item(s) under Action needed` when that section has items. Otherwise it is
+`Result: changes applied, nothing under Action needed` or `Result: clean, nothing changed and
+nothing under Action needed`. In `audit` it is `Result: see the predictions below, nothing under
+Action needed`, or `Result: no change predicted, a lower bound against the unrefreshed catalog`.
+The verdict counts `Action needed` items only. A `remedy:` on a row outside that section, such as
+`converge` for divergences, still applies. Each line carries one fact. Each part of a multi-part row gets its own indented line
+under a short heading: a divergence class, a timing figure, a cache tally. A list of more than three
+ids also gets one line per id. A remedy is its own `remedy:` line under the fact it fixes. No
+line is wrapped by hand, version moves read `<old> -> <new>`, and every character is ASCII except
+text the digest carries, such as a CLI's own output. Why a row says what it says lives in
+[context/sync.md](context/sync.md) and
+[context/stale-records-cache-content.md](context/stale-records-cache-content.md), not in the
+render, so a clean run prints no explanatory paragraphs.
+
+Every section, conditional row, annotation, and
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
-three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it, or bare `off` for a
+three-way `autoUpdate` slot (`on`; `off` with a `remedy:` line to enable it, or bare `off` for a
 marketplace named in `quiet_auto_update_marketplaces`; `unreadable` for a
 `null`, never rendered as off), whose status reads `needs update` only for refresh, update and
 failure state (a failed refresh or CLI call, or an error; in `audit`, an update, install or enable `sync`
@@ -268,11 +285,15 @@ counted variant, forward moves only); `Updated:` (forward moves and pairs flagge
 whose update call the CLI answered "already at the latest version" while the run's snapshots show
 their version changed, which the run did not do and does not attribute; with a `Not verified:` row
 for already-current answers the snapshots could not confirm); `Catalog regression:`; `Installed:` with the policy-`all`
-recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
-when a root resolved, with one sub-line per project path naming its record count and up to three
-ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
-records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
-and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
+recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` section (one line per non-zero
+class, each with its `remedy:` lines: actionable, with its here and elsewhere counts under it and
+the one `converge` remedy; in linked worktrees; blocked. Under a `by origin:` heading come the
+pre-existing and newly created counts, with the per-step lines only when the run created any. A
+digest from before the class split shows the machine-wide count, this project's count under it when
+a root resolved, and one `converge` remedy) and its `by project path:` lines naming each path's record
+count and up to three ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
+records and user-scope cache content sections; the `Timing:` row (the marketplace total, with the slowest step,
+the seconds outside the named steps and the clock's resolution each on its own line under it; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, a requested fast-forward that
 was refused or failed with its reason, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 installs the CLI reported as disabled by default that this run did not enable, plugins absent from the catalog (installed, or
@@ -293,7 +314,7 @@ initial report may add one caveat line when something in the run suggests more t
 what the report cannot establish, never a cause. Follow-up answers from the run directory stay
 allowed. Per
 marketplace in `all` mode the whole block repeats, because Steps 2 through 5 run once per
-marketplace; the trailing `Run journal:` and `Timing:` lines cover the invocation.
+marketplace; the trailing `Run journal:` and `Timing:` rows cover the invocation.
 
 **The one line the model owns is the reload guidance**, appended after the render as a two-step
 rather than as a prediction about which case will trigger it: recommend bare `/reload-plugins`,
