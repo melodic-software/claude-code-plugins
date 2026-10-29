@@ -851,6 +851,90 @@ def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
     ]
 
 
+def keyed(session_id: str, start: str, end: str, *, title=None, branches=(), cwd=None, prs=(), output=0) -> dict:
+    """A store record carrying the fields the ticket rollup reads."""
+    rec = record(session_id, start=start, **{"tokens.main": output})
+    rec["time"]["end"] = end
+    rec["link_keys"] = {"custom_title": title, "ai_title": None}
+    rec["branches"] = list(branches)
+    rec["prs"] = [{"repo": repo, "number": number} for repo, number in prs]
+    if cwd is not None:
+        rec["cwd"] = cwd
+    return rec
+
+
+def test_tickets_count_eight_links_to_one_pr_as_one(data_dir):
+    write_store(
+        data_dir,
+        *[keyed(f"s{n}", f"2026-09-0{n + 1}T10:00:00Z", f"2026-09-0{n + 1}T11:00:00Z", branches=["feat/PROJ-7-x"], prs=[("o/r", 12)], output=100) for n in range(8)],
+    )
+    result = sweep(data_dir, "--tickets", r"[A-Z][A-Z0-9]+-\d+")
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    assert env["schema"] == "audit-sessions.tickets/v1"
+    [row] = env["data"]["tickets"]
+    assert (row["key"], len(row["sessions"]), row["prs"], row["output_tokens"]) == ("PROJ-7", 8, 1, 800)
+    assert row["span_s"] == 7 * 86400 + 3600 and row["gaps_s"] == [23 * 3600] * 7
+    assert env["data"]["span_label"] == "session-side proxy, not cycle time"
+
+
+def test_tickets_pattern_that_excludes_non_ticket_tokens_groups_none(data_dir):
+    write_store(
+        data_dir,
+        keyed("utf", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", title="fix UTF-8 decoding"),
+        keyed("sha", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["fix/SHA-256-digest"]),
+    )
+    loose = envelope(sweep(data_dir, "--tickets", r"[A-Z][A-Z0-9]+-\d+"))["data"]
+    assert sorted(t["key"] for t in loose["tickets"]) == ["SHA-256", "UTF-8"]
+    strict = envelope(sweep(data_dir, "--tickets", r"\b(?!(?:UTF|SHA)-)[A-Z][A-Z0-9]+-\d+"))["data"]
+    assert (strict["tickets"], strict["unkeyed"]) == ([], 2)
+
+
+def test_tickets_prefer_title_and_branches_over_cwd(data_dir):
+    write_store(
+        data_dir,
+        keyed("reused", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["feat/AB-2"], cwd="/w/AB-1"),
+        keyed("titled", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", title="AB-3 work", branches=["feat/AB-2"]),
+        keyed("cwd-only", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", cwd="/w/AB-1"),
+    )
+    tickets = envelope(sweep(data_dir, "--tickets", r"AB-\d+"))["data"]["tickets"]
+    assert {t["key"]: t["sessions"] for t in tickets} == {"AB-1": ["cwd-only"], "AB-2": ["reused"], "AB-3": ["titled"]}
+
+
+def test_tickets_gaps_never_go_below_zero_for_overlapping_sessions(data_dir):
+    write_store(
+        data_dir,
+        keyed("a", "2026-09-01T10:00:00Z", "2026-09-01T14:00:00Z", branches=["AB-1"]),
+        keyed("b", "2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z", branches=["AB-1"]),
+        keyed("c", "2026-09-01T16:00:00Z", "2026-09-01T17:00:00Z", branches=["AB-1"]),
+    )
+    [row] = envelope(sweep(data_dir, "--tickets", r"AB-\d+"))["data"]["tickets"]
+    assert (row["sessions"], row["gaps_s"], row["span_s"]) == (["a", "b", "c"], [0, 7200], 7 * 3600)
+
+
+def test_tickets_branch_keeps_only_its_key_and_md_renders_the_label(data_dir):
+    write_store(
+        data_dir,
+        keyed("one", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["AB-1"]),
+        keyed("two", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["AB-2"]),
+    )
+    data = envelope(sweep(data_dir, "--tickets", r"AB-\d+", "--branch", "feat/AB-2-thing"))["data"]
+    assert data["branch_key"] == "AB-2" and [t["key"] for t in data["tickets"]] == ["AB-2"]
+    assert envelope(sweep(data_dir, "--tickets", r"AB-\d+", "--branch", "main"))["data"]["tickets"] == []
+    md = sweep(data_dir, "--tickets", r"AB-\d+", "--format", "md")
+    assert md.returncode == 0, md.stderr
+    assert "session-side proxy, not cycle time" in md.stdout and "| `AB-1` | 1 |" in md.stdout
+
+
+def test_tickets_refuse_a_bad_pattern_and_the_kept_or_session_modes(data_dir):
+    write_store(data_dir, keyed("s1", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["AB-1"]))
+    assert sweep(data_dir, "--tickets", "(").returncode == 2
+    assert sweep(data_dir, "--tickets", r"AB-\d+", "--write-report").returncode == 2
+    assert sweep(data_dir, "--tickets", r"AB-\d+", "--session", "s1").returncode == 2
+    assert sweep(data_dir, "--branch", "AB-1").returncode == 2
+    assert not (data_dir / "audit-sessions" / "reports").exists()
+
+
 def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     write_store(
         data_dir,
