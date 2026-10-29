@@ -1378,7 +1378,8 @@ its fallback call on the role's OAuth token after the key call hands off
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
    leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses
-   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, symlinks and gitlinks; a
+   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, the central lane grant
+   file and the trusted-actor list, symlinks and gitlinks; a
    change elsewhere, such as `.gitattributes`, an agent instruction file or a check's own script,
    reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
@@ -1421,7 +1422,8 @@ refusal posts nothing.
    head's index (escalating `ci-fix-not-applied` on failure) and refuses the whole patch,
    whatever the report escalated, on any change the row refuses: the universal set
    (`.github/workflows/**`, `CODEOWNERS` at the root, in `.github/` or in `docs/`, `.gitmodules`,
-   `**/settings*.json`, a symbolic link or gitlink, a rename into a refused path, a backslash),
+   `**/settings*.json`, the central lane grant file and the trusted-actor list, a symbolic link or
+   gitlink, a rename into a refused path, a backslash),
    escalating `ci-fix-protected-path`; more than the row's `max-files`
    (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
    `empty-at-push`) escalates `ci-fix-invalid`. It then

@@ -280,6 +280,61 @@ test("refuses a rename from an allowed path into .github/workflows/", async (t) 
   assert.deepEqual(api.calls, []);
 });
 
+// ADR 0085 Decision 6: the central grant file and the trusted-actor list
+// decide every admitted repository's lane tokens, so no lane patch may change them.
+test("every row refuses the central lane grant file and the trusted-actor list, in any case and through any .. segment, and nothing beside them", () => {
+  for (const name of Object.keys(RULES)) {
+    const universal = RULES[name].refuse.filter((refusal) => !REFUSALS[refusal].optional);
+    for (const path of [
+      ".github/actions/resolve-config/lane-grants.json",
+      ".GitHub/Actions/Resolve-Config/LANE-GRANTS.json",
+      "docs/../.github/actions/resolve-config/lane-grants.json",
+      ".github/standards/trusted-actors/trusted-actors.json",
+      ".github/standards/x/../trusted-actors/Trusted-Actors.JSON",
+    ]) {
+      assert.deepEqual(refusalsOf(entry(path), universal), ["lane-grants"], `${name} ${path}`);
+    }
+    for (const path of [
+      ".github/actions/resolve-config/lane-rules.json",
+      ".github/actions/resolve-config/lane-grants.test.mjs",
+      ".github/standards/trusted-actors/trusted-actors.schema.json",
+      "plugins/p/.github/actions/resolve-config/lane-grants.json",
+      "lane-grants.json",
+    ]) {
+      assert.deepEqual(refusalsOf(entry(path), universal), [], `${name} ${path}`);
+    }
+  }
+});
+
+test("refuses a patch that edits the trusted-actor list, before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, ".github/standards/trusted-actors"), { recursive: true });
+    writeFileSync(join(repo, ".github/standards/trusted-actors/trusted-actors.json"), '{"version":1,"actors":[]}\n');
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "ci-fix-protected-path" });
+  assert.deepEqual(lines, ["refused (lane-grants): .github/standards/trusted-actors/trusted-actors.json"]);
+  assert.deepEqual(api.calls, []);
+});
+
+test("refuses a rename from an allowed path into the central lane grant file", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      mkdirSync(join(repo, ".github/actions/resolve-config"), { recursive: true });
+      renameSync(join(repo, "notes.md"), join(repo, ".github/actions/resolve-config/lane-grants.json"));
+    },
+    { renames: true },
+  );
+  assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/actions\/resolve-config\/lane-grants\.json$/m);
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(lines, ["refused (rename-into-refused): .github/actions/resolve-config/lane-grants.json"]);
+  assert.deepEqual(api.calls, []);
+});
+
 test("a patch that edits .github/scripts/ or .github/actions/ pushes", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     mkdirSync(join(repo, ".github/scripts"), { recursive: true });
@@ -1573,9 +1628,14 @@ test("issue target: the issue row refuses the universal set, each refusal before
     ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
     [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
     ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "patch-protected-path"],
+    [
+      "the central lane grant file",
+      (repo) => (mkdirSync(join(repo, ".github/actions/resolve-config"), { recursive: true }), writeFileSync(join(repo, ".github/actions/resolve-config/lane-grants.json"), "{}\n")),
+      "patch-protected-path",
+    ],
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
   ];
-  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"]);
+  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
