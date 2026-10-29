@@ -667,6 +667,8 @@ export async function dispatchCiFixes({
     const verifyCap = await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid });
     if (verifyCap) {
       log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap (${verifyCap}); a person decides it, so no fix-ci round`);
+      // The cap never clears for the head: later runs skip it before any read.
+      markHandled(record, checkName, node.headRefOid);
       continue;
     }
     sent += 1;

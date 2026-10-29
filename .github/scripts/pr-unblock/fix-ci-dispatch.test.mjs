@@ -241,6 +241,19 @@ test("a PR whose pr-verify FAILs are at the cap gets no fix-ci round", async () 
   assert.match(lines.join("\n"), /^skip fix-ci #5: .*verify:repeated-fail/m);
 });
 
+test("a capped head is recorded, so the next run skips it without reading the verifier again", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:repeated-fail";
+  };
+  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.equal(reads, 1);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
 // A fork PR that pushed the same commit lists its runs under the same head SHA.
 // Its newer run, still going, would read as a re-run in flight and hold fix-ci
 // off (reconcilerOwns); readRequiredRun keeps it out of the tested run.

@@ -503,6 +503,8 @@ export async function dispatchFeedback({
     // never merge, so a person decides the pull request (pr-merge escalates).
     const capped = await verifyCapped({ number, head, base: pull.base?.sha });
     if (capped) {
+      // The cap never clears for the head: later runs skip it before any read.
+      markHandled(record, settings.checkName, head);
       return skip(`#${number}: pr-verify's FAILs are at the cap (${capped}); a person decides it, so no ${settings.activity} round`);
     }
   }

@@ -206,6 +206,13 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   assert.deepEqual(api.calls.dispatch, []);
   assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+  // The cap never clears for the head: a later run at it reads nothing.
+  const record = emptyRecord();
+  await decide(api, resolvedLane(), { verifyCapped, record });
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(asked.length, 2);
+  assert.match(again.lines.join("\n"), /\(recorded\)/);
 });
 
 test("a PR the reader does not find at the cap dispatches as before", async () => {
