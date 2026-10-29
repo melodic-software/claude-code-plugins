@@ -991,6 +991,121 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(importer=importer):
                 self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
 
+    # #5901 slice 8: a write whose key may be any name, or a prototype swap,
+    # on a receiver made fresh in its own function. The spread trusts
+    # `@@iterator` and `next`, which such a write on a prototype would patch.
+    # The `Qs` shape is the one #9995 quotes from 2.1.310.
+
+    def test_a_computed_write_on_a_fresh_local_object_clears(self) -> None:
+        """A receiver bound once to a literal, `Object.create(...)` or `new`
+        of a module-local class or a built-in constructor, and never
+        reassigned, is no built-in prototype, whatever key it is given."""
+        for module in (
+            "function f(ks,v){var t={};for(const k of ks)t[k]=v;return t}",
+            "function f(ks){const a=[];for(const k of ks)a[k]=1;return a}",
+            "var o=Object.create(null);for(const k of ks)o[k]=1;",
+            "class P{constructor(ks){for(const k of ks)this[k]=1}}new P(ks);",
+            'var m=new Map,e=new TypeError("x");for(const k of ks){m[k]=1;e[k]=1}',
+            "var o={};Object.defineProperty(o,k,{value:1});Object.setPrototypeOf(o,null);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, self.SPREAD, module)
+
+    def test_this_in_a_builtin_derived_constructor_is_fresh(self) -> None:
+        """`super()` in a class extending a built-in constructor by its
+        global name makes a fresh object, so `this` takes a prototype swap
+        or a computed write, and so does an instance of the class."""
+        for module in (
+            "class Qs extends Error{constructor(e){super(e);Object.setPrototypeOf(this,Qs.prototype)}}"
+            'function t(e){if(e instanceof Qs)return;throw new Qs("x")}export{Qs};',
+            "class M extends Map{constructor(ks){super();for(const k of ks)this[k]=1}}"
+            "var m=new M(ks);for(const k of ks)m[k]=2;",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, self.SPREAD, module)
+
+    def test_a_computed_write_on_a_parameter_stays_partial(self) -> None:
+        """A parameter holds what a call passes, here Array.prototype, and
+        a key that may be `Symbol.iterator` patches the spread."""
+        for module in (
+            "function g(o,k){o[k]=f}g(Array.prototype,s);",
+            "var g=(o)=>{for(const k of ks)Object.defineProperty(o,k,{value:f})};"
+            "g(Array.prototype);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+
+    def test_a_receiver_reassigned_from_an_argument_stays_partial(self) -> None:
+        """A receiver that starts fresh and is then assigned an argument may
+        be Array.prototype when it is written."""
+        for module in (
+            "function g(a,k){var t={};t=a;t[k]=f}g(Array.prototype,s);",
+            "function g(a,k){let t=Object.create(null);if(c)t=a;t[k]=f}g(Array.prototype,s);",
+            "function g(a,k){var t=new Map;t=a;Object.defineProperty(t,k,{value:f})}"
+            "g(Array.prototype,s);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+
+    def test_a_class_extending_an_expression_stays_partial(self) -> None:
+        """Only a built-in named by its unshadowed global name makes
+        `super()` fresh: a call, a conditional or a module's own `Error` can
+        give a constructor returning Array.prototype."""
+        for module in (
+            "class X extends g(){constructor(k){super();this[k]=f}}new X(s);",
+            "var X=class extends(c?Error:function(){return Array.prototype}){"
+            "constructor(k){super();this[k]=f}};new X(s);",
+            "var Error=function(){return Array.prototype};"
+            "class X extends Error{constructor(k){super();this[k]=f}}new X(s);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+
+    def test_a_builtin_derived_class_handed_to_other_code_stays_partial(self) -> None:
+        """`super()` calls the class's own prototype, which a swap on the
+        class replaces: an argument, an alias or a parameter can hand the
+        class to one, so its `this` is no longer fresh. A swap through
+        `new.target` or an importer's binding is a sink of its own, here
+        through a `__proto__` [[Set]] by `Reflect.set` and `Object.assign`."""
+        cls = "class X extends Error{constructor(k){super();this[k]=f}}"
+        swap = "function(){return Array.prototype}"
+        for module in (
+            f"{cls}Object.setPrototypeOf(X,{swap});new X(s);",
+            f"{cls}var Y=X;Y.__proto__={swap};new X(s);",
+            f"{cls}function w(c){{c.__proto__={swap}}}w(X);new X(s);",
+            "class X extends Error{constructor(k){"
+            f'Reflect.set(new.target,"__proto__",{swap});super();this[k]=f}}}}new X(s);',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+        self.assert_across_modules(
+            True,
+            self.SPREAD,
+            cls + "export{X};",
+            f'import{{X}}from"/c.js";Object.assign(X,{{["__proto__"]:{swap}}});new X(s);',
+        )
+
+    def test_a_replaced_object_create_stays_partial(self) -> None:
+        """A receiver fresh only through a call trusts the callee's names,
+        so a module replacing `Object.create`, a built-in constructor or a
+        built-in superclass leaves the write a sink."""
+        for replace, module in (
+            (
+                "Object.create=()=>Array.prototype;",
+                "var o=Object.create(null);for(const k of ks)o[k]=f;",
+            ),
+            (
+                "Error=function(){return Array.prototype};",
+                "var e=new Error;for(const k of ks)e[k]=f;",
+            ),
+            (
+                "globalThis.Map=function(){return Array.prototype};",
+                "class M extends Map{constructor(k){super();this[k]=f}}new M(s);",
+            ),
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, replace, module)
+
     def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
         """A `.require` read that is only tested never hands the loader on:
         a `&&` operand other than the last, an `if`, loop or `?:` test, a
