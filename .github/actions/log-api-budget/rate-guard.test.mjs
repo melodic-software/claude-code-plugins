@@ -452,12 +452,10 @@ const UNGUARDED = {
   // Package registries and status pages, not the API.
   ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
   ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": "the status pages, not the API",
-  // Their fetch is budgetedFetch's, which the guard wraps.
-  ".github/scripts/pr-unblock/dispatch.mjs": "fetch injected from budgetedFetch",
-  ".github/scripts/pr-unblock/feedback-dispatch.mjs": "fetch injected from budgetedFetch",
   // Script activities that run from a copy of their own directory, where the
   // guard module is not: open until the copy carries it.
   ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
+  // Its mains run from the base checkout count their requests (countedFetch).
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
   ".github/scripts/work-resolve-issue/report-outcome.mjs": "script activity run from a directory copy",
   // pr-merge's own guard is its owner's change.
