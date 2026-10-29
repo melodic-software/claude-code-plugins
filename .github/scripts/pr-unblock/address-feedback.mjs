@@ -746,6 +746,14 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
+// The fetch a main run from the full base checkout hands createGitHubApi: each
+// attempt's rate-limit reading goes to the job-end api-calls notice
+// (rate-guard.mjs countRequests), and nothing else changes. It loads here, at
+// run time: publish-feedback.mjs and apply-dependency-verdict.mjs import this
+// module from a copy of this directory alone, which cannot reach .github/actions.
+export const countedFetch = async (fetchImpl = globalThis.fetch) =>
+  (await import("../../actions/log-api-budget/rate-guard.mjs")).countRequests(fetchImpl);
+
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
 // pull request changes nothing; a blob, a tree and a commit are used only by
@@ -1047,6 +1055,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
   const selectThreads = () => {
