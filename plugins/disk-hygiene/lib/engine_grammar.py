@@ -21,6 +21,8 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   the GUARD only. The parser keeps it optional so the engine can refuse an
   ``apply`` without it with its own diagnostic instead of an argparse usage
   error.
+* A ``required`` flag that is also ``repeatable`` takes its first use at its
+  place in the head and may repeat among the optional flags.
 * Optional flags follow the required head in any order, each at most once
   unless ``repeatable``; every value must be a literal argument (non-empty, not
   flag-shaped) and pass the flag's ``pattern`` or ``choices``. A flag whose
@@ -358,22 +360,33 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         (
             Flag("--execute", takes_value=False, required=True),
             _file_flag("--snapshot", required=True),
-            # One exact approved path per call: the engine verifies that path
-            # against live state and deletes it in the same process.
+            Flag(
+                "--tier",
+                required=True,
+                choices=TIERS,
+                example="medium",
+                help=(
+                    "the one approved tier; it may not rank above any path's "
+                    "lowest hint confidence_ceiling"
+                ),
+            ),
+            _file_flag("--report", required=True),
+            # Every approved path of the tier: the engine verifies each against
+            # live state immediately before removing it, in the same process.
             Flag(
                 "--path",
                 required=True,
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
-                help="the one snapshot-relative approved path to verify and delete",
+                help="snapshot-relative approved path; repeat it once per path",
             ),
-            _file_flag("--vcs-evidence", required=True),
-            _file_flag("--report", required=True),
+            _file_flag("--vcs-evidence"),
             _data_root_flag(),
         ),
         help=(
-            "verify one approved path as handoff-verify does, then delete it "
-            "only on a clear verdict (Linux only)"
+            "verify each approved path of one tier as handoff-verify does, then "
+            "remove it only on a clear verdict (Linux deletes, Windows recycles)"
         ),
     ),
 )
@@ -439,7 +452,9 @@ def match_invocation(
     seen: set[str] = set()
     while index < len(words):
         flag = spec.flag(words[index])
-        if flag is None or flag.required or (flag.name in seen and not flag.repeatable):
+        if flag is None or (
+            (flag.required or flag.name in seen) and not flag.repeatable
+        ):
             return False
         seen.add(flag.name)
         index += 1
@@ -533,7 +548,7 @@ def explain_mismatch(
         flag = spec.flag(word)
         if flag is None:
             return f"{clip_token(word)} is not a {name} flag."
-        if flag.required:
+        if flag.required and not flag.repeatable:
             return (
                 f"required flag {flag.name} is already given in the required head "
                 "and cannot repeat."
