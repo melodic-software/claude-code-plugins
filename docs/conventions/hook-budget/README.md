@@ -159,7 +159,8 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **Cost.** The table's exec-form k of 1 applies to a row that runs the program itself, such as a
   Node script named in `args`. A bash-scripted row behind the launcher is k = 2 (node, then bash),
   plus 1 per program the script starts. That is the shell-form line's "a script is at least 2", so
-  the sweep is not a spawn saving.
+  the sweep is not a spawn saving. A fire whose launcher gate is closed is k = 1 (see
+  [Gated Stop rows at the exec-form floor](#gated-stop-rows-at-the-exec-form-floor)).
 - **Prerequisite.** Node on PATH is now required for every exec-form hook (`command` is `node`). The launcher
   cannot detect a missing node, because the launcher is a node process; a failed launch is
   non-blocking, so the guard then enforces nothing (the
@@ -223,6 +224,39 @@ form.
 The absolute times come from a one-plugin config with the harness's synthetic payloads, so they
 cannot be compared with the reference figures above. The difference between the arms is the
 measurement.
+
+## Gated Stop rows at the exec-form floor
+
+A Stop row whose launcher gate is closed sits at its shape's floor, k = 1: `node` starts,
+`exec-bash.mjs` finds the gate closed and exits 0 before it reads stdin or starts bash. One process
+is the fewest such a row can cost, so it has no overage for Rule 2 to hold against it. Two gate
+shapes cover the Stop rows this applies to:
+
+- the default-off end-of-turn checks of actionlint, bash-format, biome-format, go-format,
+  markdown-format, powershell-format, ruff-format and typos-format (`--require-true
+  <PLUGIN>_END_OF_TURN`, manifest default false);
+- autonomy's lane-stop gate (`--run-if-any-set` or `--run-if-settings-mention`, one any-of gate).
+
+These rows stay synchronous Stop hooks. Stop has no matcher support and a hook with `if` set on a
+non-tool event never runs, so neither field can skip them. A shared dispatcher would cross plugin
+boundaries, since each plugin registers its own `hooks.json`. `async: true` would take an enabled
+check's findings off the turn they belong to.
+
+- **Basis:** "When an event fires, its matching hooks run in parallel"
+  ([hooks docs](https://code.claude.com/docs/en/hooks)), so a closed-gate row adds one parallel
+  node start and does not set the Stop wall. A 2026-10-20 `/performance:go-faster` run on a loaded
+  Windows host (5 to 10 concurrent sessions) timed 104 Stop samples per hook: these rows cost 283
+  to 378 ms p50 and 991 to 1,472 ms p95 each, which is a node cold start under contention. The run
+  captured no S, so these figures have no S conversion. The same run's 125 Stops measured the wall
+  at p50 576 ms and p95 2,072 ms. Two rows that did real work set it at measurement time,
+  disk-hygiene's destructive-guard audit
+  ([#8771](https://github.com/melodic-software/claude-code-plugins/issues/8771)) and harness-ops'
+  hook-failure audit, which has run with `async: true` since
+  [#8772](https://github.com/melodic-software/claude-code-plugins/issues/8772).
+- **Scope:** a row only while its gate is closed. A consumer who enables an end-of-turn option
+  pays that check's own work on every Stop, and Rule 1 applies to that work.
+- **Recheck trigger:** the hooks docs stop running an event's matching hooks in parallel, or a
+  gated Stop row starts a process before its gate.
 
 ## Rules
 
