@@ -29,7 +29,8 @@
 //   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
-//   and no review lane holds the PR (gate-source.mjs gateSource), and
+//   and no review lane holds the PR (gate-source.mjs gateSource), on an owner
+//   PR only as it lets fix-ci work there (prHold),
 //   otherwise only a thread where a trusted person with write access asked
 //   the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
@@ -125,10 +126,11 @@ import { pathToFileURL } from "node:url";
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
-export { NO_ADOPTION, ownerAdoption, ownerAuthored };
-import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
+// fix-ci-dispatch.mjs imports HOLD_LINE from here.
+export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
+import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -164,14 +166,10 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
-// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
-// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
-// included, with a bare CR as a line break too. fix-ci-dispatch.mjs imports
-// it from here, so this floored module loads no unfloored one.
-export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
-// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:`, and both
+// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
+// job checks it again, as the round starts), and both
 // the PR's last update and its head commit at least idle-hours old, so the
 // lane does not push onto a branch a session is still working on. An
 // unreadable date is not idle.
@@ -388,18 +386,29 @@ export async function dispatchFeedback({
     const threads = await api.listReviewThreads(number);
     // A human-gated PR dispatches only for a thread a trusted person with
     // write access asked the lane to fix, unless a lane escalation put the
-    // label on and no review lane holds the PR. The label stays on either way:
-    // clear-escalations.mjs owns taking it off.
+    // label on and no review lane holds the PR; on an owner PR only as that
+    // escalation lets fix-ci work it (gate-source.mjs prHold). The label
+    // stays on either way: clear-escalations.mjs owns taking it off.
     const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-    const gate = labeled
-      ? gateSource({
-          timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
-          label: humanGatedLabel,
-          head,
-          isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
-        })
-      : null;
-    const gated = labeled && gate.source !== "lane-escalation";
+    const timeline = async () => [...commentItems(comments), ...(await api.listLabelEvents(number))];
+    let gated = false;
+    let why = "";
+    if (labeled && owner) {
+      ({ held: gated, why } = await prHold({
+        labels: pull.labels.map((label) => label.name),
+        holdLabels: [],
+        gateLabel: humanGatedLabel,
+        head,
+        activity: settings.activity,
+        appId: appSenderId,
+        readTimeline: timeline,
+        readReviews: reviewReader(api, number),
+      }));
+    } else if (labeled) {
+      const gate = gateSource({ timeline: await timeline(), label: humanGatedLabel, head, isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot" });
+      gated = gate.source !== "lane-escalation";
+      why = `${gate.source}: ${gate.reason}`;
+    }
     const fixers = await fixRequesters({
       comments: threads.flatMap((thread) =>
         thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
@@ -414,7 +423,7 @@ export async function dispatchFeedback({
     // lane-stopped check handles the head, so the stall gets a stop once.
     const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
     if (gated && !workable) {
-      return skip(`#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`);
+      return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
     if (!workable && !threads.some((thread) => thread.isResolved === false)) {
       return skip(`#${number} has no unresolved review thread`);
@@ -803,6 +812,19 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     return response.status === 204 ? {} : response.json();
   }
 
+  // Every page of a REST listing, at most 50.
+  async function pages(url) {
+    const rows = [];
+    for (let page = 1; page <= 50; page += 1) {
+      const batch = await request(`${url}&page=${page}`);
+      rows.push(...batch);
+      if (batch.length < 100) {
+        return rows;
+      }
+    }
+    throw new Error(`${url} has more than 50 pages`);
+  }
+
   async function graphql(query, variables, signal) {
     const result = await request(graphqlUrl, "POST", { query, variables }, signal);
     if (result.errors?.length) {
@@ -844,6 +866,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       throw new Error(`#${number} has more than 5000 comments`);
     },
     listLabelEvents: (number) => listLabelEvents({ graphql, repository, number }),
+    // prHold's review reads (gate-source.mjs reviewReader), on an owner PR
+    // carrying the human-gated label only.
+    listReviewComments: (number, since) => pages(`${repo}/pulls/${number}/comments?since=${encodeURIComponent(since)}&per_page=100`),
+    listReviews: (number) => pages(`${repo}/pulls/${number}/reviews?per_page=100`),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;

@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [1.10.0] - 2026-10-29
+
+### Added
+
+- `/session-flow:audit-sessions`: the `tools.denials` finding now counts denials per kind over the sessions above the threshold (`by_kind`) and names the most common kind (`dominant_kind`), in both the JSON and the markdown report. The rule's basis says how the kinds are read from the store, with an As of date and a recheck trigger (#10812).
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- A handoff now checks a goal's condition before carrying it into the goal region. A condition that ties its proof to this conversation, such as "shown by output you produced", gets a warning above the region that suggests commit- or file-anchored wording, and the condition itself stays verbatim. A goal already met at a recorded commit or file, with only the user's decisions left, gets no goal region and a note listing those decisions. `/session-flow:continue-in-background` redrafts such a goal instead of launching with it (#8763).
+
+- `/session-flow:audit-sessions`: the `subagents.count` finding now suggests `/harness-ops:observability` with route `retro-codify`, the same as `tokens.sub`, in place of `/harness-config:unhobble`, per the owner decision of 2026-10-11 (#10812).
+
+- `/session-flow:audit-sessions`: Step 2 now passes the sweep's `--catalog` only the installed skills that `reference/sweep-rules.json` or the correction lens suggests, in place of every skill in the session's listing. `sweep.py` checks no other name, and the skill's evals now expect the shorter list (#10839).
+
 ## [1.9.0] - 2026-10-29
 
 ### Added
