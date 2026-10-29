@@ -866,8 +866,8 @@ def _bash_without_string_data(command: str) -> str | None:
     newline, so a pipeline stays fail-closed) whose command word is a bare name
     on the closed reader allowlist: ``cat``, ``head``, ``tail``, ``wc``,
     ``grep``, ``rg`` without ``--pre``, ``git show``/``log``/``diff``/``grep``
-    without ``-c`` or ``-O``/``--open-files-in-pager``, and ``gh issue``/``pr``.
-    Single-quoted literals are blanked as data, double-quoted ones only when
+    without ``-c``, ``-O``/``--open-files-in-pager`` or ``--output``, and
+    ``gh issue``/``pr``. Single-quoted literals are blanked as data, double-quoted ones only when
     they hold no ``$`` or backtick. None, meaning the caller must classify the
     command as written, for anything else: a quoted or path-qualified command
     word, a reader outside the allowlist (``awk`` and ``sed`` can run a quoted
@@ -917,6 +917,9 @@ def _bash_reader_option_runs_program(reader: str, word: str) -> bool:
     Conservative: git's short options cluster (``-nO<cmd>``) and its long
     options abbreviate to any unique prefix (``--open``), so a short cluster
     holding ``c`` or ``O`` and any prefix of ``--open-files-in-pager`` count.
+    A prefix of ``--output`` counts too: ``git show``/``log``/``diff``
+    ``--output=<file>`` writes a file, and a write over the engine runs at the
+    engine's next sanctioned call.
     """
     if reader == "rg":
         return word.startswith(("--pre", "--hostname-bin"))
@@ -924,8 +927,138 @@ def _bash_reader_option_runs_program(reader: str, word: str) -> bool:
         return False
     if word.startswith("--"):
         name = word.split("=", 1)[0]
-        return len(name) > 2 and "--open-files-in-pager".startswith(name)
+        return len(name) > 2 and (
+            "--open-files-in-pager".startswith(name) or "--output".startswith(name)
+        )
     return "c" in word or "O" in word
+
+
+# A here-document whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<-'EOF'`):
+# bash expands nothing in its body, so the body is data for the command that
+# reads it. The quoted word must end the delimiter: bash joins `'E'OF` into
+# `EOF`, so a delimiter with more glued on is not this shape.
+_BASH_QUOTED_HEREDOC = re.compile(
+    r"<<-?[ \t]*(['\"])([A-Za-z0-9_]+)\1(?=[ \t\n;&|<>()]|$)"
+)
+# `sed` options and a script that only print line ranges. No `e`, `s///e`, `w`
+# or `r` command fits the script pattern, and no option edits in place.
+_SED_PRINT_OPTIONS = re.compile(r"-[nErsuz]+")
+_SED_LINE_RANGE_PRINT = re.compile(r"\d+(?:,\d+)?p")
+
+
+def _bash_reads_only(command: str) -> bool:
+    """Whether every simple command in a Bash ``command`` only reads.
+
+    The plugin-level gate exists for engine invocations. A list or pipeline of
+    readers (``grep -n x hygiene.py | head``, ``gh pr diff 5 | grep hygiene.py``,
+    ``sed -n '1,40p' <engine>``, ``gh pr comment 5 --body-file - <<'EOF'``)
+    names the engine only to read it, so the gate defers whatever path it
+    names, the bundled engine's own included (#9779). Each simple command must
+    pass ``_bash_without_string_data`` (the closed reader set) or
+    ``_sed_prints_lines``; one that does not, or a line ``_bash_list_segments``
+    cannot split, keeps the command classified as written.
+    """
+    segments = _bash_list_segments(command)
+    return bool(segments) and all(
+        _bash_without_string_data(segment) is not None or _sed_prints_lines(segment)
+        for segment in segments
+    )
+
+
+def _bash_list_segments(command: str) -> list[str] | None:
+    """The simple commands of ``command``, or None when the split is unknowable.
+
+    Splits at ``|``, ``||``, ``&&``, ``;`` and newlines outside quotes, and
+    drops the body of each quoted-delimiter here-document as data. A lone
+    ``&`` or ``|&`` stays inside its segment, where the reader check rejects
+    it. None for a backslash anywhere outside a body (it can hide a quote or a
+    separator), an unterminated quote, an unquoted here-document delimiter or
+    a here-string (bash expands inside both), and a body with no closing line.
+    """
+    segments: list[str] = []
+    current: list[str] = []
+    heredocs: list[tuple[str, bool]] = []
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char == "\\":
+            return None
+        if char in {"'", '"'}:
+            end = command.find(char, index + 1)
+            if end < 0 or "\\" in command[index:end]:
+                return None
+            current.append(command[index : end + 1])
+            index = end + 1
+            continue
+        if command.startswith("<<", index):
+            match = _BASH_QUOTED_HEREDOC.match(command, index)
+            if match is None:
+                return None
+            heredocs.append((match.group(2), match.group().startswith("<<-")))
+            index = match.end()
+            continue
+        if char == "\n":
+            segments.append("".join(current))
+            current = []
+            index += 1
+            for delimiter, strip_tabs in heredocs:
+                index = _heredoc_body_end(command, index, delimiter, strip_tabs)
+                if index < 0:
+                    return None
+            heredocs = []
+            continue
+        if char in {";", "|"} or command.startswith("&&", index):
+            segments.append("".join(current))
+            current = []
+            index += 2 if command.startswith(("&&", "||"), index) else 1
+            continue
+        current.append(char)
+        index += 1
+    if heredocs:
+        return None
+    segments.append("".join(current))
+    return [segment for segment in segments if segment.strip()]
+
+
+def _heredoc_body_end(
+    command: str, index: int, delimiter: str, strip_tabs: bool
+) -> int:
+    """The index just past the line closing a body that starts at ``index``.
+
+    -1 when no line equals ``delimiter`` (leading tabs stripped for ``<<-``).
+    """
+    while True:
+        newline = command.find("\n", index)
+        end = len(command) if newline < 0 else newline
+        line = command[index:end]
+        if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+            return end if newline < 0 else end + 1
+        if newline < 0:
+            return -1
+        index = newline + 1
+
+
+def _sed_prints_lines(segment: str) -> bool:
+    """Whether ``segment`` is ``sed`` printing line ranges of the files it names.
+
+    ``sed -n '10,40p' <file>`` reads. A script holding any other command, or an
+    option outside ``-n``, ``-E``, ``-r``, ``-s``, ``-u`` and ``-z`` (``-i``
+    edits in place), is not this shape. GNU sed also reads an option placed
+    after an operand, so no operand may start with ``-``.
+    """
+    words = _literal_shell_words(segment.strip())
+    if not words or words[0] != "sed":
+        return False
+    rest = words[1:]
+    while rest and rest[0].startswith("-"):
+        if _SED_PRINT_OPTIONS.fullmatch(rest[0]) is None:
+            return False
+        rest = rest[1:]
+    return (
+        len(rest) >= 2
+        and _SED_LINE_RANGE_PRINT.fullmatch(rest[0]) is not None
+        and not any(word.startswith("-") for word in rest[1:])
+    )
 
 
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
@@ -979,20 +1112,22 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     executor list does not name that runs a string naming the engine
     (``ssh host './hygiene.py scan'``) reads as data.
 
-    On Bash the same holds for ONE simple reader command only
-    (``_bash_without_string_data``): ``cat``, ``head``, ``tail``, ``wc``,
-    ``grep``, ``rg`` without ``--pre``, ``git show``/``log``/``diff``/``grep``
-    without ``-c`` or ``-O``/``--open-files-in-pager``, and ``gh issue``/``pr``,
-    with no unquoted operator, and only single-quoted and ``$``/backtick-free
-    double-quoted literals blanked. So ``gh issue create --title '... hygiene.py
-    ...'`` defers. A pipeline of readers, ``awk`` and ``sed`` (a quoted program
-    can run code) stay classified as written, and identity is again checked
-    before blanking. Accepted residual: the gate reads ``gh`` by its first two
-    words, so a ``gh`` alias that runs a shell command (``gh alias set --shell``
-    or a ``!`` expansion) is not modeled; the allowlist names only ``issue``
-    and ``pr``.
+    On Bash a command whose every simple command reads defers before any of
+    the rules above run (``_bash_reads_only``, #9779): a list or pipeline of
+    ``cat``, ``head``, ``tail``, ``wc``, ``grep``, ``rg`` without ``--pre``,
+    ``git show``/``log``/``diff``/``grep`` without ``-c``,
+    ``-O``/``--open-files-in-pager`` or ``--output``, ``gh issue``/``pr``, and ``sed`` printing
+    line ranges, with each quoted-delimiter here-document body read as data.
+    A reader never runs the file it names, so the engine's own path, absolute
+    or resolving from the working directory, is a mention there too. Within
+    each command only single-quoted and ``$``/backtick-free double-quoted
+    literals are data. ``awk`` and any other ``sed`` script (a quoted program
+    can run code) stay classified as written. Accepted residual: the gate
+    reads ``gh`` by its first two words, so a ``gh`` alias that runs a shell
+    command (``gh alias set --shell`` or a ``!`` expansion) is not modeled;
+    the allowlist names only ``issue`` and ``pr``.
 
-    On both shells, the identity check before blanking reads every word, not
+    On PowerShell, the identity check before blanking reads every word, not
     only those carrying the marker, so a quoted link to the engine under any
     name (``gh issue create --title x 'alias'``) still gates.
 
@@ -1060,12 +1195,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         )
 
     allow_backslash = tool_name == "PowerShell"
-    data_free = (
-        _powershell_without_string_data(command)
-        if allow_backslash
-        else _bash_without_string_data(command)
-    )
-    if data_free is not None and (allow_backslash or data_free != command):
+    if not allow_backslash and _bash_reads_only(command):
+        return False
+    data_free = _powershell_without_string_data(command) if allow_backslash else None
+    if data_free is not None:
         # Identity is read on the command AS WRITTEN, before any literal is
         # blanked: a word naming one of this plugin's engines gates even when
         # it sits in string data.
