@@ -189,7 +189,9 @@ The bullets below are the steps.
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
   --tests` when the repository ships it, otherwise §1.5's ecosystem-native commands. That part
-  runs inside the record command below, so the result comes from its exit status.
+  runs inside the record command below, so the result comes from its exit status. When CI's test
+  lanes already passed on the head, the suites are skipped as a built-in condition (**CI's test
+  lanes**, below); `ready --verify-local` runs them anyway.
 
 **Commit, then record the verify result.** Both run in every repository and every run, whatever
 `pre_ready` or `--skip` says; neither is a step either can name. First commit whatever the reviews
@@ -207,6 +209,24 @@ commit (another branch of that name, such as a fork's `main` beside this reposit
 exits 2 and each record command below records nothing, so 2.5.4 refuses the flip: check the PR out
 with the forge's PR checkout and run the gate again.
 
+**CI's test lanes.** After the commit and before the gate, read the venue's `tests` line for the
+PR worktree's HEAD ([review-venue.md](review-venue.md)), unless the run was invoked as
+`ready --verify-local`:
+
+```bash
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+```
+
+When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
+the gate's deterministic last part and run locally only the parts of §1.5 the repository's CI does
+not run; record `fail` when one of those fails, otherwise record `skipped` with the second command
+below. Report the verify line as `skipped (CI covers it)` with the venue line's detail, and name
+the suites skipped: the list `scripts/affected-tests.sh` prints with no arguments, run from
+`$PR_TREE`, when the repository ships it, otherwise the test-lane names the venue line gives. When
+the line reads `local`, the venue cannot be read, or the run passed `--verify-local`, the gate runs
+in full as below. A draft's head always reads `local`: a draft skips the test lanes, so its first
+flip runs the suites here. `ci-status` gates the merge either way.
+
 - `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
   shell command, so `pass` is never typed by hand. The gate runs the PR worktree's own
   `scripts/check-affected.sh` with `CHECK_DATA_ROOT` naming that tree, so the tree checked never
@@ -221,8 +241,9 @@ with the forge's PR checkout and run the gate again.
   part of §1.5 already failed, record `fail` directly, with the next bullet's command and
   `--result fail`. A recorded `fail` stops the flip.
 - `verify` did not run: record `skipped` with the command below when the `parse-ready-skip.sh`
-  output has a `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line.
-  The report still names the skip or the disabling (2.5.6).
+  output has a `skip verify` line, the `read-pre-ready.sh` output has a `verify disabled` line, or
+  the venue's `tests` line read `ci` (above). The report still names the skip, the disabling or the
+  CI coverage (2.5.6).
 
   ```bash
   PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail
@@ -319,7 +340,8 @@ Report one line per step, in the order they ran, each with exactly one outcome:
   lane and the venue line that sent it here; the verify gate's result with the head it ran on;
 - **skipped**, naming the built-in condition (a docs-only diff, the CI lane covers it with the
   venue line's detail, no plan or no evidence-asking `Review:` value, already out of draft for the
-  flip);
+  flip); for `verify` the CI test lanes' skip reads `skipped (CI covers it)` and names the
+  skipped suites;
 - **skipped by `<login>` for this run: `<reason>`**, for a step `--skip` removed;
 - **disabled by `pre_ready` at `<base-branch>`**, for a step the list turned off. A disabled or skipped step
   is never reported as passing.
