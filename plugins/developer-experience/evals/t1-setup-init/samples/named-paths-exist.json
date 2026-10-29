@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n- `scripts/clean-outbox.sh`: empties `.tarnquill/outbox/`.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/ProcessRunner.cs` runs a child process.\n",
+      "why": "every backticked path is a fixture file"
+    },
+    {
+      "answer": "- Build with `dotnet build Tarnquill.sln` or `./scripts/build.sh`; checks live in `tests/Tarnquill.Core.Checks/Program.cs`. See `docs/conventions/developer-experience.md` and `Tarnquill.sln`.\n",
+      "why": "a command span that is not a bare path, a ./ prefix, and files setup writes"
+    },
+    {
+      "answer": "- `tq item comment <id> --body <text>` writes `.tarnquill/outbox/<id>.json`.\n- `src/Tarnquill.Cli/Infrastructure/` holds the process helper.\n",
+      "why": "a placeholder path and a directory, neither one a checked file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Platforms\n<!-- developer-experience: source=chosen -->\n- On Windows, run `pwsh scripts/build.ps1`, then `scripts/check.ps1`.\n",
+      "why": "names a missing scripts/check.ps1"
+    },
+    {
+      "answer": "- `make check` runs the checks; `scripts/run-checks.sh` wraps it for CI.\n",
+      "why": "names a missing scripts/run-checks.sh"
+    },
+    {
+      "answer": "- `scripts/clean-outbox.ps1` empties the outbox on Windows.\n",
+      "why": "near miss: the Windows twin of a real script"
+    },
+    {
+      "answer": "- New commands go in `src/Tarnquill.Cli/Commands/BranchCommand.cs`.\n",
+      "why": "near miss: a source file beside real ones"
+    }
+  ]
+}

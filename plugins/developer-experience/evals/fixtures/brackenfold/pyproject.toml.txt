@@ -1,0 +1,9 @@
+[project]
+name = "bfk"
+version = "0.4.0"
+description = "Account tooling for the brackenfold team"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+bfk = "bfk.cli:main"

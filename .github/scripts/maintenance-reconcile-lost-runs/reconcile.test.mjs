@@ -20,6 +20,7 @@ import { test } from "node:test";
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, WRITE_STEP } from "./reconcile.mjs";
+import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -1518,9 +1519,13 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = /- name: Fail a lanes App pull request its body or a member holds\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   assert.match(step, /LANES_DISABLED: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}/);
-  const fail = step.split("\n").findIndex((line) => line.includes(`echo "::error::#$pr: ${KILL_SWITCH_NOTE} (`));
+  // The step prints merge-holds.mjs switchHold's reason as its error.
+  assert.match(step, /const \{ switchHold \} = await import\(/);
+  const fail = step.split("\n").findIndex((line) => line.includes('echo "::error::${reason//%/%25}"'));
   assert.ok(fail > 0, "the kill-switch error line is in the step");
   assert.match(step.split("\n")[fail + 1], /^[ ]+exit 1$/);
+  const lanes = { number: 1, user: { type: "Bot", id: 7 } };
+  assert.ok(switchHold(lanes, { appId: "7", disabled: "true", repoDisabled: "false" }).startsWith(`#1: ${KILL_SWITCH_NOTE} (`));
 });
 
 // Any PR whose newest pr-require-checks run failed only in ci-status, on its

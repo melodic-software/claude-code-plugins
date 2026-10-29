@@ -250,10 +250,12 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
 # The base commit's config, as the base_config checkout holds it: this tree's
-# pr-pipeline.yaml and trusted-actor list. STUB_BASE_CONFIG replaces its path.
-mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+# pr-pipeline.yaml, trusted-actor list and merge-holds.mjs, whose switchHold
+# judges the kill switch. STUB_BASE_CONFIG replaces its path.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/base-config/.github/scripts/pr-merge"
 cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
 cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
+cp "$MODULE" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -312,6 +314,23 @@ for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
   STUB_PULL="$(pull 'Closes #1')"
   unset KILL REPO_KILL
 done
+# The switch holds before the base-branch exit, so one into another branch fails too.
+STUB_PULL="$(STUB_BASE_REF=release pull 'Closes #1')"
+KILL=true expect "with the kill switch on, a lanes App pull request into another branch fails" 1 0 \
+  "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
+EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE KILL=true \
+  expect "with the kill switch on, a queued lanes App pull request fails" 1 0 "::error::#7: the lanes kill switch is on"
+# The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
+# judge it fails closed before any further read.
+STUB_PULL="$(pull 'Closes #1')"
+held_module="$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
+for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
+  'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
+  if [[ -z "$stub" ]]; then rm -f "$held_module"; else printf '%s\n' "$stub" >"$held_module"; fi
+  expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
+    "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #7; re-run this run."
+done
+cp "$MODULE" "$held_module"
 # shellcheck disable=SC2016 # a literal workflow expression, not shell
 if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
   grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then

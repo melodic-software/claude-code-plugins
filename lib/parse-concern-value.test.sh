@@ -72,10 +72,9 @@ assert_eq 'a nested key never answers for an absent root key' ".notes" \
   "$(resolve "$(printf 'other:\n  memory_dir: nested\n')" memory_dir '.notes')"
 assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
   "$(resolve "$(printf '  other:\n    memory_dir: nested\n  other_key: docs/x')" memory_dir '.notes')"
-# No preamble at column 0 may fix the base indent and hide an indented root map.
-assert_eq 'a YAML directive does not become the base indent' ".scratch" \
-  "$(resolve "$(printf -- '%%YAML 1.2\n  memory_dir: .scratch')")"
-# A document marker is outside the subset: the file reads as unset.
+# Directives and document markers are outside the subset: the file reads as unset.
+assert_eq 'a YAML directive is a parse error, so it reads as unset' ".notes" \
+  "$(resolve "$(printf -- '%%YAML 1.2\n  memory_dir: .scratch')" memory_dir .notes 2>/dev/null)"
 assert_eq 'a leading document marker is a parse error, so it reads as unset' ".notes" \
   "$(resolve "$(printf -- '---\nmemory_dir: .scratch')" memory_dir .notes 2>/dev/null)"
 assert_eq 'a decorated document marker is a parse error, so it reads as unset' ".notes" \
@@ -202,7 +201,7 @@ printf 'merge:\n  rung: C1\n  rung: C2\n' >"$TEST_TMPDIR/dup.yaml"
 rc=0
 out=$(bash "$SCRIPT" "$TEST_TMPDIR/dup.yaml" merge.rung .fb 2>/dev/null) || rc=$?
 assert_exit 'duplicate key: default mode exits 0' 0 "$rc"
-assert_eq 'duplicate key: default mode keeps the first value' "C1" "$out"
+assert_eq 'duplicate key: default mode takes the fallback' ".fb" "$out"
 rc=0
 out=$(bash "$SCRIPT" --strict "$TEST_TMPDIR/dup.yaml" merge.rung .fb 2>"$TEST_TMPDIR/err") || rc=$?
 assert_exit 'duplicate key: --strict exits 3' 3 "$rc"

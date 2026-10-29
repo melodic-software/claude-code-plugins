@@ -861,7 +861,8 @@
 
 /* ---------- rich, clamped text ---------- */
 .app .vf-rich { overflow-wrap: anywhere; }
-.app .vf-rich > :is(p, ul, ol) + :is(p, ul, ol) { margin-block-start: 0.6em; }
+.app .vf-rich > :is(p, ul, ol, blockquote) + :is(p, ul, ol, blockquote), .app .vf-rich blockquote > p + p { margin-block-start: 0.6em; }
+.app .vf-rich blockquote { margin: 0; padding-inline-start: 0.75em; border-inline-start: 3px solid color-mix(in oklch, currentColor 25%, transparent); }
 .app .vf-rich :is(.vf-ul, .vf-ol) { padding-inline-start: 1.25em; }
 .app .vf-rich .vf-ul { list-style: disc; }
 .app .vf-rich .vf-ol { list-style: decimal; }

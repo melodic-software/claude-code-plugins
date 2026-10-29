@@ -1096,6 +1096,31 @@ else
   fail "python ambiguous import, tests/ child (rc=$RC): $OUT"
 fi
 
+# An import never resolves across plugins: `from m import (serve,)` imports a
+# function, and `import serve` in another plugin names another module, so
+# neither reaches the only serve.py of the tree.
+mkdir -p "$repo/plugins/alpha/fixtures" "$repo/plugins/beta/surface"
+printf 'def main():\n    return 1\n' >"$repo/plugins/alpha/fixtures/serve.py"
+printf 'from bridge_x import (\n    serve,\n)\n' >"$repo/plugins/beta/surface/test_server.py"
+printf 'import serve\n' >"$repo/plugins/beta/test_plain.py"
+run_sel "$repo" --allow-unmapped plugins/alpha/fixtures/serve.py
+if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
+  ok "R3: an imported name selects nothing through a same-named module in another plugin"
+else
+  fail "python import across plugins (rc=$RC): $OUT"
+fi
+# Inside its plugin, an imported name names a module only in the package it is
+# imported from.
+printf 'from helpers import serve\n' >"$repo/plugins/alpha/test_not_pkg.py"
+printf 'from fixtures import serve\n' >"$repo/plugins/alpha/test_pkg.py"
+run_sel "$repo" plugins/alpha/fixtures/serve.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/test_pkg.py && ! has_line "$OUT" plugins/alpha/test_not_pkg.py &&
+  ! has_line "$OUT" plugins/beta/surface/test_server.py; then
+  ok "R3: an imported name names a module only in the package it is imported from"
+else
+  fail "python imported name outside its package (rc=$RC): $OUT"
+fi
+
 # --- R2: conftest.py and __init__.py reach the test modules below them -----
 mkdir -p "$repo/eco/cf/sub" "$repo/eco/pk/tests"
 printf 'import pytest\n' >"$repo/eco/cf/conftest.py"

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "brackenfold-bare: none\nbrackenfold-conventions-only: none\nbrackenfold-converged: docs/conventions/developer-experience.md\ntarnquill-bare: none\ntarnquill-conventions-only: none\ntarnquill-converged: docs/conventions/developer-experience.md\ntarnquill-legacy: .claude/developer-experience.md",
+      "why": "the expected reply"
+    },
+    {
+      "answer": "`tarnquill-bare`: `none`\n`tarnquill-conventions-only`: `none`\n`brackenfold-bare`: `none`\n`brackenfold-conventions-only`: `none`",
+      "why": "code spans"
+    },
+    {
+      "answer": "tarnquill-bare: None\ntarnquill-conventions-only: None\nbrackenfold-bare: None\nbrackenfold-conventions-only: None",
+      "why": "capitalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "tarnquill-bare: none\ntarnquill-conventions-only: docs/conventions/developer-experience.md\nbrackenfold-bare: none\nbrackenfold-conventions-only: none",
+      "why": "near miss: a conventions-only copy carries a pointer line"
+    },
+    {
+      "answer": "tarnquill-bare: none\ntarnquill-conventions-only: none\nbrackenfold-bare: none",
+      "why": "near miss: one directory missing"
+    },
+    {
+      "answer": "The tarnquill CLI is called tq and brackenfold's is bfk.",
+      "why": "answer to a different question"
+    }
+  ]
+}
