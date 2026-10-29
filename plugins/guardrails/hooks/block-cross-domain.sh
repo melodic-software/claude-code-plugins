@@ -373,18 +373,19 @@ bcd::add_root() {
 # folded, a leading home spelling read as BCD_HOME_FOLD, and on Windows an MSYS
 # drive (`/c/x`) read as `c:/x`.
 bcd::id_norm_to() {
-  local __bcd_t __bcd_p
-  bcd::fold_to __bcd_t "$2"
-  for __bcd_p in "${BCD_HOME_SPELLINGS[@]}"; do
-    if [[ "$__bcd_t" == "$__bcd_p" || "$__bcd_t" == "$__bcd_p"/* ]]; then
-      __bcd_t="$BCD_HOME_FOLD${__bcd_t#"$__bcd_p"}"
+  # Not __bcd_t: bcd::fold_to's own local of that name would take its result.
+  local __bcd_i __bcd_h
+  bcd::fold_to __bcd_i "$2"
+  for __bcd_h in "${BCD_HOME_SPELLINGS[@]}"; do
+    if [[ "$__bcd_i" == "$__bcd_h" || "$__bcd_i" == "$__bcd_h"/* ]]; then
+      __bcd_i="$BCD_HOME_FOLD${__bcd_i#"$__bcd_h"}"
       break
     fi
   done
-  if [[ "$BCD_OS" == windows && "$__bcd_t" =~ ^/([a-z])(/.*)?$ ]]; then
-    __bcd_t="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
+  if [[ "$BCD_OS" == windows && "$__bcd_i" =~ ^/([a-z])(/.*)?$ ]]; then
+    __bcd_i="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
   fi
-  printf -v "$1" '%s' "$__bcd_t"
+  printf -v "$1" '%s' "$__bcd_i"
 }
 
 # bcd::add_identity_glob <glob as the map spells it>: the glob, and the name the
