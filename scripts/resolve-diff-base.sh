@@ -36,8 +36,11 @@ merge_group)
   [[ "$base" =~ ^[0-9a-f]{40}$ ]] || whole "The merge group carries no base SHA"
   git merge-base --is-ancestor "$base" HEAD 2>/dev/null ||
     whole "The merge group's base ${base:0:9} is not an ancestor of HEAD in this clone"
-  manifest=$(git diff --name-only "$base" HEAD -- \
-    .claude-plugin/marketplace.json 'plugins/*/.claude-plugin/plugin.json' | head -n 1)
+  # --no-renames reads no blobs; a failed diff tests the whole tree.
+  manifests=$(git diff --no-renames --name-only "$base" HEAD -- \
+    .claude-plugin/marketplace.json 'plugins/*/.claude-plugin/plugin.json') ||
+    whole "The manifest diff from ${base:0:9} failed"
+  manifest=${manifests%%$'\n'*}
   [[ -z "$manifest" ]] ||
     whole "The merge group changes $manifest, as a release does"
   echo "::notice::Diff base: ${base:0:9}, the merge group's base."
