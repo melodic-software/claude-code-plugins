@@ -3,7 +3,7 @@
 # ui_*.js beside it is in exactly one part that has its ui-<part>.test.sh. It runs here against copies of
 # ui-run.sh and ui-a.test.sh in a throwaway folder holding stub suites, the first printing the skip line a
 # browser-less machine produces, and the part check also runs on the live ui-parts.txt.
-# test-scope: plugins/planning/shared/tests/ui-parts.txt plugins/planning/shared/tests/ui-*.test.sh
+# test-scope: plugins/planning/shared/tests/ui-run.sh plugins/planning/shared/tests/ui-parts.txt plugins/planning/shared/tests/ui-*.test.sh
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 tmp=$(mktemp -d)
