@@ -1560,6 +1560,27 @@ describe("host-run work", () => {
     }
   });
 
+  // host-run starts an unattended host run, so it goes only on an issue whose
+  // one obstacle is that no item is left for the lane.
+  test("host work with another refusal, a wait or a pending split parks at status: confirmed with no host-run", async () => {
+    const issue = hostRun(HOST_ONLY);
+    for (const [why, overrides] of [
+      ["Uncertainty unknown", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+      ["a duplicate label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) }],
+      ["an attended label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "attended" }]) }],
+      ["an open pull request", { pulls: [5] }],
+      ["a pending size split", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }],
+    ]) {
+      const result = decide(facts({ issue, ...overrides }));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, undefined, why);
+      assert.equal(result.hostRun, undefined, why);
+    }
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
+  });
+
   test("a hold for a person adds no host-run, so no unattended host run acts on held text", async () => {
     const trusted = decide(facts({ issue: hostRun(HOST_ONLY) }));
     assert.equal(trusted.hostRun, true);

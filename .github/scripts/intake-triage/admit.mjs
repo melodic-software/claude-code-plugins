@@ -57,8 +57,9 @@
 //   or a page on a host outside resolve-issue's web-access domains. When some
 //   items are left for the lane and the issue lacks `host-run`, the refusal
 //   holds at needs-decision and recommends splitting those items off, which
-//   refine.mjs records; otherwise it parks at status: confirmed and adds
-//   `host-run`, the host queue's label, when no hold for a person applies;
+//   refine.mjs records; otherwise it parks at status: confirmed, adding
+//   `host-run`, the host queue's label, when no item is left for the lane and
+//   nothing else refuses, waits or holds;
 // - not already done: no pull request merged in this repository names the
 //   issue on a `Refs:` line (refsNames) after its newest decision or
 //   refinement comment, or since it opened when it has neither
@@ -805,9 +806,9 @@ export function admissionSettled(labels, events, isMark) {
 // a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
 // person out of every other refusal), or, on an issue without `host-run`,
 // done-when items a lane run cannot perform beside items it can, which refine
-// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` on a
-// refusal with no hold asks admit() to add `host-run`: no item is left for
-// the lane.
+// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
+// admit() to add `host-run` on a refusal whose only reason is that no item is
+// left for the lane, with no wait or pending split.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
@@ -968,13 +969,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    // A hold for a person adds no host-run: a host run would act on held text.
+    // host-run starts an unattended host run, so it goes only on an issue
+    // whose one obstacle is that no item is left for the lane: never beside a
+    // hold for a person, another refusal, a wait or a pending split.
     return {
       verdict: "refuse",
       reasons: [...refuse, ...parked],
       ...(hold && { hold }),
       ...(attended && { attended }),
-      ...(hostRun && !hold && { hostRun }),
+      ...(hostRun && refuse.length === 1 && wait.length === 0 && parked.length === 0 && { hostRun }),
       ...(doneBy.length > 0 && { done: doneBy }),
     };
   }
