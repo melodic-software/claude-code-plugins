@@ -273,15 +273,10 @@ Read in this order. Stopping early at any step is the finding.
 1. Run the validity gate before reading any number:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used>
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded only if the eval ran with --scaffold]
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. Add `--scaffolded` only
-   when the eval ran with `--scaffold`, since no documented result field records it. Without it the
-   `scaffold` check fails every case whose `case.yaml` sets `context.scaffold_script`, because both
-   arms of that case ran in an empty workspace; a `case.yaml` or case directory it cannot read, or a
-   result with no `suite.root` or case `dir` to find it by, leaves the check unchecked and the run
-   INVALID. Without the traces
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. Without the traces
    `--keep-temp` kept it reports the trace checks unchecked and the run INVALID. Report a score,
    delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
    `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
@@ -494,8 +489,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
-| `--scaffold` for a case with a `scaffold_script`, and the zero delta without it | <https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml>; the `--scaffold` row of <https://code.claude.com/docs/en/plugin-evals#command-options>; two discarded passes on Claude Code 2.1.309 and 2.1.310 (issue #9414) | 2026-10-27 | That section changes when a `scaffold_script` runs, or a release note touches `--scaffold` |
-| No documented result field records `--scaffold`, so the gate takes `--scaffolded` | <https://code.claude.com/docs/en/plugin-evals#json-result> | 2026-10-29 | That section lists a field recording `--scaffold`; then read it in place of the flag |
+| `--scaffold` for a case with a `scaffold_script`, the zero delta without it, and the gate's `--scaffolded` because no documented result field records `--scaffold` | <https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml>; the `--scaffold` row of <https://code.claude.com/docs/en/plugin-evals#command-options>; two discarded passes on Claude Code 2.1.309 and 2.1.310 (issue #9414); <https://code.claude.com/docs/en/plugin-evals#json-result> | 2026-10-27 (JSON result: 2026-10-29) | That section changes when a `scaffold_script` runs, a release note touches `--scaffold`, or the JSON result section lists a field recording `--scaffold` (then read it in place of the flag) |
 | Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
 | Cost anchors (list-price estimates, this plugin's read-only suite, Claude Code 2.1.287 and 2.1.296) | [records.md, Cost anchors](reference/records.md#cost-anchors) | 2026-10-11 | A release note touches `plugin eval`, the served model changes, or a pass averages more than 0.2 USD per run |
 | Spoke reach | <https://code.claude.com/docs/en/plugin-evals#grant-tools>; kept traces in [records.md](reference/records.md#spoke-reach) | 2026-10-04 | A release note touches `plugin eval` or sandbox permissions, or a kept trace on 2.1.289 or later shows a spoke `Read` denied |

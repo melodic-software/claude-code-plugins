@@ -16,7 +16,11 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 ## Read order
 
 1. `scripts/run-validity.py <json> --runs <n>`, plus `--scaffolded` when the eval ran with
-   `--scaffold`. Only `verdict: VALID` lets a number be reported;
+   `--scaffold`, since no documented result field records it. Without it the `scaffold` check
+   fails every case whose `case.yaml` sets `context.scaffold_script`, because both arms of that
+   case ran in an empty workspace; a `case.yaml` or case directory it cannot read, or a result with
+   no `suite.root` or case `dir` to find it by, leaves the check unchecked and the run INVALID.
+   Only `verdict: VALID` lets a number be reported;
    on `verdict: INVALID`, report INVALID and its reasons. The command and its exits are in
    [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta).
 2. `partial`. When `true`, `partialReason` is `cost_ceiling`, `interrupted`, or `auth_failed`. The
