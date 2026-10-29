@@ -231,8 +231,8 @@ test("a PR whose sibling FAIL run cannot be read gets no round this run and is r
   assert.equal(reads, 2);
 });
 
-// Threads PRRT_kwDOTCGFQM6xto7G and PRRT_kwDOTCGFQM6xvQHR: a verifier PASS at a
-// new head clears no cap, so the pass-only dispatch starts no round either.
+// A verifier PASS at a new head clears no cap, so the pass-only dispatch
+// starts no round either.
 test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
   const api = fakeApi();
   const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, verifyCapped: () => "verify:repeated-fail: fails at 3 heads, the cap is 3" });
