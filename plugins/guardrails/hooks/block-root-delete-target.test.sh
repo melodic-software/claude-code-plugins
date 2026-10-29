@@ -1910,6 +1910,127 @@ expect 'protected: attended, a .git delete asks' 0 "${RDT_CWD[@]}" --command 'rm
 assert_eq 'protected: attended, the decision is ask' ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
+# --- 2f. find deletes (#9752) -------------------------------------------------
+# A find whose expression deletes (-delete, or an -exec, -execdir, -ok or
+# -okdir whose command word is rm, rmdir or unlink) has each start point judged
+# as an operand of a recursive rm. Every form runs against a root, HOME, a path
+# outside the allowed roots and a path strictly inside the tree.
+RDT_FIND_FORMS=(
+  'find TGT -delete'
+  "find -L TGT -name '*.o' -type f -delete"
+  'find TGT -type d -name build -exec rm -rf {} +'
+  'find TGT -execdir rm -f {} \;'
+  "find TGT -ok /bin/rm {} ';'"
+  'find TGT -okdir unlink {} \;'
+  'find TGT -depth -type d -empty -exec rmdir {} +'
+)
+rdt_find() { # <label> <want> <start point> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_FIND_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "find: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_find 'a root blocks' 2 /
+rdt_find 'HOME blocks' 2 '$HOME'
+rdt_find 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_find 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'find: find ~ -delete blocks' 2 --command 'find ~ -delete'
+expect_both 'find: a path under HOME blocks with a cwd' 2 "${RDT_CWD[@]}" --command 'find ~/Documents/x -delete'
+expect_both 'find: a path under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'find /tmp/rdt-x -delete'
+expect_both 'find: /tmp itself blocks' 2 "${RDT_CWD[@]}" --command 'find /tmp -name rdt-x -delete'
+expect_both 'find: a path under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "find '$RDT_SPT/x' -exec rm -rf {} +" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'find: the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "find '$RDT_SPT' -name x -delete" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'find: unset key, a start point under the root blocks' 2 "find '$RDT_AR/child' -delete"
+rdt_ar 'find: a start point under the root allowed' 0 "find '$RDT_AR/child' -delete" "$RDT_AR"
+rdt_ar 'find: -exec rm under the root allowed' 0 "find '$RDT_AR/child' -name x -exec rm -rf {} +" "$RDT_AR"
+rdt_ar 'find: the root itself blocks' 2 "find '$RDT_AR' -name x -delete" "$RDT_AR"
+rdt_ar 'find: a start point outside the root blocks' 2 "find '$RDT_AO/x' -delete" "$RDT_AR"
+
+# find descends into .git, so a find delete started at the toplevel is refused
+# as a directory holding a .git whatever its filters; one started below passes.
+expect_both 'find: . from the toplevel blocks' 2 "${RDT_CWD[@]}" --command "find . -name '*.pyc' -delete"
+expect_both 'find: no start point from the toplevel is . and blocks' 2 "${RDT_CWD[@]}" \
+  --command "find -name '*.pyc' -delete"
+expect_both 'find: no start point from a subdirectory allowed' 0 --cwd "$RDT_TOP/plugins" \
+  --command "find -name '*.pyc' -delete"
+expect_both 'find: a .git start point blocks' 2 "${RDT_CWD[@]}" --command 'find .git -name x -exec rm {} +'
+# GNU reads a first primary spelled -f... as the expression, so `.` is judged
+# though BSD reads it as -f and a start point.
+expect_both 'find: -fstype first still judges . from the toplevel' 2 "${RDT_CWD[@]}" \
+  --command 'find -fstype ext4 -delete'
+# With -files0-from GNU reads the start points from a file (a declared gap),
+# so its reading adds no `.`; the BSD reading's names lie inside the tree.
+expect_both 'find: -files0-from judges no . from the toplevel' 0 "${RDT_CWD[@]}" \
+  --command 'find -files0-from list -delete'
+# Under -H, -L or -follow find follows a start point that is a symlink, so it
+# is judged by where it points; without them the link itself is the target.
+if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$TEST_TMPDIR/rdt-find-link" 2>/dev/null &&
+  [[ -L "$TEST_TMPDIR/rdt-find-link" ]]; then
+  expect_both 'find: a link start point under temp, not followed, allowed' 0 "${RDT_CWD[@]}" \
+    --command "find '$TEST_TMPDIR/rdt-find-link' -delete"
+  expect_both 'find: -H follows a link start point outside, blocks' 2 "${RDT_CWD[@]}" \
+    --command "find -H '$TEST_TMPDIR/rdt-find-link' -exec rm -rf {} +"
+  expect_both 'find: -L follows it, blocks' 2 "${RDT_CWD[@]}" \
+    --command "find -L '$TEST_TMPDIR/rdt-find-link' -delete"
+  expect_both 'find: -follow follows it, blocks' 2 "${RDT_CWD[@]}" \
+    --command "find '$TEST_TMPDIR/rdt-find-link' -follow -delete"
+  # From a subdirectory, so the `.` the GNU reading adds is allowed.
+  expect_both 'find: a BSD -xL cluster follows it, blocks' 2 --cwd "$RDT_TOP/plugins" \
+    --command "find -xL '$TEST_TMPDIR/rdt-find-link' -delete"
+  expect_both 'find: a BSD -x cluster does not follow it, allowed' 0 --cwd "$RDT_TOP/plugins" \
+    --command "find -x '$TEST_TMPDIR/rdt-find-link' -delete"
+  rm -f "$TEST_TMPDIR/rdt-find-link"
+else
+  rdt_skip "ln -s makes no real symlink on this host (6 cases)"
+fi
+
+# Leading options of either reading, a later start point, an action before
+# -delete, and a find reached through a launcher, a child shell or a
+# substitution.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "find: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+find -H -P / -delete
+find -D tree / -delete
+find -O3 / -delete
+find -- / -delete
+find -x / -delete
+find -dx -f / -name x -delete
+find -sf/ -delete
+find build / -delete
+find / -exec echo {} \; -delete
+/usr/bin/find / -delete
+sudo find / -delete
+bash -c 'find / -exec rm -rf {} +'
+echo "$(find / -delete)"
+EOF
+
+# A find that does not delete, a deleter's name that is not an action's command
+# word, a -delete inside an action's command, and the mechanism as quoted prose.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "find: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "find: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+find / -name rm -type f
+find / -exec grep -l rm {} +
+find / -exec echo -delete {} +
+git commit -m "find / -delete"
+git commit -m "find / -exec rm -rf {} +"
+echo 'find ~ -okdir unlink {} \;'
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command 'find /opt/nonexistent-rdt/x -delete'
+assert_exit 'find: outside the tree exits 2' 2 "$GUARD_RC"
+assert_contains 'find: the refusal names the start point' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+guard_invoke "${RDT_CWD[@]}" --command "find . -name '*.pyc' -delete"
+assert_contains 'find: the toplevel refusal names the .git it holds' "$GUARD_ERR" 'a directory holding a .git'
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
