@@ -1057,9 +1057,14 @@ bcd::writes() {
   cp | install | ln | rsync | scp | copy-item | cpi | copy)
     # The last operand, unless an option names the destination: `-t` for cp,
     # install and ln (rsync's `-t` is --times), and PowerShell's -Destination
-    # by any prefix it accepts, with a space or a colon.
+    # by any prefix it accepts, with a space or a colon. Only PowerShell's
+    # parameters are case-blind: `-T` of cp, install and ln is
+    # --no-target-directory.
     for ((k = i + 1; k < n; k++)); do
-      t=${w[k],,}
+      t=${w[k]}
+      case "$cmd" in
+      copy-item | cpi | copy) t=${t,,} ;;
+      esac
       case "$cmd:$t" in
       cp:-t | install:-t | ln:-t | cp:--target-directory | install:--target-directory | ln:--target-directory | \
         copy-item:-des* | cpi:-des* | copy:-des*)

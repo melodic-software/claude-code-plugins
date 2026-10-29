@@ -498,6 +498,8 @@ idw_each deny "touch a *.gitconfig file" 'touch ~/identities/work.gitconfig'
 idw_each deny "cp to ~/.gitconfig" 'cp /placeholder/template ~/.gitconfig'
 idw_each deny "cp -t naming a *.gitconfig destination" 'cp -t ~/.gitconfig.d/x.gitconfig /placeholder/template'
 idw_each deny "ln -sf onto ~/.gitconfig" 'ln -sf /placeholder/dotfiles/gitconfig ~/.gitconfig'
+idw_each deny "cp -T is --no-target-directory, the last operand is the destination" 'cp -T /placeholder/template ~/.gitconfig'
+idw_each deny "ln -T onto ~/.gitconfig" 'ln -T /placeholder/dotfiles/gitconfig ~/.gitconfig'
 idw_each deny "mv ~/.gitconfig away" 'mv ~/.gitconfig ~/.gitconfig.bak'
 idw_each deny "rm ~/.gitconfig" 'rm -f ~/.gitconfig'
 idw_each deny "sed -i on ~/.gitconfig" "sed -i 's/a/b/' ~/.gitconfig" # portability-ok: command text the guard reads, never run
@@ -529,6 +531,7 @@ idw_each allow "git -c user.email= sets no file" 'git -c user.email=dev@example.
 idw_each allow "the write in a commit message" 'git commit -m "git config --global user.email dev@example.invalid"'
 idw_each allow "cat ~/.gitconfig" 'cat ~/.gitconfig'
 idw_each allow "cp from ~/.gitconfig" 'cp ~/.gitconfig /placeholder/backup'
+idw_each allow "cp -T from ~/.gitconfig" 'cp -T ~/.gitconfig /placeholder/backup'
 idw_each allow "Copy-Item from ~/.gitconfig" 'Copy-Item -Path ~\.gitconfig -Destination C:\placeholder\kept' PowerShell
 idw_each allow "an echo of ~/.gitconfig" 'echo ~/.gitconfig'
 idw_each allow "sed without -i on ~/.gitconfig" "sed -n '1p' ~/.gitconfig" # portability-ok: command text the guard reads, never run
