@@ -223,10 +223,9 @@ assert_eq "missing-enabled: other repo's already-enabled project install exclude
 # Case: a marketplace-entry defaultEnabled:false install with no explicit
 # enabledPlugins entry is a deliberate publisher opt-in-required default, NOT
 # missing_from_enabled — auto-enabling it would override the publisher's
-# intent (per plugins-reference.md: the marketplace entry's defaultEnabled
-# takes precedence over plugin.json's, and "the user turns it on with
-# claude plugin enable" is the documented opt-in path, not sync auto-enabling
-# on their behalf)
+# intent (per the plugin manifest reference's defaultEnabled section: the
+# marketplace entry's defaultEnabled overrides plugin.json's, so turning the
+# plugin on is the user's opt-in, not sync auto-enabling on their behalf)
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
