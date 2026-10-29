@@ -107,10 +107,9 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         name = file.relative_to(ROOT).as_posix()
         if name in seen:
             continue
-        # A module that reads a whole directory (admit.mjs lists
-        # `../../workflows/`) stands for a file in it.
+        # A directory URL (admit.mjs lists `../../workflows/` for their
+        # names) loads no code; each gated workflow is floored by name.
         if file.is_dir():
-            seen.add(f"{name}/any.yml")
             continue
         seen.add(name)
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
