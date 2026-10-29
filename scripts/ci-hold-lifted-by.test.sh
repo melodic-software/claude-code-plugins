@@ -267,10 +267,10 @@ fi
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OTHER_SHA" "" 2026-10-23T11:10:00Z),$(cleared_for "$NEW_SHA")]"
 expect "the newest marker before the removal is the one judged" 0 "its marker names $NEW_SHA,"
 # A hold a person already lifted counts for nothing (thread PRRT_kwDOTCGFQM6xmJXy):
-# an old unparseable hold, its trusted lift, then the lane's new label and hold.
+# an old unparsable hold, its trusted lift, then the lane's new label and hold.
 STUB_COMMENTS="[$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review' 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_EVENTS="[$(unlabeled needs-human 2026-10-22T12:00:00Z 153232337 kyle-sexton),$(labeled needs-human 2026-10-23T09:59:00Z 'github-actions[bot]'),$BOT_LIFT]"
-expect "an unparseable hold a person lifted before the label went on again does not block the App's clear" 0 \
+expect "an unparsable hold a person lifted before the label went on again does not block the App's clear" 0 \
   "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
 STUB_COMMENTS="[$(held_at "$NEW_SHA" 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 expect "a lifted hold naming the head the App cleared does not block it" 0 \
