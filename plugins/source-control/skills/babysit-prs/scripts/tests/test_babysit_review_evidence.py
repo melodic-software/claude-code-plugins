@@ -409,6 +409,8 @@ class LaneSourceTests(Base):
             "plugins/foo/.gitattributes",
             "docs/standards/README.md",
             "docs/standards/simpler-code.md",
+            "docs/contracts/instruction-exception-register/README.md",
+            "docs/contracts/untrusted-content/README.md",
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             ".claude-lane/pr-context.md",

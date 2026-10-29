@@ -62,9 +62,10 @@ LANES: dict[str, tuple[str, str]] = {
 # workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
-# untrusted-content contract), the lane's input directory .claude-lane/ (the
-# code lane falls back to a context file there), and .gitattributes, which can
-# hide a hunk from the lane's `git diff`. The callers run every local action
+# untrusted-content contract, at docs/contracts/ and at the docs/conventions/
+# stubs installed plugin versions still read), the lane's input directory
+# .claude-lane/ (the code lane falls back to a context file there), and
+# .gitattributes, which can hide a hunk from the lane's `git diff`. The callers run every local action
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
@@ -76,6 +77,8 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
+    "docs/contracts/instruction-exception-register/",
+    "docs/contracts/untrusted-content/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
     ".claude-lane/",
