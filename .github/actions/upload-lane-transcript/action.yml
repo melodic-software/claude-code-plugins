@@ -1,0 +1,43 @@
+name: Upload lane transcript
+description: >
+  Gzip one lane leg's transcript (the launcher's execution file), seal it to
+  the transcript public key as one seal-lane-output record bound to the run id
+  and job-id, and upload only the sealed file as a 7-day artifact for the
+  transcript puller. An empty public key skips with a notice; a missing or
+  empty execution file uploads nothing; a malformed key or job-id fails the
+  step. Needs node 18 or later on PATH and ../seal-lane-output beside it.
+
+inputs:
+  execution-file:
+    description: The leg's execution file, the launcher's execution-file output; empty when no leg ran.
+    required: true
+  public-key:
+    description: "The LANE_TRANSCRIPT_PUBLIC_KEY repository variable: one line, `x25519 <key id> <base64 raw key>`."
+    required: true
+  job-id:
+    description: A fixed key for the leg, unique in the run, that the puller reads back from the artifact name.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Seal the transcript
+      id: seal
+      shell: bash
+      env:
+        EXECUTION_FILE: ${{ inputs.execution-file }}
+        PUBLIC_KEY: ${{ inputs.public-key }}
+        JOB_ID: ${{ inputs.job-id }}
+      run: node "$GITHUB_ACTION_PATH/seal-transcript.mjs"
+
+    - name: Upload the sealed transcript
+      if: steps.seal.outputs.file != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: lane-transcript-${{ inputs.job-id }}-${{ github.run_attempt }}
+        path: ${{ steps.seal.outputs.file }}
+        retention-days: 7
+        # Ciphertext does not compress.
+        compression-level: 0
+        if-no-files-found: error
+        overwrite: false
