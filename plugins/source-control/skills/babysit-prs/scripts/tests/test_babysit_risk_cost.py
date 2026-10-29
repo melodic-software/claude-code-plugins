@@ -513,11 +513,16 @@ class SecurityAndCostHolds(_Finding):
         self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_raised_timeout_on_a_claude_code_base_action_workflow(self):
-        head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+        def text(minutes: str) -> str:
+            return (
+                f"jobs:\n  a:\n    timeout-minutes: {minutes}\n    steps:\n"
+                "      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+            )
+
         wf = self._wf(
             "-    timeout-minutes: 30",
             "+    timeout-minutes: 45",
-            contents=(head, head),
+            contents=(text("30"), text("45")),
         )
         self.assertNotCost(_cost([wf], public=True))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
@@ -700,33 +705,42 @@ class LowRatedShapes(_Finding):
                 self.assertNotIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_a_timeout_added_at_or_below_the_highest_at_its_path_does_not_count(self):
-        def step(timeout: str = "", leg: str = "") -> str:
-            return (
-                "      - uses: ./.github/actions/judge\n"
-                + (f"        timeout-minutes: {timeout}\n" if timeout else "")
-                + (f"        with:\n          leg-timeout-minutes: {leg}\n" if leg else "")
-            )  # fmt: skip
+        # A local call, and a model leg, whose line pass once held every number.
+        for uses in (
+            "./.github/actions/judge",
+            "o/r/.github/actions/run-claude-cli@abc",
+        ):
 
-        def wf(*steps: str) -> str:
-            return "jobs:\n  a:\n    timeout-minutes: 30\n    steps:\n" + "".join(steps)
+            def step(timeout: str = "", leg: str = "", uses: str = uses) -> str:
+                return (
+                    f"      - uses: {uses}\n"
+                    + (f"        timeout-minutes: {timeout}\n" if timeout else "")
+                    + (f"        with:\n          leg-timeout-minutes: {leg}\n" if leg else "")
+                )  # fmt: skip
 
-        for base, head, line in (
-            # A step timeout added at or below an existing step's.
-            (wf(step("10")), wf(step("10"), step("5")), "+        timeout-minutes: 5"),
-            (wf(step("10")), wf(step("10"), step("10")), "+        timeout-minutes: 10"),
-            # A leg timeout set where the base had none: a cap, not a raise.
-            (wf(step()), wf(step(leg="10")), "+          leg-timeout-minutes: 10"),
-        ):  # fmt: skip
-            with self.subTest(head=head):
-                f = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
-                self.assertNotIn(COST_CODE, _codes(_cost([f], public=False)))
-        # Above the highest one at its path still counts.
-        raised = _file(
-            WORKFLOW,
-            patch=_patch("+        timeout-minutes: 20"),
-            contents=(wf(step("10")), wf(step("10"), step("20"))),
-        )
-        self.assertCharge(raised)
+            def wf(*steps: str) -> str:
+                return "jobs:\n  a:\n    timeout-minutes: 30\n    steps:\n" + "".join(
+                    steps
+                )
+
+            for base, head, line in (
+                # A step timeout added at or below an existing step's.
+                (wf(step("10")), wf(step("10"), step("5")), "+        timeout-minutes: 5"),
+                (wf(step("10")), wf(step("10"), step("10")), "+        timeout-minutes: 10"),
+                # A leg timeout set where the base had none: a cap, not a raise.
+                (wf(step()), wf(step(leg="10")), "+          leg-timeout-minutes: 10"),
+            ):  # fmt: skip
+                with self.subTest(head=head):
+                    f = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
+                    self.assertNotIn(COST_CODE, _codes(_cost([f], public=False)))
+            # Above the highest one at its path still counts.
+            raised = _file(
+                WORKFLOW,
+                patch=_patch("+        timeout-minutes: 20"),
+                contents=(wf(step("10")), wf(step("10"), step("20"))),
+            )
+            with self.subTest(uses=uses, raised=True):
+                self.assertCharge(raised)
 
     def test_a_removed_leg_timeout_counts(self):
         leg = (

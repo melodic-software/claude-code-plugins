@@ -1440,7 +1440,12 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
         return _raises(_timeout_values(added), _timeout_values(removed))
     found: list[str] = []
     if _MODEL_ACTION_NAME.search(head):
-        found += _raises(_timeout_values(added), _timeout_values(removed))
+        # With base text to compare, the path pass below judges each number at
+        # its key path, so the line pass keeps only added expressions.
+        values = _timeout_values(added)
+        if isinstance(base, str) and base:
+            values = [v for v in values if not _NUMBER.fullmatch(v)]
+        found += _raises(values, _timeout_values(removed))
     elif not _LOCAL_USES.search(head):
         return found
     return found + _path_timeouts(base if isinstance(base, str) else "", head)
