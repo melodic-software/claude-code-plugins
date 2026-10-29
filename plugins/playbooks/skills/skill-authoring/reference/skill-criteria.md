@@ -84,7 +84,7 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   up with the answer, and for a judgment task the goal and the constraints are that process. The
   outputs still differ, as every context does, but the reasoning is yours. When a skipped gate is
   costly, a hook is the escalation, charged to the hook budget
-  (`docs/conventions/hook-budget/README.md`).
+  (`docs/contracts/hook-budget/README.md`).
 - **State the action.** At every level, write the instruction as the action, and give its reason
   unless the rule's wording already shows why. With enough expertise in a topic, almost every
   taste decision has a logical reason, so a judgment rule can carry one too. When a rule doesn't

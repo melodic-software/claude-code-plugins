@@ -62,8 +62,8 @@ grades it; until then, the tag below grades generic copy.
 **Audit: Suggestion.** Everything emphasized at once: competing focal points, or borders and
 shadows added where removing something would have made the important thing stand out.
 
-**Audit: Important.** Generic copy ("Submit", "Invalid input") where the specific outcome or fix
-is known. This holds until `/user-interface:audit` reads `../../principles.md`.
+Generic copy ("Submit", "Invalid input") is graded by `../../principles.md`, "Plain-language copy";
+a field error that names no fix is the `forms` concern's.
 
 ## 3. Spacing
 
