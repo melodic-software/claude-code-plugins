@@ -93,7 +93,7 @@ setting rather than reporting the mistake.
 
 `start` and `restart` choose each launching lane's host from the consumer repository's
 `docs/conventions/execution-target.yaml`. The contract, including the values, the cloud launch
-rule and the stage-start probe, is `docs/conventions/execution-target/README.md` in the
+rule and the stage-start probe, is `docs/contracts/execution-target/README.md` in the
 marketplace repository; this section covers only what the launcher does.
 
 - **Read.** Once per run the launcher checks that origin's own `HEAD` (`git ls-remote --symref

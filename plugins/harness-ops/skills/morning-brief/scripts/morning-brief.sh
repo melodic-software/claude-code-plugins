@@ -99,7 +99,7 @@
 # anomaly_alert, expiry_days, workflow_read_limit. A flag beats the personal
 # file, which beats the team file, which beats the default. An invalid value is
 # named on stderr and its key takes the default, never a lower layer's value
-# (docs/conventions/config-cascade/README.md).
+# (docs/contracts/config-cascade/README.md).
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):

@@ -145,7 +145,7 @@ rule; a lane whose stage may read untrusted input, which today is every local-la
 without a `stage`, is skipped with an error naming `/work-items:attend-queue` instead), or `cloud-routine`/`cloud-project` (setup steps printed, nothing launched). A lane's optional
 `stage` (`<plugin>:<skill>`) selects its `skill.<plugin>.<skill>` key. What the launcher does per
 value is in [context/config.md](context/config.md), "Execution target"; the contract is the
-execution-target convention, `docs/conventions/execution-target/` in the marketplace repository.
+execution-target convention, `docs/contracts/execution-target/` in the marketplace repository.
 
 ## Mods state
 
