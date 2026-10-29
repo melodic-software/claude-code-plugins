@@ -96,41 +96,41 @@ def hostname_problem(hostname):
     return None
 
 
-def token_file_problem(path):
-    """Why `path` cannot be the tunnel token file, or None. Checks the file, never reads it."""
+def token_file_problem(path, what="tunnel token file", option="tunnel_token_file"):
+    """Why `path` cannot be the token file `what` names, or None. Checks the file, never reads it."""
     if not path:
-        return "a named tunnel needs its token file (the tunnel_token_file option)"
+        return f"a named tunnel needs its {what} (the {option} option)"
     p = Path(path)
     if not p.is_absolute():
-        return f"the tunnel token file must be an absolute path, got {path!r}"
+        return f"the {what} must be an absolute path, got {path!r}"
     try:
         st = p.stat()
     except OSError:
-        return f"the tunnel token file {path} does not exist"
+        return f"the {what} {path} does not exist"
     if not p.is_file() or not st.st_size:
-        return f"the tunnel token file {path} is not a file with a token in it"
+        return f"the {what} {path} is not a file with a token in it"
     if not os.access(p, os.R_OK):
-        return f"the tunnel token file {path} cannot be read"
+        return f"the {what} {path} cannot be read"
     if detached.WINDOWS:
-        return _acl_problem(path)
+        return _acl_problem(path, what)
     if st.st_mode & 0o077:
-        return f"the tunnel token file {path} can be read by other users: run chmod 600 on it"
+        return f"the {what} {path} can be read by other users: run chmod 600 on it"
     return None
 
 
 WINDOWS_ALLOWED = ("S-1-5-18", "S-1-5-32-544", "S-1-3-4")  # SYSTEM, Administrators and OWNER RIGHTS, beside the user
 
 
-def _acl_problem(path):
+def _acl_problem(path, what="tunnel token file"):
     """Why the token file's Windows DACL lets more than this user, the file's owner, SYSTEM and Administrators in, or None."""
     got = _windows_acl(path)
     if got is None:
-        return f"the permissions of the tunnel token file {path} cannot be read"
+        return f"the permissions of the {what} {path} cannot be read"
     me, sids = got
     others = sorted(set(sids) - {me, *WINDOWS_ALLOWED})
     if others:
         return (
-            f"the tunnel token file {path} can be read by others ({', '.join(others)}): allow only your account, SYSTEM and"
+            f"the {what} {path} can be read by others ({', '.join(others)}): allow only your account, SYSTEM and"
             f' Administrators (icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" SYSTEM:F *S-1-5-32-544:F)'
         )
     return None

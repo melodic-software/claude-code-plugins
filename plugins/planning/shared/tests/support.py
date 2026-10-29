@@ -113,8 +113,11 @@ def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
     return proc, url
 
 
+CLOSED_ORIGIN = "http://127.0.0.1:1"  # a loopback port nothing listens on: the lease probe finds the link free, off the network
+
+
 def env(**extra):
-    out = dict(os.environ, SHARED_CLOUDFLARED=FAKE, SHARED_TUNNEL_SECONDS="10")
+    out = dict(os.environ, SHARED_CLOUDFLARED=FAKE, SHARED_TUNNEL_SECONDS="10", SHARED_LEASE_ORIGIN=CLOSED_ORIGIN)
     out.update({k: v for k, v in extra.items() if v is not None})
     for k in [k for k, v in extra.items() if v is None]:
         out.pop(k, None)

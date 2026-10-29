@@ -8,6 +8,7 @@ and the planning amendments (the tunnel outlives a server restart; tokens never 
 from __future__ import annotations
 
 import contextlib
+import base64
 import datetime
 import io
 import json
@@ -18,7 +19,9 @@ import socket
 import stat
 import subprocess
 import sys
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
@@ -799,14 +802,16 @@ class TestNamedTunnel(ShareCase):
         self.token.write_text(self.TOKEN_TEXT, encoding="utf-8")
         os.chmod(self.token, 0o600)
 
-    def ensure(self, *extra, hostname=HOST, token=None, port=None):
+    def ensure(self, *extra, hostname=HOST, token=None, port=None, api=None, environ=None):
         args = ["ensure-running", "--guest-port", str(port or self.port), "--tunnel-hostname", hostname, "--tunnel-token-file", str(token or self.token)]
-        return share(self.d, *args, *extra, environ=self.env())
+        if api:
+            args += ["--tunnel-api-token-file", str(api)]
+        return share(self.d, *args, *extra, environ=environ or self.env())
 
-    def env(self, probe_port=None):
+    def env(self, probe_port=None, **extra):
         """The fake cloudflared, and the server's tunnel probe sent to `probe_port` (default its own guest port)."""
         probe = f"http://127.0.0.1:{probe_port or self.port}"
-        return env(FAKE_CF_ARGS=str(self.args), TUNNEL_TOKEN="inherited", SHARED_PROBE_ORIGIN=probe, SHARED_PROBE_SECONDS="3")
+        return env(FAKE_CF_ARGS=str(self.args), TUNNEL_TOKEN="inherited", SHARED_PROBE_ORIGIN=probe, SHARED_PROBE_SECONDS="3", **extra)
 
     def test_it_serves_the_hostname_and_says_named(self):
         code, out, err = self.ensure()
@@ -814,7 +819,8 @@ class TestNamedTunnel(ShareCase):
         self.assertRegex(out["guestUrl"], rf"^https://{re.escape(self.HOST)}/#join=[A-Za-z0-9_-]{{12}}$")
         self.assertEqual(out["tunnel"], "named")
         self.assertEqual(self.args.read_text(encoding="utf-8").splitlines(), [f"tunnel --no-autoupdate run --token-file {self.token}"])
-        self.assertIn(f"must name http://127.0.0.1:{self.port}. Run it on this machine only", err)
+        self.assertIn(f"must name http://127.0.0.1:{self.port}; set tunnel_api_token_file", err)
+        self.assertNotIn("tunnelFallback", out)
         self.assertEqual(share(self.d, "status")[1]["tunnel"], "named")
 
     @unittest.skipIf(not Path("/proc/self/environ").exists(), "reads a process's environment from /proc")
@@ -876,13 +882,27 @@ class TestNamedTunnel(ShareCase):
         old = tunnel.host(first["guestUrl"].split("#")[0])
         self.assertNotIn("moved", call(self.port, "GET", "/api/state", headers={"Host": old})[2])
 
-    def test_a_named_tunnel_that_cannot_run_is_refused_with_exit_1(self):
-        cases = {"no token file": {"token": self.root / "missing.token"}, "a URL for a hostname": {"hostname": f"https://{self.HOST}"}}
-        for why, kw in cases.items():
+    def test_a_hostname_that_is_no_dns_name_is_refused_with_exit_1(self):
+        code, _, err = self.ensure(hostname=f"https://{self.HOST}")
+        self.assertEqual(code, 1, err)
+        self.assertFalse((self.d / "state.json").exists())
+
+    def test_a_token_file_that_cannot_be_used_falls_back_to_a_quick_tunnel(self):
+        loose = self.root / "loose.token"
+        loose.write_text(self.TOKEN_TEXT, encoding="utf-8")
+        os.chmod(loose, 0o644)
+        cases = {"no token file": ({"token": self.root / "missing.token"}, "does not exist"), "no API token file": ({"api": self.root / "missing-api.token"}, "API token file")}
+        if not WINDOWS:
+            cases["a token file others can read"] = ({"token": loose}, "chmod 600")
+        for why, (kw, reason) in cases.items():
             with self.subTest(why=why):
-                code, _, err = self.ensure(**kw)
-                self.assertEqual(code, 1, err)
-                self.assertFalse((self.d / "state.json").exists())
+                code, out, err = self.ensure(**kw)
+                self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+                self.assertIn(reason, out["tunnelFallback"])
+                self.assertIn(f"named tunnel {self.HOST}: ", err)
+                self.assertIn("a quick tunnel serves this session instead", err)
+                self.assertNotIn("run --token-file", self.args.read_text(encoding="utf-8"))
+                share(self.d, "stop")
 
     def test_an_empty_hostname_is_the_quick_tunnel(self):
         code, out, err = self.ensure(hostname="", token="")
@@ -899,6 +919,167 @@ class TestNamedTunnel(ShareCase):
         code, _, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token))
         self.assertEqual(code, 2)
         self.assertIn("cannot move", err)
+
+
+class FakeCloudflare:
+    """Cloudflare on 127.0.0.1, as share.py meets it: the tunnel's hostname, which answers the lease probe with
+    `edge` (status, body), and the API's tunnel configuration route, which records each PUT. Canned answers: with no
+    connector Cloudflare answers HTTP 530 (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-530/,
+    a 1XXX code in the body) and error 1033 is the no-healthy-cloudflared one
+    (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1033/);
+    the API's envelope (`success`, `errors`, `result`) is its reference's."""
+
+    def __init__(self, case, edge=(530, b"<html><title>Cloudflare Tunnel error | example.com | Cloudflare</title>Error 1033</html>"), api_status=200):
+        self.edge, self.api_status, self.puts, self.probes = edge, api_status, [], []
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def answer(self, code, body, kind="application/json"):
+                self.send_response(code)
+                self.send_header("Content-Type", kind)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                fake.probes.append((self.headers.get("Host"), self.path))
+                self.answer(*fake.edge, kind="text/html")
+
+            def do_PUT(self):
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+                fake.puts.append((self.path, self.headers.get("Authorization"), body))
+                ok = fake.api_status == 200
+                doc = {"success": ok, "errors": [] if ok else [{"code": 10000, "message": "Authentication error"}], "result": {} if ok else None}
+                self.answer(fake.api_status, json.dumps(doc).encode())
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        case.addCleanup(lambda: (self.server.shutdown(), self.server.server_close()))
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+
+class TestNamedTunnelLease(ShareCase):
+    """The lease and the route: before this machine runs the named tunnel, share.py asks https://H itself, and with
+    --tunnel-api-token-file it points the tunnel's ingress at this session's guest port (README "A stable guest link").
+    Expected values: the ingress body is the shape the configurations update reference documents
+    (https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/update/),
+    and the run token is base64 of {"a", "t", "s"} (TunnelToken in cloudflared's connection/connection.go)."""
+
+    HOST = TestNamedTunnel.HOST
+    ACCOUNT = "fedcba9876543210fedcba9876543210"
+    TUNNEL = "c0ffee00-0000-4000-8000-000000000001"
+    SECRET = base64.b64encode(b"fake-tunnel-secret-for-tests-32b").decode()
+    API_TEXT = "fake-api-token-for-tests"
+
+    def setUp(self):
+        super().setUp()
+        self.args = self.root / "cf-args.txt"
+        self.token = self.root / "tunnel.token"
+        self.token.write_text(base64.b64encode(json.dumps({"a": self.ACCOUNT, "t": self.TUNNEL, "s": self.SECRET}).encode()).decode(), encoding="utf-8")
+        self.api = self.root / "api.token"
+        self.api.write_text(self.API_TEXT + "\n", encoding="utf-8")
+        for f in (self.token, self.api):
+            os.chmod(f, 0o600)
+
+    def ensure(self, cf, *, lease=None, api=True):
+        """ensure-running with no --guest-port, the lease probe sent to `lease` (default the fake Cloudflare edge) and
+        the API to the fake; a server tunnel check, which no test here makes, would stay on loopback too."""
+        args = ["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token)] + (["--tunnel-api-token-file", str(self.api)] if api else [])
+        environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=lease or cf.url, SHARED_CF_API=cf.url, SHARED_PROBE_ORIGIN=cf.url, SHARED_PROBE_SECONDS="3")
+        return share(self.d, *args, environ=environ)
+
+    def cf_runs(self):
+        return self.args.read_text(encoding="utf-8").splitlines() if self.args.exists() else []
+
+    def test_a_free_link_starts_the_named_tunnel_routed_to_the_actual_guest_port(self):
+        cf = FakeCloudflare(self)
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+        self.assertRegex(out["guestUrl"], rf"^https://{re.escape(self.HOST)}/#join=")
+        self.assertNotIn("tunnelFallback", out)
+        port = self.guest_port()
+        self.assertNotEqual(port, share_cli.NAMED_PORT)  # any free port: the route follows it
+        self.assertEqual(cf.probes[0][0], self.HOST)
+        self.assertRegex(cf.probes[0][1], r"^/api/tunnel-probe/[0-9a-f]{32}$")
+        want = {"config": {"ingress": [{"hostname": self.HOST, "service": f"http://127.0.0.1:{port}"}, {"service": "http_status:404"}]}}
+        self.assertEqual(cf.puts, [(f"/accounts/{self.ACCOUNT}/cfd_tunnel/{self.TUNNEL}/configurations", f"Bearer {self.API_TEXT}", want)])
+        self.assertEqual(self.cf_runs(), [f"tunnel --no-autoupdate run --token-file {self.token}"])
+        self.assertNotIn("must name", err)
+        seen = [json.dumps(out), err] + [f.read_text(encoding="utf-8", errors="replace") for f in self.d.iterdir() if f.is_file()]
+        self.assertFalse([t for t in seen if self.API_TEXT in t or self.SECRET in t])
+
+    def test_a_link_another_interview_session_serves_falls_back_to_a_quick_tunnel(self):
+        other = self.root / "other" / "shared" / "po"
+        self.addCleanup(share, other, "stop")
+        code, _, err = share(other, "ensure-running")
+        self.assertEqual(code, 0, err)
+        other_port = json.loads((other / ".shared-ports.json").read_text(encoding="utf-8"))["guest"]
+        cf = FakeCloudflare(self)
+        code, out, err = self.ensure(cf, lease=f"http://127.0.0.1:{other_port}")
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertEqual(out["tunnelFallback"], f"another interview session already serves https://{self.HOST}")
+        self.assertIn(f"named tunnel {self.HOST}: another interview session already serves", err)
+        self.assertEqual(cf.puts, [])  # never repoint a tunnel another machine runs
+        self.assertNotIn("run --token-file", " ".join(self.cf_runs()))
+
+    def test_a_link_whose_answer_shows_no_free_tunnel_falls_back_to_a_quick_tunnel(self):
+        for edge, reason in (((502, b"Bad gateway"), "answers HTTP 502"), ((530, b"Error 1016"), "answers HTTP 530")):
+            with self.subTest(edge=edge):
+                cf = FakeCloudflare(self, edge=edge)
+                code, out, err = self.ensure(cf)
+                self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+                self.assertIn(reason, out["tunnelFallback"])
+                self.assertEqual(cf.puts, [])
+                share(self.d, "stop")
+
+    def test_this_sessions_own_running_named_tunnel_is_kept(self):
+        cf = FakeCloudflare(self)
+        code, first, err = self.ensure(cf)
+        self.assertEqual(code, 0, err)
+        held = FakeCloudflare(self, edge=(404, b'{"error": "not-found"}'))  # what any interview server answers, ours too
+        code, out, err = self.ensure(cf, lease=held.url)
+        self.assertEqual((code, out["tunnel"], out["guestUrl"], out["shareChanged"]), (0, "named", first["guestUrl"], False), err)
+        self.assertNotIn("tunnelFallback", out)
+        self.assertEqual((held.probes, len(cf.puts), len(self.cf_runs())), ([], 1, 1))
+
+    def test_a_route_the_api_refuses_falls_back_to_a_quick_tunnel(self):
+        cf = FakeCloudflare(self, api_status=403)
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertIn("its route could not be set", out["tunnelFallback"])
+        self.assertIn("Authentication error", out["tunnelFallback"])
+        self.assertNotIn(self.API_TEXT, err)
+
+    def test_a_run_token_that_names_no_tunnel_falls_back_without_quoting_it(self):
+        self.token.write_text("not-a-run-token-secret", encoding="utf-8")
+        cf = FakeCloudflare(self)
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertIn("does not hold a run token", out["tunnelFallback"])
+        self.assertNotIn("not-a-run-token-secret", err + json.dumps(out))
+        self.assertEqual(cf.puts, [])
+
+    def test_without_the_api_token_the_guest_port_stays_fixed(self):
+        cf = FakeCloudflare(self)
+        if not socket_free(share_cli.NAMED_PORT):
+            self.skipTest(f"port {share_cli.NAMED_PORT} is in use here")
+        code, out, err = self.ensure(cf, api=False)
+        self.assertEqual((code, out["tunnel"], self.guest_port()), (0, "named", share_cli.NAMED_PORT), err)
+        self.assertEqual(cf.puts, [])
+
+
+def socket_free(port):
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
 
 
 @unittest.skipIf(WINDOWS, "share.sh runs under Git Bash there; the Python entry point is tested above")
