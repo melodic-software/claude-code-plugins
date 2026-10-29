@@ -640,7 +640,7 @@ A digest lists each shared result once, in the first round sent after the owner 
   "Open in Claude Desktop"), then "Paste answer"; trailing `Title - https://...` lines become
   sources.
 - Both prompts frame the session's text as data with the untrusted-content spine
-  (`docs/conventions/untrusted-content/README.md` in the marketplace repository). The one-request
+  (`docs/contracts/untrusted-content/README.md` in the marketplace repository). The one-request
   prompt quotes it between `--- SESSION DATA <marker> ---` lines whose random marker is new per
   prompt and named in the framing line; the quoted text is NFKC-normalized with format
   characters dropped, and anything shaped like a SESSION DATA marker (dashes, spacing,

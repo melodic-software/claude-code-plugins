@@ -263,7 +263,7 @@ cross-repo, shared infrastructure, irreversible, or security). A consequential o
 settle is withheld: list it under "Queue for follow-up" as an open question naming the evidence
 that would settle it. Contract:
 [`context/recommendation-basis.md`](../../../context/recommendation-basis.md);
-full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 
 ### Skill candidate analysis (REQUIRED, always include)
 
