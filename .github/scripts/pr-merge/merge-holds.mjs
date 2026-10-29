@@ -247,13 +247,14 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // The narrow floor every hold path check adds to the configured globs, each
 // glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
 // option B): `trust`, what mints and scopes lane tokens and judges triggers
-// (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
-// and submodules; `gate`, the merge gate's own code (every pr-merge script,
-// babysit_merge*, babysit_risk.py and babysit_review_evidence.py, which
-// compute the review's clear condition, the rate guard, and
-// scripts/sync-hold-floor.py, which writes this list) and
-// the config the token broker loads (resolve-config, effect-grants.json
-// included, and the pipeline config); `enforcement`, the pr-merge and
+// (request-lane-token, resolve-config with the rule files the token broker
+// loads, the pipeline config, check-trusted-trigger, check-kill-switch), code
+// owners, submodules, and the code that computes the author lift and the hold
+// tables (babysit_merge*, babysit_risk.py and babysit_review_evidence.py,
+// which compute the review's clear condition, this module, and
+// scripts/sync-hold-floor.py, which writes this list); `gate`, the rest of the
+// merge gate's own code (the other pr-merge scripts and the rate guard);
+// `enforcement`, the pr-merge and
 // ci-status workflows, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
@@ -268,18 +269,18 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/check-trusted-trigger/**", "trust"],
   ["**/CODEOWNERS", "trust"],
   ["**/.gitmodules", "trust"],
-  [".github/actions/resolve-config/**", "gate"],
+  [".github/actions/resolve-config/**", "trust"],
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
   [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
   [".github/actions/log-api-budget/rate-limits.json", "gate"],
-  [".github/scripts/pr-merge/merge-holds.mjs", "gate"],
-  [".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"],
-  [".github/scripts/pr-merge/superseded.mjs", "gate"],
-  [".github/scripts/pr-merge/clear-escalations.mjs", "gate"],
+  [".github/scripts/pr-merge/merge-holds.mjs", "trust"],
+  [".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"],
+  [".github/scripts/pr-merge/superseded.mjs", "trust"],
+  [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
   [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
-  [".github/scripts/pr-merge/gate-check.mjs", "gate"],
-  [".github/scripts/pr-merge/head-ref-map.mjs", "gate"],
+  [".github/scripts/pr-merge/gate-check.mjs", "trust"],
+  [".github/scripts/pr-merge/head-ref-map.mjs", "trust"],
   [".github/scripts/pr-merge/lane-records.mjs", "gate"],
   [".github/scripts/pr-merge/last-report.mjs", "gate"],
   [".github/scripts/pr-merge/rate-stop.bash", "gate"],
@@ -291,19 +292,19 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
   [".github/actions/report-check-run/posting-run.mjs", "gate"],
-  ["scripts/sync-hold-floor.py", "gate"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
+  ["scripts/sync-hold-floor.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"],
@@ -312,7 +313,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
   [".github/workflows/pr-require-checks.yml", "enforcement"],
   [".github/workflows/pr-merge.yml", "enforcement"],
-  ["docs/conventions/pr-pipeline.yaml", "gate"],
+  ["docs/conventions/pr-pipeline.yaml", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.json", "enforcement"],
