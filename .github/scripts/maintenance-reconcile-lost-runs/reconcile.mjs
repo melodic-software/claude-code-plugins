@@ -51,6 +51,14 @@
 //   it is lifted re-runs that ci-status, recorded as a CI re-run, with no
 //   lookback: the switch may have been on for days. A run at attempt 2 or
 //   later is left to a person, since pr-verify trusts only a recorded attempt 2.
+// - Stop: a PR whose newest pr-require-checks run failed, at attempt 1, only
+//   in ci-status, and only on its notes that a `pr-unblock/*` status failed
+//   the head (PR_UNBLOCK_STOP_NOTE), while no such status fails it now: the
+//   lane that stopped ran again and cleared its stop (report-escalation.sh
+//   clear). A status post starts no run, so nothing else re-runs that
+//   ci-status. Re-run as a Switch is, with no lookback; a re-run that fails is
+//   a warning, not a failed run, since the head's next push or a person's
+//   re-run still clears it.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. Their own paths recover them instead: the babysit
@@ -248,13 +256,43 @@ const onlyAggregateFailed = (jobs) =>
 // error: a re-run with the switch off passes that step.
 export const killSwitchNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(KILL_SWITCH_NOTE));
+// The error ci-status's pr-unblock step writes for each `pr-unblock/*` status
+// failing the head (pr-require-checks.yml; reconcile.test.mjs pins it there).
+export const PR_UNBLOCK_STOP_NOTE = /^'pr-unblock\/[a-z]+(?:-[a-z]+)*' is (?:failure|error) on [0-9a-f]{40}: /;
+// The note GitHub adds for a step that exits non-zero.
+const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
+// True when ci-status's only failure is its pr-unblock step: one or more stop
+// notes and that step's one exit note. Any other failure would fail a re-run too.
+export const unblockStopNoted = (annotations) => {
+  const failures = (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure").map((a) => String(a.message ?? ""));
+  const stops = failures.filter((m) => PR_UNBLOCK_STOP_NOTE.test(m)).length;
+  const exits = failures.filter((m) => EXIT_NOTE.test(m)).length;
+  return stops > 0 && exits <= 1 && stops + exits === failures.length;
+};
+// True when the newest status of a `pr-unblock/*` context on the head, by
+// github-actions[bot], is failure or error: ci-status's own read. Statuses
+// list newest first.
+async function unblockStopStands(call, repo, head) {
+  const seen = new Set();
+  for (const s of await paginate(call, `/repos/${repo}/commits/${head}/statuses`, 10)) {
+    const context = String(s?.context ?? "");
+    if (!context.startsWith("pr-unblock/") || s?.creator?.login !== "github-actions[bot]" || seen.has(context)) {
+      continue;
+    }
+    seen.add(context);
+    if (s.state === "failure" || s.state === "error") {
+      return true;
+    }
+  }
+  return false;
+}
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
 const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "intake") {
@@ -552,12 +590,29 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
       const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
-      // A lanes App PR whose newest checks run the kill switch failed: its
-      // failed ci-status is re-run now that the switch is off.
-      if (set.length === 0 && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && isFailedChecks(checks)) {
-        const status = onlyAggregateFailed(await readJobs(checks));
-        if (status && killSwitchNoted(status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)))) {
+      // A newest checks run that failed only in ci-status: a lanes App PR's
+      // that the kill switch failed is re-run now that the switch is off, and
+      // any PR's that a pr-unblock stop failed once no stop fails the head.
+      // The tested run's jobs are reused when it is that run.
+      if (set.length === 0 && isFailedChecks(checks)) {
+        const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
+        const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
+        if (notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
+        } else if (notes && unblockStopNoted(notes)) {
+          // An unreadable status list re-runs nothing and fails no listing: the next run reads it again.
+          let stands = true;
+          try {
+            stands = await unblockStopStands(call, repo, pull.head.sha);
+          } catch (error) {
+            if (error instanceof RateLimited) {
+              throw error;
+            }
+            say(`#${pull.number}: its pr-unblock statuses could not be read (${escapeCommand(error?.message ?? error)}); the next run reads them again`);
+          }
+          if (!stands) {
+            set.push({ kind: "stop", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (cleared pr-unblock stop)", attempt: 1, head: pull.head.sha });
+          }
         }
       }
       // A pass the spec has since changed under: re-running the head's
@@ -750,13 +805,14 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch") {
+      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
         const why = {
           intake: "",
           infra: ", which failed on infra only",
           flake: ", its one re-run before fix-ci takes it",
           switch: ": ci-status failed while the lanes kill switch was on",
+          stop: ": ci-status failed on a pr-unblock stop the lane has since cleared",
         }[item.kind];
         say(
           item.kind === "intake"
@@ -774,6 +830,10 @@ async function act({ repo, call, say, since, sleep, items }) {
     } catch (error) {
       if (error instanceof RateLimited) {
         throw error;
+      }
+      if (item.kind === "stop") {
+        console.log(`::warning title=reconcile::${where} run ${item.id}: ${escapeCommand(error?.message ?? error)}`);
+        continue;
       }
       failed += 1;
       console.log(`::error title=reconcile::${where} run ${item.id}: ${escapeCommand(error?.message ?? error)}`);
