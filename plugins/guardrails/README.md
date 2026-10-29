@@ -1092,12 +1092,12 @@ the way to replace this bound with a number, and is the follow-up to do.
 
 **Share of the budget, and the overage.** The convention's ceiling is
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
-`PostToolUse` together for one matcher**, so the surface this widening lands on
+`PostToolUse` together for one matcher**, so the set of hooks sharing that budget
 is larger than the table above measures: guardrails also runs three `PostToolUse`
 verifiers on `Write|Edit`, and the fleet's binding accounting for the whole
 per-`Write` set is **≈ 1.9 s** (two formatters plus three guardrails verifiers),
 already over the typical ceiling before this change and deeper into overage than
-the PreToolUse-only slice measured here suggests. Against that surface the
+the PreToolUse-only slice measured here suggests. Against that set the
 guard's own **≈ 505 ms is ≈ 25% of the ≤ 2 s worst-case ceiling as an upper
 bound on its contribution**, and less than that in practice because it is
 dispatched in parallel rather than added. Per the convention's rule 2 the budget
