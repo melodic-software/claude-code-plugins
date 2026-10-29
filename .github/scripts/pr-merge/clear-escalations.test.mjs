@@ -1447,6 +1447,24 @@ test("a refusal cleared by the reader reads the review threads once", async () =
   assert.equal(threadReads(w).length, 2);
 });
 
+test("a person's reply inside an existing thread after feedback-not-landed's own thread read keeps the label", async () => {
+  // The reply lands while the check reads the trusted move with the job
+  // token, after its thread read saw none.
+  const reviewComments = [BOT_THREAD];
+  const trusted = readerFor();
+  const reader = async (method, path) => {
+    if (reviewComments.length === 1) {
+      reviewComments.push(reply(OWNER, "2026-10-18T12:00:00Z"));
+    }
+    return trusted(method, path);
+  };
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewComments, reader });
+  const { logs } = await run(w, TRUST_ENV);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), logs.join("\n"));
+  assert.equal(threadReads(w).filter((call) => call.path.includes("/comments?")).length, 2);
+});
+
 test("a person's comment written before the label and edited after it, or in the label's own second, keeps it", async () => {
   for (const spoke of [
     commented(OWNER, "Looks fine. Edit: wait for me.", "2026-10-18T09:00:00Z", "2026-10-18T12:00:00Z"),

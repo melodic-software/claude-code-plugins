@@ -753,7 +753,6 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     return { reason: `${label} is no longer on it` };
   }
   const why = [];
-  let speakerOnce;
   if (merged.length > 0) {
     const unread = merged.find(({ head }) => head === null);
     if (unread !== undefined) {
@@ -819,6 +818,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     const keys = escalations.map(({ body }) => RESUME_KEY.exec(body[1])?.[1]);
     let movedOnce;
     let threadsOnce;
+    let speakerOnce;
     const context = { github, repo, pull, mainSha, read, escalations, bot, timeline };
     context.keysOf = (reason) => keys.filter((_, i) => reasonOf(escalations[i]) === reason);
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
@@ -837,7 +837,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
       why.push(cleared);
     }
   }
-  return { ...cleared(timeline, bot, since, reasons, pull.head.sha, why), threadsRead: speakerOnce !== undefined };
+  return cleared(timeline, bot, since, reasons, pull.head.sha, why);
 }
 
 // The clear of `reasons` at `head`, and whether its comment is already posted.
@@ -919,6 +919,11 @@ export async function main({ env = process.env, github, checks, verify, reader }
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
         }
+        // The review threads again right before the removal, even when a
+        // check read them earlier: the job-token reads after that one leave
+        // time for a person's reply inside an existing thread, which the
+        // timeline misses. Only a refusal the gate's reader cleared
+        // (threadsRead) is not read twice.
         const speaker = result.threadsRead ? undefined : await threadSpeaker(github, repo, number, result.since);
         if (speaker !== undefined) {
           console.log(`clear-escalations: #${number} kept: ${spokeReason(speaker, label)}`);
