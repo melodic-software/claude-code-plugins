@@ -34,7 +34,7 @@ write plugins/p/skills/s/SKILL.md "# s" "one" "two"
 write plugins/p/skills/s/evals/evals.json "{}"
 write plugins/p/agents/a.md "# a" "one" "two"
 write plugins/p/.claude-plugin/plugin.json '{"name": "p"}'
-write .github/workflows/pr-require-checks.yml "name: checks"
+write .github/scripts/pr-unblock/thread-scope.mjs "export {};"
 write .github/scripts/pr-merge/gate-check.mjs "export {};"
 write docs/conventions/pr-pipeline.yaml "merge:" "  diff-check:" '    denied-paths: ["notes/**"]'
 write notes/n.md "n"
@@ -82,7 +82,7 @@ assert_contains "a cut whose eval change is a deletion still warns" "$(run)" \
 
 branch workflow
 write .github/scripts/pr-merge/gate-check.mjs "export {};" "// edited"
-write .github/workflows/pr-require-checks.yml "name: checks" "on: push"
+write .github/scripts/pr-unblock/thread-scope.mjs "export {};" "// edited"
 commit workflow
 out=$(run)
 assert_contains "an edit to a gate-class floor file warns, naming the file" "$out" \
@@ -90,7 +90,7 @@ assert_contains "an edit to a gate-class floor file warns, naming the file" "$ou
 assert_contains "the warning names the floor glob" "$out" \
   "high-path:.github/scripts/pr-merge/gate-check.mjs"
 assert_not_contains "an enforcement-class file a lane clears does not warn" "$out" \
-  "protected-path .github/workflows/pr-require-checks.yml"
+  "protected-path .github/scripts/pr-unblock/thread-scope.mjs"
 
 branch neither
 write README.md "readme" "more"
