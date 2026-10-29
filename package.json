@@ -17,7 +17,8 @@
   "overrides": {
     "smol-toml": "^1.9.0",
     "katex": "~0.18.2",
-    "markdown-it": "15.0.3"
+    "markdown-it": "15.0.3",
+    "re2js": "2.8.7"
   },
   "allowScripts": {
     "@anthropic-ai/claude-code@2.1.246": true
