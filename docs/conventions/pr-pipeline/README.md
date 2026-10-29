@@ -1037,22 +1037,21 @@ the rules that only tighten in
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
   - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
-    (a schedule runs billed minutes), a raised timeout as below, or an artifact
-    `retention-days` the patch adds above every one it removes, or above GitHub's
+    (a schedule runs billed minutes), a `timeout-minutes` or `leg-timeout-minutes` the patch
+    adds above every one it removes in a workflow whose head text uses one of the model actions
+    below or could not be read, or an artifact `retention-days` the patch adds above every one
+    it removes, or above GitHub's
     [90-day default](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
     when it removes none (storage past the free quota);
   - a workflow or pipeline file with no patch.
 
-  Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
-  `cost-finding`, which never holds:
-  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
-    `cron:` key;
-  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
-    every one it removes, in a workflow whose head text uses one of those actions or could not be
-    read, and a raised artifact `retention-days`;
-  - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
-    comment-only, or a `description:` or `title:` value, or that only edits trailing comments
-    on the same lines in place. Flow style, quoted keys and new list items count.
+  Cost means only what can bill. Model usage under a subscription or prepaid credit does not, so
+  a `--model` or `--max-turns` flag reports nothing; nor do hosted minutes or artifact storage on
+  a public repository, so a `cron:` key, a raised timeout or a raised `retention-days` there
+  reports nothing. Any `pr-pipeline.yaml` change is reported as the MEDIUM `cost-finding`, which
+  never holds, except one whose added and removed lines are all blank, comment-only, or a
+  `description:` or `title:` value, or that only edits trailing comments on the same lines in
+  place. Flow style, quoted keys and new list items count.
 
   A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
   `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
