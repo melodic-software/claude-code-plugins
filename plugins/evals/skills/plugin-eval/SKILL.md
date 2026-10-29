@@ -275,13 +275,13 @@ Read in this order. Stopping early at any step is the finding.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded]
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. Pass `--scaffolded` when the eval ran with
-   `--scaffold`, since no result field records it: without it the `scaffold` check fails a case whose `case.yaml`
-   sets `context.scaffold_script`. Without the traces `--keep-temp` kept, or with a case directory it cannot find or
-   a `case.yaml` it cannot read, it reports those checks unchecked and the run INVALID. Report a score, delta, or
-   interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On `verdict: INVALID` (exit 1),
-   report INVALID with every reason on that line and no number, then fix the cause and rerun. Tell the user to post
-   that INVALID line and its reasons in place of the number; "post nothing" is not the instruction. Exit 2 means the
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. Without the traces `--keep-temp` kept it reports
+   the trace checks unchecked and the run INVALID. Pass `--scaffolded` when the eval ran with `--scaffold`, since no result
+   field records it; without it the `scaffold` check fails a case whose `case.yaml` sets `context.scaffold_script`, and a
+   case directory it cannot find or a `case.yaml` it cannot read leaves that check unchecked and the run INVALID. Report a
+   score, delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On `verdict: INVALID`
+   (exit 1), report INVALID with every reason on that line and no number, then fix the cause and rerun. Tell the user to
+   post that INVALID line and its reasons in place of the number; "post nothing" is not the instruction. Exit 2 means the
    file could not be read or an argument was wrong: say which. The steps below still apply to a VALID run.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
