@@ -1189,7 +1189,8 @@ _SAFE_PIPELINE_LINE = re.compile(
 # whole `secrets` context as an argument, and `secrets: inherit`.
 _SECRET_REF = re.compile(
     r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b",
+    r"|\bsecrets\s*:\s*inherit\b"
+    rf"|{_EXPRESSION_SECRET}(?:[^}}]|\}}(?!\}}))*\}}\}}",
     re.IGNORECASE,
 )
 # Inside a `${{ }}` expression, the bare `secrets` context anywhere outside a
