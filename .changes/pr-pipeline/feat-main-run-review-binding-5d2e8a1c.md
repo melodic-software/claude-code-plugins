@@ -12,3 +12,6 @@ bump: minor
 ### Changed
 
 - Every workflow that holds a credential beyond its job's `GITHUB_TOKEN` (a secret other than `GITHUB_TOKEN`, a lane token, an OIDC token), and the review workflows with the main-run review's scripts, is a `gate` floor path, held for a person; `scripts/sync-hold-floor.py` derives the workflow rows from the files. Claude Code settings, `.mcp.json`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and `docs/standards/**` are `gate` too. `pr-merge.yml` and `pr-unblock.yml` move from `enforcement`; `pr-require-checks.yml` stays `enforcement`. `review-path-unbindable` is gone: an enforcement path beside a lane source waits for the main-run security review.
+- Those review-surface `gate` rows (the gated workflows, the main-run review's scripts, the agent settings and instruction files) never take a trusted author's gate-path lift; a person approves them.
+- The main-run review reads its diff in parts one Read returns whole, and writes a verdict only when every part was read whole.
+- Without PyYAML, a mapping-form `issues:` trigger under `on:` holds as `privileged-trigger-review`.
