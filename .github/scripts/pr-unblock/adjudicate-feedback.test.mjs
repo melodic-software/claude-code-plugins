@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicable, adjudicationReply, collect, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { adjudicable, adjudicationReply, checkQuote, collect, contractIssues, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, quoteSource, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -628,4 +628,100 @@ test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own
     escalationReason: "feedback-question-security",
     skipReason: "",
   });
+});
+
+// Contract settling: the done-when line and URL below are a hand-written
+// fixture, not output of the code under test.
+const DONE_WHEN = "Done when: the install step reads the lock file before it resolves any version.";
+const ISSUE = { number: 7, body: `## Done when\n\n- ${DONE_WHEN}\n`, comments: ["The owner decided: keep the cache key per lock file."] };
+const ISSUE_URL_7 = "https://github.com/o/r/issues/7";
+
+// settleDisputes with a reply API that records each reply it posts.
+const settleWithReply = async (now, disposition, verdicts) => {
+  const posted = [];
+  const result = await settleDisputes({
+    api: {
+      readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2, 3] }),
+      replyToComment: async (_pr, id, body) => {
+        posted.push(body);
+        return { in_reply_to_id: id, id: 9 };
+      },
+    },
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition }],
+    replies: [],
+    shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
+    now,
+    verdicts,
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => true,
+    escalationReason: "",
+    log: () => {},
+  });
+  return { result, posted };
+};
+
+test("prepare stages the linked issues' spec text as contract.json, empty when there is none", async (t) => {
+  const dir = tempDir("adjudicate-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const args = { threadsText: JSON.stringify(fileOf(thread("PRRT_a"))), repliesText: incorrect("PRRT_a"), headSha: HEAD, repository: "o/r", getText: async () => "code\n" };
+  await prepare({ ...args, outDir: join(dir, "with"), contract: [{ ...ISSUE, spec_kind: "closes" }] });
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "with", "0", "contract.json"), "utf8")), { issues: [{ number: 7, url: ISSUE_URL_7, body: ISSUE.body, comments: ISSUE.comments }] });
+  await prepare({ ...args, outDir: join(dir, "without") });
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "without", "0", "contract.json"), "utf8")), { issues: [] });
+});
+
+test("a quote that is the linked issue's own text settles an intent or design question: the reply quotes it with the issue URL", async (t) => {
+  const dir = tempDir("adjudicate-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, "index.json"), JSON.stringify({ version: 1, head_sha: HEAD, slots: [{ slot: 0, thread: "PRRT_a" }], over: [] }));
+  mkdirSync(join(dir, "0"));
+  writeFileSync(join(dir, "0", "contract.json"), JSON.stringify({ issues: [{ number: 7, url: ISSUE_URL_7, body: ISSUE.body, comments: ISSUE.comments }] }));
+  writeFileSync(join(dir, "0", "verdict.json"), JSON.stringify({ verdict: "reviewer", question: "intent", quote: DONE_WHEN }));
+  const verdicts = parseVerdicts(JSON.stringify(collect({ outDir: dir })), HEAD);
+  assert.deepEqual(verdicts.get("PRRT_a"), { verdict: "reviewer", question: "intent", quote: DONE_WHEN, url: ISSUE_URL_7 });
+  const { result, posted } = await settleWithReply(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", verdicts);
+  assert.deepEqual(result, { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
+  assert.equal(posted.length, 1);
+  assert.match(posted[0], /^<!-- pr-unblock adjudicate-feedback: finding-stands -->/);
+  assert.ok(posted[0].includes(`The linked issue settles this intent question (${ISSUE_URL_7}):`));
+  assert.ok(posted[0].includes(`> ${DONE_WHEN}`));
+  // A comment's text settles too.
+  assert.equal(checkQuote({ verdict: "lane", question: "design", quote: ISSUE.comments[0] }, [{ ...ISSUE, url: ISSUE_URL_7 }]).url, ISSUE_URL_7);
+});
+
+test("a quote that is not an exact substring of the staged text settles nothing: the question stays a person's", async () => {
+  const issues = [{ ...ISSUE, url: ISSUE_URL_7 }];
+  for (const quote of [DONE_WHEN.replace("lock file", "lockfile"), "the install step", `${DONE_WHEN} And more.`]) {
+    assert.deepEqual(checkQuote({ verdict: "lane", question: "design", quote }, issues), { verdict: "human", question: "design" }, quote);
+  }
+  const verdicts = new Map([["PRRT_a", checkQuote({ verdict: "lane", question: "design", quote: "the install step" }, issues)]]);
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", verdicts), { escalationReason: "feedback-question-design", skipReason: "" });
+  // A verdict file that names a settling quote without the URL collect found it at holds too.
+  const text = JSON.stringify({ version: 1, head_sha: HEAD, threads: [{ thread: "PRRT_a", verdict: "lane", question: "intent", quote: DONE_WHEN }] });
+  assert.deepEqual(parseVerdicts(text, HEAD).get("PRRT_a"), { verdict: "human", question: "intent" });
+});
+
+test("with no contract text no quote settles: the question stays a person's", async () => {
+  assert.deepEqual(checkQuote({ verdict: "reviewer", question: "intent", quote: DONE_WHEN }, []), { verdict: "human", question: "intent" });
+  assert.equal(quoteSource(DONE_WHEN, [{ number: 7, url: ISSUE_URL_7, body: null, comments: [] }]), null);
+  assert.deepEqual(contractIssues(undefined, "o/r"), []);
+  // A lane or reviewer verdict on a question with no quote is malformed.
+  assert.equal(verdictOf({ verdict: "lane", question: "intent", quote: "" }), null);
+  // A security question never settles by quote.
+  assert.equal(verdictOf({ verdict: "lane", question: "security", quote: DONE_WHEN }), null);
+  assert.deepEqual(verdictOf({ verdict: "human", question: "security", quote: DONE_WHEN }), { verdict: "human", question: "security" });
+});
+
+test("a security-review IMPORTANT or a CRITICAL finding stays held even with a settling quote", async () => {
+  const settled = new Map([["PRRT_a", { verdict: "lane", question: "intent", quote: DONE_WHEN, url: ISSUE_URL_7 }]]);
+  for (const [label, make, reason] of [
+    ["security-review IMPORTANT", (id) => ratedThread(id, SECURITY), "feedback-disputed"],
+    ["CRITICAL code-review", criticalThread, "feedback-disputed"],
+  ]) {
+    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "INCORRECT", settled), { escalationReason: reason, skipReason: "" }, label);
+    assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "UNCERTAIN", settled), { escalationReason: "feedback-uncertain", skipReason: "" }, label);
+  }
 });

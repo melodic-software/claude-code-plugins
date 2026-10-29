@@ -5011,7 +5011,9 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   const prepare = jobs["adjudicate-feedback"].steps.find((step) => step.id === "prepare").env;
   assert.equal(prepare.HEAD_SHA, SELECT_HEAD);
   assert.equal(prepare.THREADS_SHA256, "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
-  assert.deepEqual(Object.keys(jobs["adjudicate-feedback"].permissions), ["contents"]);
+  // Read-only: the checkout and files, and the linked issues' spec text.
+  assert.deepEqual(jobs["adjudicate-feedback"].permissions, { contents: "read", issues: "read", "pull-requests": "read" });
+  assert.equal(prepare.PR_NUMBER, "${{ inputs.pr-number }}");
   const publish = jobs["publish-feedback"].with;
   assert.equal(publish["review-adjudication-sha256"], "${{ needs.adjudicate-feedback.outputs.sha256 }}");
   assert.equal(publish["review-run-sha256"], "${{ needs.address-feedback-select.outputs.run-sha256 }}");

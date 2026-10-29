@@ -18,12 +18,17 @@
 //            review comment), evidence.json (the lane's cited path:line
 //            list, never its note), review-evidence.json (the locations the
 //            review comment cites) and files/<path>.txt, the cited files and
-//            the finding's own at the head. <OUT_DIR>/index.json names each
-//            slot's thread. Outputs `count`.
+//            the finding's own at the head, and contract.json: the linked
+//            issues' spec text trusted people wrote (pr-verify's
+//            resolve-pr.mjs linkedIssues), empty when none is linked or it
+//            cannot be read. <OUT_DIR>/index.json names each slot's thread.
+//            Outputs `count`.
 //   collect  run after the model steps: reads each slot's verdict.json (the
 //            launcher's structured output) and writes VERDICTS_FILE, one
 //            entry per indexed thread; an absent or malformed verdict is
-//            null. Outputs `sha256`.
+//            null, and an intent or design question settled by a quote that
+//            is not in the slot's contract.json stays that question for a
+//            person. Outputs `sha256`.
 //
 // settleDisputes is publish-feedback.mjs's DISPUTED branch: after the lane's
 // replies are posted it applies each verdict (adjudicationReplies, fixed text
@@ -52,6 +57,14 @@ export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"])
 export const LEFT_OPEN = "left-open";
 export const VERDICTS = ["lane", "reviewer", "human"];
 export const QUESTIONS = ["intent", "design", "security"];
+// The questions a quoted contract line may settle: never security, so a
+// security judgment always reaches a person.
+export const CONTRACT_QUESTIONS = ["intent", "design"];
+// The shortest quote that settles a question, so a word or two that happens
+// to appear in the issue settles nothing (judgment), and the longest kept.
+export const QUOTE_MIN = 20;
+const QUOTE_MAX = 2000;
+const ISSUE_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]{0,9}$/;
 // The first line of each adjudication reply the lanes App posts: this, or
 // FINDING_STANDS, which the next address-feedback round reads.
 export const FINDING_ANSWERED = "<!-- pr-unblock adjudicate-feedback: finding-answered -->";
@@ -186,7 +199,7 @@ export function disputes(threadFile, repliesText, repository = "") {
   return { slots, over };
 }
 
-export async function prepare({ threadsText, repliesText, headSha, outDir, getText, repository = "" }) {
+export async function prepare({ threadsText, repliesText, headSha, outDir, getText, repository = "", contract = [] }) {
   const threadFile = JSON.parse(threadsText);
   if (threadFile?.version !== 1 || threadFile.head_sha !== headSha) {
     throw new Error("threads.json is not the select job's thread file for this head");
@@ -219,25 +232,72 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
     const locations = (list) => `${JSON.stringify(list.map((ev) => ({ location: `${ev.path}:${ev.line}`, file: found.get(ev.path) ?? "absent" })), null, 2)}\n`;
     writeFileSync(join(dir, "evidence.json"), locations(entry.evidence));
     writeFileSync(join(dir, "review-evidence.json"), locations(entry.cited));
+    writeFileSync(join(dir, "contract.json"), `${JSON.stringify({ issues: contractIssues(contract, repository) }, null, 2)}\n`);
     index.push({ slot, thread: entry.thread });
   }
   writeFileSync(join(outDir, "index.json"), `${JSON.stringify({ version: 1, head_sha: headSha, slots: index, over }, null, 2)}\n`);
   return { count: index.length, over };
 }
 
+// The linked issues' spec text as contract.json stages it: each issue's URL,
+// its body when trusted people wrote it, and its trusted comments, all as
+// resolve-pr.mjs linkedIssues returns them (`specText`).
+export function contractIssues(specText, repository) {
+  return (Array.isArray(specText) ? specText : [])
+    .filter((issue) => Number.isSafeInteger(issue?.number) && issue.number > 0)
+    .map((issue) => ({
+      number: issue.number,
+      url: `https://github.com/${repository}/issues/${issue.number}`,
+      body: typeof issue.body === "string" ? issue.body : null,
+      comments: (Array.isArray(issue.comments) ? issue.comments : []).filter((comment) => typeof comment === "string"),
+    }));
+}
+
+// The URL of the staged issue whose text holds `quote` exactly, or null.
+export function quoteSource(quote, issues) {
+  if (typeof quote !== "string" || quote.trim().length < QUOTE_MIN) {
+    return null;
+  }
+  const issue = (Array.isArray(issues) ? issues : []).find((entry) =>
+    [entry?.body, ...(Array.isArray(entry?.comments) ? entry.comments : [])].some((text) => typeof text === "string" && text.includes(quote)),
+  );
+  return typeof issue?.url === "string" && ISSUE_URL.test(issue.url) ? issue.url : null;
+}
+
 // One structured output, held to the schema's closed sets; null otherwise.
+// A lane or reviewer verdict on an intent or design question must carry a
+// quote, the contract line that settles it; any other verdict's quote is
+// dropped.
 export function verdictOf(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join(",") !== "question,verdict") {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
-  const { verdict, question } = value;
-  if (!VERDICTS.includes(verdict)) {
+  const keys = Object.keys(value).sort().join(",");
+  if (keys !== "question,verdict" && keys !== "question,quote,verdict") {
     return null;
   }
-  if (verdict === "human" ? !QUESTIONS.includes(question) : question !== "none") {
+  const { verdict, question, quote = "" } = value;
+  if (!VERDICTS.includes(verdict) || typeof quote !== "string" || quote.length > QUOTE_MAX) {
     return null;
   }
-  return { verdict, question };
+  if (verdict === "human") {
+    return QUESTIONS.includes(question) ? { verdict, question } : null;
+  }
+  if (question === "none") {
+    return { verdict, question };
+  }
+  return CONTRACT_QUESTIONS.includes(question) && quote.trim() !== "" ? { verdict, question, quote } : null;
+}
+
+// A verdict that settles a question by quote, checked against the staged
+// issues: kept with the quote's issue URL when the quote is in them, else
+// the question goes to a person, as with no quote.
+export function checkQuote(verdict, issues) {
+  if (verdict?.quote === undefined) {
+    return verdict;
+  }
+  const url = quoteSource(verdict.quote, issues);
+  return url === null ? { verdict: "human", question: verdict.question } : { ...verdict, url };
 }
 
 export function collect({ outDir }) {
@@ -251,6 +311,16 @@ export function collect({ outDir }) {
       } catch {
         verdict = null;
       }
+    }
+    if (verdict?.quote !== undefined) {
+      let issues = [];
+      try {
+        const contract = join(outDir, String(slot), "contract.json");
+        issues = lstatSync(contract).isFile() ? JSON.parse(readFileSync(contract, "utf8")).issues : [];
+      } catch {
+        issues = [];
+      }
+      verdict = checkQuote(verdict, issues);
     }
     return { thread, ...(verdict ?? { verdict: null, question: null }) };
   });
@@ -271,7 +341,14 @@ export function parseVerdicts(text, headSha) {
     }
     return new Map(
       file.threads
-        .map((entry) => [entry?.thread, verdictOf({ verdict: entry?.verdict, question: entry?.question })])
+        .map((entry) => {
+          const verdict = verdictOf({ verdict: entry?.verdict, question: entry?.question, ...(entry?.quote === undefined ? {} : { quote: entry.quote }) });
+          // A settling quote counts only with the issue URL collect found it in.
+          if (verdict?.quote !== undefined) {
+            return [entry.thread, typeof entry.url === "string" && ISSUE_URL.test(entry.url) ? { ...verdict, url: entry.url } : { verdict: "human", question: verdict.question }];
+          }
+          return [entry?.thread, verdict];
+        })
         .filter(([thread, verdict]) => THREAD_ID.test(thread ?? "") && verdict !== null),
     );
   } catch {
@@ -281,16 +358,31 @@ export function parseVerdicts(text, headSha) {
 
 const evidenceLine = (evidence) => (evidence.length > 0 ? `Evidence: ${evidence.map((ev) => `\`${ev}\``).join(", ")}` : "Evidence: none in the checkout");
 
-// The fixed reply for a lane or reviewer verdict; no model text.
-export function adjudicationReply(verdict, evidence, headSha) {
+// The contract lines that settled a question: the quote, checked to be the
+// linked issue's own text, each line quoted, and the issue it is in. An HTML
+// comment opener is escaped so no quoted line reads as a marker.
+const contractLines = (settled) =>
+  settled?.quote === undefined
+    ? []
+    : [
+        "",
+        `The linked issue settles this ${settled.question} question (${settled.url}):`,
+        "",
+        ...settled.quote.split("\n").map((line) => `> ${line.replace(/\r$/, "").replaceAll("<!--", "&lt;!--")}`),
+      ];
+
+// The fixed reply for a lane or reviewer verdict; no model text but a quote
+// of the linked issue's own text (`settled`, a verdict checkQuote kept).
+export function adjudicationReply(verdict, evidence, headSha, settled) {
   const seen = `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${headSha}\`, without the fixing lane's reasoning,`;
   return verdict === "lane"
-    ? [FINDING_ANSWERED, "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**", "", `${seen} and found that the code answers the finding.`, "", evidenceLine(evidence)].join("\n")
+    ? [FINDING_ANSWERED, "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**", "", `${seen} and found that the code answers the finding.`, ...contractLines(settled), "", evidenceLine(evidence)].join("\n")
     : [
         FINDING_STANDS,
         "**pr-unblock / adjudicate-feedback: the finding stands**",
         "",
         `${seen} and found that the finding holds. The next address-feedback round fixes it; a round that leaves this thread open again ends the lane in a failing status.`,
+        ...contractLines(settled),
         "",
         evidenceLine(evidence),
       ].join("\n");
@@ -444,7 +536,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
         raise("feedback-partial");
         continue;
       }
-      const answer = await api.replyToComment(pr, ids[0], adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], adjudicatedSha));
+      const answer = await api.replyToComment(pr, ids[0], adjudicationReply(verdict.verdict, byThread.get(thread)?.evidence ?? [], adjudicatedSha, verdict));
       if (answer?.in_reply_to_id !== ids[0]) {
         throw new Error(`the adjudication reply on ${thread} did not land on its thread`);
       }
@@ -469,7 +561,31 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
   return { escalationReason: reason, skipReason: (stands || deferred) && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };
 }
 
-export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
+// The linked issues' spec text trusted people wrote, as pr-verify reads it
+// (resolve-pr.mjs linkedIssues): [] when PR_NUMBER is unset or the read
+// fails, so no quote can settle a question and it stays a person's. Loaded
+// here, from the full base checkout, for the reason request-budget.mjs is.
+async function linkedSpec(env, log) {
+  if (!/^[1-9][0-9]*$/.test(env.PR_NUMBER ?? "")) {
+    return [];
+  }
+  try {
+    const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
+    const { createGitHub, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
+    const { loadRules } = await import("../intake-triage/admit.mjs");
+    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
+    const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
+    const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
+    const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
+    const { specText } = await linkedIssues(api(false), api(true), env.GITHUB_REPOSITORY, Number(env.PR_NUMBER), trusted.humans, identity ? trusted.logins.get(`${identity}[bot]`) : undefined, taskList);
+    return specText;
+  } catch (error) {
+    log(`::warning::cannot read the linked issues' spec text (${String(error?.message ?? error).slice(0, 300)}); no question settles by quote this round`);
+    return [];
+  }
+}
+
+export async function main(argv, env, { api, readContract, log = (line) => console.log(line) } = {}) {
   const command = argv[0];
   need(env, ["GITHUB_OUTPUT", "OUT_DIR"]);
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
@@ -493,6 +609,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
         fetch: budgetedFetch({ log }).fetch,
       });
     const { count, over } = await prepare({
+      contract: await (readContract ?? linkedSpec)(env, log),
       threadsText: readChecked(env.THREADS_FILE, env.THREADS_SHA256, "threads.json"),
       repliesText: readChecked(env.REPLIES_FILE, env.REPLIES_SHA256, "replies.jsonl"),
       headSha: env.HEAD_SHA,

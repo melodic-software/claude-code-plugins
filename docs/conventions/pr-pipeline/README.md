@@ -628,12 +628,18 @@ A `pr-unblock` run that stops ends on the route
 routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is only for the
 owner's three reasons
 ([When work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): an intent
-or design question, a person's own thread or hold, a HIGH or CRITICAL security risk (a security
+or design question the work item contract does not settle, a person's own thread or hold, a HIGH or CRITICAL security risk (a security
 question, a finding no adjudicator may judge: a CRITICAL one, or a security-review one rated
 `IMPORTANT` or above or with no rating it reads; a security-review `SUGGESTION` is adjudicated like
 a code-review finding; a Dependabot security update the review would close, a risk the dependency
 review raised, or a commit on a Dependabot branch from anyone but Dependabot). A reason the table
-does not list holds too, with no activity to resume. Every other reason routes `fail`. A `fail`
+does not list holds too, with no activity to resume. The adjudicator settles an intent or design
+question itself when it quotes a line of the linked issues' spec text, the text pr-verify reads
+(`resolve-pr.mjs` `linkedIssues`), staged as `contract.json`: the script keeps the quote only when
+it is an exact substring of that text, at least 20 characters, and the reply quotes it with the
+issue's URL. A quote that fails the check, or no spec text, leaves the question a person's; a
+security question, a CRITICAL finding and a security-review one rated `IMPORTANT` or above never
+settle by quote. Every other reason routes `fail`. A `fail`
 entry that names `"label": "needs-session"` is a change the lane cannot make: a path its token may
 not push, a fix that weakens a required check after its fresh fixer round, or a dependency update
 the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
