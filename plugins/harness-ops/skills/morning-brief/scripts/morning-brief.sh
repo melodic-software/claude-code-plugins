@@ -2311,8 +2311,7 @@ print_lanes() {
 # exactly one day's search. A search that reaches the ceiling, or an item with
 # more than 100 events in the window (label events: 100 read back from now
 # with more before them and none before the window), prints PARTIAL.
-# 50 a page: at 100 a page GitHub returns an empty timeline for some results
-# (18 of one day's 350 at 100; none lost at 50).
+# 50 a page, per the page-size probe recorded in SKILL.md.
 TOUCH_PAGE_LIMIT=20 # 20 pages of 50 is the search ceiling
 TOUCH_TOP=10
 
