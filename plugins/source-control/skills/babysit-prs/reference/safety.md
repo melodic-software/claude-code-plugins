@@ -605,8 +605,10 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   merges that file, so a repository value that widens what the worker resolves stays reviewed
   ([ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md)). The setting wins when set; with neither, the own-PR refusal holds. `--autonomous` refuses a PR whose author is a
   self login, because the resolver would be the actor whose permission slip it is. This flag is
-  the one exception: on such a PR it admits a thread only when a lane login other than the opener
-  has replied to it, so the claim that the finding is handled comes from the lane. Every other
+  the one exception: on such a PR it admits a thread only when the latest reply from a lane login
+  other than the opener is address-feedback's fixed disposition (`LANE_FIXED_HEADER` in the
+  script), so the claim that the finding is handled comes from the lane. A left-open disposition
+  (`INCORRECT`, `UNCERTAIN`, `VALID (defer)`) is no answer. Every other
   `--autonomous` guard still holds (bot opener, `isOutdated`, the severity line that keeps a
   CRITICAL or security thread with a person, one pinned thread). A comment by a self login in the
   thread refuses it too: on an own PR that login is the person who opened the PR. Any other thread

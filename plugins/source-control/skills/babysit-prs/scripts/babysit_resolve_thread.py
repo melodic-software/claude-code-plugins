@@ -72,8 +72,9 @@ Deterministic guards encoded here:
   already answered, so the claim that the finding is handled comes from the
   lane, not from the resolver. Every other `--autonomous` guard still applies
   (bot opener, `isOutdated`, the severity line, one pinned thread), and the
-  thread must additionally carry a reply from one of the named lane logins
-  other than the opener, with no comment by a self login (on an own PR, the
+  thread's latest reply from one of the named lane logins other than the
+  opener must be a fixed-disposition reply (`LANE_FIXED_HEADER`), with no
+  comment by a self login (on an own PR, the
   self login is the person who opened it) and no truncated comment page.
   Anything else is `skipped-own-pr-not-lane-answered`. Without the flag, or
   with an empty value, the lane login is the repository's `merge.agent-identity`
@@ -303,6 +304,13 @@ FORBIDDEN_CLASS_PATTERNS = (
 )
 
 
+# The first line address-feedback's `renderReply`
+# (.github/scripts/pr-unblock/publish-feedback.mjs) writes for a fixed finding.
+# Its other dispositions leave the thread open, so only this one counts as an
+# answer, and only on the lane's latest reply.
+LANE_FIXED_HEADER = "**pr-unblock / address-feedback: VALID, fixed**"
+
+
 def _has_severity_marker(body: str) -> bool:
     """True for the forbidden class only: structured P0/P1 markers (badge,
     bracket, or declaration prefix), the word CRITICAL, or the word
@@ -365,8 +373,9 @@ def project_thread(
 
     `laneAnswered` is the own-PR exception's signal (`--own-pr-lane-logins`):
     every comment is a bot's (a self login counts against it here, because on
-    an own PR the self login is the person who opened the PR), and some reply
-    after the opener comes from a `lane_logins` login other than the opener's.
+    an own PR the self login is the person who opened the PR), and the latest
+    reply from a `lane_logins` login other than the opener's opens with
+    `LANE_FIXED_HEADER`; a left-open disposition is not an answer.
     Logins compare casefolded with any `[bot]` suffix removed, since the API
     reports a Bot's login without it. It fails closed on a truncated page.
 
@@ -430,15 +439,19 @@ def project_thread(
         return str(login or "").casefold().removesuffix("[bot]")
 
     opener_bare = _bare(first_author.get("login"))
+    lane_replies = [
+        c
+        for c in comments[1:]
+        if (login := _bare(_comment_author(c).get("login"))) in lane_logins
+        and login != opener_bare
+    ]
+    last_lane_body = lane_replies[-1].get("body") if lane_replies else None
     lane_answered = (
         bot_only
         and bool(opener_bare)
         and not any(_author_is_self(c) for c in comments)
-        and any(
-            (login := _bare(_comment_author(c).get("login"))) in lane_logins
-            and login != opener_bare
-            for c in comments[1:]
-        )
+        and isinstance(last_lane_body, str)
+        and last_lane_body.split("\n", 1)[0].strip() == LANE_FIXED_HEADER
     )
 
     def _severity_scan_body(comment: object) -> str | None:

@@ -2134,6 +2134,7 @@ class ExistingModesUnchanged(unittest.TestCase):
 
 
 LANE = "melodic-automation-lanes"
+FIXED = "**pr-unblock / address-feedback: VALID, fixed**\n\nEvidence: `a.py:1`\nFix: abc1234"
 OWNER = "owner-person"
 
 
@@ -2209,7 +2210,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_answered_lane_thread_is_resolved(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         code, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
         self.assertEqual(result["threads"][0]["action"], "resolved")
@@ -2243,7 +2244,47 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_the_lane_replying_to_its_own_finding_does_not_count(self) -> None:
         record = _own_pr_record(
             _comment(LANE, "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_a_left_open_lane_reply_is_not_an_answer(self) -> None:
+        for label in ("INCORRECT", "UNCERTAIN", "VALID (defer)"):
+            record = _own_pr_record(
+                _comment("github-actions", "Bot", "P2: rename this helper"),
+                _comment(
+                    LANE,
+                    "Bot",
+                    f"**pr-unblock / address-feedback: {label}, left open**",
+                ),
+            )
+            with self.subTest(label=label):
+                _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+                self.assertEqual(
+                    result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+                )
+                resolver.assert_not_called()
+
+    def test_a_later_left_open_reply_overrides_an_earlier_fix(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+            _comment(
+                LANE, "Bot", "**pr-unblock / address-feedback: UNCERTAIN, left open**"
+            ),
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_the_fixed_header_must_open_the_reply(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", "Still applies.\n" + FIXED),
         )
         _, result, _ = _own_pr_run(record, *self.LANES)
         self.assertEqual(
@@ -2257,7 +2298,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
                 "Bot",
                 "CRITICAL: token reaches the untrusted job",
             ),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
         self.assertEqual(result["threads"][0]["action"], "skipped-severity-marked")
@@ -2266,7 +2307,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_person_started_thread_is_not_resolved(self) -> None:
         record = _own_pr_record(
             _comment("a-reviewer", "User", "Please rename this helper."),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
         self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
@@ -2275,7 +2316,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_owner_thread_is_not_resolved(self) -> None:
         record = _own_pr_record(
             _comment(OWNER, "User", "Rename this helper."),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
         self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
@@ -2286,7 +2327,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
         # is the person who opened the PR, so their reply keeps the thread.
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
             _comment(OWNER, "User", "Not fixed yet."),
         )
         _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
@@ -2298,7 +2339,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_current_thread_is_not_resolved(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
             outdated=False,
         )
         _, result, _ = _own_pr_run(record, *self.LANES)
@@ -2307,7 +2348,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_without_the_flag_the_own_pr_refusal_is_unchanged(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         code, result, resolver = _own_pr_run(record, resolve=True)
         self.assertTrue(result["skippedOwnPr"])
@@ -2317,7 +2358,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_an_empty_flag_keeps_the_own_pr_refusal(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         _, result, _ = _own_pr_run(record, "--own-pr-lane-logins", "")
         self.assertTrue(result["skippedOwnPr"])
@@ -2325,7 +2366,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_repo_agent_identity_stands_in_when_the_setting_is_unset(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         code, result, resolver = _own_pr_run(
             record, resolve=True, repo_identity=f"{LANE}[bot]"
@@ -2338,7 +2379,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
     def test_both_unset_keeps_the_own_pr_refusal(self) -> None:
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         code, result, resolver = _own_pr_run(record, resolve=True, repo_identity=None)
         self.assertTrue(result["skippedOwnPr"])
@@ -2350,7 +2391,7 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
         # count, and the repo identity is never read.
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
-            _comment(LANE, "Bot", "Fixed in abc1234."),
+            _comment(LANE, "Bot", FIXED),
         )
         with mock.patch.object(rt, "repo_lane_identity") as repo_read:
             buffer = io.StringIO()
