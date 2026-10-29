@@ -83,8 +83,10 @@ const baseLanes = () => ({
 const push = (actor, sha, at) => ({ activity_type: "push", actor, after: sha, timestamp: at });
 const basePushes = () => [push(PERSON, HEAD, "2026-10-18T11:00:00Z"), push(PERSON, OLD, "2026-10-18T09:50:00Z"), { activity_type: "branch_creation", actor: PERSON, after: "e".repeat(40), timestamp: "2026-10-18T08:00:00Z" }];
 
-function world({ timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }] } = {}) {
+function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }] } = {}) {
   const calls = [];
+  // `later` answers the reads after the first judgment: { head, timeline }.
+  const seen = { pull: 0, timeline: 0 };
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const route = path.replace(/[?&]per_page=100&page=\d+$/, "");
@@ -96,10 +98,14 @@ function world({ timeline = baseTimeline(), threads = baseThreads(), lanes = bas
       return first ? [{ number: 7, pull_request: {} }] : [];
     }
     if (method === "GET" && route === `/repos/${REPO}/issues/7/timeline`) {
-      return first ? timeline : [];
+      if (first) {
+        seen.timeline += 1;
+      }
+      return first ? (seen.timeline > 1 ? (later.timeline ?? timeline) : timeline) : [];
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7`) {
-      return { number: 7, state: "open", user: OWNER, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPO } }, labels: [{ name: "needs-human" }] };
+      seen.pull += 1;
+      return { number: 7, state: "open", user: OWNER, base: { ref: "main", sha: MAIN }, head: { sha: seen.pull > 1 ? (later.head ?? HEAD) : HEAD, ref: "feat/x", repo: { full_name: REPO } }, labels: [{ name: "needs-human" }] };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${MAIN}...${HEAD}`) {
       return { files: headFiles };
@@ -177,7 +183,7 @@ test("the hold stays when the new head still carries the finding", async () => {
   const notes = [completeNotice("claude-security-review"), { annotation_level: "notice", message: `claude-lane-hold lane=claude-security-review sha=${HEAD} criteria=critical-security label=needs-human` }];
   await assertKept(world({ lanes: { ...baseLanes(), "pr-review-security-hosted.yml": { ...baseLanes()["pr-review-security-hosted.yml"], notes } } }), `claude-security-review holds ${HEAD}`);
   for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "no severity line"]) {
-    await assertKept(world({ threads: [...baseThreads(), securityThread(severity)] }), "1 unresolved security finding\\(s\\) at CRITICAL or IMPORTANT");
+    await assertKept(world({ threads: [...baseThreads(), securityThread(severity)] }), "1 unresolved claude-security-review finding\\(s\\) at CRITICAL or IMPORTANT");
   }
   await assertKept(world({ timeline: [...baseTimeline().slice(0, 2), summary("critical-findings: 1")] }), `the security lane's summary of ${HEAD} does not read critical-findings: 0`);
 });
@@ -188,7 +194,7 @@ test("the hold stays while the review lanes have not passed on the new head", as
   await assertKept(world({ lanes: { ...lanes, "pr-review-hosted.yml": null } }), `claude-review has not run on ${HEAD}`);
   await assertKept(world({ lanes: { ...lanes, "pr-review-hosted.yml": { ...lanes["pr-review-hosted.yml"], notes: [] } } }), `claude-review recorded no one review of ${HEAD}`);
   const incremental = [completeNotice("claude-security-review", `scope=incremental since=${OLD}`)];
-  await assertKept(world({ lanes: { ...lanes, "pr-review-security-hosted.yml": { ...lanes["pr-review-security-hosted.yml"], notes: incremental } } }), `the security lane reviewed only part of ${HEAD}`);
+  await assertKept(world({ lanes: { ...lanes, "pr-review-security-hosted.yml": { ...lanes["pr-review-security-hosted.yml"], notes: incremental } } }), `claude-security-review reviewed only part of ${HEAD}`);
 });
 
 test("a lanes App push alone never clears the hold, even with both lanes passing", async () => {
@@ -205,4 +211,36 @@ test("the hold stays when the head changes a review caller, a person spoke, or t
   await assertKept(world({ timeline: [...baseTimeline(), commented(OWNER, "Wait on this.", "2026-10-18T11:40:00Z")] }), "kyle-sexton commented or reviewed after needs-human went on");
   const escalation = commented(APP, "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nHeld.", "2026-10-18T11:40:00Z");
   await assertKept(world({ timeline: [...baseTimeline(), escalation] }), "a lanes App comment since needs-human went on carries a marker");
+});
+
+// Fixes from the security review of 990c1941.
+test("an incremental review by either lane keeps the hold: a finding at the held head may not have been looked at again", async () => {
+  const lanes = baseLanes();
+  const incremental = [completeNotice("claude-review", `scope=incremental since=${OLD}`)];
+  await assertKept(world({ lanes: { ...lanes, "pr-review-hosted.yml": { ...lanes["pr-review-hosted.yml"], notes: incremental } } }), `claude-review reviewed only part of ${HEAD}`);
+});
+
+test("an open code-lane thread at CRITICAL or IMPORTANT keeps the hold, and so does an unrated one when the hold names the code lane", async () => {
+  const codeAt = (severity) => thread(false, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA code finding.\n\nclaude-lane: claude-review`);
+  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL"]) {
+    await assertKept(world({ threads: [...baseThreads(), codeAt(severity)] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or IMPORTANT");
+  }
+  const codeHold = commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=critical-security -->\nHeld.\n\nclaude-lane: claude-review`, "2026-10-18T10:00:02Z");
+  await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or IMPORTANT");
+});
+
+test("a hold written, or a head pushed, after the judgment and before the delete keeps the label", async () => {
+  const after = (later) => world({ later });
+  for (const [w, why] of [
+    [after({ timeline: [...baseTimeline(), hold(HEAD, "2026-10-18T11:50:00Z")] }), "a review lane wrote a hold since it was judged"],
+    [after({ head: "f".repeat(40) }), `its head moved to ${"f".repeat(40)} since it was judged`],
+  ]) {
+    const { code, log } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(
+      w.writes().map(({ method }) => method),
+      ["POST"],
+    );
+    assert.match(log, new RegExp(`#7 kept: ${why}`));
+  }
 });

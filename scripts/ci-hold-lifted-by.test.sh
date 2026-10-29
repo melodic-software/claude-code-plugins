@@ -49,7 +49,7 @@ else
   ok "step fails the job on its exit code"
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}' \
+for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}' \
   "BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
@@ -108,6 +108,27 @@ expect() {
   rm -rf "$config" "$TMP_ROOT/pr-reads"
   mkdir -p "$config/.github/standards/trusted-actors"
   printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  # The base commit's clear-escalations.mjs, stubbed: its recheckStaleHold
+  # records what it was given and answers STUB_PREDICATE (pass, else the hold
+  # stands); a run of the module as a script is recorded too. Absent when
+  # STUB_NO_PREDICATE is set. clear-escalations-recheck.test.mjs tests the
+  # real one.
+  if [[ -z "${STUB_NO_PREDICATE:-}" ]]; then
+    mkdir -p "$config/.github/scripts/pr-merge"
+    cat >"$config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
+import { appendFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const { PR_NUMBER, HEAD_SHA, HUMAN_GATED, TRUSTED_ACTORS_PATH, STUB_LOG, STUB_PREDICATE } = process.env;
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  appendFileSync(STUB_LOG, "clear-escalations main ran\n");
+}
+export async function recheckStaleHold() {
+  appendFileSync(STUB_LOG, `predicate pr=${PR_NUMBER} head=${HEAD_SHA} label=${HUMAN_GATED} trusted=${TRUSTED_ACTORS_PATH}\n`);
+  console.log(`stale-review-hold: stub ${STUB_PREDICATE ?? "unset"}`);
+  return STUB_PREDICATE === "pass" ? 0 : 1;
+}
+JS
+  fi
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r HUMAN_GATED="${HUMAN_GATED-needs-human}" BASE_SHA="${BASE_SHA-$BASE}" \
@@ -198,6 +219,8 @@ held_at() { comment "$LANE" "<!-- claude-lane-hold lane=claude-security-review s
 cleared_for() { comment "${2:-$APP_USER}" "<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=$1 -->"$'\nA review lane held this pull request at an earlier head.' "${3:-2026-10-23T11:29:00Z}"; }
 STALE_HOLD="$(held_at "$OLD_SHA" 2026-10-23T10:00:00Z)"
 export LANES_APP_ID=337595936
+export HEAD_SHA="$NEW_SHA"
+export STUB_PREDICATE=pass
 STUB_EVENTS="[$BOT_LIFT]"
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 expect "the lanes App's removal after its stale-review-hold comment for an unheld head passes" 0 \
@@ -223,7 +246,38 @@ STUB_EVENTS="[$BOT_LIFT]"
 LANES_APP_ID='' expect "with no lanes App id the App's removal fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"human"}]}' \
   expect "a lanes App id the base list does not name fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-unset LANES_APP_ID
+# The race the security review of 990c1941 found: a lane held the current
+# head after the App judged it, under the label already on, before its delete.
+STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OLD_SHA")]"
+expect "a hold naming this head, written before the App's marker, keeps it whatever head the marker names" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+OTHER_SHA=$(printf 'e%.0s' {1..40})
+STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OTHER_SHA")]"
+expect "a hold naming this head keeps it beside a marker for an unheld head" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+# A later clean push: the marker names the head the App judged, this head is
+# a newer one no hold names, so its own reviews decide (not strict equality).
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+HEAD_SHA="$OTHER_SHA" expect "a later head no hold names passes after the App's clear of an earlier one" 0 \
+  "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
+HEAD_SHA='' expect "an empty head fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+# The marker only points ci-status at the hold: the base commit's
+# clear-escalations.mjs recheckStaleHold judges it again at this head (coordinator direction:
+# never take the App's judgment on trust).
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+STUB_PREDICATE=stands expect "a valid marker whose predicate now finds the hold standing fails" 1 \
+  "melodic-automation-lanes[bot] removed 'needs-human'"
+if grep -qxF "predicate pr=6419 head=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+  ok "the predicate runs at this head with the base commit's trusted-actor list and the resolved label"
+  if grep -q 'clear-escalations main ran' "$TMP_ROOT/log"; then fail "importing the base module ran its sweep"; else ok "importing the base module runs no sweep"; fi
+else
+  fail "the predicate's inputs are not this head, label and base list: '$(cat "$TMP_ROOT/log")'"
+fi
+STUB_NO_PREDICATE=1 expect "a base commit with no clear-escalations.mjs fails the App's removal closed" 1 \
+  "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$STALE_HOLD]"
+expect "with no marker the predicate is not run" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+if grep -q '^predicate ' "$TMP_ROOT/log"; then fail "the predicate ran with no marker"; else ok "the predicate runs only behind a marker"; fi
+unset LANES_APP_ID HEAD_SHA STUB_PREDICATE
 
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'

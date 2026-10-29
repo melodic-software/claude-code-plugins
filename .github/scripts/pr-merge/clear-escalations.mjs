@@ -87,26 +87,16 @@
 // and so does any other marker, as above.
 //
 // When a review lane (github-actions[bot] or claude[bot]) added the label
-// last, it clears as `stale-review-hold` only when every review-lane hold
-// comment since the label was last removed names a head (`sha=`) that is not
-// the current one, and at the current head:
-// - a trusted move (above) took the branch off the newest held head: every
-//   push since the one that landed it is by a trusted person, never the
-//   lanes App;
-// - both review lanes passed: each caller's newest pull_request run on the
-//   head, from this repository, has its status job succeeded, recording a
-//   review-complete notice for the lane and the head and no hold notice for
-//   it, and the head changes neither review caller (merge-holds laneChange),
-//   which a pull_request run takes from the head and so could forge both;
-// - the security lane reports no HIGH or CRITICAL finding: its review was
-//   whole, every finding it counted is inline, its reviewed-head comment for
-//   the head carries one `critical-findings: 0`, and no unresolved review
-//   thread opens with a security-lane comment whose one `severity:` line is
-//   CRITICAL or IMPORTANT (IMPORTANT counts as HIGH; no readable line counts
-//   as CRITICAL). The code lane carries no severity, so it gates on passing.
-// Any escalation or other lanes App marker since the label, a person speaking,
-// or check-signed-commits' hold keeps it, as above. A lane that still finds the
-// cause holds the new head again with its own comment and label.
+// last, it clears as `stale-review-hold` when staleHoldEvidence (below) finds every
+// hold since the label was last removed no longer standing at the current head
+// (a trusted move off the held head, both lanes' whole reviews passing there
+// with no HIGH or CRITICAL finding), check-signed-commits does not hold it, no
+// lanes App marker but an address-feedback round's was written since the
+// label, and no person spoke since. Just before the delete, the head and the
+// hold comments are read again: a moved head or a new hold keeps the label.
+// ci-status runs the base commit's copy of this module's recheckStaleHold
+// before it counts the App's removal. A lane that still finds the cause holds the new
+// head again with its own comment and label.
 //
 // Before the label comes off, the App posts one comment naming the cleared
 // reason and the head; a sweep that finds that comment for this escalation
@@ -399,35 +389,6 @@ async function ciPasses(context) {
   return `${moved}, and no check other than ${AGGREGATE} fails, runs or was cancelled at it`;
 }
 
-// Whether trusted pushes alone moved `pull`'s head off every resume key since
-// the label went on: the head is this repository's (the activity API shows no
-// fork push), its newest push since `since` landed the head, and every push
-// or other activity on the branch since then is by an id `trusted` holds (a
-// `human` of trusted-actors.json; never the lanes App, whose own push would
-// lift its own stop). The page must
-// reach back past `since`, or the move stays unread. A description, or null.
-async function trustedMove({ read, repo, pull, keys, since, trusted }) {
-  const head = pull.head.sha;
-  const ref = String(pull.head?.ref ?? "");
-  if (trusted === null || keys.includes(head) || pull.head?.repo?.full_name !== repo || ref === "") {
-    return null;
-  }
-  const activity = await read((reader) => reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`));
-  if (!Array.isArray(activity)) {
-    return null;
-  }
-  const at = (item) => Date.parse(String(item?.timestamp));
-  const recent = activity.filter((item) => !(at(item) <= since)).sort((a, b) => at(b) - at(a));
-  if (recent.length === 0 || recent.length === activity.length || recent[0].after !== head) {
-    return null;
-  }
-  if (recent.some((item) => !trusted.has(item?.actor?.id))) {
-    return null;
-  }
-  const by = [...new Set(recent.map((item) => item.actor.login))].join(", ");
-  return `${by} moved the head from the resume key to ${head}`;
-}
-
 // main's tip when the newest `reason` escalation was written, when the head
 // contains it (the compare from it to the head is behind by none), or null.
 async function mainMergedAt({ read, repo, pull, escalations }, reason) {
@@ -534,9 +495,28 @@ function pairedWithPrMerge(appComments, since) {
   return ours && (since - newest <= PAIRED_MS || escalated);
 }
 
-// The accounts a review lane's hold step adds the label as.
-const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
-const STALE_HOLD = "stale-review-hold";
+// A STALE HOLD (staleHoldEvidence, which clear-escalations runs before the
+// App removes the label and ci-status runs again through recheckStaleHold).
+// The holds since the label was last removed no longer stand only when every
+// hold comment names a head (`sha=`), none names the current one, and at the
+// current head:
+// - a trusted move took the branch off the newest held head: every push since
+//   the one that landed it is by a `human` of trusted-actors.json, never the
+//   lanes App;
+// - the head changes neither review caller (merge-holds laneChange), which a
+//   pull_request run takes from the head and so could forge its notices;
+// - both review lanes passed: each caller's newest pull_request run on the
+//   head, from this repository, has its status job succeeded, recording one
+//   review-complete notice for the lane and the head and no hold notice;
+// - every lane's review was whole, so a finding at an older head was looked
+//   at again, and none leaves a HIGH or CRITICAL finding: the security lane's
+//   summary reads `critical-findings: 0`; a strict lane (the security lane, or
+//   one a hold names) counted every finding inline; and no unresolved thread a
+//   lane opened is at CRITICAL or IMPORTANT (IMPORTANT counts as HIGH), or,
+//   for a strict lane, has no one readable `severity:` line.
+// A read that fails, or a listing that may be cut short, keeps the hold.
+
+export const STALE_HOLD = "stale-review-hold";
 // Each review caller's lane id, as its notices and comments name it.
 const LANE_OF = Object.freeze({ "pr-review-hosted.yml": "claude-review", "pr-review-security-hosted.yml": "claude-security-review" });
 const SECURITY_LANE = "claude-security-review";
@@ -545,6 +525,7 @@ const SECURITY_LANE = "claude-security-review";
 // and SUMMARY_CRITICAL_RE).
 const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
 const CRITICAL_COUNT = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
+const HOLD_LANE = /^<!-- claude-lane-hold lane=([a-z-]+) /;
 const LANE_TAG = /^\s*`?claude-lane: ([\w-]+)`?\s*$/m;
 const REVIEW_THREAD_PAGES = 10;
 const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -558,28 +539,29 @@ const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
   }
 }`;
 
-// Whether a review comment (GraphQL author) is the security lane's: a Claude
-// App comment untagged or tagged for it, or a github-actions comment whose
-// last non-blank line is its footer (babysit_review_evidence._lane_comment).
-function securityComment(author, body) {
+// The review lane a review comment (GraphQL author) is from: a Claude App
+// comment's tag, ANY_LANE when it has none, or a github-actions comment's last
+// non-blank line as its footer (babysit_review_evidence._lane_comment); null
+// for any other comment.
+const ANY_LANE = "*";
+function commentLane(author, body) {
   if (author?.__typename !== "Bot") {
-    return false;
+    return null;
   }
   const text = String(body ?? "");
   if (["claude", "claude[bot]"].includes(author.login)) {
-    const tag = LANE_TAG.exec(text);
-    return tag === null || tag[1] === SECURITY_LANE;
+    return LANE_TAG.exec(text)?.[1] ?? ANY_LANE;
   }
   const last = lines(text).filter((line) => line.trim() !== "").at(-1) ?? "";
-  return ["github-actions", "github-actions[bot]"].includes(author.login) && LANE_TAG.exec(last)?.[1] === SECURITY_LANE;
+  return ["github-actions", "github-actions[bot]"].includes(author.login) ? (LANE_TAG.exec(last)?.[1] ?? null) : null;
 }
 
-// How many unresolved review threads open with a security-lane comment whose
-// severity is CRITICAL or IMPORTANT, or not exactly one readable line; null
-// when the listing does not read or may be cut short.
-async function openSecurityFindings({ github, repo, number }) {
+// Each unresolved review thread a review lane opened, as { lane, severity }
+// (its root comment's `severity:` values); null when the listing does not read
+// or may be cut short.
+async function openLaneThreads({ github, repo, number }) {
   const [owner, name] = repo.split("/");
-  let open = 0;
+  const open = [];
   let after = null;
   for (let page = 0; page < REVIEW_THREAD_PAGES; page += 1) {
     const threads = (await github("POST", "/graphql", { query: REVIEW_THREADS_QUERY, variables: { owner, name, number, after } }))?.data?.repository?.pullRequest
@@ -595,8 +577,10 @@ async function openSecurityFindings({ github, repo, number }) {
       if (thread?.isResolved !== false || root === undefined) {
         return null;
       }
-      const severity = [...String(root.body ?? "").matchAll(SEVERITY)].map((match) => match[1]);
-      open += securityComment(root.author, root.body) && !(severity.length === 1 && severity[0] === "SUGGESTION") ? 1 : 0;
+      const lane = commentLane(root.author, root.body);
+      if (lane !== null) {
+        open.push({ lane, severity: [...String(root.body ?? "").matchAll(SEVERITY)].map((match) => match[1]) });
+      }
     }
     if (!threads.pageInfo?.hasNextPage) {
       return open;
@@ -640,20 +624,26 @@ async function laneReview({ checks, repo, head }, [file, check]) {
     if (reviewed.length !== 1) {
       return { held: `${lane} recorded no one review of ${head}` };
     }
-    return { findings: Number(reviewed[0][1]), inline: Number(reviewed[0][2]), whole: reviewed[0][3] === "whole" };
+    return { lane, findings: Number(reviewed[0][1]), inline: Number(reviewed[0][2]), whole: reviewed[0][3] === "whole" };
   } catch (error) {
-    return { held: `${lane}'s run on ${head} did not read: ${escapeCommand(error?.message ?? error)}` };
+    return { held: `${lane}'s run on ${head} did not read: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}` };
   }
 }
 
-// Why the security lane's review of `head` may leave a HIGH or CRITICAL
-// finding, or null when it leaves none.
-async function securityHeld({ github, repo, number, head, timeline }, review) {
-  if (!review.whole) {
-    return `the security lane reviewed only part of ${head}`;
-  }
-  if (review.findings > review.inline) {
-    return `the security lane reported ${review.findings - review.inline} finding(s) at ${head} with no inline severity`;
+// Why a lane's review of `head` may leave a HIGH or CRITICAL finding, or null
+// when none does. Every lane's review must be whole, so a finding at an older
+// head was looked at again. A lane is strict when it is the security lane or a
+// hold names it: every finding it counted must be inline, and an open thread
+// of it with no one readable `severity:` line counts as CRITICAL. Any lane's
+// open thread at CRITICAL or IMPORTANT counts (IMPORTANT as HIGH).
+async function findingsHeld({ github, repo, number, head, timeline }, reviews, heldLanes) {
+  for (const review of reviews) {
+    if (!review.whole) {
+      return `${review.lane} reviewed only part of ${head}`;
+    }
+    if ((review.lane === SECURITY_LANE || heldLanes.has(review.lane)) && review.findings > review.inline) {
+      return `${review.lane} reported ${review.findings - review.inline} finding(s) at ${head} with no inline severity`;
+    }
   }
   const marker = `<!-- claude-lane-reviewed-head lane=${SECURITY_LANE} sha=${head} -->`;
   const summary = timeline.filter((item) => item.event === "commented" && isApp(item.user, "github-actions[bot]") && lines(item.body)[0] === marker);
@@ -661,26 +651,160 @@ async function securityHeld({ github, repo, number, head, timeline }, review) {
   if (counts.length !== 1 || counts[0] !== "0") {
     return `the security lane's summary of ${head} does not read critical-findings: 0`;
   }
-  const open = await openSecurityFindings({ github, repo, number });
+  const open = await openLaneThreads({ github, repo, number });
   if (open === null) {
     return "the review thread listing may be cut short";
   }
-  return open > 0 ? `${open} unresolved security finding(s) at CRITICAL or IMPORTANT` : null;
+  for (const { lane } of reviews) {
+    const strict = lane === SECURITY_LANE || heldLanes.has(lane);
+    const blocking = open.filter(
+      (thread) =>
+        (thread.lane === lane || thread.lane === ANY_LANE) &&
+        (thread.severity.length === 1 ? thread.severity[0] !== "SUGGESTION" : strict || thread.severity.some((value) => value !== "SUGGESTION")),
+    ).length;
+    if (blocking > 0) {
+      return `${blocking} unresolved ${lane} finding(s) at CRITICAL or IMPORTANT`;
+    }
+  }
+  return null;
 }
 
-// A label a review lane added: what to clear as STALE_HOLD, or { reason }
-// saying why nothing is.
-async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
+// Whether trusted pushes alone moved `pull`'s head off every resume key since
+// the label went on: the head is this repository's (the activity API shows no
+// fork push), its newest push since `since` landed the head, and every push
+// or other activity on the branch since then is by an id `trusted` holds (a
+// `human` of trusted-actors.json; never the lanes App, whose own push would
+// lift its own stop). The page must
+// reach back past `since`, or the move stays unread. A description, or null.
+export async function trustedMove({ read, repo, pull, keys, since, trusted }) {
+  const head = pull.head.sha;
+  const ref = String(pull.head?.ref ?? "");
+  if (trusted === null || keys.includes(head) || pull.head?.repo?.full_name !== repo || ref === "") {
+    return null;
+  }
+  const activity = await read((reader) => reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`));
+  if (!Array.isArray(activity)) {
+    return null;
+  }
+  const at = (item) => Date.parse(String(item?.timestamp));
+  const recent = activity.filter((item) => !(at(item) <= since)).sort((a, b) => at(b) - at(a));
+  if (recent.length === 0 || recent.length === activity.length || recent[0].after !== head) {
+    return null;
+  }
+  if (recent.some((item) => !trusted.has(item?.actor?.id))) {
+    return null;
+  }
+  const by = [...new Set(recent.map((item) => item.actor.login))].join(", ");
+  return `${by} moved the head from the resume key to ${head}`;
+}
+
+// The review-lane hold comments written or edited since `lifted`, the label's
+// last removal before it went on: { shas, lanes }, a sha undefined when its
+// marker names no head.
+export function holdsSince(timeline, lifted) {
   const holds = timeline.filter(
     (item) => laneHold(item) !== undefined && !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
   );
-  if (holds.length === 0) {
-    return { reason: `a review lane added ${label} and no hold comment of it stands` };
+  return {
+    shas: holds.map((item) => HOLD_LINE.exec(laneHold(item))?.[1]),
+    lanes: new Set(holds.map((item) => HOLD_LANE.exec(laneHold(item))?.[1])),
+  };
+}
+
+// Whether the holds since `lifted` no longer stand at `pull`'s head: { held,
+// holds, moved } (the held heads, how many hold comments, who moved the head),
+// or { reason } saying why they stand. `reader` reads the branch activity and
+// `checks` the lanes' runs; null `reader` or `trusted` keeps them.
+export async function staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted }) {
+  const { shas, lanes } = holdsSince(timeline, lifted);
+  if (shas.length === 0) {
+    return { reason: "no review-lane hold comment stands since the label went on" };
   }
-  const held = holds.map((item) => HOLD_LINE.exec(laneHold(item))?.[1]);
-  if (held.includes(undefined)) {
-    return { reason: "a review-lane hold names no head this script can read" };
+  if (shas.includes(undefined)) {
+    return { reason: "a review-lane hold names no head this can read" };
   }
+  const head = pull.head.sha;
+  if (shas.includes(head)) {
+    return { reason: `a review lane holds the current head ${head}` };
+  }
+  const changed = laneChange(await github("GET", `/repos/${repo}/compare/${pull.base.sha}...${head}`));
+  if (changed !== null) {
+    return { reason: `the head's lane runs prove nothing: it changes ${changed}` };
+  }
+  // The push that landed the newest held head anchors the trusted move.
+  const ref = String(pull.head?.ref ?? "");
+  let activity = null;
+  if (reader !== null && ref !== "") {
+    try {
+      activity = await reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`);
+    } catch {
+      activity = null;
+    }
+  }
+  const landed = (Array.isArray(activity) ? activity : []).filter((item) => shas.includes(item?.after)).map((item) => Date.parse(String(item.timestamp)));
+  if (landed.length === 0 || !landed.every(Number.isFinite)) {
+    return { reason: "the push that landed the held head is not on the branch's activity page" };
+  }
+  const moved = await trustedMove({ read: (fn) => fn(async () => activity), repo, pull, keys: shas, since: Math.max(...landed), trusted });
+  if (moved === null) {
+    return { reason: "no trusted push alone moved the head off the held head" };
+  }
+  const reviews = [];
+  for (const lane of REVIEW_LANES) {
+    const review = await laneReview({ checks, repo, head }, lane);
+    if (review.held !== undefined) {
+      return { reason: review.held };
+    }
+    reviews.push(review);
+  }
+  const findings = await findingsHeld({ github, repo, number, head, timeline }, reviews, lanes);
+  if (findings !== null) {
+    return { reason: findings };
+  }
+  return { held: [...new Set(shas)], holds: shas.length, moved };
+}
+
+// ci-status's recheck (pr-require-checks.yml, the hold-lift step, running the
+// base commit's copy of this module with its own token): after the lanes App
+// removed a review-lane hold as STALE_HOLD, 0 when the hold still no longer
+// stands at HEAD_SHA, 1 when it stands or anything did not read. Environment:
+// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, HUMAN_GATED (the label),
+// TRUSTED_ACTORS_PATH, GITHUB_API_URL.
+export async function recheckStaleHold({ env = process.env, github } = {}) {
+  try {
+    const repo = env.GITHUB_REPOSITORY ?? "";
+    const number = Number(env.PR_NUMBER);
+    const label = env.HUMAN_GATED ?? "";
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !Number.isSafeInteger(number) || number < 1 || !SHA.test(env.HEAD_SHA ?? "") || label === "") {
+      throw new Error("GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA or HUMAN_GATED is not set");
+    }
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const trusted = new Set(loadTrustedList(env.TRUSTED_ACTORS_PATH).humans);
+    const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
+    if (pull?.head?.sha !== env.HEAD_SHA || pull.head?.repo?.full_name !== repo) {
+      console.log(`stale-review-hold: #${number}'s head is no longer ${env.HEAD_SHA}`);
+      return 1;
+    }
+    const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+    const { lifted } = labelHistory(timeline, label);
+    const evidence = await staleHoldEvidence({ github, checks: github, reader: github, repo, number, pull, timeline, lifted, trusted });
+    if (evidence.reason !== undefined) {
+      console.log(`stale-review-hold: the hold stands at ${env.HEAD_SHA}: ${evidence.reason}`);
+      return 1;
+    }
+    console.log(`stale-review-hold: the hold at ${evidence.held.join(", ")} no longer stands at ${env.HEAD_SHA}: ${evidence.moved}`);
+    return 0;
+  } catch (error) {
+    console.log(`stale-review-hold: did not read: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    return 1;
+  }
+}
+
+// The accounts a review lane's hold step adds the label as.
+const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
+// A label a review lane added: what to clear as STALE_HOLD, or { reason }
+// saying why nothing is.
+async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
   }
@@ -700,49 +824,32 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
   if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
     return { reason: `${label} is no longer on it` };
   }
+  const evidence = await staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted });
+  if (evidence.reason !== undefined) {
+    return evidence;
+  }
   const head = pull.head.sha;
-  if (held.includes(head)) {
-    return { reason: `a review lane holds the current head ${head}` };
+  return {
+    ...cleared(timeline, bot, since, [STALE_HOLD], head, [
+    `it held \`${evidence.held.join("`, `")}\``,
+    evidence.moved,
+    "both review lanes passed on it with a whole review and no open HIGH or CRITICAL finding",
+  ]),
+    holds: evidence.holds,
+  };
+}
+
+// Why a stale-review-hold clear no longer stands at a fresh read of the head
+// and the timeline, or null: the head moved, or the hold comments since the
+// label was last removed are not the ones judged.
+async function staleHoldMoved({ github, repo, number, label, result }) {
+  const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
+  if (pull?.head?.sha !== result.head) {
+    return `its head moved to ${pull?.head?.sha ?? "an unread head"} since it was judged`;
   }
-  const changed = laneChange(await github("GET", `/repos/${repo}/compare/${pull.base.sha}...${head}`));
-  if (changed !== null) {
-    return { reason: `the head's lane runs prove nothing: it changes ${changed}` };
-  }
-  // The push that landed the newest held head anchors the trusted move.
-  const ref = String(pull.head?.ref ?? "");
-  let activity = null;
-  if (reader !== null && ref !== "") {
-    try {
-      activity = await reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`);
-    } catch (error) {
-      console.log(`::warning title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
-    }
-  }
-  const landed = (Array.isArray(activity) ? activity : []).filter((item) => held.includes(item?.after)).map((item) => Date.parse(String(item.timestamp)));
-  if (landed.length === 0 || !landed.every(Number.isFinite)) {
-    return { reason: "the push that landed the held head is not on the branch's activity page" };
-  }
-  const moved = await trustedMove({ read: (fn) => fn(async () => activity), repo, pull, keys: held, since: Math.max(...landed), trusted });
-  if (moved === null) {
-    return { reason: "no trusted push alone moved the head off the held head" };
-  }
-  const reviews = [];
-  for (const lane of REVIEW_LANES) {
-    const review = await laneReview({ checks, repo, head }, lane);
-    if (review.held !== undefined) {
-      return { reason: review.held };
-    }
-    reviews.push(review);
-  }
-  const security = await securityHeld({ github, repo, number, head, timeline }, reviews[REVIEW_LANES.findIndex(([file]) => LANE_OF[file] === SECURITY_LANE)]);
-  if (security !== null) {
-    return { reason: security };
-  }
-  return cleared(timeline, bot, since, [STALE_HOLD], head, [
-    `it held \`${[...new Set(held)].join("`, `")}\``,
-    moved,
-    "both review lanes passed on it with no open HIGH or CRITICAL security finding",
-  ]);
+  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+  const holds = holdsSince(timeline, labelHistory(timeline, label).lifted).shas;
+  return holds.length !== result.holds || holds.some((sha) => sha === undefined || sha === result.head) ? "a review lane wrote a hold since it was judged" : null;
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
@@ -972,6 +1079,14 @@ export async function main({ env = process.env, github, checks, verify, reader }
         const base = `/repos/${repo}/issues/${number}`;
         if (!result.explained) {
           await github("POST", `${base}/comments`, { body: clearedComment(result.recorded, result.head, result.why, label) });
+        }
+        // A stale hold is judged again just before the delete: a hold a lane
+        // wrote since (the label already on, so no labeled event) or a moved
+        // head keeps it.
+        const moved = result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result }) : null;
+        if (moved !== null) {
+          console.log(`clear-escalations: #${number} kept: ${moved}`);
+          continue;
         }
         await github("DELETE", `${base}/labels/${encodeURIComponent(label)}`);
         cleared += 1;
