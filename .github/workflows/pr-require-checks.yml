@@ -337,36 +337,32 @@ jobs:
       # ci-status, which retries and fails closed. Two reads, the pull request
       # and its head's statuses (one per 100), through the api-budget gh
       # wrapper, whose api-calls notice the step ends with. The base's
-      # module, tracker config, wrapper and Node pin come from one shallow
-      # fetch of the group's base commit. Pinned by
+      # module, tracker config and wrapper come from one shallow fetch of the
+      # group's base commit, which leaves `ok=true` only when all of it read;
+      # it never fails the job, so a failed fetch only leaves the holds to
+      # ci-status. The runner's Node runs the module: queueHolds needs no
+      # API newer than the image's. Pinned by
       # scripts/ci-early-queue-holds.test.sh, which runs this body.
       - name: Read the base commit's queue-hold rules
         id: queue_rules
         if: github.event_name == 'merge_group'
-        continue-on-error: true
         env:
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
-          [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::warning::the group's base '$BASE_SHA' is not a commit SHA; ci-status judges the holds."; exit 1; }
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
           dir="$RUNNER_TEMP/queue-rules"
-          mkdir -p "$dir"
-          git show "$BASE_SHA:.github/scripts/pr-merge/merge-holds.mjs" >"$dir/merge-holds.mjs"
-          git show "$BASE_SHA:.github/actions/log-api-budget/api-budget.bash" >"$dir/api-budget.bash"
-          git show "$BASE_SHA:.work-item-tracker.json" >"$dir/tracker.json" 2>/dev/null || rm -f "$dir/tracker.json"
-          echo "node=$(git show "$BASE_SHA:.node-version")" >>"$GITHUB_OUTPUT"
-      - name: Set up Node for the queue holds
-        if: github.event_name == 'merge_group' && steps.queue_rules.outcome == 'success'
-        continue-on-error: true
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ steps.queue_rules.outputs.node }}
-          package-manager-cache: false
+          if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] && git fetch --no-tags --depth=1 origin "$BASE_SHA" && mkdir -p "$dir" &&
+            git show "$BASE_SHA:.github/scripts/pr-merge/merge-holds.mjs" >"$dir/merge-holds.mjs" &&
+            git show "$BASE_SHA:.github/actions/log-api-budget/api-budget.bash" >"$dir/api-budget.bash"; then
+            git show "$BASE_SHA:.work-item-tracker.json" >"$dir/tracker.json" 2>/dev/null || rm -f "$dir/tracker.json"
+            echo "ok=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::the base commit '$BASE_SHA' could not be read; ci-status judges the holds."
+          fi
       - name: Fail a queued pull request a hold stops, before the lanes
         if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
-          RULES: ${{ steps.queue_rules.outcome == 'success' && format('{0}/queue-rules', runner.temp) || '' }}
+          RULES: ${{ steps.queue_rules.outputs.ok == 'true' && format('{0}/queue-rules', runner.temp) || '' }}
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
