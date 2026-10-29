@@ -293,6 +293,8 @@ expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not r
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
+export STUB_TRACKER='   '
+expect "a whitespace-only tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  owner-call "}}}'
 expect "the tracker's label is trimmed" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  "}}}'

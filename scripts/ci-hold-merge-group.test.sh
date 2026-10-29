@@ -196,6 +196,8 @@ expect "a base checkout that failed fails closed" 1 0 - "$QUEUE" "" 0 "::error::
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 6419 "$QUEUE" "needs-human" 0 "::error::#6419 carries 'needs-human'"
+export STUB_TRACKER='   '
+expect "a whitespace-only tracker config fails closed" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label"
 unset STUB_TRACKER
 # Several hold labels each name their hold.
 expect "every hold label is named" 1 1 6419 "$QUEUE" "pr-verify-failed,needs-human,do-not-merge" 0 \

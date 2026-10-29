@@ -4541,7 +4541,7 @@ jobs:
           human_gated=$(TRACKER=$tracker node --input-type=module -e 'import { pathToFileURL } from "node:url";
             const { humanGatedLabel } = await import(pathToFileURL(process.argv[2]).href);
             const text = process.env.TRACKER ?? "";
-            const label = humanGatedLabel(text.trim() ? JSON.parse(text) : null);
+            const label = humanGatedLabel(text === "" ? null : JSON.parse(text));
             if (typeof label !== "string" || !label) {
               throw new Error("no verdict");
             }
@@ -5008,7 +5008,7 @@ jobs:
               const [mode, module, labels, number] = process.argv.slice(1);
               const { humanGatedLabel, labelHolds } = await import(pathToFileURL(module).href);
               const text = process.env.TRACKER ?? "";
-              const tracker = text.trim() ? JSON.parse(text) : null;
+              const tracker = text === "" ? null : JSON.parse(text);
               const out = mode === "label" ? humanGatedLabel(tracker) : labelHolds(JSON.parse(readFileSync(labels, "utf8")), tracker, Number(number));
               if (mode === "label" ? typeof out !== "string" || !out : !Array.isArray(out) || !out.every((reason) => typeof reason === "string" && reason)) {
                 throw new Error("no verdict");
