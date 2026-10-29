@@ -298,19 +298,24 @@ test("floor-ast.py refuses each reflective or aliased rebinding of the Python fl
     ["locals()", 'locals()["FLOOR_" "CLASSES"] = ()', /adds a reference to locals/],
     ["an alias of globals", 'g = globals\ng()["FLOOR_" "CLASSES"] = ()', /adds a reference to globals/],
     ["globals split over lines", '(globals\n)()["FLOOR_" "CLASSES"] = ()', /adds a reference to globals/],
-    ["builtins.setattr", 'import builtins\nbuiltins.setattr(object(), "x", 1)', /adds a reference to builtins|adds a reference to setattr/],
+    ["builtins.setattr", 'import builtins\nbuiltins.setattr(object(), "x", 1)', /adds (a reference to builtins|a reference to setattr|an import)/],
+    // A function's __globals__ is the module's namespace.
+    ["a lambda's __globals__", '(lambda: 0).__globals__["FLOOR_" "CLASSES"] = ()', /adds a dunder name/],
+    ["a frame's f_globals", 'sys._getframe().f_globals["FLOOR_" "CLASSES"] = ()', /adds a reference to (_getframe|f_globals)/],
+    ["inspect.currentframe", 'inspect.currentframe().f_globals["FLOOR_" "CLASSES"] = ()', /adds a reference to (currentframe|f_globals|inspect)/],
+    ["an added import", "import helper", /adds an import/],
     ["object.__setattr__", 'object.__setattr__(object(), "x", 1)', /adds a reference to __setattr__/],
-    ["sys.modules __setattr__", 'import sys\nsys.modules[__name__].__setattr__("FLOOR_" "CLASSES", ())', /adds a reference to (__setattr__|modules)/],
+    ["sys.modules __setattr__", 'sys.modules[__name__].__setattr__("FLOOR_" "CLASSES", ())', /adds (a reference to (__setattr__|modules)|a dunder name)/],
     ["__import__ exec", '__import__("builtins").exec("FLOOR_CLASSES = ()")', /adds a reference to (__import__|exec)/],
-    ["importlib", 'import importlib\nimportlib.reload', /adds a reference to importlib/],
+    ["importlib", 'import importlib\nimportlib.reload', /adds (a reference to importlib|an import)/],
     ["getattr", 'getattr(object(), "FLOOR_" "CLASSES")', /adds a reference to getattr/],
     ["the compile builtin", 'compile("FLOOR_CLASSES = ()", "x", "exec")', /adds a reference to compile/],
     ["__builtins__", '__builtins__["exec"]("FLOOR_CLASSES = ()")', /adds a reference to __builtins__/],
     ["a second binding", "FLOOR_CLASSES = ()", /FLOOR_CLASSES is bound 2 times/],
     ["an augmented binding", "FLOOR_CLASSES += ()", /FLOOR_CLASSES is bound 2 times/],
     ["a loop target", "for FLOOR in []:\n    pass", /FLOOR is bound 2 times/],
-    ["a with target", "with open(__file__) as HIGH_FLOOR:\n    pass", /HIGH_FLOOR is bound 2 times/],
-    ["an import alias", "import os as REVIEW_FLOOR", /REVIEW_FLOOR is bound 2 times/],
+    ["a with target", "with open(\"x\") as HIGH_FLOOR:\n    pass", /HIGH_FLOOR is bound 2 times/],
+    ["an import alias", "import os as REVIEW_FLOOR", /REVIEW_FLOOR is bound 2 times|adds an import/],
     ["a walrus", "(PERSON_HELD := ())", /PERSON_HELD is bound 2 times/],
     ["a def", "def LANE_ARMED_FLOOR():\n    return ()", /LANE_ARMED_FLOOR is bound 2 times/],
     ["an argument", "def f(FLOOR=()):\n    return FLOOR", /FLOOR is bound 2 times/],
@@ -329,6 +334,10 @@ test("floor-ast.py refuses each reflective or aliased rebinding of the Python fl
 test("floor-ast.py accepts a logic edit with no reflective name and a row addition", () => {
   assert.equal(astRefusal(RISK_TEXT, RISK_TEXT), "");
   assert.equal(astRefusal(RISK_TEXT, ADDED('def extra(x):\n    return re.compile("a").match(x) or x + 1')), "");
+  // A pure logic edit inside an existing function: no new dunder, import or reflective name.
+  const edited = RISK_TEXT.replace("def lane_armed(inp: RiskInput) -> bool:", "def lane_armed(inp: RiskInput) -> bool:\n    _unused = len(str(inp)) + 1");
+  assert.notEqual(edited, RISK_TEXT);
+  assert.equal(astRefusal(RISK_TEXT, edited), "");
   const row = '    (".github/scripts/pr-merge/lane-armed.mjs", "gate"),\n';
   assert.ok(RISK_TEXT.includes(row));
   assert.equal(astRefusal(RISK_TEXT, RISK_TEXT.replace(row, `${row}    ("docs/held/**", "gate"),\n`)), "");

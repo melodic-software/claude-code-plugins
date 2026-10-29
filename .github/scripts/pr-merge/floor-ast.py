@@ -9,9 +9,11 @@ with one line: why the head could rebind it. Any other exit refuses too.
 A line test cannot see a rebinding spread over lines, aliased
 (`g = globals`) or reached by reflection, so the trees are compared:
 
-- The head may reference no reflective name (REFLECTIVE) more often than
-  the base does, counted over every Name, every attribute and every
-  imported name, so an alias or a split still counts.
+- The head may reference no reflective or frame name (REFLECTIVE, FRAMES)
+  more often than the base does, counted over every Name, every attribute
+  and every imported name, so an alias or a split still counts. Nor may it
+  hold more dunder names (`__globals__`, `__dict__` and any other) or more
+  imports than the base.
 - Each floor table (TABLES) is bound exactly once in the head, at module
   level, by a plain or annotated assignment to that one name, with a value
   `ast.literal_eval` accepts. Each set derived from them (DERIVED) is bound
@@ -53,6 +55,26 @@ REFLECTIVE = frozenset(
 # `re.compile` is a pattern, not the builtin; the builtin is a Name, and
 # `builtins.compile` counts through `builtins`.
 NOT_AS_ATTRIBUTE = frozenset({"compile"})
+# Frame and introspection names: a frame's globals are the module's, so
+# `sys._getframe().f_globals[...]` rebinds a table as `globals()` would.
+FRAMES = frozenset(
+    {
+        "f_globals",
+        "f_locals",
+        "f_back",
+        "_getframe",
+        "currentframe",
+        "gi_frame",
+        "cr_frame",
+        "ctypes",
+        "gc",
+        "inspect",
+    }
+)
+# Kinds counted whatever the name: any dunder Name or attribute (a
+# function's `__globals__` is the module's namespace), and any import.
+DUNDER = "a dunder name"
+IMPORT = "an import"
 TABLES = ("FLOOR_CLASSES", "LANE_ARM_GATE", "LANE_ARMED", "PERSON_HELD", "COST_PATHS")
 DERIVED = (
     "PERSON_CLASSES",
@@ -68,19 +90,31 @@ NAMES = frozenset((*TABLES, *DERIVED))
 
 
 def reflective(tree: ast.AST) -> Counter[str]:
+    """How often `tree` references each reflective or frame name, any dunder
+    name (DUNDER) and any import (IMPORT)."""
     found: Counter[str] = Counter()
+    names = REFLECTIVE | FRAMES
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id in REFLECTIVE:
-            found[node.id] += 1
-        elif (
-            isinstance(node, ast.Attribute)
-            and node.attr in REFLECTIVE - NOT_AS_ATTRIBUTE
-        ):
-            found[node.attr] += 1
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            found[IMPORT] += 1
+        name = (
+            node.id
+            if isinstance(node, ast.Name)
+            else node.attr
+            if isinstance(node, ast.Attribute)
+            else None
+        )
+        if name is not None:
+            if len(name) > 4 and name.startswith("__") and name.endswith("__"):
+                found[DUNDER] += 1
+            if name in names and not (
+                isinstance(node, ast.Attribute) and name in NOT_AS_ATTRIBUTE
+            ):
+                found[name] += 1
         elif isinstance(node, ast.alias):
-            for name in (*node.name.split("."), node.asname):
-                if name in REFLECTIVE:
-                    found[name] += 1
+            for part in (*node.name.split("."), node.asname):
+                if part in names:
+                    found[part] += 1
     return found
 
 
@@ -158,7 +192,11 @@ def judge(base_text: str, head_text: str) -> str | None:
     before, after = reflective(base), reflective(head)
     for name in sorted(after):
         if after[name] > before[name]:
-            return f"it adds a reference to {name}"
+            return (
+                f"it adds {name}"
+                if name in (DUNDER, IMPORT)
+                else f"it adds a reference to {name}"
+            )
     for name in NAMES:
         old, why = value(base, name)
         if why:
