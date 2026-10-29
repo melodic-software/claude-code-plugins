@@ -97,9 +97,9 @@ else
     fail "stdout shows the full script with the checked literals" "$out"
   fi
   if [[ -n "$(find "$S" -perm 0700)" ]]; then
-    pass "the script is written with mode 0700"
+    pass "a script built without --elevate is written with mode 0700 to run from its file"
   else
-    fail "the script is written with mode 0700" "$(ls -l "$S")"
+    fail "a script built without --elevate is written with mode 0700 to run from its file" "$(ls -l "$S")"
   fi
   run_script
   if [[ "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $A" ]]; then
@@ -238,11 +238,49 @@ printf '#!/bin/sh\nexec "$@"\n' >"$T/bin/sudo"
 chmod +x "$T/bin/sudo"
 build --attach-pid "$K" --elevate sudo -- sh -c 'printf "threads of %s" "$1" >"$2"' recorder '<pid>' '<file>'
 src=0
-PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" sh "$S" 2>"$T/serr" || src=$?
+printf '%s\n' "$out" | PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" sh -s 2>"$T/serr" || src=$?
 if [[ "$rc" == 0 && "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && -z "$(ls -A "$T/stage-tmp")" ]]; then
   pass "an elevated <file> capture is copied from the stage directory, which is removed"
 else
   fail "an elevated <file> capture is copied from the stage directory, which is removed" "rc=$rc src=$src: $(cat "$T/serr") stage=$(ls -A "$T/stage-tmp")"
+fi
+
+# --- an elevated run reads the builder's stdout, never the file ---------------------
+build --attach-pid "$K" --elevate sudo -- sh -c 'printf "threads of %s" "$1" >"$2"' recorder '<pid>' '<file>'
+shown="$out"
+if [[ "$rc" == 0 && -n "$(find "$S" -perm 0600)" && "$out" == *"# record of this script, never run: $S"* ]]; then
+  pass "an elevated build writes its file as a record with no execute bit"
+else
+  fail "an elevated build writes its file as a record with no execute bit" "rc=$rc out=$out $(ls -l "$S")"
+fi
+printf '#!/bin/sh\necho tampered >"%s"\n' "$T/tampered" >"$S"
+src=0
+printf '%s\n' "$shown" | PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" bash -s 2>"$T/serr" || src=$?
+if [[ "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && ! -e "$T/tampered" ]]; then
+  pass "the builder's stdout piped to bash -s runs the shown script, not the rewritten file"
+else
+  fail "the builder's stdout piped to bash -s runs the shown script, not the rewritten file" "src=$src: $(cat "$T/serr")"
+fi
+# The documented form: sh reading the shown text from a heredoc.
+rm -f "$C"
+src=0
+PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" sh -s 2>"$T/serr" <<APP_CONTROL_SHOWN_SCRIPT || src=$?
+$shown
+APP_CONTROL_SHOWN_SCRIPT
+if [[ "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && ! -e "$T/tampered" ]]; then
+  pass "the shown text in a heredoc to sh -s runs the shown script, not the rewritten file"
+else
+  fail "the shown text in a heredoc to sh -s runs the shown script, not the rewritten file" "src=$src: $(cat "$T/serr")"
+fi
+
+# A recorder that reads stdin gets none of the script, so the recheck and hand-back after it run.
+build --attach-pid "$K" --elevate sudo -- sh -c 'cat >"$2"; printf "threads of %s" "$1" >"$3"' recorder '<pid>' "$T/swallowed" '<file>'
+src=0
+printf '%s\n' "$out" | PATH="$T/bin:$PATH" TMPDIR="$T/stage-tmp" bash -s 2>"$T/serr" || src=$?
+if [[ "$rc" == 0 && "$src" == 0 && "$(cat "$C" 2>/dev/null)" == "threads of $K" && -e "$T/swallowed" && ! -s "$T/swallowed" ]]; then
+  pass "a recorder reading stdin reads none of the script fed on stdin"
+else
+  fail "a recorder reading stdin reads none of the script fed on stdin" "rc=$rc src=$src: $(cat "$T/serr") swallowed=$(cat "$T/swallowed" 2>/dev/null)"
 fi
 
 # A placeholder name inside the capture path or a recorder argument stays literal text.
@@ -297,6 +335,14 @@ if [[ "$rc" == 2 ]]; then
   pass "a relative capture path is refused"
 else
   fail "a relative capture path is refused" "rc=$rc: $(cat "$T/err")"
+fi
+
+rc=0
+python3 -I "$BUILD" --write "$T/bidi.sh" --capture "$T/"$'\xe2\x80\xae'"txt.sh" --attach-pid "$K" -- rec '<pid>' >/dev/null 2>"$T/err" || rc=$?
+if [[ "$rc" == 2 && "$(cat "$T/err")" == *"unprintable character"* ]]; then
+  pass "a capture path with a bidi override is refused"
+else
+  fail "a capture path with a bidi override is refused" "rc=$rc: $(cat "$T/err")"
 fi
 
 if ((FAILED)); then
