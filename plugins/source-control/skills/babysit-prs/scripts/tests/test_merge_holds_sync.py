@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
+# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -9,19 +9,23 @@ at most actions), so no lanes App push changes a workflow file. That covers
 lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
+- The copies: `scripts/sync-hold-floor.py --check` finds `HOLD_PATH_CLASSES`,
+  `COST_PATHS`, the review callers' `hold-paths` and ci-status's
+  `hold_patterns` as it writes them from `babysit_risk.FLOOR_CLASSES` and
+  `COST_PATHS`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
-  `HOLD_PATH_CLASSES` is `babysit_risk.FLOOR_CLASSES`, glob and class alike,
-  `HOLD_PATH_FLOOR` is `babysit_risk.HIGH_FLOOR` (its `trust` and `gate`
-  globs), and `pathHold` holds, with no configured glob, exactly the paths
-  `glob_match` matches over that, case variants included; an `enforcement`
-  path is the gate's (`review-path:`), and a trusted path off the floor holds
-  only for a configured glob. Every module the floor actions load is on the
-  floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
-  the Python that decides the holds, `babysit_merge*` as `gate`. The review
+  `pathHold` holds, with no configured glob, exactly the paths `glob_match`
+  matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
+  variants included; an `enforcement` path is the gate's (`review-path:`),
+  and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
+  floor, every pr-merge script as `gate` or, for the scripts that apply the
+  holds, `trust`, and of babysit-prs/scripts/ exactly the Python that decides
+  the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
-  match every floor entry, whatever its class.
-- The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
-  paths matched (`glob_match` folds case and covers what sits under a glob).
+  match every floor entry, whatever its class. The gate's trusted-author
+  lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
+  `pathHold`, which judges only lanes App pull requests, holds all of it.
+- The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
@@ -69,6 +73,7 @@ FLOOR_ENTRIES = (
     ".github/scripts/pr-merge/enable-auto-merge.mjs",
     ".github/scripts/pr-merge/superseded.mjs",
     ".github/scripts/pr-merge/clear-escalations.mjs",
+    ".github/scripts/pr-merge/refire-refused.mjs",
 )
 # The scripts that act on a pr-unblock stop's route: report-escalation.sh adds
 # `needs-human` for a held reason, adjudicate-feedback.mjs decides which threads
@@ -112,7 +117,24 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
 # JS module runs (enable-auto-merge.mjs's VERIFY_SCRIPT), with every module of
 # babysit-prs/scripts/ they import.
 SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
-PY_RUN = re.compile(r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]""")
+# A script path in a quoted string, or a bare one a `python`/`python3` command
+# runs, with or without a `.base/` checkout prefix.
+PY_RUN = re.compile(
+    r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]"""
+    r"""|\bpython3?\s+(?:-\S+\s+)*(?:\.base/)?(plugins/[^"'`\s;)]+\.py)"""
+)
+# A script a shell step names through a variable (`scripts=<dir>` then
+# `"$scripts/<name>.py"`), resolved from the same file's assignments.
+PY_VAR = re.compile(r"""\$\{?([A-Za-z_]\w*)\}?/([A-Za-z0-9_.-]+\.py)""")
+PY_DIR = re.compile(r"""^\s*([A-Za-z_]\w*)=["']?(?:\.base/)?(plugins/[^"'\s]+)""", re.M)
+
+
+def py_runs(text: str) -> list[str]:
+    dirs = dict(PY_DIR.findall(text))
+    return [
+        *(quoted or bare for quoted, bare in PY_RUN.findall(text)),
+        *(f"{dirs[var]}/{name}" for var, name in PY_VAR.findall(text) if var in dirs),
+    ]
 
 
 def python_closure(js_files: list[str]) -> list[str]:
@@ -120,8 +142,10 @@ def python_closure(js_files: list[str]) -> list[str]:
     # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in risk.FLOOR if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | set(js_files)):
-        for path in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
-            todo.append(ROOT / path)
+        # Quoted paths only: a floored module's strings, not its prose.
+        for path, _ in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
+            if path:
+                todo.append(ROOT / path)
     seen: set[str] = set()
     while todo:
         file = todo.pop()
@@ -143,13 +167,9 @@ def python_closure(js_files: list[str]) -> list[str]:
 
 
 NODE = """
-import { COST_PATHS, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, REVIEW_FLOOR, costHold, pathHold } from %s;
+import { costHold, pathHold } from %s;
 const [paths, globs] = JSON.parse(process.argv[1]);
 console.log(JSON.stringify({
-  costPaths: COST_PATHS,
-  classes: HOLD_PATH_CLASSES,
-  floor: HOLD_PATH_FLOOR,
-  review: REVIEW_FLOOR,
   cost: paths.map((path) => costHold([path], null) !== null),
   held: paths.map((path) => pathHold([path], []) !== null),
   configured: paths.map((path) => pathHold([path], globs) !== null),
@@ -232,7 +252,6 @@ def module(paths: list[str]) -> dict[str, Any]:
 class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_cost_paths_are_the_same(self) -> None:
         answer = module(PATHS)
-        self.assertEqual(answer["costPaths"], list(risk.COST_PATHS))
         for path, held in zip(PATHS, answer["cost"], strict=True):
             with self.subTest(path):
                 self.assertEqual(
@@ -241,13 +260,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(True, answer["cost"])
         self.assertIn(False, answer["cost"])
 
-    def test_the_floor_is_the_same_on_both_sides(self) -> None:
+    def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(answer["classes"], [list(row) for row in risk.FLOOR_CLASSES])
-        self.assertEqual(answer["floor"], list(risk.HIGH_FLOOR))
-        self.assertEqual(answer["review"], list(risk.REVIEW_FLOOR))
-        self.assertEqual(len(risk.FLOOR_CLASSES), 72)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 75)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 43)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -265,6 +281,39 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(False, answer["held"])
         self.assertIn(False, answer["configured"])
         self.assertNotEqual(answer["held"], answer["configured"])
+
+    def test_the_author_lift_is_the_gate_class_and_the_lanes_app_never_gets_it(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the Python gate lets a trusted person's
+        # own gate-path lines clear on a clean security review
+        # (risk.AUTHOR_REVIEW_FLOOR). The native holds judge only the lanes
+        # App's pull requests (ci-status skips every other author), so they
+        # keep holding every one of those globs for a person.
+        gate = [g for g, kind in risk.FLOOR_CLASSES if kind == "gate"]
+        self.assertEqual(list(risk.AUTHOR_REVIEW_FLOOR), gate)
+        samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
+        self.assertEqual(module(samples)["held"], [True] * len(samples))
+        step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
+
+    def test_the_person_floor_is_the_same_list(self) -> None:
+        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk.HIGH_FLOOR, entry
+        # for entry and in order: the trust and gate globs a person clears.
+        script = (
+            "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
+            % json.dumps(MODULE.as_uri())
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
+        self.assertEqual(len(risk.HIGH_FLOOR), 32)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -297,9 +346,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
 
-    def test_every_pr_merge_script_is_gate_code(self) -> None:
+    def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
         # Owner decision Q26 option B: the merge gate's own code stays a
-        # person's, every script pr-merge.yml runs from that directory.
+        # person's, every script pr-merge.yml runs from that directory
+        # (`gate`, or `trust` for merge-holds.mjs, which applies the holds).
         folder = ROOT / ".github/scripts/pr-merge"
         scripts = sorted(
             f".github/scripts/pr-merge/{f.name}"
@@ -310,10 +360,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             and ".fixture." not in f.name
         )
         self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
-        gate = {g for g, kind in risk.FLOOR_CLASSES if kind == "gate"}
+        held = {g for g, kind in risk.FLOOR_CLASSES if kind in risk.PERSON_CLASSES}
         for path in scripts:
             with self.subTest(path):
-                self.assertIn(path, gate)
+                self.assertIn(path, held)
 
     def test_the_floor_holds_the_python_that_decides_the_holds(self) -> None:
         files = python_closure(import_closure(FLOOR_ENTRIES))
@@ -339,6 +389,16 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertEqual(
             sorted(g for g in risk.FLOOR if g.startswith(f"{scripts}/")), files
         )
+
+
+class TheCopiesAreGenerated(unittest.TestCase):
+    def test_every_copy_is_what_the_generator_writes(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, "-I", str(ROOT / "scripts/sync-hold-floor.py"), "--check"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 def _hold_paths(workflow: str) -> list[str]:
@@ -1324,3 +1384,173 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# The owner's decision Q10 of 2026-10-28 ("go w/ recommendations"): an
+# approval of H0 carries to H1 when the diff H0...H1 touches no hold path and
+# no file a hold path loads. Each case: (changed files, configured hold paths,
+# compare overrides).
+NODE_Q10 = """
+import { CARRY_REFUSES, ungatedSince } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const cases = JSON.parse(text);
+console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths]) => ungatedSince(merges, holdPaths))]));
+"""
+_H1 = "b" * 40
+
+
+def _pushed(files: list[str], **extra: Any) -> dict[str, Any]:
+    return {
+        "status": "ahead",
+        "behind_by": 0,
+        "files": [{"filename": f, "status": "modified", "patch": "+x"} for f in files],
+        "commits": [{"sha": _H1}],
+        "total_commits": 1,
+    } | extra
+
+
+_SCRIPTS_DIR = "plugins/source-control/skills/babysit-prs/scripts"
+Q10_CASES = {
+    "a docs-only push": ([_pushed(["docs/a.md", "plugins/work-items/README.md"]), []], True),
+    "a gated file": ([_pushed([".github/scripts/pr-merge/merge-holds.mjs"]), []], False),
+    "a test-only edit beside a gated file": ([_pushed([".github/scripts/pr-merge/merge-holds.test.mjs"]), []], False),
+    "a comment-only edit to a gated file": ([_pushed([f"{_SCRIPTS_DIR}/babysit_merge_policy.py"]), []], False),
+    "a helper a gated file imports": ([_pushed([f"{_SCRIPTS_DIR}/babysit_util.py"]), []], False),
+    "a helper babysit_postmerge.py imports": ([_pushed([f"{_SCRIPTS_DIR}/babysit_gh.py"]), []], False),
+    "a script ci-status runs": ([_pushed(["scripts/check-stale-base-overlap.sh"]), []], False),
+    "an action a hold-path workflow uses": ([_pushed([".github/actions/report-check-run/report-check-run.mjs"]), []], False),
+    "a trusted-actor list edit": ([_pushed([".github/standards/trusted-actors/trusted-actors.json"]), []], False),
+    "a configured hold path": ([_pushed(["docs/conventions/held.md"]), ["docs/conventions/**"]], False),
+    "a rename off a gated file": ([_pushed(["docs/moved.md"]) | {"files": [{"filename": "docs/moved.md", "status": "renamed", "previous_filename": ".github/actions/request-lane-token/action.yml"}]}, []], False),
+    "300 files": ([_pushed([f"docs/{i}.md" for i in range(300)]), []], False),
+    "a cut commit list": ([_pushed(["docs/a.md"], total_commits=251), []], False),
+    "a diverged head": ([_pushed(["docs/a.md"], status="diverged", behind_by=1), []], False),
+    "an unread compare": ([None, []], False),
+    "unread hold paths": ([_pushed(["docs/a.md"]), None], False),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheUngatedCarryIsTheGates(unittest.TestCase):
+    def test_both_carry_over_the_same_pushes(self) -> None:
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_Q10 % json.dumps(MODULE.as_uri())],
+            input=json.dumps([args for args, _ in Q10_CASES.values()]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        refuses, answers = json.loads(proc.stdout)
+        self.assertEqual(tuple(refuses), policy.CARRY_REFUSES)
+        for (name, ((merges, hold_paths), expected)), js in zip(
+            Q10_CASES.items(), answers, strict=True
+        ):
+            with self.subTest(name):
+                self.assertEqual(js, expected)
+                self.assertEqual(policy.ungated_since(merges, hold_paths), expected)
+                self.assertEqual(
+                    policy.approval_carry(
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths
+                    ),
+                    expected,
+                )
+        # A stale dismissal must be by a commit the push made.
+        docs = _pushed(["docs/a.md"])
+        self.assertTrue(policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, []))
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, "c" * 40, None, []))
+        # No hold paths read: only the base-merge path decides.
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None))
+
+
+# Every local file a hold-path file loads: the floor entries' JS closure and
+# the Python it runs, and each hold-path workflow's local actions (every
+# file of the action) and the scripts its steps name, with their closures.
+USES = re.compile(r"uses:\s*\./(?:\.base/)?(\.github/actions/[A-Za-z0-9_.-]+)")
+# Any repository path to a script a workflow names, from the head checkout or
+# `.base/`, whatever its directory: only a tracked file counts.
+RUNS = re.compile(
+    r"(?<![\w./-])(?:\./)?(?:\.base/)?((?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+[A-Za-z0-9_.-]+\.(?:mjs|js|sh|bash|py))"
+)
+
+
+def tracked() -> set[str]:
+    proc = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True, check=True
+    )
+    return set(proc.stdout.splitlines())
+
+
+def loaded_closure() -> list[str]:
+    workflows = sorted(
+        g for g in risk.FLOOR if g.startswith(".github/workflows/") and (ROOT / g).is_file()
+    )
+    files: set[str] = set(workflows)
+    entries: set[str] = set(FLOOR_ENTRIES) | set(ROUTE_ENTRIES)
+    in_git = tracked()
+    for workflow in workflows:
+        text = (ROOT / workflow).read_text(encoding="utf-8")
+        for action in USES.findall(text):
+            # The action's own files; its tests and fixtures run in CI, not
+            # when a workflow uses it.
+            for f in (ROOT / action).iterdir():
+                if f.is_file() and ".test." not in f.name:
+                    name = f.relative_to(ROOT).as_posix()
+                    files.add(name)
+                    if f.suffix == ".mjs":
+                        entries.add(name)
+        for script in RUNS.findall(text):
+            if script in in_git:
+                files.add(script)
+                if script.endswith(".mjs"):
+                    entries.add(script)
+    # import_closure's walk, where a module that reads a whole directory
+    # (`new URL("../../workflows/", import.meta.url)`) stands for a file in it.
+    js: set[str] = set()
+    todo = [ROOT / e for e in entries if e.endswith(".mjs")]
+    while todo:
+        file = todo.pop().resolve()
+        # A spec that names no file beside the module (a repository-root
+        # path in a string) loads nothing from here.
+        if not file.exists():
+            continue
+        name = file.relative_to(ROOT).as_posix()
+        if name in js:
+            continue
+        if file.is_dir():
+            js.add(f"{name}/any.yml" if name != "." else "any.yml")
+            continue
+        js.add(name)
+        todo.extend(file.parent / spec for spec in IMPORT.findall(file.read_text(encoding="utf-8")))
+    # The Python those modules and the workflows run, as python_closure
+    # walks it, from the scripts that exist (a module's string can name an
+    # example path).
+    run = [ROOT / p for n in sorted(files | js) if n.endswith((".mjs", ".yml")) and (ROOT / n).is_file() for p in py_runs((ROOT / n).read_text(encoding="utf-8")) if (ROOT / p).is_file()]
+    py: set[str] = set()
+    todo = [SCRIPTS / "babysit_risk.py", *run]
+    while todo:
+        file = todo.pop()
+        name = file.relative_to(ROOT).as_posix()
+        if name in py:
+            continue
+        py.add(name)
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module] if isinstance(node, ast.ImportFrom) and not node.level and node.module else []
+            todo.extend(file.parent / f"{n}.py" for n in names if (file.parent / f"{n}.py").is_file())
+    return sorted(files | js | py)
+
+
+class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
+    def test_every_file_a_hold_path_loads_stops_the_carry(self) -> None:
+        files = loaded_closure()
+        # The peer review's own example: babysit_postmerge.py's imports.
+        for name in ("babysit_merge_policy.py", "babysit_gh.py", "babysit_util.py"):
+            self.assertIn(f"{_SCRIPTS_DIR}/{name}", files)
+        self.assertIn(".github/workflows/pr-require-checks.yml", files)
+        for path in files:
+            with self.subTest(path):
+                self.assertTrue(
+                    any(risk.glob_match(g, path) for g in (*risk.FLOOR, *policy.CARRY_REFUSES)),
+                    f"{path} is loaded by a hold path but neither held nor in CARRY_REFUSES",
+                )
+                self.assertFalse(policy.ungated_since(_pushed([path]), []), path)

@@ -47,6 +47,8 @@ def auto_update_slot($quiet):
   else "unreadable" end;
 def short_sha: (. // "?") | .[0:12];
 def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
+# The normalizer's `moved=K`, or null from a digest written before it carried one.
+def moved_count: (capture("moved=(?<m>[0-9]+)") // {m: null}) | .m;
 
 # The slowest timed step of a block's timings object, or null.
 def slowest_step:
@@ -230,11 +232,18 @@ def block($d):
             else "" end)
        else empty end),
 
-      (if ($norm | test("^normalized keys=")) then
-         "Normalized: user enabledPlugins key order (\($norm | key_count) keys reordered)"
-       elif ($norm | test("^would-normalize")) then
-         "Would normalize: user enabledPlugins key order (would run: normalize-enabled-plugins.sh, \($norm | key_count) keys)"
-       else empty end),
+      (($norm | moved_count) as $moved
+       | if ($norm | test("^normalized ")) then
+           "Normalized: user enabledPlugins key order ("
+           + (if $moved == null then "\($norm | key_count) keys reordered"
+              else "\($moved) of \($norm | key_count) keys moved" end) + ")"
+         elif ($norm | test("^would-normalize")) then
+           "Would normalize: user enabledPlugins key order (would run: normalize-enabled-plugins.sh, "
+           + (if $moved == null then "\($norm | key_count) keys"
+              else "\($moved) of \($norm | key_count) keys would move" end) + ")"
+         elif ($norm | test("^missing-file")) then
+           "\(if $audit then "Would normalize" else "Normalized" end): skipped, no user settings file"
+         else empty end),
 
       (if ($would_enable | length) > 0 then
          "Would enable: \($would_enable | length) plugin(s)",

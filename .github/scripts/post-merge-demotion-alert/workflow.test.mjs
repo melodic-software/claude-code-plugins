@@ -4,7 +4,9 @@
 // kill switch stops it before it reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
@@ -211,16 +213,27 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     "done",
   ].join("\n");
   const input = cases.map((c) => [c.name, c.event, c.conclusion, c.attempt, c.branch, c.repo].join("\t")).join("\n") + "\n";
-  const out = spawnSync("bash", ["-c", driver], {
-    input,
-    encoding: "utf8",
-    env: {
-      PATH: process.env.PATH,
-      EVENT_NAME: "workflow_run",
-      GITHUB_REPOSITORY: "o/r",
-      RUN_SHA: "0123456789abcdef0123456789abcdef01234567",
-    },
-  });
+  // The step's one gh call answers as an unauthenticated gh does (exit 4), so
+  // the run makes no network call and gh writes no state under the cwd.
+  const home = mkdtempSync(path.join(tmpdir(), "demotion-alert-gh-"));
+  writeFileSync(path.join(home, "gh"), "#!/bin/sh\necho 'To get started with GitHub CLI, please run:  gh auth login' >&2\nexit 4\n");
+  chmodSync(path.join(home, "gh"), 0o755);
+  let out;
+  try {
+    out = spawnSync("bash", ["-c", driver], {
+      input,
+      encoding: "utf8",
+      env: {
+        PATH: `${home}${path.delimiter}${process.env.PATH}`,
+        HOME: home,
+        EVENT_NAME: "workflow_run",
+        GITHUB_REPOSITORY: "o/r",
+        RUN_SHA: "0123456789abcdef0123456789abcdef01234567",
+      },
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
   assert.equal(out.status, 0, out.stderr);
   // An early exit is exit 0; a run the step acts on reaches newly='' and the
   // driver's exit 42. Any other status is a malformed case.

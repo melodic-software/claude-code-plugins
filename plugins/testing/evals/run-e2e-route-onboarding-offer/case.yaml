@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: run-e2e-route-onboarding-offer
+description: With app-control installed but no control skill, run-e2e offers onboarding through /app-control:map create and asks, without creating anything or driving before the answer
+tags: [run-e2e, app-control, route, onboarding, invented]
+expected_outcome: The reply offers to set up a control skill through /app-control:map create and asks the person whether to do it. It says that declining keeps run-e2e's own driving. It creates no control skill and drives nothing before the person answers.
+execution:
+  prompt: "/testing:run-e2e the signup form. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has no control skill: no .claude/skills/control-*/ directory and no plugin control skill. Its README documents `npm run dev` on port 5173. I am here. Tell me what you do first, and stop at the first point where you need my answer."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: names-map-create
+    type: regex
+    pattern: '/?app-control:map create'
+    arm: both
+  - name: offers-onboarding-and-asks
+    type: llm
+    criteria: "PASS only if the reply (1) offers to create a control skill for the app through /app-control:map create, (2) asks the person whether to do that and stops for the answer, and (3) says that declining keeps run-e2e's own driving (the person can say to just use what it has). FAIL if it runs or starts /app-control:map create without the person's yes, writes any control skill file, starts the app or drives the signup form before the answer, or suggests installing app-control as if it were missing."

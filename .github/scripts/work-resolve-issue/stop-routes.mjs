@@ -6,14 +6,18 @@
 //             escalation marker. Only an intent, design, security or cost
 //             reason routes here.
 //   host-run  adds the host-run label, the host queue's one signal, and
-//             removes agent-ready, so a maintainer session builds it by hand.
+//             removes agent-ready, so an unattended agent run on a host builds it.
+//   attended  adds the attended label and removes agent-ready: the work needs
+//             a manual external step only the owner, present, can take; only
+//             a listed human removes the label. It asks the owner for no
+//             decision, which stays needs-human's.
 //   retry     keeps agent-ready, so work-unblock starts it again, up to
 //             limits.stop-retries; past that it takes retry-spent's route.
 //   fail      removes agent-ready and adds no label: the comment's outcome
 //             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
-const ROUTE_NAMES = new Set(["hold", "host-run", "retry", "fail"]);
+const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "fail"]);
 
 export const STOP_ROUTES = Object.freeze(JSON.parse(readFileSync(new URL("./stop-routes.json", import.meta.url), "utf8")));
 for (const [reason, row] of Object.entries(STOP_ROUTES)) {
@@ -30,6 +34,8 @@ for (const spent of ["retry-spent", "turn-cap-spent"]) {
 
 // The label host-run routes add: github-iac GovernedRepositories.cs defines it.
 export const HOST_RUN_LABEL = "host-run";
+// The label attended routes add, likewise declared in github-iac.
+export const ATTENDED_LABEL = "attended";
 
 // A reason's route; a reason the table does not list holds.
 export const stopRoute = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].route : "hold");

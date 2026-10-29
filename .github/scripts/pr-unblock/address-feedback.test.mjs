@@ -100,6 +100,21 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
   });
 });
 
+// Each review lane edits its one marker in place, so the reply job reads the
+// heads the threads were kept on from run.json, not from the markers then.
+test("select returns every lane's marker-confirmed head, sorted, for run.json; the thread file does not carry them", async () => {
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    { id: 2, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", OLD_HEAD) },
+    { id: 3, user: { id: STRANGER }, body: marker("claude-review", "c".repeat(40)) },
+  ];
+  const result = await run(fakeApi({ issueComments }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.reviewedHeads, [HEAD, OLD_HEAD]);
+  assert.equal(Object.hasOwn(result.file, "reviewed_heads"), false);
+  assert.equal(JSON.parse(runRecord(result.file, result.reviewedHeads)).reviewed_heads.join(), `${HEAD},${OLD_HEAD}`);
+});
+
 // A finding on a doc whose fix lives in a script the PR also changes: the
 // thread file lists every file the PR changes, rename sources included, but
 // none a fix may never change.
@@ -561,6 +576,45 @@ test("a verifier note on a marker-confirmed head is kept as the verifier's findi
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "verifier", body: VERIFY_NOTE }]);
 });
 
+// A verifier note opened on `commit`, its root as the threads listing reads it
+// (staleVerifyNotes), its review submitted on that commit.
+const failNote = (id, commentId, commit) => ({
+  thread: thread(id, [commentId], { root: { nodes: [{ author: { databaseId: ACTIONS_BOT }, body: VERIFY_NOTE, originalCommit: { oid: commit } }] } }),
+  comment: comment(commentId, ACTIONS_BOT, { body: VERIFY_NOTE, pull_request_review_id: commentId }),
+  review: { id: commentId, user: { id: ACTIONS_BOT }, commit_id: commit },
+});
+const withNotes = (notes, extra = {}) =>
+  fakeApi({
+    ...extra,
+    threads: [...notes.map((note) => note.thread), ...(extra.threads ?? [])],
+    reviewComments: [...notes.map((note) => note.comment), ...(extra.reviewComments ?? [])],
+    reviews: [...notes.map((note) => note.review), ...(extra.reviews ?? [])],
+  });
+
+// Notes from an older head wait for a pass at this head, whose round resolves
+// them; until then they hold no failing status, or ci-status, which pr-verify
+// waits on, would never pass and no pass could come.
+test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
+  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+});
+
+test("stale verifier notes beside an untaken reviewer thread still escalate", async () => {
+  const result = await run(
+    withNotes([failNote("PRRT_n1", 200, OLD_HEAD)], {
+      threads: [thread("PRRT_1", [100])],
+      reviewComments: [comment(100, REVIEWER)],
+      reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }],
+    }),
+  );
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
+test("an untaken verifier note on this head still escalates", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, HEAD)], { issueComments: [] }));
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
 test("a github-actions[bot] thread without the note marker, or in another account's review, is not kept", async () => {
   const unmarked = fakeApi({
     reviewComments: [comment(100, ACTIONS_BOT)],
@@ -945,7 +999,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // run.json's bytes, in the shape the write runner's collect step wrote.
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
@@ -1011,8 +1065,8 @@ test("run.json carries each kept thread's named_paths and no comment body", () =
     ],
   };
   assert.equal(
-    runRecord(file),
-    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}]}\n`,
+    runRecord(file, [HEAD]),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 });
 
@@ -1489,17 +1543,50 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
 
-  // None stale, or the PR moved past the passing head: nothing to do, and no
-  // output, so neither a model job nor a neutral check runs.
-  await main(["select"], env("none"), { api: api([note("PRRT_now", HEAD)]), log: () => {} });
-  assert.equal(out("none"), "");
-  assert.equal(existsSync(join(dir, "none.run.json")), false);
+  // The PR moved past the passing head: nothing to do, and no output, so
+  // neither a model job nor a neutral check runs.
   await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
   assert.equal(out("moved"), "");
 
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+// A rerun of a pass-only round after its stale notes were resolved by hand
+// found none and wrote no output, so report-stop-status skipped and
+// the round's own failing status stayed on the head. Now it writes only
+// stop-resolved: no proceed or resolve-only, and no run record.
+async function passOnlyWithoutStale(t, api) {
+  const dir = tempDir("address-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, "t.json"),
+    RUN_FILE: join(dir, "r.json"),
+    TRUSTED_ACTORS: actors,
+    VERIFY_PASS_HEAD: HEAD,
+    DISPATCHER_RUN_ID: "5000",
+  };
+  await main(["select"], env, { api, log: () => {} });
+  assert.equal(existsSync(env.RUN_FILE), false);
+  return existsSync(env.GITHUB_OUTPUT) ? readFileSync(env.GITHUB_OUTPUT, "utf8") : "";
+}
+
+test("a pass-only round with no stale note and no open thread clears its stop", async (t) => {
+  assert.equal(await passOnlyWithoutStale(t, fakeApi({ threads: [thread("PRRT_1", [100], { isResolved: true })] })), "stop-resolved=true\n");
+});
+
+test("a pass-only round with no stale note keeps its stop for an open thread the lane does not take", async (t) => {
+  const untaken = fakeApi({ reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] });
+  assert.equal(await passOnlyWithoutStale(t, untaken), "stop-resolved=false\n");
 });
 
 test("scanRefusal reads a patch and an output marker together as output, in either order", () => {

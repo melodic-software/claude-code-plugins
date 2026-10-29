@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Contract tests for the guardrails pre-push entry git-hooks/reference-verify.sh:
 # an unknown CLI flag or a cited path the repository deleted, on a line the
-# pushed commits add, blocks with "<path>:<line>: <message>"; the same text on an
-# unchanged line, or in a file type the verifiers do not read, does not; a new
+# pushed commits add, blocks with "<path>:<line>: <message>", the line the text
+# is on; a declined entry checks nothing, run directly or through the
+# lefthook-remote wrapper; the same text on an
+# unchanged line, in a file type the verifiers do not read, or in an eval
+# suite's samples/ folder (recorded model output), does not; a new
 # branch ranges from its merge-base with the remote's default branch, a pushed
 # branch that merged main is judged only on its own lines, and a
 # deletion checks nothing; the failure names the way out (decline the entry;
 # the skip key covers only a missing jq); --worktree covers uncommitted files;
 # and the plugin's vendored installer wires the entry as a pre-push hook, so
 # `git commit` does not run it and `git push` does.
-# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh
+# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
@@ -18,6 +21,7 @@ unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONF
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/reference-verify.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
+TOP="$(cd "$PLUGIN/../.." && pwd)"
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not on PATH -- reference-verify tests skipped"
@@ -126,7 +130,7 @@ if printf '#!/usr/bin/env bash\nfaketool --real\n' 2>/dev/null >"$REPO/a\"b.sh";
   BASE="$(git -C "$REPO" rev-parse HEAD)"
   printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/a\"b.sh"
   commit_all quoted-bogus
-  expect "an unknown flag in a changed file whose name git quotes blocks" "1|a\"b.sh:1: ${FLAG_FINDING/in run.sh/in a\"b.sh}" \
+  expect "an unknown flag in a changed file whose name git quotes blocks, at its line" "1|a\"b.sh:3: ${FLAG_FINDING/in run.sh/in a\"b.sh}" \
     "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 else
   echo "skip: this file system refuses a name holding a double quote"
@@ -137,6 +141,58 @@ expect "the failure names the decline route for this entry" yes \
   "$(grep -qF 'install.mjs decline --entry reference-verify' <<<"$err" && grep -qF '/guardrails:setup' <<<"$err" && echo yes)"
 expect "the failure says the skip key covers only a missing jq" yes \
   "$(grep -qF 'checks.skipmissing=jq' <<<"$err" && grep -qi 'only while jq is missing' <<<"$err" && echo yes)"
+
+# A finding names the line its text is on, not the file's first added line.
+new_repo
+printf '#!/usr/bin/env bash\nfaketool --real\necho a\necho b\n' >"$REPO/run.sh"
+commit_all four
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+printf '#!/usr/bin/env bash\nfaketool --real\necho changed\necho b\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all two-hunks
+expect "with two added hunks, a finding in the second names its line" "1|run.sh:5: $FLAG_FINDING" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+new_repo
+mkdir -p "$REPO/docs"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# S\n\nIntro.\n\nRun `faketool --bogus` here.\n' >"$REPO/docs/guide.md"
+commit_all guide
+expect "a new markdown file's finding names its code span's line, heading and detail" \
+  "docs/guide.md:5: ${FLAG_FINDING/in run.sh/in docs/guide.md}
+docs/guide.md:5:   faketool --bogus (not in 'faketool --help')" \
+  "$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE" | head -2)"
+
+# A declined entry checks nothing, run directly or through the lefthook-remote
+# wrapper from a fetched copy: the entry's key, else the master key, at git's
+# precedence, so the entry's false beats the master's true.
+REMOTE="$WORK/lefthook/info/lefthook-remotes/r"
+mkdir -p "$REMOTE/.lefthook/pre-push" "$REMOTE/plugins"
+cp "$TOP/.lefthook/pre-push/guardrails-reference-verify.sh" "$REMOTE/.lefthook/pre-push/"
+cp -R "$PLUGIN" "$REMOTE/plugins/guardrails"
+via_wrapper() { # <ref> <local-sha> <remote-sha> -> "<rc>|<first stderr line>"
+  local err rc
+  err="$(cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
+    sh "$REMOTE/.lefthook/pre-push/guardrails-reference-verify.sh" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
+}
+new_repo
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all bogus
+tip="$(git -C "$REPO" rev-parse HEAD)"
+expect "the lefthook-remote wrapper runs the check" "1|run.sh:3: $FLAG_FINDING" \
+  "$(via_wrapper refs/heads/main "$tip" "$BASE")"
+git -C "$REPO" config checks.guardrails.reference-verify.declined true
+expect "with the entry declined, a push checks nothing" "0|" "$(push_check refs/heads/main "$tip" "$BASE")"
+expect "with the entry declined, the lefthook-remote wrapper checks nothing" "0|" \
+  "$(via_wrapper refs/heads/main "$tip" "$BASE")"
+git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
+git -C "$REPO" config checks.git-hooks.declined true
+expect "with every entry declined by the master key, a push checks nothing" "0|" \
+  "$(push_check refs/heads/main "$tip" "$BASE")"
+git -C "$REPO" config checks.guardrails.reference-verify.declined false
+expect "the entry's false beats the master key's true" "1|run.sh:3: $FLAG_FINDING" \
+  "$(push_check refs/heads/main "$tip" "$BASE")"
 
 new_repo
 printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/run.sh"
@@ -178,6 +234,48 @@ commit_all readme
 expect "a new file citing a deleted repository path blocks" \
   "1|README.md:1: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# A file over the kernel's per-argument limit (128 KiB on Linux) is judged, not
+# skipped: its text never travels as one argument.
+new_repo
+{
+  printf '#!/usr/bin/env bash\n'
+  for ((i = 0; i < 2500; i++)); do printf 'echo "filler line %05d, padding the file past the argument limit"\n' "$i"; done
+  printf 'faketool --bogus\n'
+} >"$REPO/big.sh"
+commit_all big
+expect "a new file over 128 KiB is judged (the fixture is over the limit)" yes \
+  "$(test "$(wc -c <"$REPO/big.sh")" -gt 131072 && echo yes)"
+expect "an unknown flag in a new file over 128 KiB blocks, at its line" "1|big.sh:2502: ${FLAG_FINDING/in run.sh/in big.sh}" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# A doc moved with a stub left at its old path is a copy, not a rename (the old
+# path is changed, the new one added): only the lines the move adds are judged,
+# so a citation the doc already held, here a deletion record, passes.
+new_repo
+mkdir -p "$REPO/docs/old"
+{
+  printf '# Topic\n\n'
+  for ((i = 1; i <= 10; i++)); do printf 'Paragraph %d of the topic, unchanged by the move.\n\n' "$i"; done
+  # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+  printf 'The `docs/gone.md` page was removed.\n'
+} >"$REPO/docs/old/README.md"
+commit_all topic
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+mkdir -p "$REPO/docs/new"
+cp "$REPO/docs/old/README.md" "$REPO/docs/new/README.md"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# Topic\n\nMoved to `docs/new/README.md`.\n' >"$REPO/docs/old/README.md"
+commit_all move
+expect "a moved doc is judged on the lines the move adds, so a citation it held passes" "0|" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf 'See `docs/gone.md` for the details.\n' >>"$REPO/docs/new/README.md"
+commit_all move-cites
+expect "a line the move adds to the moved doc is judged, at that line" \
+  "1|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
 # The verifiers judge the pushed tip's tree, not the checkout. Each case below
 # pushes a branch while main, which differs from it, is checked out.
@@ -240,7 +338,7 @@ git -C "$REPO" add .gitignore
 git -C "$REPO" add -f tool.sh
 git -C "$REPO" commit -q -m ignored --no-verify
 expect "a pushed force-added gitignored file is verified" \
-  "1|tool.sh:1: cli-flag-verify: unknown flag(s) in tool.sh, unverified, not proven wrong: the installed --help may predate the flag." \
+  "1|tool.sh:2: cli-flag-verify: unknown flag(s) in tool.sh, unverified, not proven wrong: the installed --help may predate the flag." \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
 new_repo
@@ -248,6 +346,27 @@ printf 'faketool --bogus in a text file\n' >"$REPO/notes.txt"
 commit_all notes
 expect "a file type the verifiers do not read passes" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
+# An eval suite's samples/ folder holds recorded model output, so it is not
+# verified; the suite's other files and a samples/ folder outside evals/ are.
+# eval_case <path> -> "<rc>|<path before the first colon of the first finding>"
+eval_case() {
+  local c rest
+  new_repo
+  mkdir -p "$REPO/${1%/*}"
+  # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+  printf 'Run `faketool --bogus` here.\n' >"$REPO/$1"
+  commit_all eval-case
+  c="$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+  rest="${c#*|}"
+  printf '%s|%s' "${c%%|*}" "${rest%%:*}"
+}
+for p in plugins/p/evals/c/samples/answer.md evals/sources/labels/T1/samples/run1.md evals/samples/x.md; do
+  expect "an unknown flag in the eval sample $p does not block" "0|" "$(eval_case "$p")"
+done
+for p in plugins/p/evals/c/graders/check.md plugins/p/evals/c/prompt.md docs/samples/x.md myevals/samples/x.md; do
+  expect "an unknown flag in $p blocks" "1|$p" "$(eval_case "$p")"
+done
 
 new_repo
 git -C "$REPO" checkout -q -b topic

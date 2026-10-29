@@ -25,10 +25,10 @@ async page => {
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
   // Runs act, then waits until the server has recorded a new event: a save is a network round trip.
   const saved = async act => { const n = (await events()).length; await act(); await until(async () => (await events()).length > n, 10000); };
-  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
   // Waits until the page shows what fn checks: the page applies a save's state from the next stream frame, not the save's reply.
   const shown = (fn, arg) => page.waitForFunction(fn, arg, {timeout: 10000}).catch(() => {});
   const counted = want => shown(w => { const el = document.getElementById("assumeCount"); return (el && !el.hidden ? el.textContent : "") === w; }, want);
+  // Waits until the page shows what the server holds: a rail card whose text matches, or no longer matches, re.
   const card = (id, re, yes = true) => page.waitForFunction(([q, r, y]) => { const el = document.querySelector('.rail-list .qbtn[data-q="' + q + '"]'); return !!el && new RegExp(r).test(el.textContent) === y; }, [id, re, yes], {timeout: 10000}).then(() => true).catch(() => false);
   const armed = async () => (await page.textContent(".choice.armed").catch(() => "")) || "";
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
@@ -526,7 +526,7 @@ async page => {
   }
   if (PHASE === 2) {
     // SSE brings the external revise of A2 and the emoji switch
-    await page.waitForFunction(m => !document.querySelector("#dscroll .dhead h3").textContent.includes(m) && !document.getElementById("conflict").hidden, Q_MARK, {timeout: 15000}).catch(() => {});
+    await page.waitForFunction(m => { const h = document.querySelector("#dscroll .dhead h3"), c = document.getElementById("conflict"); return !!h && !!c && !h.textContent.includes(m) && !c.hidden; }, Q_MARK, {timeout: 15000}).catch(() => {});
     // Accept all reports in a toast once its posts and the refresh are done; each run below reads a different one.
     const accepted = async () => { const t0 = await page.textContent("#toast"); await page.click("#dlgOk"); await page.waitForFunction(t => { const x = document.getElementById("toast").textContent; return x !== t && /Accepted|Not accepted/.test(x); }, t0, {timeout: 10000}).catch(() => {}); };
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
@@ -699,6 +699,34 @@ async page => {
     await page.waitForSelector('.qbtn[data-q="D2"]', {state: "attached"});
     const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
     ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
+  }
+  if (PHASE === 9) { // #9692, its own restated server: A1 to A3, all accepted as recommended
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="A3"]', {state: "attached"});
+    for (const id of ["A1", "A2", "A3"]) await post({id, kind: "accept", alt: null, text: ""});
+    await page.click("#sumBtn");
+    await shown(() => (document.getElementById("acceptTally") || {}).textContent === "3 of 3 answers accepted as recommended");
+    const tally = await page.textContent("#acceptTally").catch(() => "");
+    ok("#9692: an all-accept run shows 3 of 3 answers accepted as recommended and offers the agents check", tally === "3 of 3 answers accepted as recommended" && !!(await page.$("[data-auditaccepted]:not([disabled])")), tally);
+    await saved(() => page.click("[data-auditaccepted]"));
+    const ev = await events(), aud = ev.filter(e => e.kind === "accept-audit");
+    ok("#9692: Have agents check these answers posts one accept-audit event listing A1, A2 and A3, and no Confirm", aud.length === 1 && aud[0].items.map(i => i.id).sort().join() === "A1,A2,A3" && !ev.some(e => e.kind === "confirm-understanding"), JSON.stringify(aud));
+  }
+  if (PHASE === 10) { // #9692, its own restated server: T1 accepted with its two commitments unticked
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="T1"]', {state: "attached"});
+    await post({id: "T1", kind: "accept", alt: null, text: ""});
+    await page.click("#sumBtn");
+    await shown(() => !!document.querySelector('[data-understand="tick"]'));
+    const listed = await page.textContent("#uTick").catch(() => "");
+    ok("#9692: the Confirm area lists T1's two unticked commitments beside Tick these and confirm", /Keeps the cache warm between runs/.test(listed) && /Runs the warm-up on every push/.test(listed) && await counter() === open(2), listed + " | " + await counter());
+    await page.click('[data-understand="tick"]');
+    await until(async () => (await events()).some(e => e.kind === "confirm-understanding"), 10000);
+    await shown(() => { const el = document.getElementById("assumeCount"); return !!el && el.hidden; });
+    const ev = await events(), cu = ev.find(e => e.kind === "confirm-understanding"), cf = ev.filter(e => e.kind === "confirm" && e.id === "T1");
+    ok("#9692: Tick these and confirm posts two confirm events before the restatement Confirm, and the header chip then shows no unticked commitments", cf.length === 2 && cf.map(e => e.alt).sort().join() === "0,1" && !!cu && cu.alt === "confirm" && cf.every(e => e.seq < cu.seq) && await counter() === "", JSON.stringify(ev.map(e => [e.seq, e.kind, e.alt])) + " | " + await counter());
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

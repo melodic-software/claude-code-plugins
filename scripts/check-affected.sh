@@ -7,10 +7,16 @@
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
 #   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
 #                                             once (default: $CHECK_AFFECTED_JOBS,
-#                                             else one less than the core count)
+#                                             else one less than the core count,
+#                                             at most 8)
+#   scripts/check-affected.sh --budget S      time the selected shell suites against
+#                                             an S-second budget (default:
+#                                             $CHECK_AFFECTED_BUDGET, else 120); a
+#                                             suite over its share fails
+#                                             (scripts/run-plugin-tests.sh BUDGET)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
-#                                             stale-base check
+#                                             run resolves it to a commit
 #   scripts/check-affected.sh --uncommitted   check the work tree as the commit
 #                                             it would make (default base: HEAD)
 #
@@ -21,7 +27,9 @@
 # the checks there. Nothing is written under .git, so the checkout's HEAD,
 # index and worktree list stay as they are. With CHECK_AFFECTED_SCRIPT_EXEC_BIT=1
 # (the issue lane's patch run) that commit makes each new or changed .sh or #!
-# file executable, as apply-patch will.
+# file executable, as apply-patch will. --tests runs the suites from this tree,
+# whose work tree holds the same edits, not the scratch one, which has no
+# node_modules.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic
 # but machine-specific-paths, whose entry script is in ci-workflows, not here:
@@ -54,7 +62,8 @@
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
 #                          file changed
-#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
+#   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
+#                          --budget <S> --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
 #                          stale locked npm packages, then the selected Node
 #                          suites of scripts/outside-node-packages.txt through
@@ -71,8 +80,9 @@
 # another tree. The pre-push hook runs a merge-base copy of this script with
 # CHECK_DATA_ROOT naming the branch tree, so the two differ: then every check
 # script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
-# reads only the copy's configs (a branch config can load a custom rule, which
-# is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
+# reads the copy's configs plus each branch config the copy proves is data (a
+# branch config can load a custom rule, which is code, so any other is refused),
+# and checks that run the branch's own code skip: --tests, changed-skills, and the
 # validate-plugins steps that report `SKIP` themselves. plugin-options-docs
 # skips when the branch changes its generator, whose output the copy's older
 # generator would reject.
@@ -91,7 +101,7 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") [--tests] [--jobs N] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
+  echo "usage: $(basename "$0") [--tests] [--jobs N] [--budget S] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
   exit 2
 }
 
@@ -99,10 +109,17 @@ run_tests=0
 # The selected suites run through run-plugin-tests.sh's job pool, which keeps
 # the suites in scripts/run-plugin-tests-serial.txt off the parallel group.
 # One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
-# (scripts/affected-tests.sh, #3694).
-cores="$(nproc 2>/dev/null || echo 2)"
-jobs="${CHECK_AFFECTED_JOBS:-$((cores > 1 ? cores - 1 : 1))}"
+# (scripts/affected-tests.sh, #3694). At most 8: past 8 the wall time is the
+# longest suite's (#10534), and on a host where several sessions run suites at
+# once, 23 jobs failed suites that passed at 4 and 6 (#10719).
+cores="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+[[ "$cores" =~ ^[1-9][0-9]*$ ]] || cores=2
+jobs=$((cores > 1 ? cores - 1 : 1))
+((jobs <= 8)) || jobs=8
+jobs="${CHECK_AFFECTED_JOBS:-$jobs}"
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || jobs=1
+budget="${CHECK_AFFECTED_BUDGET:-120}"
+[[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=120
 fetch=1
 uncommitted=0
 base=
@@ -117,6 +134,12 @@ while (($#)); do
     shift
     ;;
   --jobs=*) jobs="${1#--jobs=}" ;;
+  --budget)
+    [[ $# -ge 2 ]] || usage
+    budget="$2"
+    shift
+    ;;
+  --budget=*) budget="${1#--budget=}" ;;
   --base)
     [[ $# -ge 2 && -n "$2" ]] || usage
     base="$2"
@@ -127,7 +150,7 @@ while (($#)); do
   esac
   shift
 done
-[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || usage
+[[ "$jobs" =~ ^[1-9][0-9]*$ && "$budget" =~ ^[1-9][0-9]*$ ]] || usage
 
 tools="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || exit 2
 top="$(git -C "${CHECK_DATA_ROOT:-$tools}" rev-parse --show-toplevel 2>/dev/null)" || {
@@ -191,13 +214,20 @@ if ((uncommitted)); then
   # A shallow clone's boundary, so history walks stop where the clone does.
   [[ ! -f "$shallow" ]] || cp "$shallow" "$snap/tree/.git/shallow" || exit 2
   git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
-  args=(--base "$base" --no-fetch --jobs "$jobs")
+  args=(--base "$base" --no-fetch --jobs "$jobs" --budget "$budget")
   ((run_tests)) && args+=(--tests)
+  # A snapshot of this tree's own work tree is no foreign code, so the inner
+  # run's tests run here, where the selector reads the same uncommitted edits.
+  own=
+  [[ "$(pwd -P)" != "$tools" ]] || own="$tools"
   rc=0
-  CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
+  CHECK_AFFECTED_SNAPSHOT_OF="$own" CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
   exit "$rc"
 fi
 base="${base:-origin/main}"
+snapshot=0
+[[ -z "${CHECK_AFFECTED_SNAPSHOT_OF-}" || "$CHECK_AFFECTED_SNAPSHOT_OF" != "$tools" ]] || snapshot=1
+unset CHECK_AFFECTED_SNAPSHOT_OF
 foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
@@ -248,6 +278,14 @@ fetched=1
 if ((fetch)) && [[ "$base" == */* ]]; then
   git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || fetched=0
 fi
+# Then resolved to a commit once, so every check judges the base the run
+# started from: every worktree shares the remote-tracking refs, and another
+# session's fetch can move one mid-run. Later drift is CI's and the merge queue's.
+base_name="$base"
+base="$(git rev-parse --verify --quiet "$base^{commit}")" || {
+  echo "check-affected: cannot compute the merge-base of HEAD and $base_name: it names no commit" >&2
+  exit 2
+}
 
 merge_base="$(git merge-base HEAD "$base" 2>/dev/null)" || {
   echo "check-affected: cannot compute the merge-base of HEAD and $base" >&2
@@ -265,7 +303,7 @@ mapfile -t changed <<<"$changed_raw"
 # Nothing changed is a pass only when HEAD is the base; otherwise the run read
 # the wrong tree or range, and passing would check nothing.
 if [[ -z "$all_raw" && "$(git rev-list --count "$base...HEAD")" != 0 ]]; then
-  echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
+  echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base_name, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
   exit 2
 fi
 
@@ -302,13 +340,35 @@ if ((${#md[@]} == 0)); then
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
 elif ((foreign)); then
-  # Lint HEAD's copy of each file beside only the tooling tree's configs.
+  # Lint HEAD's copy of each file beside the tooling tree's configs, overlaid
+  # with each markdownlint config the branch changed that the tooling tree's
+  # scripts/lib/markdownlint-config-data.mjs proves is data. Any other changed
+  # config is refused with a SKIP line saying why, leaving the tooling tree's.
   markdown_staged() {
-    local stage f rc=0
+    local stage f kind mode data rc=0
     stage="$(mktemp -d)" || return 2
     while IFS= read -r f; do
       mkdir -p "$stage/${f%/*}" && cp "$tools/$f" "$stage/$f" || rc=2
     done < <(cd "$tools" && find . -name node_modules -prune -o -name .git -prune -o -name '.markdownlint*' -type f -print)
+    for f in ${changed[@]+"${changed[@]}"}; do
+      case "${f##*/}" in
+      .markdownlint-cli2.jsonc) kind=options ;;
+      .markdownlint.jsonc | .markdownlint.json) kind=config ;;
+      .markdownlint*)
+        echo "SKIP config $f (refused: only .markdownlint-cli2.jsonc, .markdownlint.jsonc and .markdownlint.json are read as data)"
+        continue
+        ;;
+      *) continue ;;
+      esac
+      mode="$(git ls-tree HEAD -- "$f" | cut -d' ' -f1)"
+      if [[ "$mode" != 100644 && "$mode" != 100755 ]]; then
+        echo "SKIP config $f (refused: not a regular file)"
+      elif data="$(git show "HEAD:$f" | node "$tools/scripts/lib/markdownlint-config-data.mjs" "$kind")"; then
+        mkdir -p "$stage/$(dirname "$f")" && printf '%s\n' "$data" >"$stage/$f" || rc=2
+      else
+        echo "SKIP config $f (refused: ${data:-the data check could not run})"
+      fi
+    done
     for f in "${md[@]}"; do
       mkdir -p "$stage/$(dirname "$f")" && git show "HEAD:$f" >"$stage/$f" || rc=2
     done
@@ -357,7 +417,7 @@ if ((fetched)); then
   run_check stale-base-overlap "scripts/check-stale-base-overlap.sh --check $base" \
     "$tools/scripts/check-stale-base-overlap.sh" --check "$base"
 else
-  skip stale-base-overlap "git fetch of $base failed"
+  skip stale-base-overlap "git fetch of $base_name failed"
 fi
 
 if ((${#plugins[@]} == 0)); then
@@ -375,17 +435,35 @@ else
   run_check ruff "scripts/run-ruff.sh check ${py[*]}" "$tools/scripts/run-ruff.sh" check "${py[@]}"
 fi
 
-# typos: the exclusions mirror the `exclude:` input of the workflow's typos step
-# (scripts/check-affected-gates.test.sh holds them to it). Any non-zero exit is
-# a finding, never run_check's "could not run" 2; a missing binary was skipped
-# above. The config is the copy's, else the checked tree's (a copy made by the
-# pre-push hook carries none).
+# typos: the exclusions are the `exclude:` input of the checked tree's
+# workflow typos step, read as data, so a branch that exempts files is judged
+# by its own exemption; no workflow or no globs fails closed. Any non-zero exit
+# is a finding, never run_check's "could not run" 2; a missing binary was
+# skipped above. The config is the copy's, else the checked tree's (a copy made
+# by the pre-push hook carries none).
 typos_check() {
-  typos --config "$1" --force-exclude \
-    --exclude 'plugins/*/skills/*/vendor/**' \
-    --exclude 'plugins/*/tools/*/vendor/**' \
-    --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
-    -- "${changed[@]}" || return 1
+  local workflow=.github/workflows/pr-require-checks.yml g
+  local -a excludes=()
+  if [[ ! -f "$workflow" ]]; then
+    echo "typos: $workflow is missing, so its typos step's exclude globs cannot be read"
+    return 1
+  fi
+  # The scan covers only the typos step: its keys sit at the indent of its
+  # `id: typos` line, and the first non-blank line indented less ends the step.
+  while IFS= read -r g; do excludes+=(--exclude "$g"); done < <(
+    awk 'ind { match($0, /^ */); if (NF && RLENGTH < ind) exit }
+      /^ *(- )?id: typos$/ { match($0, /^ *(- )?/); ind = RLENGTH; next }
+      ind && /^ *exclude: / { sub(/^ *exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$workflow"
+  )
+  if [[ "${excludes[1]-}" == ['>|']* ]]; then
+    echo "typos: $workflow writes its typos step's exclude as a YAML block scalar (${excludes[1]}); write the globs on the exclude: line itself"
+    return 1
+  fi
+  if ((${#excludes[@]} == 0)); then
+    echo "typos: $workflow has no exclude globs on its typos step (id: typos)"
+    return 1
+  fi
+  typos --config "$1" --force-exclude "${excludes[@]}" -- "${changed[@]}" || return 1
 }
 typos_config="$tools/_typos.toml"
 [[ -f "$typos_config" ]] || typos_config="$PWD/_typos.toml"
@@ -570,7 +648,7 @@ else
     "$tools/scripts/check-changed-skills.sh" "$base"
 fi
 
-if ((run_tests && foreign)); then
+if ((run_tests && foreign && !snapshot)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
   # Suites load the locked npm packages, which a fresh worktree lacks or a
@@ -579,7 +657,7 @@ elif ((run_tests)); then
   # could not run (npm or nice missing) is a SKIP, and the suites still run.
   npm_failed=0
   rc=0
-  bash "$tools/scripts/setup-env.sh" --node >"$out" 2>&1 || rc=$?
+  bash "$tools/scripts/setup-env.sh" --node --root "$tools" >"$out" 2>&1 || rc=$?
   if ((rc == 0)); then
     grep '^setup-env: installed' "$out" >&2
   elif ((rc == 2 || rc == 127)); then
@@ -606,7 +684,7 @@ elif ((run_tests)); then
     local -a pkgs=() exclusions=() node=() unrun=()
     # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
     # that inherits it points its checkers at the real tree instead of its fixtures.
-    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&
@@ -654,7 +732,7 @@ elif ((run_tests)); then
   if ((npm_failed)); then
     skip tests "npm dependencies did not install"
   else
-    run_check tests "scripts/affected-tests.sh --run --jobs $jobs --base $base" affected
+    run_check tests "scripts/affected-tests.sh --run --jobs $jobs --budget $budget --base $base" affected
   fi
 fi
 

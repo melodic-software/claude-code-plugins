@@ -92,6 +92,12 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section changes its deadline or its re-arm notice, or a release note names a Monitor input.
 
+   A single-prompt `-p` run accepts the arming call's `timeout_ms` and clamps it to the non-interactive cap rather than rejecting it (Claude Code 2.1.312, [#6877 probe](https://github.com/melodic-software/claude-code-plugins/issues/6877)), so the same arming call and re-arm rule apply.
+
+   - **Pointer**: the `-p` probe result (Claude Code 2.1.312), in [Claude Code releases, Probes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code.md#probes); the run is on [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877).
+   - **As of**: 2026-10-28
+   - **Recheck trigger**: the Monitor tool section changes the non-interactive cap, or a release note names the Monitor deadline.
+
    Source conflict: the Claude Code 2.1.271 changelog entry and the Monitor tool section disagree on which inputs a command watch accepts. We follow the live tool schema: no `persistent`, an explicit `timeout_ms`.
 
    - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://code.claude.com/docs/en/changelog) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.

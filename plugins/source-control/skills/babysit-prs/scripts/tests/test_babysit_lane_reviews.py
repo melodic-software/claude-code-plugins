@@ -574,7 +574,9 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         ) as lift:
             self.assertIsNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
         self.assertEqual(lift.call_args.args[0], REPO)
-        self.assertEqual(len(lift.call_args.args), 4)
+        # The configured hold paths, for the owner's decision Q10 carry.
+        self.assertEqual(len(lift.call_args.args), 5)
+        self.assertIsInstance(lift.call_args.args[4], list)
         with mock.patch.object(policy, "carried_lifters", return_value=[]):
             self.assertIsNotNone(held_by((DOC, FLOORED), reviews=[], humans=TRUSTED))
 

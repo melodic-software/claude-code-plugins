@@ -142,9 +142,18 @@ on:
       expected-upstream-head:
         description: >-
           For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
-          dispatch, that job's head-sha output: the gate and the broker accept
-          the review of that head when only commits GitHub signed for the lanes App during the run
-          follow it. Empty otherwise.
+          dispatch, that job's head-sha output: the gate accepts the review of
+          that head while the PR is at it or at pushed-commit. The broker gets
+          it too. Empty otherwise.
+        required: false
+        type: string
+        default: ""
+      pushed-commit:
+        description: >-
+          With expected-upstream-head, the pushed-commit output of the
+          caller's apply-feedback-patch job: the one commit the gate accepts
+          after that head. Empty when it pushed nothing, and on every other
+          job.
         required: false
         type: string
         default: ""
@@ -338,6 +347,21 @@ on:
         required: false
         type: string
         default: ""
+      patch-replies-attempt:
+        description: >-
+          apply-patch with patch-prepare review-threads: the read runner's
+          feedback-attempt output, the attempt whose
+          feedback-replies-<lane>-<patch-activity>-<attempt> artifact holds
+          the scanned replies; the commit's Lane-Thread lines name the kept
+          threads their VALID replies name.
+        required: false
+        type: string
+        default: ""
+      patch-replies-sha256:
+        description: With patch-replies-attempt, the replies' SHA-256 from the scan job.
+        required: false
+        type: string
+        default: ""
       patch-verdict-attempt:
         description: >-
           apply-patch with patch-prepare dependency-review: the read runner's
@@ -454,6 +478,11 @@ on:
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
+      pushed-commit:
+        description: >-
+          The commit apply-patch.mjs pushed onto the PR branch, empty when it
+          pushed none. Set only by the base's script step.
+        value: ${{ jobs.run.outputs.pushed-commit }}
 
 permissions: {}
 
@@ -491,6 +520,8 @@ jobs:
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
+      # apply-patch.mjs's commit=<sha> on a push; no other script writes it.
+      pushed-commit: ${{ steps.act-script.outputs.commit }}
       head-ref: ${{ steps.gate.outputs.head-ref }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
@@ -686,8 +717,9 @@ jobs:
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml
           # A job after the model job: the review was of the head that job
-          # gated, and only the lanes App's signed commits may follow it.
+          # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          pushed-commit: ${{ inputs.pushed-commit }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
@@ -854,6 +886,40 @@ jobs:
             exit 1
           fi
           echo "file=$THREADS_FILE" >>"$GITHUB_OUTPUT"
+
+      # apply-patch under the review-threads row, before the mint: the scan
+      # job's replies, by the model call's attempt, and their SHA-256; the
+      # commit names in Lane-Thread lines the kept threads their VALID replies
+      # name. A missing or altered file fails the job, so nothing is minted.
+      - name: Download the scanned replies for the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'review-threads'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: feedback-replies-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-replies-attempt }}
+          path: ${{ runner.temp }}/lane-patch-replies
+
+      - name: Check the scanned replies for the patch
+        id: patch-replies
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'review-threads'
+        env:
+          REPLIES_FILE: ${{ runner.temp }}/lane-patch-replies/replies.jsonl
+          REPLIES_SHA256: ${{ inputs.patch-replies-sha256 }}
+        run: |
+          if [ -L "$REPLIES_FILE" ] || [ ! -f "$REPLIES_FILE" ] || [ "$(stat -c %s "$REPLIES_FILE")" -gt 49152 ]; then
+            echo "::error::the feedback-replies artifact holds no replies.jsonl of at most 49152 bytes"
+            exit 1
+          fi
+          sum=$(sha256sum <"$REPLIES_FILE")
+          if ! [[ $REPLIES_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$REPLIES_SHA256" ]; then
+            echo "::error::the replies do not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+          echo "file=$REPLIES_FILE" >>"$GITHUB_OUTPUT"
 
       # apply-patch under the dependency-review row, before the mint: the
       # verdict the read runner's scan job uploaded, by its attempt, and its
@@ -1903,6 +1969,9 @@ jobs:
           # Under the review-threads row: the thread file the check step
           # matched to the select job's SHA-256; empty otherwise.
           KEPT_THREADS_FILE: ${{ steps.patch-threads.outputs.file }}
+          # Under the review-threads row: the scanned replies the check step
+          # matched to the scan job's SHA-256; empty otherwise.
+          PATCH_REPLIES_FILE: ${{ steps.patch-replies.outputs.file }}
           # Under the dependency-review row: the verdict field of the scanned
           # verdict the check step matched to the scan job's SHA-256.
           DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}

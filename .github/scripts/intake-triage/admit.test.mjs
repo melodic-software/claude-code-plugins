@@ -389,6 +389,10 @@ describe("decide", () => {
       ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
       ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+      // #9113's criterion: a bare name of a workflow on disk.
+      ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
+      ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
+      ["- [ ] pr-require-checks.yml is unchanged.", ".github/workflows/pr-require-checks.yml"],
     ];
     for (const [line, path] of refused) {
       test(`refuses, with no hold, on ${line}`, () => {
@@ -414,7 +418,8 @@ describe("decide", () => {
       "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
       "- [ ] `plugins/x/cases/y/settings.json` sets the model.",
       "- [ ] settings.json keeps its key.",
-      "- [ ] pr-require-checks.yml is unchanged.",
+      // #9092's: a bare .yml name no workflow on disk has.
+      "- [ ] No pr-test-macos.yml is added.",
       "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
     ];
     for (const line of admitted) {
@@ -423,6 +428,13 @@ describe("decide", () => {
         assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
       });
     }
+
+    // A title names the subject, not the change: #8682 and #9054 named an
+    // existing workflow in theirs and changed only scripts.
+    test("admits an issue whose title alone names an existing workflow", () => {
+      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-windows.yml" };
+      assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+    });
 
     test("reads the row apply-patch pushes an issue lane patch under", () => {
       assert.equal(PATCH_ROW, TARGETS.issue.row(""));
@@ -648,7 +660,7 @@ describe("decide", () => {
     });
 
     test("a rendered refinement a listed human posts as their own is still checked for pages outside the lane's web hosts", () => {
-      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [] };
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [], external: { state: "none", repo: "", class: "", what: "" } };
       const body = render(validateOutput(output, new Set()));
       assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
       const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(USER(HUMAN), { body })]) }));
@@ -852,6 +864,15 @@ describe("admit", () => {
       assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`]);
     });
   }
+
+  // With wip.pause-from empty check-wip-cap leaves admissions open with room
+  // null even over the queued cap, so clearing it removes intake's cap.
+  test("adds agent-ready over the queued cap when wip.pause-from is empty", async () => {
+    const fake = fakeGitHub();
+    const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
+    assert.equal(result.outcome, "admitted");
+    assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+  });
 
   test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
     const fake = fakeGitHub({
@@ -1490,6 +1511,7 @@ describe("a Feature under a parent at status: needs-decision", () => {
     questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment" }],
     sources: [],
     split: [],
+    external: { state: "none", repo: "", class: "", what: "" },
   });
   const refinement = (exact) => ({
     id: 40,
@@ -1599,5 +1621,67 @@ describe("a Feature under a parent at status: needs-decision", () => {
     const fake = withParent({ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/o/r/issues/${PARENT}/events`) });
     assert.ok(refusedForParent(await go(fake)));
     assert.ok(read(fake, "events"), "the parent's events read was tried");
+  });
+});
+
+// Owner decision 2026-10-28: work that needs the owner present carries
+// `attended`, which admission refuses like host-run, parks at status:
+// confirmed (no decision asked), and only a listed human removes.
+describe("attended", () => {
+  const thin = issueOf({ body: "Point the docs domain at the new host." });
+  const refined = (line) =>
+    written(APP_ACTOR, { body: `${REFINE_MARKER}\n**Refinement.**\n\n**Acceptance criteria**\n\n- [ ] Line 3 says nineteen.\n\n${line}\n` });
+  const at = (comment, createdAt) => ({ ...comment, createdAt });
+  const manual = at(refined("External state: manual (dns: a CNAME for docs at the registrar)"), "2026-10-20T09:00:00Z");
+  const label = (event, actor, created_at = "2026-10-21T00:00:00Z") => ({ event, label: { name: "attended" }, actor: { id: actor }, created_at });
+
+  test("an issue carrying attended is refused, parked at status: confirmed", async () => {
+    const decision = decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name: "attended" }] }) }));
+    assert.equal(decision.verdict, "refuse");
+    assert.deepEqual(decision.reasons, ["it carries attended"]);
+    assert.equal(decision.hold, undefined);
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "attended" }] }) });
+    assert.equal((await go(fake)).status, CONFIRMED);
+  });
+
+  test("a refinement recording a manual external step is refused with attended added, and no decision asked", async () => {
+    const decision = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]) }));
+    assert.equal(decision.verdict, "refuse");
+    assert.equal(decision.attended, true);
+    assert.equal(decision.hold, undefined);
+    assert.match(decision.reasons.join(), /External state: manual \(dns: a CNAME for docs at the registrar\)/);
+    const fake = fakeGitHub({ issue: thin, spec: humanSpec(thin, [manual]) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED, "attended"] })}`);
+  });
+
+  test("an iac or none external state routes nothing", () => {
+    for (const line of ["External state: iac (melodic-software/github-iac)", "External state: none"]) {
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [at(refined(line), "2026-10-20T09:00:00Z")]) })), { verdict: "admit", reasons: [] }, line);
+    }
+  });
+
+  test("the line counts only in the counted refinement, not in a listed human's text", () => {
+    const body = `${BODY}\n\nExternal state: manual (dns: a CNAME)`;
+    const issue = issueOf({ body });
+    assert.deepEqual(decide(facts({ issue, spec: humanSpec(issue) })), { verdict: "admit", reasons: [] });
+  });
+
+  test("a removal by the lanes App or an unlisted account keeps the hold; a listed human's lifts it", () => {
+    for (const actor of [APP, OUTSIDER]) {
+      const decision = decide(facts({ events: [label("labeled", APP, "2026-10-20T10:00:00Z"), label("unlabeled", actor)] }));
+      assert.equal(decision.verdict, "refuse", String(actor));
+      assert.deepEqual(decision.reasons, ["the newest removal of attended was not a listed human's, so its hold stands"]);
+    }
+    assert.deepEqual(decide(facts({ events: [label("labeled", APP, "2026-10-20T10:00:00Z"), label("unlabeled", HUMAN)] })), { verdict: "admit", reasons: [] });
+  });
+
+  test("a listed human's removal after the refinement settles its manual step; one before it does not", () => {
+    const after = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]), events: [label("labeled", APP, "2026-10-20T10:00:00Z"), label("unlabeled", HUMAN, "2026-10-21T00:00:00Z")] }));
+    assert.deepEqual(after, { verdict: "admit", reasons: [] });
+    const before = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]), events: [label("unlabeled", HUMAN, "2026-10-19T00:00:00Z")] }));
+    assert.equal(before.verdict, "refuse");
+    assert.equal(before.attended, true);
   });
 });

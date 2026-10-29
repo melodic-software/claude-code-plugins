@@ -22,7 +22,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
+import { countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
@@ -212,6 +212,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
   const result = await select({ api: client, pr, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });

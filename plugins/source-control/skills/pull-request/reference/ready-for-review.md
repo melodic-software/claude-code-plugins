@@ -50,7 +50,7 @@ such as a stacked layer, is a branch the PR's author may have pushed without rev
 there could switch off the reviews of the author's own PR. The read goes through
 `scripts/read-pre-ready.sh`, given the base and the default branch. It prints a `source` line
 (`default`, `config`, or `fail-closed` with a reason) and one `<step> enabled|disabled` line per
-step. When `config-root.sh classify` does not print `repo`, skip the read: every step runs.
+step. When `<plugin-root>/lib/config-root.sh classify` does not print `repo`, skip the read: every step runs.
 
 Every step runs when the file or the key is missing, and when the reader fails closed:
 `base <name> is not the default branch <default>`, a base or default branch that could not be
@@ -189,7 +189,9 @@ The bullets below are the steps.
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
   --tests` when the repository ships it, otherwise §1.5's ecosystem-native commands. That part
-  runs inside the record command below, so the result comes from its exit status.
+  runs inside the record command below, so the result comes from its exit status. When CI's test
+  lanes already passed on the head, the suites are skipped as a built-in condition (**CI's test
+  lanes**, below); `ready --verify-local` runs them anyway.
 
 **Commit, then record the verify result.** Both run in every repository and every run, whatever
 `pre_ready` or `--skip` says; neither is a step either can name. First commit whatever the reviews
@@ -207,6 +209,26 @@ commit (another branch of that name, such as a fork's `main` beside this reposit
 exits 2 and each record command below records nothing, so 2.5.4 refuses the flip: check the PR out
 with the forge's PR checkout and run the gate again.
 
+**CI's test lanes.** After the commit and before the gate, read the venue's `tests` line for the
+PR worktree's HEAD ([review-venue.md](review-venue.md)), unless the run was invoked as
+`ready --verify-local`:
+
+```bash
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+```
+
+When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
+the suites only: the gate's deterministic last part still runs, as `scripts/check-affected.sh`
+without `--tests` (it still runs the repository's other affected checks, such as markdown lint,
+shellcheck and plugin validation), or §1.5's ecosystem-native commands minus the test suites when
+the repository does not ship it. Record `pass` or `fail` from its exit status with the first
+command below. Report the verify line as that result, with the suites `skipped (CI covers it)`
+and the venue line's detail, and name the suites skipped: the list `scripts/affected-tests.sh`
+prints with no arguments, run from `$PR_TREE`, when the repository ships it, otherwise the
+test-lane names the venue line gives. When the line reads `local`, the venue cannot be read, or the
+run passed `--verify-local`, the gate runs in full as below. A draft's head always reads `local`: a draft skips the test lanes, so its first
+flip runs the suites here. `ci-status` gates the merge either way.
+
 - `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
   shell command, so `pass` is never typed by hand. The gate runs the PR worktree's own
   `scripts/check-affected.sh` with `CHECK_DATA_ROOT` naming that tree, so the tree checked never
@@ -216,13 +238,16 @@ with the forge's PR checkout and run the gate again.
   PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; if CHECK_DATA_ROOT="$PR_TREE" bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
   ```
 
-  Without `scripts/check-affected.sh` in the PR worktree, the `if` holds §1.5's ecosystem-native
-  commands joined with `&&`, run from `$PR_TREE` (`(cd "$PR_TREE" && <commands>)`). When an earlier
+  When the venue's `tests` line read `ci` (above), drop `--tests` from the command, so the suites
+  CI already ran are the only part skipped. Without `scripts/check-affected.sh` in the PR worktree,
+  the `if` holds §1.5's ecosystem-native commands joined with `&&`, run from `$PR_TREE`
+  (`(cd "$PR_TREE" && <commands>)`), leaving out the test suites on a `ci` line. When an earlier
   part of §1.5 already failed, record `fail` directly, with the next bullet's command and
   `--result fail`. A recorded `fail` stops the flip.
 - `verify` did not run: record `skipped` with the command below when the `parse-ready-skip.sh`
-  output has a `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line.
-  The report still names the skip or the disabling (2.5.6).
+  output has a `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line. The
+  venue's `tests` line reading `ci` is not one of these: it skips only the suites, and the gate
+  still runs (above). The report still names the skip or the disabling (2.5.6).
 
   ```bash
   PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail
@@ -316,7 +341,8 @@ Report one line per step, in the order they ran, each with exactly one outcome:
 - **ran, passed** or **ran, failed**, with the detail the step owes: the base merge's result, the
   review evidence's link or what is missing, each review's findings and how each was dispositioned
   (or the fallback that stood in for the review), and for a review, that it ran in place of its CI
-  lane and the venue line that sent it here; the verify gate's result with the head it ran on;
+  lane and the venue line that sent it here; the verify gate's result with the head it ran on, and
+  when CI's test lanes covered the suites, `skipped (CI covers it)` naming the skipped suites;
 - **skipped**, naming the built-in condition (a docs-only diff, the CI lane covers it with the
   venue line's detail, no plan or no evidence-asking `Review:` value, already out of draft for the
   flip);

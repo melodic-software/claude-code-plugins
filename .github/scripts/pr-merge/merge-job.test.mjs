@@ -187,7 +187,7 @@ test("without an adoption section no trusted actor is listed", () => {
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes"]);
   // Nor with a section that sets no idle-hours, which the gate adopts nothing under.
-  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 24\n/m, ""));
+  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 2\n/m, ""));
   assert.equal(noIdle.status, 0, noIdle.stderr);
   assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
 });
@@ -542,7 +542,7 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
 // check.
 const LAST_SHA = "d".repeat(40);
 const lastReport = () => ({ readable: true, ok: true, needsDispatch: false, shared: { mainSha: "a".repeat(40) } });
-const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3 } = {}) => {
+const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3, attempts } = {}) => {
   const dir = tempDir("pr-merge-idle-");
   try {
     const bin = join(dir, "bin");
@@ -560,6 +560,7 @@ const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3 } = {}) => {
       writeFileSync(join(dir, "post-merge-last/post-merge-code"), `${code}\n`);
       writeFileSync(join(dir, "post-merge-last/post-merge-code-sha"), `${LAST_SHA}\n`);
       writeFileSync(join(dir, "post-merge-last/lane-records.json"), "the last run's");
+      if (attempts !== undefined) writeFileSync(join(dir, "post-merge-last/attempts.json"), attempts);
     }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")))], {
@@ -578,6 +579,8 @@ const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3 } = {}) => {
       keptCode: kept("post-merge-code"),
       keptSha: kept("post-merge-code-sha"),
       records: kept("lane-records.json"),
+      attempts: kept("attempts.json"),
+      handed: existsSync(join(dir, "post-merge-attempts.json")) ? readFileSync(join(dir, "post-merge-attempts.json"), "utf8") : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -617,6 +620,21 @@ test("a tick runs the check itself for no report, a refusal, a crash or a check 
     assert.equal(run.keptSha, head, why);
     if (/^exit /.test(why)) assert.equal(run.settled, null, `${why} is not offered to settle`);
   }
+});
+
+// The attempt carry (babysit_postmerge.py ATTEMPTS_ENV): the last run's
+// attempts file is handed to the check at the path the step names, and kept
+// for the next tick whether the check runs or an idle tick reuses the report.
+test("post-merge-dispatch hands the last run's attempts to the check and keeps them", () => {
+  const file = "${{ runner.temp }}/post-merge-attempts.json";
+  assert.ok(step("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch"))).includes(`BABYSIT_POSTMERGE_ATTEMPTS: ${file}\n`));
+  for (const options of [{}, { settle: 1 }]) {
+    const run = runIdleCheck({ last: lastReport(), attempts: "carried", ...options });
+    assert.equal(run.ran, options.settle === 1);
+    assert.equal(run.handed, "carried");
+    assert.equal(run.attempts, "carried");
+  }
+  assert.equal(runIdleCheck({ last: lastReport(), settle: 1 }).attempts, null);
 });
 
 test("post-merge-dispatch reads the last run's report before its check, from a trusted run alone", () => {
@@ -906,7 +924,7 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
   assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
   const block = step("Record a failed lane merge");
-  assert.match(block, /\n {8}if: steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
   assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
@@ -1247,7 +1265,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
-  assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);
+  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.

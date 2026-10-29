@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+from collections import Counter
 import functools
 import pathlib
 import subprocess
@@ -277,83 +278,12 @@ class HighReasonTests(unittest.TestCase):
         # with the files that enforce it, holds with high-path-floor off too.
         # Owner decision Q26 option B: each glob's class; a person clears a
         # `trust` or `gate` path, a clean security review an `enforcement` one.
+        # The rows are what test_merge_holds_sync.py's closure checks and the
+        # generated copies hold; here the count of each class.
         self.assertEqual(
-            babysit_risk.FLOOR_CLASSES,
-            (
-                (".github/actions/check-trusted-trigger/**", "trust"),
-                ("**/CODEOWNERS", "trust"),
-                ("**/.gitmodules", "trust"),
-                (".github/actions/resolve-config/**", "gate"),
-                (".github/actions/check-kill-switch/**", "trust"),
-                (".github/actions/request-lane-token/**", "trust"),
-                (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
-                (".github/actions/log-api-budget/rate-limits.json", "gate"),
-                (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
-                (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
-                (".github/scripts/pr-merge/superseded.mjs", "gate"),
-                (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
-                (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
-                (".github/scripts/pr-merge/gate-check.mjs", "gate"),
-                (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
-                (".github/scripts/pr-merge/lane-records.mjs", "gate"),
-                (".github/scripts/pr-merge/last-report.mjs", "gate"),
-                (".github/scripts/pr-merge/rate-stop.bash", "gate"),
-                (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
-                (".github/scripts/pr-merge/rotation.mjs", "gate"),
-                (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
-                (".github/scripts/pr-merge/who.mjs", "gate"),
-                (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
-                (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
-                (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
-                ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-                (".github/workflows/pr-require-checks.yml", "enforcement"),
-                (".github/workflows/pr-merge.yml", "enforcement"),
-                ("docs/conventions/pr-pipeline.yaml", "gate"),
-                (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
-                (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
-                (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/report-escalation.sh", "enforcement"),
-                (".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/request-budget.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"),
-                (".github/scripts/apply-patch/apply-patch.mjs", "enforcement"),
-                (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
-                (".github/scripts/apply-patch/protected-paths.mjs", "enforcement"),
-                (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
-                (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
-                (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
-                (".github/workflows/pr-unblock.yml", "enforcement"),
-                (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
-                (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
-            ),
-        )  # fmt: skip
+            Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
+            {"trust": 18, "gate": 14, "enforcement": 43},
+        )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
             tuple(g for g, c in babysit_risk.FLOOR_CLASSES if c in {"trust", "gate"}),
@@ -404,6 +334,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/apply-patch/retry-fetch.mjs", ".github/scripts/apply-patch/retry-fetch.mjs"),
             (".github/scripts/pr-unblock/fix-ci-context.mjs", ".github/scripts/pr-unblock/fix-ci-context.mjs"),
             (".github/scripts/pr-unblock/feedback-dispatch.mjs", ".github/scripts/pr-unblock/feedback-dispatch.mjs"),
+            (".github/scripts/pr-unblock/verify-notes.mjs", ".github/scripts/pr-unblock/verify-notes.mjs"),
             (".github/scripts/pr-unblock/limit-stop.mjs", ".github/scripts/pr-unblock/limit-stop.mjs"),
             (".github/scripts/pr-unblock/dispatch-record.mjs", ".github/scripts/pr-unblock/dispatch-record.mjs"),
             (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs"),
@@ -1292,6 +1223,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/apply-patch/retry-fetch.mjs",
             ".github/scripts/pr-unblock/fix-ci-context.mjs",
             ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            ".github/scripts/pr-unblock/verify-notes.mjs",
             ".github/scripts/pr-unblock/limit-stop.mjs",
             ".github/scripts/pr-unblock/dispatch-record.mjs",
             ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
@@ -1864,7 +1796,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 43)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
@@ -1946,6 +1878,172 @@ class ReviewClearedFloorTests(unittest.TestCase):
         result = score(_input(files=files, lanes=lanes))
         self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{path}", _codes(result))
         self.assertTrue(holds(result))
+
+
+class AuthorReviewedGatePathTests(unittest.TestCase):
+    """Owner direction 2026-10-27: a `gate` path a trusted person's own
+    commits alone touched, on a head pr-verify passed
+    (`RiskInput.author_reviewed`, built by
+    `babysit_merge_policy.author_reviewed_paths`), clears on the evidence that
+    clears an `enforcement` path; a `trust` path, and a gate path not in
+    `author_reviewed`, still hold for a person."""
+
+    GATE = ".github/scripts/pr-merge/who.mjs"
+    TRUST = ".github/actions/request-lane-token/action.yml"
+    # What the token broker loads to scope a lane token: never the lift's.
+    TOKEN_SCOPE = (
+        ".github/actions/resolve-config/resolve.mjs",
+        ".github/actions/resolve-config/effect-grants.json",
+        ".github/actions/resolve-config/lane-rules.json",
+        ".github/actions/resolve-config/activity-rules.json",
+    )
+    # Its activities' `effect:` values and lane slots decide what the broker
+    # mints, so it is token scope too.
+    PIPELINE = "docs/conventions/pr-pipeline.yaml"
+
+    def _score(self, path, security, reviewed=_UNSET, **changes):
+        lanes = (_lane("claude-review"), *security)
+        reviewed = frozenset({path}) if reviewed is _UNSET else reviewed
+        return score(
+            _input(
+                files=(_file(path),), lanes=lanes, author_reviewed=reviewed, **changes
+            )
+        )
+
+    def test_a_clean_bound_security_review_clears_a_reviewed_gate_path(self):
+        result = self._score(self.GATE, (_lane("claude-security-review"),))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        self.assertFalse(holds(result))
+
+    def test_a_token_scope_path_holds_for_a_person_after_a_clean_review(self):
+        # Owner decision 2026-10-28: an agent commits as the trusted owner,
+        # so a PR that widens a lane token's scope must still wait for a
+        # person, whatever author_reviewed says.
+        paths = (self.GATE, *self.TOKEN_SCOPE)
+        result = score(
+            _input(
+                files=tuple(_file(p) for p in paths),
+                lanes=(_lane("claude-review"), _lane("claude-security-review")),
+                author_reviewed=frozenset(paths),
+            )
+        )
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/resolve-config/**",)
+        )
+        self.assertEqual(result.reasons[0].detail, ", ".join(self.TOKEN_SCOPE))
+        self.assertTrue(holds(result))
+
+    def test_the_pipeline_config_holds_for_a_person_after_a_clean_review(self):
+        result = self._score(self.PIPELINE, (_lane("claude-security-review"),))
+        self.assertIn(f"high-path:{self.PIPELINE}", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_the_lift_and_hold_table_code_holds_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise widen the lift or drop a floor
+        # row on a clean review, and the next PR would take the wider lift.
+        for path in (
+            B + "babysit_risk.py",
+            B + "babysit_review_evidence.py",
+            B + "babysit_merge_policy.py",
+            B + "babysit_merge.py",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            "scripts/sync-hold-floor.py",
+        ):
+            with self.subTest(path=path):
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertIn(f"high-path:{path}", _codes(result))
+                self.assertTrue(holds(result))
+
+    def test_the_hold_applying_scripts_hold_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise weaken a hold these scripts
+        # apply on a clean review, and the weakened script would judge every
+        # later PR.
+        for name in (
+            "enable-auto-merge",
+            "superseded",
+            "clear-escalations",
+            "gate-check",
+            "head-ref-map",
+        ):
+            path = f".github/scripts/pr-merge/{name}.mjs"
+            with self.subTest(path=path):
+                self.assertNotIn(path, babysit_risk.AUTHOR_REVIEW_FLOOR)
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertEqual(_codes(result), (f"high-path:{path}",))
+                self.assertTrue(holds(result))
+
+    def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
+        security = "claude-security-review"
+        cases = {
+            # bind finds no security run at this head when the clean review
+            # is of an older one.
+            "a review of an older head": (
+                _lane(security, bound=False, unbound_reason="no-run"),
+            ),
+            "a CRITICAL finding": (
+                LaneEvidence(security, True, None, 1, blocking_findings=1),
+            ),
+            "no security review": (),
+        }
+        for name, lanes in cases.items():
+            with self.subTest(name):
+                result = self._score(self.GATE, lanes)
+                self.assertEqual(
+                    [c for c in _codes(result) if self.GATE in c],
+                    [f"review-path:{self.GATE}"],
+                )
+                self.assertTrue(holds(result))
+
+    def test_a_gate_path_outside_author_reviewed_holds_for_a_person(self):
+        result = self._score(
+            self.GATE, (_lane("claude-security-review"),), reviewed=frozenset()
+        )
+        self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_a_trust_path_holds_for_a_person_whatever_author_reviewed_says(self):
+        result = self._score(self.TRUST, (_lane("claude-security-review"),))
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/request-lane-token/**",)
+        )
+        self.assertTrue(holds(result))
+
+    def test_a_configured_denied_path_keeps_its_hold(self):
+        result = self._score(
+            self.GATE,
+            (_lane("claude-security-review"),),
+            high_paths=(".github/scripts/**",),
+        )
+        self.assertEqual(
+            _codes(result),
+            ("high-path:.github/scripts/**", f"high-path:{self.GATE}"),
+        )
+
+    def test_a_lane_source_change_sends_it_to_a_person(self):
+        security = _lane(
+            "claude-security-review", bound=False, unbound_reason="lane-source-changed"
+        )
+        result = self._score(self.GATE, (security,))
+        code = f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.GATE}"
+        self.assertIn(
+            code, [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        )
+
+    def test_an_unreadable_author_reviewed_lifts_nothing(self):
+        for value in (None, [self.GATE], "x", frozenset({1})):
+            with self.subTest(value=value):
+                result = self._score(
+                    self.GATE, (_lane("claude-security-review"),), reviewed=value
+                )
+                self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_enforcement_paths_are_unchanged(self):
+        path = B + "babysit_gh.py"
+        for reviewed in (frozenset(), frozenset({path})):
+            with self.subTest(reviewed=reviewed):
+                clean = self._score(path, (_lane("claude-security-review"),), reviewed)
+                self.assertEqual(clean.score, Risk.LOW)
+                held = self._score(path, (), reviewed)
+                self.assertIn(f"review-path:{path}", _codes(held))
 
 
 class UnbindableReviewPathTests(unittest.TestCase):

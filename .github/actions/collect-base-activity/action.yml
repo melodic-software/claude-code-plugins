@@ -480,8 +480,9 @@ runs:
             [[ $SCHEMA_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the verdict schema directory has a name a rule cannot carry"
             mkdir -p "$STAGE/dependency" "$SCHEMA_DIR"
             cp "$DEPENDENCY_DIR/dependency.json" "$STAGE/dependency/dependency.json"
-            # The verdict job validates the same shape (apply-dependency-verdict.mjs).
-            printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}' \
+            # The verdict job validates the same shape (apply-dependency-verdict.mjs);
+            # each item's `not` pattern is its UNPLAIN_PATTERN.
+            printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500,"not":{"pattern":"[\\u0000-\\u001f\\u007f]|```|~~~|<!--|-->|(^|[^A-Za-z0-9`/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)"}}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300,"not":{"pattern":"[\\u0000-\\u001f\\u007f]|```|~~~|<!--|-->|(^|[^A-Za-z0-9`/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)"}}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}' \
               >"$SCHEMA_DIR/verdict.schema.json"
             tools+=(Edit Write Agent)
             allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")

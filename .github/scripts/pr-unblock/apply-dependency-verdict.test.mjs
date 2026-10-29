@@ -223,6 +223,27 @@ test("validateRun accepts the runner's record and refuses anything off the templ
   }
 });
 
+// A pin: the lookahead-free UNPLAIN_PATTERN must accept and refuse exactly
+// what the checks before it did, over every non-empty string of up to five
+// characters drawn from the ones that decide a mention or a fence.
+test("the plain-prose check refuses the same @-mentions and fences as the lookahead checks it replaced", () => {
+  const before = (text) =>
+    !/[\u0000-\u001f\u007f]/.test(text) && !/```|~~~|<!--|-->/.test(text) && !/(^|[^A-Za-z0-9`/])@[A-Za-z0-9](?![A-Za-z0-9._-]*\/)/.test(text);
+  const accepts = (text) => {
+    try {
+      validateRun(runOf({ output: output({ reasons: [text] }) }), 7);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  let texts = [""];
+  for (let length = 1; length <= 5; length++) {
+    texts = texts.flatMap((text) => [..."@a._-/` "].map((char) => text + char));
+    for (const text of texts) assert.equal(accepts(text), before(text), JSON.stringify(text));
+  }
+});
+
 test("merge posts the round marker the pr-merge lane reads, and nothing else", async () => {
   const api = fakeApi();
   const result = await go(api, runOf());
@@ -619,7 +640,10 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
     ["a marker download that failed", { SCAN_REFUSED_DIR: "/nonexistent", SCAN_REFUSED_READ: "failure" }, fakeApi(), "dependency-invalid"],
   ]) {
     const result = await outcome(mainFiles({ verdict: null, env }), api);
-    assert.deepEqual([result.escalation, result.skip], [want, "awaiting-human"], why);
+    // dependency-invalid ends in a failing status and a same-head retry
+    // (lane-stopped); dependency-fix-not-landed holds for a person.
+    const skip = want === "dependency-invalid" ? "lane-stopped" : "awaiting-human";
+    assert.deepEqual([result.escalation, result.skip], [want, skip], why);
     assert.equal(result.comments.length, 1, `${why}: the round counts`);
   }
   // An empty marker directory is no refusal.

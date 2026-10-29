@@ -83,8 +83,14 @@ const run = (
   job: { id: id * 10, name: jobName, conclusion, steps },
   annotations: messages.map((message) => ({ annotation_level: "failure", message })),
 });
-// The failed check a dispatched run's report job posts on the PR's head.
-const linkedCheck = (id) => ({ conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/${id}` });
+// The failed check a dispatched run's report job posts on the PR's head, as
+// the API returns it (check run 122864732692 on #10583): details_url is the
+// check run's own page, and only external_id names the posting run.
+const linkedCheck = (id) => ({
+  conclusion: "failure",
+  details_url: `https://github.com/${REPO}/runs/${id + 5000}`,
+  external_id: `pr-unblock:apply-conflict-patch:${id}:1`,
+});
 const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = {}) => ({ user, created_at: at, body: refireComment(path, blob, head, LANE) });
 
 // `blobs` is main's blob per file; `changed` lists the files each head SHA
@@ -205,6 +211,20 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   });
   assert.equal(await main({ env, github: rerun.github, actions: rerun.actions, now: NOW }), 0);
   assert.equal(pushes(rerun.calls).length, 0);
+});
+
+test("a refused run links to its PR through the check's external_id, or a details_url naming the run's page, never the check run's own page", async () => {
+  const dispatched = run(90, { number: 9, messages: [denial(WRITER)] });
+  const refires = async (check) => {
+    const w = world({ pulls: [pr(9)], runs: { [LANE]: [dispatched] }, checks: { [sha(9)]: [check] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    return pushes(w.calls).length;
+  };
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/122864732692`, external_id: "pr-unblock:apply-feedback-patch:90:1" }), 1);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/90`, external_id: "" }), 0);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/5090`, external_id: "pr-unblock:apply-feedback-patch:91:1" }), 0);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/90` }), 1);
+  assert.equal(await refires({ conclusion: "success", external_id: "pr-unblock:apply-feedback-patch:90:1" }), 0);
 });
 
 test("a pr-refine.yml run is no longer read or re-fired", async () => {

@@ -182,6 +182,54 @@ export function tokenize(text) {
 }
 
 /**
+ * The local text as `{word, line}` tokens, quote-stripped.
+ *
+ * A JSON object or array is measured by its string values, never its keys. The
+ * text path would read every value as a paired `"` span and strip it, so a JSON
+ * file shingled to almost nothing whatever its values copied. Each value is
+ * decoded and stripped on its own, so an unclosed fence in one value cannot
+ * blank the values after it, and its tokens carry the file line the value sits
+ * on. Values join in document order, so a passage split across consecutive
+ * values still matches. A bare scalar or malformed JSON takes the text path.
+ */
+export function localTokens(text) {
+  return jsonValueTokens(text) ?? tokenize(stripQuoted(text));
+}
+
+const KEY_COLON = /\s*:/y;
+
+function jsonValueTokens(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text.replace(/^﻿/, ""));
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object") return null;
+
+  // Valid JSON holds no raw newline inside a string, so counting newlines
+  // outside strings gives each value's line, and a string followed by `:` is a key.
+  const tokens = [];
+  let line = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === "\n") line += 1;
+    if (text[i] !== '"') continue;
+
+    let end = i + 1;
+    while (text[end] !== '"') end += text[end] === "\\" ? 2 : 1;
+    const literal = text.slice(i, end + 1);
+    i = end;
+
+    KEY_COLON.lastIndex = end + 1;
+    if (KEY_COLON.test(text)) continue;
+    for (const { word } of tokenize(stripQuoted(JSON.parse(literal)))) {
+      tokens.push({ word, line });
+    }
+  }
+  return tokens;
+}
+
+/**
  * The k-word shingle starting at token `i`.
  *
  * One spelling for both readers below: the set `shingles()` builds is what
@@ -274,13 +322,13 @@ export function compare(localText, sourceText, options = {}) {
   const minContainment = options.min_containment ?? DEFAULTS.min_containment;
   const minSpanWords = options.min_span_words ?? DEFAULTS.min_span_words;
 
-  const localTokens = tokenize(stripQuoted(localText));
+  const local = localTokens(localText);
   const sourceTokens = tokenize(sourceText);
 
-  const localSet = shingles(localTokens, k);
+  const localSet = shingles(local, k);
   const sourceSet = shingles(sourceTokens, k);
 
-  const spans = matchedSpans(localTokens, sourceSet, k);
+  const spans = matchedSpans(local, sourceSet, k);
   const longestSpanWords = spans.reduce((max, span) => Math.max(max, span.words), 0);
   const containmentValue = containment(localSet, sourceSet);
 
@@ -308,8 +356,9 @@ const USAGE = `Usage: fingerprint.mjs compare --local FILE --source FILE [--json
 
 Reports lexical overlap between a local passage and a fetched source. Local
 text is quote-stripped (fences, blockquotes, inline quotations) before
-shingling. Exits 0 on a clean comparison whether or not the separation rule
-fires; non-zero only on operational failure.
+shingling; a JSON object or array is measured by its string values, each
+stripped on its own, never its keys. Exits 0 on a clean comparison whether
+or not the separation rule fires; non-zero only on operational failure.
 
 Options:
   --local FILE       the repository file or extracted passage

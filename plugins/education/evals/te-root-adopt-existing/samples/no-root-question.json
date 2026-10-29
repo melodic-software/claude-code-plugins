@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Your existing `~/Documents/Claude Learning/` home is adopted as the root, so the workspace goes to `~/Documents/Claude Learning/<project-slug>/topic/sourdough-baking/`.\n\nMission so far: one reliable weekly loaf, three in a row with an open crumb, 30 minutes a week. Does that capture it?",
+      "why": "asks only about the mission"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I see you have a Claude Learning folder. Where should learning state live for this topic? I can use that folder or plugin data.",
+      "why": "asks although a home exists"
+    }
+  ]
+}

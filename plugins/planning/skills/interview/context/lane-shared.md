@@ -63,7 +63,8 @@ designer session and a product owner session), each with its own data dir and li
    bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
    ```
 
-   Drop `--open` when `shared_session_open_browser` resolves false. Pass the `tunnel_hostname`
+   Drop `--open` only when `shared_session_open_browser` is `false`; an unexpanded token means
+   the default `true`, so keep `--open`. Pass the `tunnel_hostname`
    and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
    the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
    tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the
@@ -144,6 +145,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `set-purpose` | `qid`, `purpose` | Correct a question's purpose (`decide`, `gather`, `poll`) that no longer fits it |
 | `set-for` | `qid`, `for` | Set who must answer a question (names as the session shows them); `[]` asks everyone again |
 | `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir (save captures in `<data_dir>/staging/`) into the session; returns its id |
+| `add-live` | `label`, `folder` or `port`, `note` (optional) | Record a live prototype: `folder`, the absolute path of a build folder under `<data_dir>/staging/`, or `port`, a server the owner runs on 127.0.0.1; returns `{id: L<N>, status: pending}`. It starts only on the owner's Approve on the page (**A live prototype**, below) |
 | `make-question-from` | `proposal`, `question` | The owner asked in the terminal to turn a proposal into a question |
 | `resolve-report` | `id`, `action` (`seen`, `resolved`) | The owner asked in the terminal to mark a problem report seen or resolved; the reporter is told |
 | `share-result` | `id` | The owner asked in the terminal to share an unshared answer with everyone |
@@ -187,10 +189,20 @@ the area the variants change and the step that shows it ("Open the chat with the
 bottom right, then switch variants"). The page shows it on the question card beside Open prototype
 and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
 views: `shots`, one to four pictures in the order to view them, and `snapshot`, one self-contained
-HTML file, at least one of the two; a variant may add its own `lookAt` when where to look differs
-for it. `asset` (one picture or HTML file) is still taken in place of both, never beside them. A
-note pinned on a variant's k-th screenshot reaches the digest with element `img:nth-of-type(k)`
-(`img` for the first).
+HTML file, and `live: {id, path}`, the `L<N>` an `add-live` returned and the path its link opens
+(starting with one `/`, no fragment), at least one of the three; a variant may add its own
+`lookAt` when where to look differs for it. `asset` (one picture or HTML file) is still taken in
+place of all three, never beside any of them. A note pinned on a variant's k-th screenshot
+reaches the digest with element `img:nth-of-type(k)` (`img` for the first).
+
+**A live prototype.** A variant's `live` link reaches guests only once the owner approves its
+entry on the page, which starts the prototype behind its own public link; until then guests see the
+variant's other views. `add-live` is refused 403 `live-off` while the session's `live` tier is off
+(the owner turns it on in Settings), and the owner's Stop, turning the tier off, `share.sh
+live-stop <L<N>>` or the session's end ends it: its link then shows as ended, or, while live is
+off, guests no longer see it. An ended entry never restarts; showing it again takes a new
+`add-live` and a new question. A `port` entry is a server the owner runs: name it only when the
+owner gave the port, and ending the entry leaves that server running.
 
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.
@@ -321,6 +333,23 @@ session right now, and say why in `why`:
   `design` or `prototype` one, waits for the owner's review before any guest sees it.
 - `research`: look outside: the web, official docs, other products.
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
+
+**A prototype, for a request or a question of your own.** A prototype nobody asked for waits for
+the owner's yes in the terminal. Invoke `/prototype:explore-directions` with the shared-interview
+handoff its "For a shared interview" section names: the data dir, the tiers the session offers
+(`prototype_tiers` as resolved at Start) and the variant keys. The owner can change the tiers on
+the page; screenshots or snapshots turned off are only hidden from guests, and a `live-off`
+refusal means the owner turned live off. Then, from the `manifest.json` it writes:
+
+1. Prefix each manifest path with `<data_dir>/`, since both ops take absolute paths. Apply one
+   `add-asset` per screenshot (`scale: 2`) and snapshot, and one `add-live` per distinct live
+   `folder` or `port`, which every variant using it shares.
+2. In the next `open-round`, ask a `prototype` question with the manifest's `lookAt`. Each
+   manifest variant becomes `{id: "v-<n>", label}` in manifest order, with the returned ids as
+   `shots` and `snapshot`, `live: {id: <L<N>>, path}`, and its own `lookAt` when it has one.
+
+For a `prototype` request, answer it with `result`, saying the prototype comes as a question in
+the next round.
 
 A request with `scope: "session"` and no `qid` asks about the whole session (`from: "chat"` when a chat
 message's "@Claude" asked it): answer from the session as a whole. Its result, in a digest too, carries

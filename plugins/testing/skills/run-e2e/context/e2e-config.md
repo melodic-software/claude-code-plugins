@@ -14,6 +14,12 @@ two surfaces:
   `~/.claude/testing.yaml`, and local overlay `.claude/testing.local.yaml`; per user, the plugin
   `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
 
+All five keys govern only this skill's own driving ([own-driving.md](own-driving.md)). When a run
+goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, which
+`/app-control:map create` writes, supplies the driver, the reuse of a running instance and the
+browser tool, and none of these keys is read: drive has no headed or headless setting, and a
+recording there is the control skill's `video` capture (SKILL.md, Drive route).
+
 This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
 merge is owned by the layering contract; see the
 [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md).
@@ -81,7 +87,7 @@ each worktree its own instance through `up` and `info`.
 - `false`: with an entry, start this run's own instance the same way, attended or not; with no
   entry, stop with the gap report naming the collision.
 
-The decision table is in SKILL.md's Native step, under Already running.
+The decision table is in [own-driving.md](own-driving.md)'s Native step, under Already running.
 
 ### `browser_driver`
 
@@ -117,8 +123,8 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 5. The plugin `userConfig` option of the same name
 6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`)
 
-When the app has a control skill (`/app-control:map` writes it), the driving tool its hub names
-sits between the session prompt and every `e2e_driver` layer: a session instruction wins, then that
+On own driving, when the app has a control skill (`/app-control:map` writes it), the driving tool
+its hub names sits between the session prompt and every `e2e_driver` layer: a session instruction wins, then that
 driving tool (an `e2e_driver` value when it names one, else that tool or the hub's `cli/`), then
 the resolved `e2e_driver`. Changing `e2e_driver` later does not change the hub;
 `/app-control:map refresh` or an edit to the hub does.
