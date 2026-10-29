@@ -3300,7 +3300,11 @@ test("route close: already-done and report-delivered close the issue as complete
   assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
   // A report closes only a read-only issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
-  assert.equal(stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready"], branch: "" }).action, "retry");
+  for (const opts of [{}, { issueLabels: ["agent-ready"], branch: "" }, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "work/7" }]) {
+    const retry = stoppedPlan("report-delivered: the report is below", opts);
+    assert.equal(retry.action, "retry");
+    assert.match(retry.comment, /so it retries instead of closing\./, retry.comment);
+  }
 });
 
 // main against a fake API for the routes whose effect needs a read first.

@@ -1043,8 +1043,9 @@ export function decide({
   if (outcome.exit !== "done") {
     // A delivered report closes only a read-only issue the run committed
     // nothing for; any other one retries.
-    const route = stop === "report-delivered" && !(issueLabels.includes(READ_ONLY_CLASS) && !branch) ? "retry" : undefined;
-    return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, route ? { route } : {});
+    const retry = stop === "report-delivered" && !(issueLabels.includes(READ_ONLY_CLASS) && !branch);
+    const why = `The issue is not \`${READ_ONLY_CLASS}\`, or the run committed to a branch, so it retries instead of closing.`;
+    return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, retry ? { route: "retry", why } : {});
   }
   // The outcome file is model output, so its own report never clears this.
   const failed = checkFailures(checks);
