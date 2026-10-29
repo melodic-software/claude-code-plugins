@@ -3921,13 +3921,51 @@ jobs:
               waited=1
             done
           }
+          # ONE READ OF EACH PULL REQUEST FACT PER JOB. pr_read <gh api args>...
+          # answers what gh_read answered for the same args earlier in this job
+          # (the pull request, its labels, events and comments), else reads
+          # through gh_read and keeps the answer in $RUNNER_TEMP/pr-reads. A read
+          # that fails keeps nothing, so the next step reads again and fails
+          # closed as before. pr_read_put <answer> <args>... keeps an answer a
+          # step read its own way; pr_read_forget drops every kept answer, which
+          # a step that writes to the pull request runs after its write.
+          pr_read() {
+            local file out
+            file=$(pr_read_file "$@") || file=
+            if [ -n "$file" ] && [ -f "$file" ]; then
+              cat "$file"
+              return 0
+            fi
+            out=$(gh_read "$@") || return 1
+            [ -z "$file" ] || pr_read_put "$out" "$@"
+            [ -z "$out" ] || printf '%s\n' "$out"
+          }
+          pr_read_file() {
+            local dir=${RUNNER_TEMP:-}/pr-reads
+            if [ -z "${RUNNER_TEMP:-}" ] || ! mkdir -p "$dir" 2>/dev/null; then
+              return 1
+            fi
+            printf '%s/%s\n' "$dir" "$(printf '%s\0' "$@" | sha256sum | cut -c1-40)"
+          }
+          pr_read_put() {
+            local out=$1 file
+            shift
+            file=$(pr_read_file "$@") || return 0
+            if ! { [ -z "$out" ] || printf '%s\n' "$out"; } >"$file.$$" 2>/dev/null || ! mv -f "$file.$$" "$file" 2>/dev/null; then
+              rm -f "$file.$$"
+            fi
+            return 0
+          }
+          pr_read_forget() {
+            [ -z "${RUNNER_TEMP:-}" ] || rm -rf "$RUNNER_TEMP/pr-reads"
+          }
           echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
           # gh_read's included, leaves its rate-limit reading for the notice
           # the lane-scope step writes.
-          { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
+          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
@@ -4187,16 +4225,22 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
+          . "$RUNNER_TEMP/gh-read.sh"
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
           }
+          # Each answer is kept for the later steps' pr_read of the same args.
           read_api() {
-            local attempt out
+            local attempt out file
+            if file=$(pr_read_file "$@") && [ -f "$file" ]; then
+              cat "$file"
+              return 0
+            fi
             for attempt in 1 2 3; do
               # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
               if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
+                pr_read_put "$out" "$@"
                 printf '%s\n' "$out"
                 return 0
               fi
@@ -4449,6 +4493,8 @@ jobs:
           # shellcheck disable=SC2016 # $l is a jq variable
           gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
             echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
+          # The labels, comments and events changed: the steps below read them live.
+          pr_read_forget
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
@@ -4496,7 +4542,7 @@ jobs:
           fi
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
-            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
+            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -4511,9 +4557,9 @@ jobs:
           # hold comments name a reason.
           identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
           [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
-          # gh-read-exempt: the reason is best effort; the step fails either way.
-          reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-            --jq '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
+          # The reason is best effort; the step fails either way.
+          reason=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate |
+            jq -r '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                   | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
@@ -4564,19 +4610,19 @@ jobs:
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
           for attempt in 1 2 3; do
-            if held_at=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-              --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) && held_at=$(jq -r \
+              '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
                 and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                   and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                     | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
-                | .created_at'); then
+                | .created_at' <<<"$raw"); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
           for attempt in 1 2 3; do
-            if events=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+            if events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -4687,7 +4733,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh_read "$2"); then
+              if body=$(pr_read "$2"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -5181,7 +5227,7 @@ jobs:
           read3() {
             local attempt
             for attempt in 1 2 3; do
-              gh_read "${@:2}" && return 0
+              pr_read "${@:2}" && return 0
               [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
               sleep $((attempt * 5))
             done
@@ -5284,7 +5330,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh_read "${@:2}"); then
+              if body=$(pr_read "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -5363,7 +5409,8 @@ jobs:
             "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
-            rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
+            raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
+            rows=$(jq -c '.[]' <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
           verdicts=()

@@ -34,6 +34,10 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Clear a cost-only review hold the owner decided'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -263,7 +267,7 @@ expect() {
   local label="$1" out rc cleared deleted posted config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
-  rm -rf "$config"
+  rm -rf "$config" "$TMP_ROOT/pr-reads"
   mkdir -p "$config/.github/standards/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
