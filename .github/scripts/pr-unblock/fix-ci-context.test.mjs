@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
-import { countFixRounds, logExcerpt, main, select, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
+import { addedLines, countFixRounds, logExcerpt, main, select, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -70,6 +70,9 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [],
     listReviewComments: async () => overrides.reviewComments ?? [],
     listThreads: async () => overrides.threads ?? [],
+    getCommit: async (sha) => overrides.commitFiles?.[sha] ?? { files: [] },
+    // resolve-pr.mjs linkedIssues' specText: what trusted people wrote on the linked issues.
+    readSpec: async () => overrides.spec ?? [],
   };
 }
 
@@ -99,6 +102,8 @@ test("a failing workflow job becomes one context entry with its workflow, annota
     pr: 42,
     head_sha: HEAD,
     review_findings: [],
+    spec: [],
+    feedback_lines: [],
     checks: [
       {
         name: "lint-shell",
@@ -142,6 +147,91 @@ test("a finding's body and the number of findings are capped", async () => {
   const result = await selectWith(fakeApi({ ...one, threads }));
   assert.equal(result.file.review_findings.length, 10);
   assert.equal(result.file.review_findings[0].body.length, 2000);
+});
+
+// #10919: fix-ci cut the SKILL.md line that met a criterion to get under the
+// line cap, so the context carries the linked issue's spec text and the lines
+// the last address-feedback round added.
+const CRITERION = "- [ ] `SKILL.md` names the new check where it lists what `run-validity.py` judges";
+const SPEC = [{ number: 10504, spec_kind: "closes", body: `## Done when\n\n${CRITERION}\n`, comments: ["**Decision recorded.** Keep the check in SKILL.md."] }];
+const FEEDBACK = "Lane-Activity: pr-unblock/address-feedback";
+const feedbackCommit = (sha, author = APP) => ({ sha, author: { id: author }, commit: { message: `Address review feedback on feature\n\n${FEEDBACK}\nLane-Thread: PRRT_a\n` } });
+
+test("main writes the linked issue's spec text into the context file", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS };
+    const asked = [];
+    const api = fakeApi({ spec: SPEC });
+    const readSpec = api.readSpec;
+    api.readSpec = async (pr) => {
+      asked.push(pr);
+      return readSpec(pr);
+    };
+    await main(env, { api, log: () => {} });
+    assert.deepEqual(asked, [42]);
+    assert.deepEqual(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")).spec, SPEC);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the spec text is capped: three issues, each one's newest ten comments, each text cut", async () => {
+  const issue = (number) => ({ number, spec_kind: "closes", body: "b".repeat(20000), comments: Array.from({ length: 15 }, (_, i) => `c${i}`) });
+  const result = await selectWith(fakeApi({ spec: [1, 2, 3, 4].map(issue) }));
+  assert.deepEqual(result.file.spec.map((row) => row.number), [1, 2, 3]);
+  assert.equal(result.file.spec[0].body.length, 10000);
+  assert.deepEqual(result.file.spec[0].comments, Array.from({ length: 10 }, (_, i) => `c${i + 5}`));
+  const none = await selectWith(fakeApi({ spec: [{ number: 7, spec_kind: "refs", body: null, comments: [] }] }));
+  assert.equal(none.file.spec[0].body, null);
+});
+
+test("a spec read that fails leaves the spec field out and still proceeds with the checks", async () => {
+  const api = fakeApi();
+  api.readSpec = async () => {
+    throw new Error("#42: the closing issues could not be read");
+  };
+  const lines = [];
+  const result = await select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
+  assert.equal(result.decision, "proceed");
+  assert.equal(Object.hasOwn(result.file, "spec"), false);
+  assert.deepEqual(lines, ["::warning::the linked issues' spec text could not be read (#42: the closing issues could not be read); the context holds none"]);
+});
+
+test("the lines the lanes App's last address-feedback commit added go into the context", async () => {
+  const patch = `@@ -10,2 +10,4 @@\n Context line.\n+${CRITERION.slice(6)}\n+\n-Old line.\n+Second added line.`;
+  const commits = [feedbackCommit("1".repeat(40)), fixCommit(), feedbackCommit("2".repeat(40)), feedbackCommit("3".repeat(40), STRANGER), fixCommit()];
+  const commitFiles = {
+    ["1".repeat(40)]: { files: [{ filename: "old.md", patch: "@@ -1 +1 @@\n+earlier round" }] },
+    ["2".repeat(40)]: { files: [{ filename: "plugins/p/skills/s/SKILL.md", patch }, { filename: "image.png" }] },
+  };
+  const result = await selectWith(fakeApi({ commits, commitFiles }));
+  assert.deepEqual(result.file.feedback_lines, [{ path: "plugins/p/skills/s/SKILL.md", lines: [CRITERION.slice(6), "Second added line."] }]);
+  const none = await selectWith(fakeApi({ commits: [fixCommit()] }));
+  assert.deepEqual(none.file.feedback_lines, []);
+});
+
+test("a feedback commit read that fails leaves no lines and still proceeds", async () => {
+  const api = fakeApi({ commits: [feedbackCommit("2".repeat(40))] });
+  api.getCommit = async () => {
+    throw new Error("GET commits returned 502");
+  };
+  const lines = [];
+  const result = await select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.feedback_lines, []);
+  assert.deepEqual(lines, ["::warning::the last address-feedback commit could not be read (GET commits returned 502); the context holds none of its lines"]);
+});
+
+test("added lines are capped at 200 in all, each cut at 500 characters", () => {
+  const patch = (n) => Array.from({ length: n }, (_, i) => `+${String(i).padEnd(900, "x")}`).join("\n");
+  const added = addedLines([
+    { filename: "a.md", patch: patch(150) },
+    { filename: "b.md", patch: patch(150) },
+    { filename: "c.md", patch: patch(5) },
+  ]);
+  assert.deepEqual(added.map((file) => [file.path, file.lines.length]), [["a.md", 150], ["b.md", 50]]);
+  assert.equal(added[0].lines[0].length, 500);
 });
 
 test("ci-status, passing checks and a check whose later run passed are left out", async () => {

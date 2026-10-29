@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff -- skills/run-validity/SKILL.md"
+          }
+        }
+      ],
+      "why": "read-only git"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add skills/run-validity/SKILL.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -am \"fit the cap\""
+          }
+        }
+      ]
+    }
+  ]
+}

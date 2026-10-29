@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "check-skills: escalated weaken-required every line under the frontmatter is one a done-when item quotes, so no cut passes the 8-line cap."
+    },
+    {
+      "answer": "- `check-skills: escalated weaken-required` the only cut left removes the seed line the last address-feedback round added."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "check-skills: fixed"
+    },
+    {
+      "answer": "check-skills: escalated unfixed three fixes still failed"
+    },
+    {
+      "answer": "I removed the seed line to get SKILL.md under the cap."
+    }
+  ]
+}

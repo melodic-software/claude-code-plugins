@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check-skill-size.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/check-skill-size.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}

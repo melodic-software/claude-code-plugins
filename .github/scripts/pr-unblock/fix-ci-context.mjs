@@ -13,18 +13,27 @@
 // the end of its log, and the review findings address-feedback would work
 // (keepThreads with no trusted person's direction: unresolved threads the
 // reviewer bot or a verifier note opened on a reviewed head and only it
-// wrote), so a fix the reviewer already named is not escalated. Check names,
-// annotations, logs and findings are data: they are copied into the file,
-// capped, and never logged or run. After a weaken retry stop on the head
+// wrote), so a fix the reviewer already named is not escalated. It also
+// carries the linked issues' spec text pr-verify judges the pull request
+// against (`spec`, resolve-pr.mjs linkedIssues: trusted people's text only)
+// and the lines the lanes App's last address-feedback commit added
+// (`feedback_lines`), so the model keeps a line a criterion needs and does
+// not undo the round before it. Check names, annotations, logs, findings,
+// spec text and lines are data: they are copied into the file, capped, and
+// never logged or run. After a weaken retry stop on the head
 // (WEAKEN_RETRY) the file also carries the runner's fixed `retry` brief.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { loadRules } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
 import { countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
+import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
 // merge path floor in gate-source.mjs.
@@ -42,6 +51,11 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
+// The context file stays under the 1 MiB the read runner accepts.
+const MAX_SPEC_ISSUES = 3;
+const MAX_SPEC_COMMENTS = 10;
+const MAX_SPEC_TEXT = 10000;
+const MAX_FEEDBACK_LINES = 200;
 
 // The fail-routed stop apply-patch.mjs gives a head's first weaken-required
 // escalation, as report-escalation.sh status describes it on the head's
@@ -50,8 +64,9 @@ const MAX_FINDING = 2000;
 export const WEAKEN_RETRY = "ci-fix-weaken-retry";
 const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
 export const WEAKEN_BRIEF =
-  "An earlier fix-ci run on this head could fix a failing check only by weakening a test, and the lane refuses that fix. " +
+  "An earlier fix-ci run on this head could fix a failing check only by weakening a test, or by cutting a line the spec or the last address-feedback round needs, and the lane refuses that fix. " +
   "Find a fix in the code under test that keeps every test's assertions and expected values unchanged. " +
+  "For a check that caps a file's size, make room elsewhere and keep every such line. " +
   "If the only way to green still weakens a check, escalate weaken-required: this round is the last before a person.";
 
 // A finished fix-ci check by the GitHub Actions app: an earlier attempt on the head.
@@ -65,15 +80,48 @@ export const weakenStopped = (statuses) =>
     (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
   );
 
+const laneCommit = (commit, appId, trailer) =>
+  commit.author?.id === appId &&
+  String(commit.commit?.message ?? "")
+    .split("\n")
+    .some((line) => line.replace(/\r$/, "") === trailer);
+
 export function countFixRounds(commits, appId) {
-  return commits.filter(
-    (commit) =>
-      commit.author?.id === appId &&
-      String(commit.commit?.message ?? "")
-        .split("\n")
-        .some((line) => line.replace(/\r$/, "") === FIX_TRAILER),
-  ).length;
+  return commits.filter((commit) => laneCommit(commit, appId, FIX_TRAILER)).length;
 }
+
+// The non-blank lines a commit's file patches add, by path, capped in total.
+export function addedLines(files) {
+  const added = [];
+  let left = MAX_FEEDBACK_LINES;
+  for (const file of files ?? []) {
+    const lines = String(file?.patch ?? "")
+      .split("\n")
+      .filter((line) => line.startsWith("+") && line.slice(1).trim() !== "")
+      .slice(0, left)
+      .map((line) => line.slice(1).replace(/\r$/, "").slice(0, MAX_MESSAGE));
+    if (lines.length > 0) {
+      added.push({ path: String(file.filename ?? ""), lines });
+      left -= lines.length;
+    }
+  }
+  return added;
+}
+
+// What the lanes App's last address-feedback commit on the pull request added
+// (`commits` oldest first, as GET /pulls/{n}/commits lists them).
+async function feedbackLines(api, commits, appId) {
+  const last = commits.findLast((commit) => laneCommit(commit, appId, FEEDBACK_TRAILER));
+  return last ? addedLines((await api.getCommit(last.sha)).files) : [];
+}
+
+const capSpec = (issues) =>
+  issues.slice(0, MAX_SPEC_ISSUES).map((issue) => ({
+    number: issue.number,
+    spec_kind: issue.spec_kind,
+    body: issue.body === null ? null : String(issue.body).slice(0, MAX_SPEC_TEXT),
+    comments: issue.comments.slice(-MAX_SPEC_COMMENTS).map((comment) => String(comment).slice(0, MAX_SPEC_TEXT)),
+  }));
 
 // The last lines of a job log, without the runner's timestamps or ANSI color.
 export function logExcerpt(text) {
@@ -172,7 +220,8 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
     const settled = runs.complete === true && runs.every((run) => run.status === "completed");
     return { decision: "skip", skipReason: "not-applicable", ...(settled ? { resolved: true } : {}), headSha, laneEscalated };
   }
-  const rounds = countFixRounds(await api.listPullCommits(pr), appId);
+  const commits = await api.listPullCommits(pr);
+  const rounds = countFixRounds(commits, appId);
   if (rounds >= maxRounds) {
     return { decision: "escalate", escalationReason: "ci-fix-round-cap", rounds, headSha, laneEscalated };
   }
@@ -205,13 +254,27 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
+  // So are the spec text, absent from the file when its read fails, and the
+  // last address-feedback round's lines.
+  let spec;
+  try {
+    spec = capSpec(await api.readSpec(pr));
+  } catch (error) {
+    log(`::warning::the linked issues' spec text could not be read (${error.message}); the context holds none`);
+  }
+  let feedback_lines = [];
+  try {
+    feedback_lines = await feedbackLines(api, commits, appId);
+  } catch (error) {
+    log(`::warning::the last address-feedback commit could not be read (${error.message}); the context holds none of its lines`);
+  }
   // A retry after the push job stopped on this head runs one rung up. A
   // weaken-required stop takes its fresh fixer round only on the head's first
   // fix-ci attempt: the dispatcher retries a stopped head once per base tip
   // (fix-ci-restarts), so a stop after an earlier attempt could leave the head
   // red with no retry and no person.
   const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
-  const file = { pr, head_sha: headSha, checks, review_findings };
+  const file = { pr, head_sha: headSha, checks, review_findings, ...(spec && { spec }), feedback_lines };
   if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
     file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
   }
@@ -229,23 +292,46 @@ async function loopFromBase(env) {
   return load({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// A pull request's spec text as pr-verify reads it (resolve-pr.mjs main):
+// the trusted list's humans, merge.agent-identity's App and the issue lane's
+// web hosts from the base, admission's task-list marker from this checkout.
+async function readSpec(env, { trustedActors, fetchImpl }, pr) {
+  const { issueLaneWebHostsFromBase, redMainFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  const base = { BASE_PATH: env.BASE_PATH || ".base" };
+  const trusted = loadTrustedList(trustedActors);
+  const identity = String(redMainFromBase(base).agentIdentity).trim().toLowerCase().replace(/\[bot\]$/, "");
+  const laneAppId = trusted.logins.get(`${identity}[bot]`);
+  const webHosts = issueLaneWebHostsFromBase(base) ?? [];
+  const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
+  const github = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
+  return (await linkedIssues(github(false), github(true), env.GITHUB_REPOSITORY, pr, trusted.humans, laneAppId, taskList, webHosts)).specText;
+}
+
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "CONTEXT_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await loopFromBase(env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   // The base checkout's list, the one address-feedback reads.
-  const reviewerId = reviewerIdFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`);
+  const trustedActors = env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`;
+  const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
-  const client =
-    api ??
-    createGitHubApi({
-      token: env.GITHUB_TOKEN,
-      repository: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      fetch: await countedFetch(),
-    });
+  let client = api;
+  if (!client) {
+    const fetchImpl = await countedFetch();
+    client = {
+      ...createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch: fetchImpl,
+      }),
+      readSpec: (number) => readSpec(env, { trustedActors, fetchImpl }, number),
+    };
+  }
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
   const result = await select({ api: client, pr, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });
   let sha256 = "";

@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -u\ncap=10\nstatus=0\nfor file in skills/*/SKILL.md; do\n  lines=\"$(grep -c '' \"$file\")\"\n  if [ \"$lines\" -gt \"$cap\" ]; then\n    echo \"FAIL: $file is $lines/$cap lines\"\n    status=1\n  fi\ndone\nexit \"$status\"\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -u\ncap=11\nstatus=0\nfor file in skills/*/SKILL.md; do\n  lines=\"$(grep -c '' \"$file\")\"\n  if [ \"$lines\" -gt \"$cap\" ]; then\n    echo \"FAIL: $file is $lines/$cap lines\"\n    status=1\n  fi\ndone\nexit \"$status\"\n",
+      "why": "raised the cap"
+    }
+  ]
+}

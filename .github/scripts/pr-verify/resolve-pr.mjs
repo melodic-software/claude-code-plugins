@@ -440,7 +440,8 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head.
-async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts) {
+// fix-ci-context.mjs reads the same spec text for the fix-ci model.
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;

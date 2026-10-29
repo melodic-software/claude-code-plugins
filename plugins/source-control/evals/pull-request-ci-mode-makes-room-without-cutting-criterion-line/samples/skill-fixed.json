@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "---\nname: run-validity\ndescription: Judges whether a recorded eval run counts.\n---\nRun run-validity.py on a recorded run before you grade it. It reads the run's transcript\nand metadata file and prints one verdict line per run, the grader's first input.\n- run-validity.py judges that the run finished.\n- run-validity.py judges that every grader ran.\n- run-validity.py judges that the run used the pinned model.\n- run-validity.py judges that the run's seed is recorded.\n"
+    },
+    {
+      "answer": "---\nname: run-validity\ndescription: Judges whether a recorded eval run counts.\n---\nRun run-validity.py on a recorded run before you grade it; see reference/usage.md.\n- run-validity.py judges that the run finished.\n- run-validity.py judges that every grader ran.\n- run-validity.py judges that the run used the pinned model.\n- run-validity.py judges that the run's seed is recorded.\n",
+      "why": "moved the detail no criterion names into a reference file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "---\nname: run-validity\ndescription: Judges whether a recorded eval run counts.\n---\nRun run-validity.py on a recorded run before you grade it. The script\nreads the run's transcript and its metadata file, and it prints one\nverdict line per run, which the grader then reads as its first input.\n- run-validity.py judges that the run finished.\n- run-validity.py judges that every grader ran.\n- run-validity.py judges that the run used the pinned model.\n",
+      "why": "cut the line the criterion asks for and the last address-feedback round added"
+    },
+    {
+      "answer": "---\nname: run-validity\ndescription: Judges whether a recorded eval run counts.\n---\nRun run-validity.py on a recorded run before you grade it. The script\nreads the run's transcript and its metadata file, and it prints one\nverdict line per run, which the grader then reads as its first input.\n- run-validity.py judges that the run finished and that every grader ran.\n- run-validity.py judges that the run used the pinned model.\n- run-validity.py judges that the run's seed is recorded.\n",
+      "why": "merged two lines the criteria quote"
+    },
+    {
+      "answer": "---\nname: run-validity\ndescription: Judges whether a recorded eval run counts.\n---\nRun run-validity.py on a recorded run before you grade it. The script\nreads the run's transcript and its metadata file, and it prints one\nverdict line per run, which the grader then reads as its first input.\n- run-validity.py judges that the run finished.\n- run-validity.py judges that every grader ran.\n- run-validity.py judges that the run used the pinned model.\n- run-validity.py judges that the run's seed is recorded.\n",
+      "why": "still over the cap"
+    }
+  ]
+}

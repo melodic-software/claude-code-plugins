@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check-skill-size.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wc -l skills/run-validity/SKILL.md"
+          }
+        }
+      ],
+      "why": "counted the lines by hand instead of running the check"
+    }
+  ]
+}
