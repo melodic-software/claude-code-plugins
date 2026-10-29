@@ -383,6 +383,12 @@ printf 'not a cache' >"$EDIT/identity-domains.cache"
 call "$EDIT" "$A_ROOT/repo" 'echo epsilon-org'
 assert_contains "a cache that is not this map's is compiled again" "$GUARD_ERR" "trace map-compile"
 assert_contains "after the recompile the marker is still named" "$GUARD_ERR" "trace prefilter-hit"
+# The owner directories sit below HOME, so the same map under another HOME is
+# compiled again, and the owner below the new HOME is the one denied.
+OTHER_HOME="$TEST_TMPDIR/other-home"
+call "$EDIT" "$A_ROOT/repo" "ls $OTHER_HOME/src/github.com/beta-org/repo" "HOME=$OTHER_HOME"
+assert_contains "the same map under another HOME is compiled again" "$GUARD_ERR" "trace map-compile"
+verdict "another domain's owner below the new HOME" deny
 
 # --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \
