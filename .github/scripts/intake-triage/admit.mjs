@@ -56,6 +56,15 @@
 //   or a page on a host outside resolve-issue's web-access domains. The refusal
 //   recommends splitting those items into a needs-human child issue, which
 //   refine.mjs files when some items are left for the lane;
+// - not already done: no pull request merged in this repository names the
+//   issue on a `Refs:` line (refsNames) after its newest decision or
+//   refinement comment, or since it opened when it has neither
+//   (mergedRefsAfter). Such a pull request may have finished the work, so the
+//   refusal parks it at `status: confirmed` for an agent's done-check: close
+//   it, or post a `**Decision recorded.**` comment saying what is left, which
+//   moves the cutoff past that pull request. One GraphQL call reads every
+//   issue of an admission pass (mergedRefsPulls); a read that fails admits as
+//   though none merged, so a missed check costs one lane run, never a stall;
 // - 10: check-wip-cap's status: over the queued cap, with a queued count it
 //   could not read (fail-open), or with the lane paused over the WIP or held
 //   cap (from wip.pause-from), the issue gets
@@ -236,28 +245,139 @@ export async function stillBlocking(blockers, repository, isTrusted, elsewhere =
   return untrusted;
 }
 
+// Whether `body` has a `Refs:` line naming issue `number`: trimmed, the line
+// is `Refs: #<number>` (report-outcome.mjs's form), or a list of this
+// repository's issues holding it (`Refs: #<a>, #<number>`), with at most a
+// parenthesized note after. Any other text on the line, a passing mention or
+// another repository's issue, is not one. Pure.
+export function refsNames(body, number) {
+  if (!Number.isSafeInteger(number) || number < 1) {
+    return false;
+  }
+  const line = new RegExp(String.raw`^Refs: (?:#\d+, )*#${number}(?:, #\d+)*(?: \(.*\))?$`);
+  return String(body ?? "")
+    .split("\n")
+    .some((text) => line.test(text.trim()));
+}
+
 // The open pull requests in `repository` for issue `number`: those `closing`
 // (closedByPullRequestsReferences nodes) lists in this repository, and those
-// the timeline says reference it whose body has a `Refs: #<number>` line.
+// the timeline says reference it whose body names it by refsNames.
 export function openPullsNaming(timeline, repository, number, closing = []) {
-  const refs = `Refs: #${number}`;
   const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .filter(
-      (source) =>
-        source?.pull_request &&
-        source.state === "open" &&
-        here(source.repository_url, repository) &&
-        String(source.body ?? "")
-          .split("\n")
-          .some((line) => line.trim() === refs),
-    )
+    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository) && refsNames(source.body, number))
     .map((source) => source.number);
   const closes = closing
     .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
     .map((node) => node.number);
   return [...new Set([...closes, ...linked])];
 }
+
+// The pull requests that may already have done issue `node`'s work: merged
+// in `repository`, naming it by refsNames, after the newest of its decision
+// comments (a listed human's `**Decision recorded.**`, select-trusted-text's
+// isDecisionComment) and the lanes App's (`appId`) refinement comments
+// (REFINE_MARKER), or after it was opened when it has none. `node` is the
+// issue as DONE_QUERY reads it. Numbers, ascending. Pure.
+export function mergedRefsAfter(node, number, repository, humans, appId) {
+  const at = (text) => {
+    const time = Date.parse(text);
+    return Number.isFinite(time) ? time : null;
+  };
+  const decision = (comment) =>
+    comment?.author?.__typename === "User" &&
+    isDecisionComment(
+      { comment: { user: { id: comment.author.databaseId }, body: comment.body }, lastEditedAt: comment.lastEditedAt ?? null, lastEditorId: comment.editor?.databaseId },
+      humans,
+    );
+  const refinement = (comment) =>
+    appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+  const since = Math.max(
+    at(node?.createdAt) ?? Number.NEGATIVE_INFINITY,
+    ...(node?.comments?.nodes ?? []).filter((comment) => decision(comment) || refinement(comment)).map((comment) => at(comment.createdAt) ?? Number.NEGATIVE_INFINITY),
+  );
+  const pulls = (node?.timelineItems?.nodes ?? [])
+    .map((event) => event?.source)
+    .filter(
+      (source) =>
+        Number.isSafeInteger(source?.number) &&
+        source.merged === true &&
+        String(source.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase() &&
+        (at(source.mergedAt) ?? Number.NEGATIVE_INFINITY) > since &&
+        refsNames(source.body, number),
+    )
+    .map((source) => source.number);
+  return [...new Set(pulls)].sort((a, b) => a - b);
+}
+
+// What DONE_QUERY reads for each issue: when it opened, its newest 100
+// comments (where the newest decision or refinement is), and the newest 100
+// pull requests and issues that mention it.
+const DONE_FIELDS = `fragment done on Issue {
+  createdAt
+  comments(last: 100) { nodes { createdAt body lastEditedAt author { ...actor } editor { ...actor } } }
+  timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 100) { nodes { ... on CrossReferencedEvent { source { ... on PullRequest { number merged mergedAt body repository { nameWithOwner } } } } } }
+}
+fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
+// Issues one DONE_QUERY reads: at 100 comments and 100 events each, 50
+// issues stay far inside GraphQL's node limit
+// (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit).
+export const DONE_BATCH = 50;
+
+// mergedRefsAfter for each of `numbers` (issues in `repository`), in one
+// GraphQL call: a Map of each issue to its pull requests, holding only those
+// with one. A failed or unexpected read logs a warning and answers an empty
+// Map, so admission goes on as it would without the check: a missed done-check
+// costs one lane run, while a stalled admission costs every issue's.
+export async function mergedRefsPulls({ github, repository, numbers, humans, appId, log = console.log }) {
+  const [owner, name] = repository.split("/");
+  const wanted = [...new Set(numbers.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
+  const found = new Map();
+  if (wanted.length === 0) {
+    return found;
+  }
+  const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${wanted.map((n) => `i${n}: issue(number: ${n}) { ...done }`).join(" ")} } }\n${DONE_FIELDS}`;
+  try {
+    const answer = await github("POST", "/graphql", { query, variables: { owner, name } });
+    const repo = answer?.data?.repository;
+    if (repo === null || typeof repo !== "object") {
+      throw new Error("the answer has no repository");
+    }
+    for (const n of wanted) {
+      const pulls = mergedRefsAfter(repo[`i${n}`], n, repository, humans, appId);
+      if (pulls.length > 0) {
+        found.set(n, pulls);
+      }
+    }
+  } catch (error) {
+    log(`::warning title=admit::merged Refs pull requests not read (${String(error?.message ?? error).replaceAll("\n", " ")}); admitting as if none`);
+    return new Map();
+  }
+  return found;
+}
+
+// A reader of mergedRefsPulls for one admission pass over `numbers`, in their
+// order: asked for an issue, it reads the DONE_BATCH of `numbers` that holds
+// it once, or the issue alone when it is not among them, and answers its pull
+// requests ([] for none).
+export function mergedRefsReader({ github, repository, numbers = [], humans, appId, log }) {
+  const order = numbers.map(Number);
+  const reads = new Map();
+  return async (number) => {
+    const index = order.indexOf(Number(number));
+    const key = index === -1 ? `#${number}` : Math.floor(index / DONE_BATCH);
+    if (!reads.has(key)) {
+      const batch = index === -1 ? [Number(number)] : order.slice(key * DONE_BATCH, (key + 1) * DONE_BATCH);
+      reads.set(key, mergedRefsPulls({ github, repository, numbers: batch, humans, appId, log }));
+    }
+    return (await reads.get(key)).get(Number(number)) ?? [];
+  };
+}
+
+// The refusal reason for pull requests mergedRefsAfter found.
+export const doneReason = (pulls) =>
+  `merged pull request ${pulls.map((n) => `#${n}`).join(", ")} names it with \`Refs:\` after its newest decision or refinement comment, so its work may already be done: close the issue if it is, or post a comment whose first line is \`**Decision recorded.**\` saying what is left, which sends it back through intake`;
 
 // The open pull requests for an issue, read fresh (openPullsNaming).
 export async function openPullsFor(github, repository, number) {
@@ -594,7 +714,7 @@ export function admissionSettled(labels, events, isMark) {
 // `pushRefusals` and `charges`, read from patch-rules.json and
 // charge-words.json when not given; a file that does not read throws out of
 // decide, so no issue is admitted on a guess.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -708,6 +828,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (confirm) {
     refuse.push(confirm);
   }
+  // A merged Refs pull request since the newest decision or refinement may
+  // have done the work, so an agent checks it before a lane run repeats it;
+  // like any refusal no person must answer, it parks at status: confirmed.
+  if (doneBy.length > 0) {
+    refuse.push(doneReason(doneBy));
+  }
   const wait = [];
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
@@ -729,7 +855,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }) };
+    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }), ...(doneBy.length > 0 && { done: doneBy }) };
   }
   if (parked.length > 0) {
     return { verdict: "wait", reasons: parked, pulls: [] };
@@ -1199,8 +1325,10 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // Every fact decide() reads but the verdict, the rules and the caller's own
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
-// default it reads the blocker fresh.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId }) {
+// default it reads the blocker fresh. `doneBy(number)` answers the merged
+// Refs pull requests (mergedRefsReader): a pass over many issues passes its
+// own, so it reads them in one call; by default the issue is read alone.
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   // Anyone may close their own issue, so a blocking issue counts only with a
@@ -1240,6 +1368,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
     subIssues: await openSubIssues(github, base, issue),
+    doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
     // Only a visibility that reads public skips the cost_private charge
     // words; a failed read counts the repository as private.
@@ -1277,7 +1406,17 @@ async function deferredAhead(github, repository, issue) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted: closedByTrusted({ github, repository, humans, appId }) });
+  const facts = await admissionFacts({
+    github,
+    repository,
+    number,
+    issue,
+    rules,
+    humans,
+    appId,
+    isTrusted: closedByTrusted({ github, repository, humans, appId }),
+    doneBy: mergedRefsReader({ github, repository, humans, appId, log }),
+  });
   const { comments } = facts;
   const decision = decide({
     ...facts,
