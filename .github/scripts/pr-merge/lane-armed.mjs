@@ -171,7 +171,9 @@ export function patchLines(patch) {
 export function floorChange(path, patch, base) {
   const changes = patchLines(patch);
   if (changes === null) return `${path} has no readable patch`;
-  const table = path !== LANE_ARMED_MJS;
+  // Only babysit_risk.py and merge-holds.mjs hold floor tables; the judge
+  // code (lane-armed.mjs, floor-ast.py) is checked for markers and names.
+  const table = Object.hasOwn(SHAPES, path);
   if (table && !base) return `the base copy of ${path} cannot be read exactly`;
   for (const { sign, text, at } of changes) {
     const what = `${sign === "+" ? "an added" : "a removed"} line of ${path}`;
@@ -192,6 +194,34 @@ export function floorChange(path, patch, base) {
     }
     const named = IDENTIFIER.exec(text);
     if (named) return `${what} names ${named[0]} outside the floor rows`;
+  }
+  return null;
+}
+
+// The JS ways to run or reach code by a name no line spells: a head copy of
+// merge-holds.mjs or lane-armed.mjs may hold none of these more often than
+// its base copy. Counted over the whole text, so splitting a string around
+// a table name does not help: the token itself must appear.
+const JS_DYNAMIC = Object.freeze([
+  ["eval", /\beval\b/g],
+  ["Function(", /\bFunction\s*\(/g],
+  ["new Function", /\bnew\s+Function\b/g],
+  ["globalThis", /\bglobalThis\b/g],
+  ["Reflect.", /\bReflect\s*\./g],
+  ["Object.defineProperty", /\bObject\s*\.\s*defineProperty\b/g],
+  ["__proto__", /__proto__/g],
+  ["import(", /\bimport\s*\(/g],
+  ["require(", /\brequire\s*\(/g],
+  ["vm.", /\bvm\s*\./g],
+  ["process.binding", /\bprocess\s*\.\s*binding\b/g],
+]);
+
+// Why the head copy of a JS floor file reaches code more dynamically than
+// its base copy, or null.
+export function jsRefusal(baseText, headText) {
+  for (const [name, pattern] of JS_DYNAMIC) {
+    const count = (text) => (String(text).match(pattern) ?? []).length;
+    if (count(headText) > count(baseText)) return `it adds ${name}`;
   }
   return null;
 }
@@ -231,12 +261,16 @@ async function floorRefusal(github, repo, pull) {
     const touched = [file.filename, file.previous_filename].filter((name) => FLOOR_FILES.includes(name));
     if (touched.length === 0) continue;
     if (file.status !== "modified" || file.previous_filename) return `it ${file.status} ${touched[0]}`;
-    const base = file.filename === LANE_ARMED_MJS ? null : floorOf(await text(github, repo, file.filename, mergeBase), file.filename);
+    const base = Object.hasOwn(SHAPES, file.filename) ? floorOf(await text(github, repo, file.filename, mergeBase), file.filename) : null;
     const why = floorChange(file.filename, file.patch, base);
     if (why) return why;
     if (file.filename === RISK) {
       const parsed = astRefusal(await text(github, repo, RISK, mergeBase), await text(github, repo, RISK, pull.head.sha));
       if (parsed) return `its ${RISK}: ${parsed}`;
+    }
+    if (file.filename.endsWith(".mjs")) {
+      const dynamic = jsRefusal(await text(github, repo, file.filename, mergeBase), await text(github, repo, file.filename, pull.head.sha));
+      if (dynamic) return `its ${file.filename}: ${dynamic}`;
     }
   }
   return null;

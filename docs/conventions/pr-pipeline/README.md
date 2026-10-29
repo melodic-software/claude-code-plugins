@@ -2508,8 +2508,11 @@ A lane-armed path clears only when all of these hold at the current head:
    still counts. It also refuses a head that binds a floor table or a set
    derived from one other than once, at module level, by one assignment: a table to a literal, a
    derived set to the base's expression. `merge-holds.mjs` binds its tables with `const` and
-   `Object.freeze`, which no later line can rebind by name; a logic edit there stays the
-   residual below.
+   `Object.freeze`, which no later line can rebind by name. Its head copy, and `lane-armed.mjs`'s,
+   also refuses when it holds more `eval`, `Function(`, `globalThis`, `Reflect.`,
+   `Object.defineProperty`, `__proto__`, `import(`, `require(`, `vm.` or `process.binding` than the
+   base copy. Any other logic edit there stays the residual below. `floor-ast.py` holds no table:
+   its patch is judged for markers and hold names only.
    The base copy and the patches come from one compare of the base branch with the head, and the
    base copy is read at its merge base, the commit GitHub measures the patch from. A missing
    patch, a renamed or deleted floor file, or a file list the compare cuts short (it lists at most

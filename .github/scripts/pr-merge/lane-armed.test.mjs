@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { astRefusal, floorChange, floorOf, main, patchLines, recordOf, rowRefusal } from "./lane-armed.mjs";
+import { astRefusal, floorChange, floorOf, jsRefusal, main, patchLines, recordOf, rowRefusal } from "./lane-armed.mjs";
 import { laneArmedRecord } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -348,6 +348,47 @@ test("a rebinding the patch rules cannot see is refused through floor-ast.py", a
   const { code, out } = await run([ROW], w);
   assert.equal(code, 0, out);
   assert.ok(out.includes(`its change could weaken the hold floor: its ${RISK}: it adds a reference to locals`), out);
+  assert.deepEqual(w.writes, []);
+});
+
+test("floor-ast.py is judge code: a logic edit is judged for markers and names, never read as a floor table", async () => {
+  const FLOOR_AST = ".github/scripts/pr-merge/floor-ast.py";
+  const source = readFileSync(new URL("./floor-ast.py", import.meta.url), "utf8");
+  const logic = diff(source, source.replace('f"it adds {name}"', 'f"it now adds {name}"'));
+  assert.equal(floorChange(FLOOR_AST, logic, null), null);
+  assert.match(floorChange(FLOOR_AST, diff(source, source.replace('TABLES = ("FLOOR_CLASSES",', 'TABLES = (')), null), /names TABLES|names FLOOR_CLASSES/);
+  const w = world({ files: { [FLOOR_AST]: { status: "modified", patch: logic } } });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 0, out);
+  assert.doesNotMatch(out, /cannot be read exactly/);
+  assert.ok(out.includes("::notice::lane-armed {"), out);
+});
+
+test("jsRefusal refuses a JS floor file that reaches code more dynamically than its base", () => {
+  const base = MJS(ROWS, ARMED);
+  for (const [name, line] of [
+    ["eval", 'eval("HOLD_" + "PATH_FLOOR.length = 0");'],
+    ["globalThis", 'globalThis["HOLD_" + "PATH_CLASSES"] = [];'],
+    ["Function(", 'Function("return 1")();'],
+    ["Reflect.", 'Reflect.set(x, "a", 1);'],
+    ["Object.defineProperty", 'Object.defineProperty(x, "a", {});'],
+    ["__proto__", "x.__proto__ = null;"],
+    ["import(", 'await import("./x.mjs");'],
+    ["require(", 'require("vm");'],
+  ]) {
+    assert.equal(jsRefusal(base, `${base}${line}\n`), `it adds ${name}`, name);
+  }
+  // As many as the base: accepted, and so is a logic edit or a method named eval.
+  assert.equal(jsRefusal(`${base}eval(1);\n`, `${base}eval(2);\n`), null);
+  assert.equal(jsRefusal(base, base.replace("x + 1", "x + 2")), null);
+  assert.equal(jsRefusal(base, `${base}const evaluate = 1;\n`), null);
+});
+
+test("an added eval in merge-holds.mjs is refused end to end", async () => {
+  const w = world({ files: { [HOLDS]: MJS(ROWS, ARMED).replace("x + 1", 'eval("x + 1")') } });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 0, out);
+  assert.ok(out.includes(`its change could weaken the hold floor: its ${HOLDS}: it adds eval`), out);
   assert.deepEqual(w.writes, []);
 });
 
