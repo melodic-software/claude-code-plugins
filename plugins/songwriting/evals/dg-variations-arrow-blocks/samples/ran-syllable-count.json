@@ -1,0 +1,105 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/songwriting/context/pat-pattison/scripts/datamuse.sh\" syllables lonely",
+            "description": "count syllables"
+          }
+        }
+      ],
+      "why": "quoted script path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for w in rearview empty highway; do bash /x/scripts/datamuse.sh syllables \"$w\"; done",
+            "description": "count syllables per word"
+          }
+        }
+      ],
+      "why": "a loop over the candidate's words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: the count was estimated"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/scripts/datamuse.sh rhyme sad",
+            "description": "rhymes"
+          }
+        }
+      ],
+      "why": "a rhyme lookup, not a syllable count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/x/scripts/datamuse.sh"
+          }
+        }
+      ],
+      "why": "read the script without running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'syllables: 11 13 12 13'",
+            "description": "restate the counts"
+          }
+        }
+      ],
+      "why": "restates the writer's counts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /x/scripts/datamuse.sh | grep -n syllables",
+            "description": "search the script"
+          }
+        }
+      ],
+      "why": "searched, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/scripts/datamuse.sh --help 2>&1 | grep syllables",
+            "description": "read the usage"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/scripts/datamuse.sh rhyme sad; echo \"syllables: 11 13 12 13\"",
+            "description": "rhymes, then restate the counts"
+          }
+        }
+      ],
+      "why": "another mode, then printed counts"
+    }
+  ]
+}

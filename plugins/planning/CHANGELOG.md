@@ -3,6 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.124.0] - 2026-10-29
+
+### Added
+
+- **`/planning:draft-goal-condition` gives a condition that waits on the user a way to end.** When the intent has a step only the user can decide (a choice, a waiver, an approval, a change of plan), Step 2 ends the condition with an OR exit that names those items: each one still unmet is recorded in a named file as waiting on the user, with the exact reply or command they must give, and the file's contents are shown in the conversation. Step 2 also refuses, or rewrites with the user's agreement, a draft whose only end state needs a decision the user may make the other way, names an identifier the user can replace (a pull request number, an artifact or document URL), or fixes an order of work the user may reorder or defer.
+
+## [0.123.1] - 2026-10-29
+
+### Added
+
+- Three behavior-present eval cases, `disconnected-scan-before-new-work-behavior-present`, `observed-fact-evidence-bar-behavior-present` and `unilateral-decision-not-folded-behavior-present`, each its original case with the heuristic stated in the prompt and run with `--ablation none`, so a heuristic case discriminates when its variant passes the target grader and the original fails it. ([#10184](https://github.com/melodic-software/claude-code-plugins/issues/10184))
+
+### Fixed
+
+- The `unilateral-decision-not-folded` eval case now has a `scaffold.sh` that seeds a small webhook sender with a logger module, so its runs no longer find an empty repository and stop before planning.
+
+## [0.123.0] - 2026-10-29
+
+### Added
+
+- **The shared interview lane tells Claude how to add live prototypes.** The ops table lists `add-live`, the prototype question text covers a variant's `live: {id, path}` link, and a prototype routes to `/prototype:explore-directions`, whose manifest the lane applies as screenshots, HTML snapshots and live builds, then asks as a question in the next round. A live link reaches guests only after the owner's Approve, and `add-live` is refused `live-off` while the live tier is off.
+
+### Changed
+
+- **`supersede` and `resolve` read their text from a file.** `supersede --proposes TEXT` is now `--proposes-file P`, and `resolve reconfirm --note TEXT` is now `--note-file N`. Neither command accepts an abbreviated option, so an old `--proposes` or `--note` is rejected instead of being read as a file name.
+
+### Removed
+
+- **`round.py` takes no page text on its command line.** The `reply`, `revise`, `note-reply`, `record-terminal`, `archive`, `reconfirm` and `group` commands are gone; each is an `apply` op, and calling one of the old commands is refused with a pointer to `round.sh --dir DATA_DIR apply --file OPS`. `add` reads the question only from `--file` and drops its text flags (`--short`, `--title`, `--rec`, `--facts`, `--basis`, `--waits-on`, `--commit`, `--alt`); `--id`, `--group`, `--stage`, `--round`, `--depends`, `--follow-up-of`, `--supersedes` and `--waiting` still override its fields.
+
 ## [0.122.0] - 2026-10-28
 
 ### Added

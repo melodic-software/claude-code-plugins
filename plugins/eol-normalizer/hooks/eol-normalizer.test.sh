@@ -95,7 +95,8 @@ ROW_ARGS_RUN=()
 while IFS= read -r row_arg; do
   # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
   ROW_ARGS_RUN+=("${row_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$ROWGATE/root}")
-done < <(jq -r '.args[]' <<<"$ROW_JSON")
+# tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+done < <(jq -r '.args[]' <<<"$ROW_JSON" | tr -d '\r')
 
 # run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
 # option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
@@ -384,13 +385,14 @@ expect "jq absent: silent exit 0 and the file untouched" "0|1" "$?|$(cr_count "$
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that names no file path costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" eol-normalizer PostToolBatch eol-normalizer.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Bash","tool_input":{"command":"true"},"tool_use_id":"toolu_census","tool_response":"ok"}]}' \
     --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: a batch with no file path costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo

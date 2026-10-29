@@ -838,6 +838,101 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(False, named, module)
 
+    # #5901 slice 5: Bun's runtime chunk exports `import.meta.require` for
+    # other modules to load files with, and lodash tests `w.require` before
+    # calling it. The shapes are 2.1.310's; the runtime chunk is /b.js.
+    RUNTIME = (
+        "var Ce,x,$r,Ua,S,vn,ovi;"
+        "var Fe=import.meta.require;export{Ce,x,$r,Ua,S,vn,ovi,Fe};"
+    )
+    SPREAD = 'import{pY}from"/a.js";var c=[...pY];'
+
+    def test_an_exported_require_alias_called_with_literals_is_a_named_loader(
+        self,
+    ) -> None:
+        """Each importer's call of the alias with a literal specifier loads
+        that file: read only by name it keeps the literal, handed to other
+        code it reads partial."""
+        for importer, changed in (
+            ('import{Fe}from"/b.js";var t=Fe("/e.js"),u=Fe("/a.js").q;', False),
+            ('import{Fe as r}from"/b.js";var{q}=r("/a.js");', False),
+            (
+                'import{Fe}from"/b.js";'
+                'Object.values(Fe("/a.js")).forEach((v)=>v.push("B"));',
+                True,
+            ),
+        ):
+            with self.subTest(importer=importer):
+                self.assert_across_modules(changed, self.RUNTIME, importer, self.SPREAD)
+
+    def test_an_exported_require_alias_called_with_a_non_literal_stays_partial(
+        self,
+    ) -> None:
+        """Any other use of the alias may load any file: a call with no
+        literal, an alias, an escape or a re-export, in an importer or in
+        the runtime chunk itself. Under a direct `eval` no use is resolved,
+        so the import itself counts."""
+        for modules in (
+            (self.RUNTIME, 'import{Fe}from"/b.js";var n=Fe(s);'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";var r=Fe;'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";g(Fe);'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";Fe.call(0,"/a.js");'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";export{Fe as G};'),
+            (self.RUNTIME, 'export{Fe as G}from"/b.js";'),
+            (self.RUNTIME + "Fe(s);",),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules, self.SPREAD)
+        evals = 'import{Fe}from"/b.js";Fe("/a.js");function z(){eval("")}'
+        reader = type(self).reader
+        assert reader is not None
+        self.assertEqual(reader.loads(evals, 0, len(evals), ("Fe",)), ["*"])
+
+    def test_a_namespace_load_of_the_alias_module_stays_partial(self) -> None:
+        """A whole load of the runtime chunk hands the alias out unseen
+        (`R.Fe(s)`), so it stays a load the parser cannot name; so it does
+        with no module table, where the chunk's file is unknown."""
+        for module in (
+            'import*as R from"/b.js";R.Fe(s);',
+            'var R=import.meta.require("/b.js");R.Fe(s);',
+            'var{Fe:r}=await import("/b.js");r(s);',
+            'import{Fe}from"/b.js";Fe("/b.js").Fe(s);',
+            'export*from"/b.js";',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.RUNTIME, module, self.SPREAD)
+        self.assert_across_modules(
+            True,
+            self.RUNTIME,
+            'import{Fe}from"/b.js";var u=Fe("/a.js").q;',
+            self.SPREAD,
+            table=False,
+        )
+
+    def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
+        """A `.require` read that is only tested never hands the loader on:
+        a `&&` operand other than the last, an `if`, loop or `?:` test, a
+        `!` operand."""
+        for module in (
+            'var e=w&&w.require&&w.require("util").types;',
+            "if(w.require)f();for(;w.require;)break;",
+            "var t=w.require?1:0,u=!w.require;do{}while(w.require);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, self.SPREAD, module)
+
+    def test_a_require_read_that_returns_the_loader_stays_partial(self) -> None:
+        """The last `&&` operand, any `||` or `??` operand and a `?:` branch
+        are what the whole expression may evaluate to: the loader."""
+        for module in (
+            "var r=w.require||0;r(s);",
+            "var r=w&&w.require;r(s);",
+            "var r=w.require??0;r(s);",
+            "var r=c?w.require:0;r(s);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,

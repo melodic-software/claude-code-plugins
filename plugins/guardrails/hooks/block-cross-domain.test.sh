@@ -57,17 +57,19 @@ G_ROOT="$HOME_DIR/gamma"
 NEUTRAL="$TEST_TMPDIR/neutral"
 mkdir -p "$A_ROOT/repo" "$B_ROOT/repo" "$D_ROOT/repo" "$G_ROOT" "$NEUTRAL"
 
-# The placeholder map: alpha and beta with owners and markers, delta nested in
-# alpha, gamma below HOME, and epsilon on drive Q, spelled as a Windows drive
-# path for Windows and as its WSL mount elsewhere. beta's root carries a
-# trailing separator. No root of epsilon exists on disk: only the text is read.
+# The placeholder map: alpha and beta with owners and markers (shared-org in
+# both), delta nested in alpha, gamma below HOME, and epsilon on drive Q,
+# spelled as a Windows drive path for Windows and as its WSL mount elsewhere.
+# beta's root carries a trailing separator. No root of epsilon exists on disk:
+# only the text is read.
 MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg other_root "$OTHER_ROOT" \
   --arg a "$A_ROOT" --arg b "$B_ROOT/" --arg d "$D_ROOT" --arg g "$G_ROOT" '{
     domains: {
-      alpha: {roots: {($os): [$a]}, owners: ["alpha-org"], identity_markers: ["alpha-org"],
+      alpha: {roots: {($os): [$a]}, owners: ["alpha-org"], identity_markers: ["alpha-org", "shared-org"],
         gh_config_dir: "/placeholder/gh-alpha"},
       beta: {roots: {($os): [$b], ($other): [$other_root]}, owners: ["beta-org"],
-        identity_markers: ["beta-org"], az_config_dir: "/placeholder/az-beta"},
+        identity_markers: ["beta-org", "dev@beta.example", "gh-beta", "az-beta", "shared-org"],
+        az_config_dir: "/placeholder/az-beta"},
       delta: {roots: {($os): [$d]}},
       gamma: {roots: {($os): [$g]}},
       epsilon: {roots: {windows: ["Q:\\placeholder\\epsilon"], linux: ["/mnt/q/placeholder/epsilon"],
@@ -295,6 +297,73 @@ assert_contains "PowerShell: the prefilter hits" "$GUARD_ERR" "trace prefilter-h
 assert_absent "PowerShell: the Bash parser does not run" "$GUARD_ERR" "trace parse"
 verdict "PowerShell: another domain's root" deny
 
+# --- Identity positions (rule 4) ----------------------------------------------
+# deny <label> <command> [tool]: from alpha's tree, the call is denied.
+deny() {
+  guard_invoke --tool "${3:-Bash}" --cwd "$A_ROOT/repo" --command "$2" -- \
+    "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
+  assert_exit "$1: exit 0" 0 "$GUARD_RC"
+  assert_eq "$1: denied" deny "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+}
+# allow <label> <command> [cwd] [tool]: the call is not denied.
+allow() {
+  guard_invoke --tool "${4:-Bash}" --cwd "${3:-$A_ROOT/repo}" --command "$2" -- \
+    "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
+  assert_exit "$1: exit 0" 0 "$GUARD_RC"
+  assert_absent "$1: not denied" "$GUARD_OUT" permissionDecision
+}
+URL='git@example.invalid:beta-org/repo.git'
+deny "git remote add to another domain's org" "git remote add origin $URL"
+assert_contains "the deny reason names the position" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$GUARD_OUT")" "git remote add"
+deny "git remote set-url to another domain's org" 'git remote set-url origin https://example.invalid/beta-org/repo'
+deny "git remote set-url --push" "git remote set-url --push origin $URL"
+deny "git -C <dir> remote add" "git -C sub remote add upstream $URL"
+deny "git remote add in a later segment" "cd sub && git remote add origin $URL"
+deny "git config remote.<name>.url" "git config remote.origin.url $URL"
+deny "git config user.email" 'git config user.email dev@beta.example'
+deny "git config --local user.email" 'git config --local user.email dev@beta.example'
+deny "git config set user.email" 'git config set user.email dev@beta.example'
+deny "git -c user.email=" 'git -c user.email=dev@beta.example commit -m wip'
+deny "git commit --author=" 'git commit --author="Dev <dev@beta.example>" -m wip'
+deny "git commit --author <v>" 'git commit -m wip --author "Dev <dev@beta.example>"'
+deny "GIT_AUTHOR_EMAIL= before git" 'GIT_AUTHOR_EMAIL=dev@beta.example git commit -m wip'
+deny "export GH_CONFIG_DIR=" 'export GH_CONFIG_DIR=/placeholder/gh-beta'
+deny "GH_CONFIG_DIR= before gh" 'GH_CONFIG_DIR=~/.config/gh-beta gh pr list'
+deny "env AZURE_CONFIG_DIR=" 'env AZURE_CONFIG_DIR=/placeholder/az-beta az account show'
+deny 'PowerShell: $env:GH_CONFIG_DIR = <v>' '$env:GH_CONFIG_DIR = "C:\placeholder\gh-beta"' PowerShell
+deny 'PowerShell: $env:AZURE_CONFIG_DIR=<v>' "\$env:AZURE_CONFIG_DIR='C:\\placeholder\\az-beta'" PowerShell
+deny "PowerShell: git remote add" "git remote add origin $URL" PowerShell
+deny 'PowerShell: $env:name= <v>, any case' '$env:gh_config_dir= "C:\placeholder\gh-beta"' PowerShell
+deny "an assignment after then" 'if true; then export GH_CONFIG_DIR=/placeholder/gh-beta; fi'
+allow "a lowercase Bash variable is not GH_CONFIG_DIR" 'gh_config_dir=/placeholder/gh-beta true'
+allow "git remote set-url --delete" "git remote set-url --delete origin $URL"
+allow "the marker in a commit message" "git commit -m \"git remote add origin $URL\""
+allow "user.email= in a commit message" 'git commit -m "user.email=dev@beta.example"'
+allow "an echo of an assignment" 'echo GH_CONFIG_DIR=/placeholder/gh-beta'
+allow "an echo of an address" 'echo dev@beta.example'
+allow "git log --author filters, it sets nothing" 'git log --author=dev@beta.example'
+allow "git config --get with a value pattern" 'git config --get user.email dev@beta.example'
+allow "git clone of another domain's org" "git clone $URL"
+allow "the cwd's own marker" 'git remote add origin git@example.invalid:alpha-org/repo.git'
+allow "a marker the cwd's domain also lists" 'git remote add origin git@example.invalid:shared-org/repo.git'
+allow "from a neutral cwd" "git remote add origin $URL" "$NEUTRAL"
+allow "PowerShell: an assignment in a string" 'Write-Output "GH_CONFIG_DIR=C:\placeholder\gh-beta"' "" PowerShell
+guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "git remote add origin $URL" -- \
+  "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
+assert_exit "dispatched, an identity position: exit 0" 0 "$GUARD_RC"
+assert_contains "dispatched, an identity position: denied" "$GUARD_OUT" '"permissionDecision":"deny"'
+rm -f "$TEL"
+guard_invoke --cwd "$A_ROOT/repo" --command "git remote add origin $URL" -- "CLAUDE_PLUGIN_DATA=$DATA" \
+  "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR"
+if wait_for_sink "$TEL"; then
+  assert_eq "identity deny telemetry: status" blocked "$(jq -r '.status' "$TEL")"
+  assert_eq "identity deny telemetry: form" identity-deny "$(jq -r '.data.form' "$TEL")"
+  assert_absent "identity deny telemetry: no marker in the data" "$(jq -c '.data' "$TEL")" beta-org
+else
+  bad "identity deny telemetry: no telemetry envelope"
+fi
+
 # --- A malformed map: no deny, the user told once -----------------------------
 BAD_N=0
 # malformed <label> <map text> <start of the reason>
@@ -479,6 +548,11 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: compiled map, another domain's root: exit 0" 0 "$SHARE_RC"
   assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's process creations" 0 "$SHARE_CREATIONS"
   assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's execve count" 0 "$SHARE_EXECVE"
+
+  census_share "git remote add origin git@example.invalid:beta-org/repo.git" "$CENSUS"
+  assert_exit "strace: compiled map, an identity position denied: exit 0" 0 "$SHARE_RC"
+  assert_eq "strace: compiled map, an identity position denied: the guard's process creations" 0 "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, an identity position denied: the guard's execve count" 0 "$SHARE_EXECVE"
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi

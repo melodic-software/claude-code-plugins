@@ -151,6 +151,16 @@ expect() {
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
+  # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
+  # none with STUB_NO_MODULE.
+  if [[ -z "${STUB_NO_MODULE:-}" ]]; then
+    mkdir -p "$TMP_ROOT/base-config/.github/scripts/pr-merge"
+    if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
+      printf '%s\n' "$STUB_MODULE_TEXT" >"$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
+    else
+      cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
+    fi
+  fi
   if [[ -n "${STUB_PIPELINE:-}" ]]; then
     mkdir -p "$TMP_ROOT/base-config/docs/conventions"
     printf '%s\n' "$STUB_PIPELINE" >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
@@ -283,7 +293,24 @@ expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not r
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
-unset STUB_TRACKER
+export STUB_TRACKER='   '
+expect "a whitespace-only tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  owner-call "}}}'
+expect "the tracker's label is trimmed" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  "}}}'
+expect "a blank tracker label falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
+# The rule is the base's merge-holds.mjs humanGatedLabel: a base that cannot
+# judge fails closed before any read.
+export STUB_TRACKER="$CUSTOM" STUB_NO_MODULE=1
+expect "a base with no merge-holds.mjs fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE with its merge-holds.mjs"
+unset STUB_NO_MODULE
+export STUB_MODULE_TEXT='export const other = 1;'
+expect "a base module without humanGatedLabel fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => 7;'
+expect "a base module answering no label fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "";'
+expect "a base module answering an empty label fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+unset STUB_TRACKER STUB_MODULE_TEXT
 export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA

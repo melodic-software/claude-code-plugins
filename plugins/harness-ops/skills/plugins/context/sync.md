@@ -186,7 +186,7 @@ where the rollback is what the operator actually wants.
 
 ## Version capture for the report
 
-SKILL.md's report requires `<id>@<marketplace>: <old> → <new>` for every updated plugin, so both
+SKILL.md's report requires `- <id>@<marketplace> (<scope>): <old> -> <new>` for every updated plugin, so both
 values have to be collected while the sweep runs. Neither can be reconstructed afterward.
 
 **Retain the pre-sweep `fleet-state.sh` output for the whole run.** It is the sole source of every
@@ -480,9 +480,10 @@ is current with its source, nothing else: a current catalog can still read lower
 installed, because the source itself can have moved backward. The downgrade guard applies on every
 run, refreshed or not.
 
-Say so in the report: `Marketplace: <name>, refresh failed, catalog may be stale; update sweep
-ran guarded, its already-current ids are a lower bound; install/enable maintenance deferred`,
-rather than claiming it is current. Do not
+The report says so rather than claiming the marketplace is current: its header reads `needs
+update`, a `refresh failed (exit <N>): <reason>` line sits under it, and `Action needed` carries
+the error, which says the catalog may be stale and install/enable maintenance is deferred. The
+update sweep ran guarded, so its already-current ids are a lower bound. Do not
 delete, rename, or re-clone the marketplace directory to work around it. That is cache surgery
 this skill does not do. To learn how stale the catalog actually is, compare
 `git -C <installLocation> rev-parse HEAD` against `git ls-remote origin HEAD` run in that
@@ -614,7 +615,7 @@ that names no version leaves the row Updated with direction `unknown`. The same 
 opposite report: when the CLI says "already at the latest version" and the run's own project/local
 record is still below the catalog version, the id is a failed row too, never a quiet no-op. For a record
 in a linked git worktree ([scope-semantics.md](scope-semantics.md)), the row's reason carries the label
-`update ineffective; uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
+`update ineffective, uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
 this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 ## Step 3: User-scope update sweep
@@ -828,11 +829,13 @@ very little; say so rather than leading with the match count.
 ## Step 6: Report
 
 The script renders the report from the digest (`render-report.jq`), filling each updated plugin's
-`<old> → <new>` from the sources the "Version capture for the report" section above fixes. The
+`<old> -> <new>` from the sources the "Version capture for the report" section above fixes. The
 digest carries them, resolved from the run journal rather than from memory of the run, and the run
 directory it names holds every snapshot behind them. The paragraphs below state what the render
 does with each field and why, so a reader can check a rendered row against the field it came from;
-the model's one addition is the reload guidance at the end.
+the model's one addition is the reload guidance at the end. The layout (the `Result:` verdict, one
+fact per line, a `remedy:` line under the fact it fixes) is SKILL.md's Report section. The reasons
+behind a row stay in these files and out of the render, so a clean run prints none of them.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
@@ -876,17 +879,18 @@ are the per-marketplace loop body, so a three-marketplace run leaves three `pre.
 marketplace against that marketplace's own three snapshots; a cross-marketplace diff compares
 unrelated fleets.
 
-Report as
-`<N> actionable: <N-M> pre-existing, <M> newly created by this run (<a> by the in-repo update, <b>
-by the user-scope sweep)`, so each split follows the total it sums to. A new divergence on an id
-the run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is
-attributed to neither step: the line adds `, <c> moved during this run, cause unattributed` inside
-the parentheses when `<c>` is above zero, and the three parts sum to `<M>`. The total, the
-pre-existing count and the `converge` recommendation do not change. When a project root
-resolved, the line leads with this repo's count and then gives the same machine-wide split under
-`on this whole machine`, because `<N>` counts every repo's divergences and the here-count is a part
-of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
-line says `not computed` rather than assigning the whole delta to one step.
+Report the split as indented lines under the count it sums to, one count per line:
+`<N-M> pre-existing`, then `<M> newly created by this run`, and under that, when `<M>` is above
+zero, `<a> by the in-repo update` and `<b> by the user-scope sweep`. A new divergence on an id the
+run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is attributed
+to neither step: a third line under `<M>`, `<c> moved during this run, cause unattributed`, appears
+when `<c>` is above zero, and the three parts sum to `<M>`. The total, the pre-existing count and
+the `converge` remedy do not change. For a digest written before the class split below, the row
+reads `Divergences: <N> actionable`. When a project root resolved, it reads `Divergences: <N>
+actionable on this whole machine` with `<here> behind here` as its first line, because `<N>`
+counts every repo's divergences and the here-count is a part of it, not a separate remainder. When
+a snapshot was missed the split cannot be computed, and the row says `not computed` rather than
+assigning the whole delta to one step.
 
 **Split the same count by what can be done about each row.** `converge` can act only on a pin whose
 path is present, and removing a worktree is the right fix for a pin inside one, so a single
@@ -906,11 +910,16 @@ repository: a repository's own `.git` is a directory, a submodule's names `/modu
 `--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
 of them matches.
 
-The render names each non-zero part. Only the actionable parts point at `converge`; the worktree part
-points at `/source-control:worktree audit` (if installed); the blocked part points at the stale
-project records note below it, which says why a path can be absent. `divergences[]` is not filtered
-(`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
-counts and renders the row as it did.
+The render heads the section `Divergences: <post> in all` and gives each non-zero class its own
+line with its `remedy:` lines under it. The actionable line counts here and elsewhere together,
+names each non-zero one on a line under it, and carries the one `converge` remedy. The worktree
+line has two remedies, removing the worktree and `/source-control:worktree audit` (if installed).
+The blocked line points at the stale project records section below it. Why a path can be absent is
+[stale-records-cache-content.md](stale-records-cache-content.md)'s to explain, not the render's.
+The interval lines split the same total a second way, so they follow under a `by origin:`
+heading. `divergences[]` is not filtered (`projectPathPresent` stays advisory), and a digest
+written before the split carries none of the four counts and renders the count with one
+`converge` remedy, as the paragraph above describes.
 
 **Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
 much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
@@ -921,9 +930,9 @@ all of its scopes are listed rather than none. `divergences.by_path[]` groups th
 a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
 above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
 order and `more` the number left. The actionable paths come first, then the linked worktrees, then
-the paths that are not present, each group with the most records first, so the first sub-line under
-the `converge` pointer is a place `converge` can run from. The render keeps the count line and adds
-one sub-line per entry, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
+the paths that are not present, each group with the most records first, so the first path listed
+is a place `converge` can run from. The render keeps the count lines and adds a `by project path:`
+line with one entry under it per path, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
 `+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
 the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
 (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one

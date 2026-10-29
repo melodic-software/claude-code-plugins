@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.15.1] - 2026-10-29
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report is easier to read. It opens with a one-line `Result:` verdict: `<N> item(s) under Action needed`, `changes applied, nothing under Action needed`, or `clean, nothing changed and nothing under Action needed`, and in audit `see the predictions below, nothing under Action needed` or `no change predicted, a lower bound against the unrefreshed catalog`. Each line now carries one fact. The `Divergences:` row, the `Timing:` rows, the cache-content tally and the source-checkout row put each part on its own indented line, and a list of more than three ids puts one id per line. Each remedy is a `remedy:` line under the fact it fixes instead of being joined to it with `;`.
+- The render no longer prints the explanatory paragraphs under stale project records and user-home project records on every run, and no longer breaks sentences at fixed columns. The reasons stay in `context/stale-records-cache-content.md` and `context/scope-semantics.md`. Version moves and the `Catalog regression:` interval read `->` in plain ASCII.
+- The messages the report quotes from the scripts no longer join two facts with `;`: `fleet-state.sh` labels a lagging linked-worktree record `update ineffective, uninstall clears it`, and the refresh-failure, cache-content fallback and divergence-split notes read as one sentence each.
+
+## [4.15.0] - 2026-10-29
+
+### Added
+
+- **The parser reader follows an exported `require` alias into its importers.** Bun's runtime chunk exports `import.meta.require` (`var Fe=import.meta.require;export{...,Fe}`), and other modules load files through the imported `Fe("...")`. Under `--reader=parser` such an alias is now a named loader: an importer's call of it with a literal specifier loads that file, followed like `require(...)`. Any other use (a call with no literal, an alias, an escape, a re-export) still counts as a load the parser cannot name, in the sink rule too. The alias stays unknown when Bun's module table names no file for its module, or when a module loads that file whole.
+- A `.require` member read that is only tested for truth no longer counts as a load the parser cannot name: a `&&` operand other than the last, an `if`, loop or `?:` test, or a `!` operand, as in lodash's `w&&w.require&&w.require("util")`. A read that may pass the loader on still counts: the last `&&` operand, or any `||` or `??` operand.
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report's `Normalized:` row now says how many `enabledPlugins` keys moved, `1 of 101 keys moved` for one appended key, instead of counting every key as reordered. `normalize-enabled-plugins.sh` prints `normalized moved=K keys=N` (and `would-normalize moved=K keys=N` under `--check`), K being the fewest keys the reorder moves.
+- `normalize-enabled-plugins.sh` prints `missing-file keys=0` (exit 0) when the settings file does not exist, rather than `already-sorted keys=0`, and the report renders it as `Normalized: skipped, no user settings file`.
+
 ## [4.14.0] - 2026-10-29
 
 ### Added

@@ -984,6 +984,58 @@ add_rc=0
 timeout 10 bash "$DETECT" --added-since >/dev/null 2>&1 || add_rc=$?
 assert_exit "--added-since with no value exits 2" 2 "$add_rc"
 
+# A wrapped pair is reported at its first line whichever of its two lines is added, and a
+# marker on an unchanged line still suppresses the added line after it.
+REPOWRAP="$TEST_TMPDIR/repowrap"
+mkdir -p "$REPOWRAP"
+git -C "$REPOWRAP" init -q
+printf '%s\n' 'x = 1' '# grouped for speed (ci-perf Phase' 'y = 2' >"$REPOWRAP/second.py"
+printf '%s\n' 'x = 1' '# 6b) and nothing else' 'y = 2' >"$REPOWRAP/first.py"
+printf '%s\n' 'x = 1' '# comment-residue-ignore' 'y = 2' 'z = 3' >"$REPOWRAP/ignore.py"
+git -C "$REPOWRAP" add -A
+git -C "$REPOWRAP" -c user.email=t@example.com -c user.name=t commit -qm base
+printf '%s\n' 'x = 1' '# grouped for speed (ci-perf Phase' '# 6b) and nothing else' 'y = 2' >"$REPOWRAP/second.py"
+printf '%s\n' 'x = 1' '# grouped for speed (ci-perf Phase' '# 6b) and nothing else' 'y = 2' >"$REPOWRAP/first.py"
+printf '%s\n' 'x = 1' '# comment-residue-ignore' '# used to buffer writes' 'y = 2' 'z = 3' '# used to buffer writes' >"$REPOWRAP/ignore.py"
+
+wrap_add_out="$(cd "$REPOWRAP" && bash "$DETECT" --added-since HEAD)"
+assert_contains "--added-since: wrapped pair with only its second line added is found at the first" \
+  "$wrap_add_out" $'File: second.py\nFinding tier: 2\nFinding shape: history-narration-weak\nFinding line: 2\n'
+assert_contains "--added-since: wrapped pair with only its first line added is found at the first" \
+  "$wrap_add_out" $'File: first.py\nFinding tier: 2\nFinding shape: history-narration-weak\nFinding line: 2\n'
+assert_contains "--added-since: a marker on an unchanged line suppresses the added line after it" \
+  "$wrap_add_out" "Summary file: ignore.py | T1=1 T2=0 T3=0"
+assert_contains "--added-since: the marker's control line is still found" \
+  "$wrap_add_out" $'File: ignore.py\nFinding tier: 1\nFinding shape: history-narration\nFinding line: 6\n'
+
+# Under --added-since, detection runs only on lines an added line can reach, so its cost
+# tracks the added lines, not the file length. bash -x traces each detection call; a count
+# holds on a shared runner where a wall-clock bound would flake.
+REPOCOST="$TEST_TMPDIR/repocost"
+mkdir -p "$REPOCOST"
+git -C "$REPOCOST" init -q
+for ((i = 1; i <= 300; i++)); do printf '# counter %s\nx%s = %s\n' "$i" "$i" "$i"; done >"$REPOCOST/big.py"
+git -C "$REPOCOST" add -A
+git -C "$REPOCOST" -c user.email=t@example.com -c user.name=t commit -qm base
+printf '%s\n' '# used to buffer writes' >>"$REPOCOST/big.py"
+detect_calls() { grep -cE '^\++ cr_detect_shapes_text( |$)' "$1" || true; }
+
+cost_out="$(cd "$REPOCOST" && PS4='+ ' bash -x "$DETECT" --added-since HEAD 2>"$TEST_TMPDIR/cost-added.trace")"
+assert_contains "--added-since finds the one added line of a large file" "$cost_out" "Finding line: 601"
+cost_added="$(detect_calls "$TEST_TMPDIR/cost-added.trace")"
+(cd "$REPOCOST" && PS4='+ ' bash -x "$DETECT" big.py >/dev/null 2>"$TEST_TMPDIR/cost-whole.trace")
+cost_whole="$(detect_calls "$TEST_TMPDIR/cost-whole.trace")"
+if [[ "$cost_whole" =~ ^[0-9]+$ ]] && ((cost_whole >= 601)); then
+  pass "the trace counts a detection call per line of a whole-file audit"
+else
+  fail "the trace counts a detection call per line of a whole-file audit" "at least 601" "$cost_whole"
+fi
+if [[ "$cost_added" =~ ^[0-9]+$ ]] && ((cost_added <= 10)); then
+  pass "--added-since detection calls track the added lines, not the file length"
+else
+  fail "--added-since detection calls track the added lines, not the file length" "at most 10" "$cost_added"
+fi
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
