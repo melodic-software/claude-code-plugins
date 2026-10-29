@@ -1,0 +1,24 @@
+{
+  "description": "Normalizes line endings after a write or edit so a checkout's own EOL policy holds.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "EOL_NORMALIZER_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh"
+            ],
+            "timeout": 15,
+            "statusMessage": "Normalizing line endings..."
+          }
+        ]
+      }
+    ]
+  }
+}

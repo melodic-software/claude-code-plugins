@@ -1753,6 +1753,21 @@ needs_check "audit would install" audit '{"install_gap":["b@m"]}' "would run: cl
 needs_check "audit would enable" audit '{"enable_gap":["b@m"],"enabled":[{"id":"b@m","scope":"user","predicted":true}]}' \
   "would run: claude plugin enable b@m -s user" row
 needs_policy=none
+# The normalizer's line renders as the Normalized row: moved of total, a missing
+# settings file as its own row, and a digest from before `moved=` as it always did.
+norm_render() { needs_digest "$1" "{\"normalize\":{\"output\":\"$2\"}}" | jq -r -f "$SCRIPT_DIR/render-report.jq"; }
+assert_contains "normalize render: the row counts moved keys of the total" \
+  "$(norm_render sync 'normalized moved=1 keys=101')" "Normalized: user enabledPlugins key order (1 of 101 keys moved)"
+assert_contains "normalize render: audit predicts the moved count" \
+  "$(norm_render audit 'would-normalize moved=2 keys=9')" "(would run: normalize-enabled-plugins.sh, 2 of 9 keys would move)"
+assert_contains "normalize render: a missing file is no user settings file" \
+  "$(norm_render sync 'missing-file keys=0')" "Normalized: skipped, no user settings file"
+assert_contains "normalize render: audit names a missing file the same way" \
+  "$(norm_render audit 'missing-file keys=0')" "Would normalize: skipped, no user settings file"
+assert_eq "normalize render: a missing file never reads as a reorder" "0" \
+  "$(norm_render sync 'missing-file keys=0' | grep -c 'key order' || true)"
+assert_contains "normalize render: a digest without moved= keeps its old row" \
+  "$(norm_render sync 'normalized keys=3')" "Normalized: user enabledPlugins key order (3 keys reordered)"
 # A sync run whose list file could not be written must not claim audit's reason.
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
@@ -2521,6 +2536,25 @@ assert_eq "disabled install: policy all enables nothing the publisher left off" 
 # Every install is already not enabled, so the policy clause does not tell the
 # user to disable it.
 assert_golden "disabled install: the report matches the golden" installed-all-disabled.txt "$REPORT_TEXT"
+
+# The real normalizer after an install: one out-of-place key in a four-key map
+# reads 1 of 4 moved. The stub install writes no settings key, so the map carries
+# the unsorted tail already; keys at another marketplace stay out of market1's rows.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "delta@other": true, "gamma@other": true, "beta@other": true}}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=1 SYNC_RUN_NORMALIZE="$SCRIPT_DIR/normalize-enabled-plugins.sh")
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_exit "normalized one key: exit 0" 0 "$REPORT_RC"
+assert_eq "normalized one key: the digest carries the moved count and the total" "normalized moved=1 keys=4" \
+  "$(jq -r '.marketplaces[0].normalize.output' <<<"$REPORT_DIGEST")"
+assert_eq "normalized one key: the user map is sorted" '["alpha@market1","beta@other","delta@other","gamma@other"]' \
+  "$(jq -c '.enabledPlugins | keys_unsorted' "$case_dir/user_settings.json")"
+assert_golden "normalized one key: the report matches the golden" normalized-one-key-moved.txt "$REPORT_TEXT"
 
 # One install left off and one loading: the clause gives the disable remedy.
 CASE_NUM=$((CASE_NUM + 1))

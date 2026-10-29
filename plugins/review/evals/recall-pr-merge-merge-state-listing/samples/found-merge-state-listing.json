@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | `.github/workflows/pr-merge.yml:43` adds mergeStateStatus to a `gh pr list --limit 500` request. GitHub computes merge state per pull request, so this list call gets slow and can time out with a 5xx. |",
+      "why": "names the line and the timeout"
+    },
+    {
+      "answer": "Listing cost: requesting mergeStateStatus for every candidate is expensive on the GraphQL side (pr-merge.yml line 42).",
+      "why": "mechanism before the location, line 42"
+    },
+    {
+      "answer": "`pr-merge.yml` (line 43): mergeStateStatus on a 500-PR list call makes the request time out.",
+      "why": "backticked file name and a parenthesized line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No blocking findings. The sweep order is clear and the prefilter keeps its contract.",
+      "why": "misses the bug"
+    },
+    {
+      "answer": "babysit_merge_prefilter.py:57 sorts with sweep_order but no test covers a candidate with no createdAt; the listing could also be slow.",
+      "why": "another file and line, not the listing request"
+    },
+    {
+      "answer": "pr-merge.yml:42 `gh pr list --limit 500 --author ...` now also requests createdAt; add a test for the jq projection.",
+      "why": "the right line quoted with no timeout or cost named"
+    }
+  ]
+}

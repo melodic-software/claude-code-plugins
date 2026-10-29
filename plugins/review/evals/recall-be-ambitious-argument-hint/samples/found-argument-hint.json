@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Non-blocking | plugins/discipline/skills/be-ambitious/SKILL.md:3 - the frontmatter has no `argument-hint`, but the body reads the request typed after the command, so the slash command shows no hint. Add `argument-hint: \"[request]\"`. |",
+      "why": "names the frontmatter line and the missing key"
+    },
+    {
+      "answer": "Missing argument hint for the optional request (SKILL.md lines 1-8, frontmatter).",
+      "why": "names the key before the location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "findings: 0. The skill is well scoped and every pointer is bare text.",
+      "why": "misses the bug"
+    },
+    {
+      "answer": "SKILL.md:31 requires all three axes by default, which the evals did not measure. Consider an argument hint too.",
+      "why": "another line; the argument hint is not tied to the frontmatter"
+    }
+  ]
+}
