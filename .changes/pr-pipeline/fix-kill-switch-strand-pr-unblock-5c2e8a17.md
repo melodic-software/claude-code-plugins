@@ -15,7 +15,7 @@ bump: minor
   `pr-run-activity-write.yml` now passes `kill-switch-ok` on a pull request run, so the token step
   ends green with no token, every later step skips, and the check is neutral `kill-switch`. An
   issue run (work-resolve-issue) stays red, since work-unblock re-fires its issue from the failed
-  mint step. Before, a reply job stopped this way ended `feedback-publish-failed`, routed to a
+  mint step, and so does pr-unblock's `report-escalation`, which nothing re-fires. Before, a reply job stopped this way ended `feedback-publish-failed`, routed to a
   failing status.
 
 - The pr-unblock dispatchers dispatch a head again once the kill switch lifts. A `kill-switch`

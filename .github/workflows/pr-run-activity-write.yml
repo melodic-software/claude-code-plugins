@@ -1049,13 +1049,15 @@ jobs:
       # above read it) ends the same way, with skip reason kill-switch, so the
       # check is neutral and the dispatchers re-fire the head once the switch
       # lifts (limit-stop.mjs killSwitchStop). An issue run stays red:
-      # work-unblock re-fires its issue from the failed mint step.
+      # work-unblock re-fires its issue from the failed mint step. So does
+      # report-escalation: no dispatcher re-fires it, so a skip would drop
+      # the escalation's comment and label.
       - name: Request the lane token
         id: lane-token
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
-          kill-switch-ok: ${{ inputs.issue-number == '' }}
+          kill-switch-ok: ${{ inputs.issue-number == '' && inputs.activity != 'report-escalation' }}
           pr-workflow-change-ok: ${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           default-branch: ${{ github.event.repository.default_branch }}

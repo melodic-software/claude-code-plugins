@@ -1890,7 +1890,8 @@ did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it 
 head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
 a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
 dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
-its issue from the failed mint step.
+its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
+re-fires it and a skip would drop the escalation's comment and label.
 
 ### A workflow file the PR changes
 
