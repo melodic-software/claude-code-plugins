@@ -164,7 +164,9 @@ case "$*" in
 */activity*)
   # Page N (after=pN, page 1 without it) prints STUB_PUSHES_N (page 1:
   # STUB_PUSHES); with -i, a Link to page N+1 while STUB_PUSHES_<N+1> is set (empty too)
-  # or STUB_PUSHES_ENDLESS is; STUB_LINK=prev gives a Link with rel="prev" only.
+  # or STUB_PUSHES_ENDLESS is. STUB_LINK=prev gives a Link with rel="prev"
+  # only; unread, a next link the step's parse misses; any other value, a
+  # next link to that path.
   [[ -z "${STUB_PUSHES_FAIL:-}" ]] || exit 1
   n=1 args="$*"
   [[ "$args" != *after=p* ]] || { n="${args#*after=p}"; n="${n%%[!0-9]*}"; }
@@ -175,6 +177,10 @@ case "$*" in
     next="STUB_PUSHES_$((n + 1))"
     if [[ "${STUB_LINK:-}" == prev ]]; then
       printf 'Link: <https://api.github.com/repositories/1/activity?per_page=100&before=p0>; rel="prev"\r\n'
+    elif [[ "${STUB_LINK:-}" == unread ]]; then
+      printf 'Link: <https://api.github.com/repositories/1/activity?after=p2>;rel=next\r\n'
+    elif [[ -n "${STUB_LINK:-}" ]]; then
+      printf 'Link: <https://api.github.com/%s>; rel="next"\r\n' "$STUB_LINK"
     elif [[ -n "${!next+set}${STUB_PUSHES_ENDLESS:-}" ]]; then
       printf 'Link: <https://api.github.com/repositories/1/activity?ref=refs%%2Fheads%%2Ffeature%%2Fx&direction=desc&per_page=100&after=p%s>; rel="next", <https://api.github.com/repositories/1/activity?per_page=100>; rel="first"\r\n' "$((n + 1))"
     fi
@@ -223,7 +229,7 @@ expect() {
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
-  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
     BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -490,9 +496,23 @@ STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 100)" \
 STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_ENDLESS=1 \
   expect "a push history past 20 pages is held" 1 "::error::the push history of feature/x runs past 20 pages"
 if [[ "$(grep -c '/activity' "$TMP_ROOT/log")" -eq 20 ]]; then ok "the read stops at 20 pages"; else fail "read $(grep -c '/activity' "$TMP_ROOT/log") activity pages"; fi
-for body in '{"message":"Conflict"}' '' 'null'; do
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
+  expect "a non-list body on page 2 is held" 1 "::error::the push history of feature/x is unreadable"
+for body in '' 'null'; do
   STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$body" \
     expect "a second page of '$body' is held" 1 "::error::the push history of feature/x is unreadable"
+done
+STUB_PUSHES="$(page kyle-sexton 50)" STUB_PUSHES_2="$(list "$(push "$APP" $SHA_B)")" \
+  expect "a short first page with a next link reads on to an App push on page 2" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+STUB_PUSHES="$(page kyle-sexton 50)" STUB_LINK=unread \
+  expect "a next link the step cannot parse is held" 1 "::error::the push history of feature/x has a next link this step cannot read"
+for link in 'repositories/1/activity?ref=refs%2Fheads%2Ffeature%2Fx&after={owner}' \
+  'repositories/2/activity?ref=refs%2Fheads%2Ffeature%2Fx&after=p2' \
+  'repositories/1/activity?ref=refs%2Fheads%2Fmain&after=p2' \
+  'repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&after=p2'; do
+  STUB_PUSHES="$(page kyle-sexton 50)" STUB_LINK="$link" \
+    expect "a next link to $link is held" 1 "::error::the push history of feature/x has a next link outside this repository's activity of the branch"
+  if grep -q 'after=' "$TMP_ROOT/log"; then fail "the next link $link was followed"; else ok "the next link $link is not followed"; fi
 done
 STUB_PUSHES_3="$(page kyle-sexton 1)" STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
   expect "a non-array page before a readable one is held" 1 "is unreadable"
