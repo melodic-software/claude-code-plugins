@@ -118,8 +118,8 @@ nonce>`, waiting up to 5 seconds:
 | a timeout or a TLS failure | unknown, counted as held | a quick tunnel |
 
 A session that already runs the named tunnel (its record names the hostname and its cloudflared
-runs) keeps it without asking. The link is asked, not Cloudflare's connections list, whose entries
-can outlive a connector. A quick tunnel that stands in says why on stderr and in the output's
+runs) keeps it without asking. The plugin asks the link itself rather than reading Cloudflare's
+connections list. A quick tunnel that stands in says why on stderr and in the output's
 `tunnelFallback`; once the other session stops, the next `ensure-running` takes the link.
 `python cfdns.py connectors` (below) still lists the machines running the tunnel.
 
@@ -155,7 +155,8 @@ as new people, and the owner can merge each with their earlier self.
 1. **API tokens.** In the Cloudflare dashboard, create two account API tokens
    ([Create an API token](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/)),
    both limited to your account, and keep them in your secret store:
-   - **Setup token**: "Cloudflare One Connector: cloudflared" Edit and Zone > DNS > Edit, limited to
+   - **Setup token**: "Cloudflare One Connector: cloudflared" and Zone > DNS, both at the dashboard's
+     Edit level (the API reference calls it Write), limited to
      the one zone, for `cfdns.py` (it reads the token only from the file `--api-token-file` names).
    - **Tunnel-only token**: "Cloudflare One Connector: cloudflared Write" alone, never DNS, for
      `tunnel_api_token_file` on every machine that may serve the link. It can change only tunnels.

@@ -283,6 +283,8 @@ def named_config(d, a):
     if a.adopt_tunnel:
         raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
     api_file = a.tunnel_api_token_file or ""
+    if api_file.startswith("${user_config."):  # an unset option can arrive as its unexpanded token: its default, empty
+        api_file = ""
     why = tunnel.token_file_problem(token_file) or (api_file and tunnel.token_file_problem(api_file, "tunnel API token file", "tunnel_api_token_file"))
     return hostname, token_file, api_file, why or None
 
@@ -320,7 +322,7 @@ def link_holder(hostname):
         held = False
     if held:
         return f"another interview session already serves https://{hostname}"
-    return f"https://{hostname} answers HTTP {status}, so a cloudflared elsewhere runs its tunnel"
+    return f"https://{hostname} answers HTTP {status}, which does not show the link free"
 
 
 def run_token_ids(token_file):

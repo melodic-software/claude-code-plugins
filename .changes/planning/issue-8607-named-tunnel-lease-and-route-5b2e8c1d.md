@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- A shared interview's named tunnel can run from any machine. Before a machine starts it, `ensure-running` asks `https://<tunnel_hostname>` itself; when another interview session or another machine's cloudflared answers, the session runs a quick tunnel and says why on stderr and in the output's `tunnelFallback`, so two machines never split the link's guests ([#8607](https://github.com/melodic-software/claude-code-plugins/issues/8607)).
+- A shared interview's named tunnel can run from any machine. Before a machine starts it, `ensure-running` asks `https://<tunnel_hostname>` itself; when another interview session or another machine's cloudflared answers, the session runs a quick tunnel and says why on stderr and in the output's `tunnelFallback`, so a second machine does not start a replica that would split the link's guests ([#8607](https://github.com/melodic-software/claude-code-plugins/issues/8607)).
 - New `tunnel_api_token_file` option: the path of a tunnel-only Cloudflare API token ("Cloudflare One Connector: cloudflared Write"). When it is set, each session points the tunnel's route at its own guest port, so a named session can use any free port instead of 8765.
 
 ### Changed

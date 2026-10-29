@@ -1062,6 +1062,17 @@ class TestNamedTunnelLease(ShareCase):
         self.assertNotIn("not-a-run-token-secret", err + json.dumps(out))
         self.assertEqual(cf.puts, [])
 
+    def test_an_unexpanded_api_token_option_is_the_unset_default(self):
+        # An unset userConfig key can reach the skill as its literal token (#9886); the default is empty.
+        cf = FakeCloudflare(self)
+        port = free_port()
+        args = ["ensure-running", "--guest-port", str(port), "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", "${user_config.tunnel_api_token_file}"]
+        code, out, err = share(self.d, *args, environ=env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url, SHARED_PROBE_ORIGIN=cf.url))
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+        self.assertNotIn("tunnelFallback", out)
+        self.assertIn(f"must name http://127.0.0.1:{port};", err)
+        self.assertEqual(cf.puts, [])
+
     def test_without_the_api_token_the_guest_port_stays_fixed(self):
         cf = FakeCloudflare(self)
         if not socket_free(share_cli.NAMED_PORT):
