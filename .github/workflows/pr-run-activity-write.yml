@@ -397,6 +397,16 @@ on:
         required: false
         type: string
         default: ""
+      patch-weaken-retry:
+        description: >-
+          apply-patch: `true` when fix-ci-context found no lane stop on the
+          head yet, so an empty fix-ci patch whose report escalated
+          weaken-required stops ci-fix-weaken-retry (a fail route the
+          dispatcher retries with the no-weaken brief) instead of
+          ci-fix-weaken-required, which holds for a person.
+        required: false
+        type: string
+        default: ""
       patch-base-sha:
         description: >-
           Issue mode, apply-patch: the read runner's scan-base-sha output, the
@@ -447,8 +457,8 @@ on:
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-unpinned, dependency-fix-refused,
           dependency-security-close or dependency-escalate; for apply-patch, before the mint,
-          ci-fix-empty, ci-fix-invalid, ci-fix-escalated, ci-fix-protected-path
-          or ci-fix-weaken-required, and from its
+          ci-fix-empty, ci-fix-invalid, ci-fix-escalated, ci-fix-protected-path,
+          ci-fix-weaken-retry or ci-fix-weaken-required, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           for issue-mode apply-patch, patch-empty, patch-invalid,
           patch-not-applied or patch-protected-path; for apply-patch under
@@ -653,7 +663,7 @@ jobs:
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
-            ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-required) ;;
+            ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
             patch-empty | patch-invalid | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
@@ -969,8 +979,10 @@ jobs:
       # and the script takes it with --3way otherwise; an empty or invalid patch escalates
       # with nothing minted, unless at patch-model-rung 0 every check it
       # escalated is unfixed or not-reproducible, which skips rung-up for one
-      # retry a rung up; a written patch escalates nothing, so the pushed
-      # head's own CI decides. An issue patch's head is its start commit.
+      # retry a rung up, and with patch-weaken-retry true a weaken-required
+      # escalation stops ci-fix-weaken-retry, not a person; a written patch
+      # escalates nothing, so the pushed head's own CI decides. An issue
+      # patch's head is its start commit.
       - name: Select the patch
         id: patch-select
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
@@ -986,6 +998,7 @@ jobs:
           PATCH_DIR: ${{ runner.temp }}/lane-patch
           REPORT_DIR: ${{ runner.temp }}/lane-patch-report
           MODEL_RUNG: ${{ inputs.patch-model-rung }}
+          WEAKEN_RETRY: ${{ inputs.patch-weaken-retry }}
           # Under the merge-base row: clean commits with no patch.
           MERGE_STATE: ${{ inputs.patch-merge-state }}
         run: node ".base/$SCRIPT" select

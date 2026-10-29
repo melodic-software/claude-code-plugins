@@ -38,7 +38,8 @@
   "ci-fix-empty": { "activity": "fix-ci", "route": "fail", "why": "the lane changed nothing that fixes the failing checks" },
   "ci-fix-invalid": { "activity": "fix-ci", "route": "fail", "why": "the CI fix the lane wrote did not pass validation, so it was not pushed" },
   "ci-fix-protected-path": { "activity": "fix-ci", "route": "hold", "why": "the CI fix changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file" },
-  "ci-fix-weaken-required": { "activity": "fix-ci", "route": "hold", "why": "the lane could fix a failing check only by weakening a required check, which a person decides" },
+  "ci-fix-weaken-retry": { "activity": "fix-ci", "route": "fail", "why": "the lane could fix a failing check only by weakening a test, which is refused, so it runs one fresh fixer round on this head that must keep the test's assertions" },
+  "ci-fix-weaken-required": { "activity": "fix-ci", "route": "hold", "why": "the lane could fix a failing check only by weakening a required check, and the head has no fresh fixer round left (it ran one, or an earlier lane stop already spent its same-head retry), so a person decides" },
   "ci-fix-not-applied": { "activity": "fix-ci", "route": "fail", "why": "the CI fix did not apply to the head it was written for, so it was not pushed" },
   "ci-fix-escalated": { "activity": "fix-ci", "route": "fail", "why": "the lane could not fix every failing check, after one retry a model rung up; its run log names each one and why" }
 }

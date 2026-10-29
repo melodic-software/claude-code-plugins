@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
-import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
+import { countFixRounds, logExcerpt, main, select, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -49,7 +49,9 @@ function fakeApi(overrides = {}) {
       return Object.assign([...(overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
     },
     // The head's pr-unblock / apply-patch checks: a lane stop runs the retry a rung up.
-    listCheckRuns: async () => overrides.stopRuns ?? [],
+    listCheckRuns: async (sha, name) => (name === "pr-unblock / fix-ci" ? (overrides.fixCiRuns ?? []) : (overrides.stopRuns ?? [])),
+    // The head's statuses: report-escalation.sh status names a fail-routed stop's reason.
+    listCommitStatuses: async () => overrides.statuses ?? [],
     listAnnotations: async (id) =>
       overrides.annotations?.[id] ?? [
         { path: "scripts/x.sh", start_line: 12, annotation_level: "failure", message: "SC2034: foo appears unused" },
@@ -496,4 +498,90 @@ test("a head whose push job stopped proceeds at model rung 1; any other at its o
   assert.equal((await selectWith(fakeApi({ stopRuns: [stop] }))).modelRung, "1");
   assert.equal((await selectWith(fakeApi())).modelRung, "");
   assert.equal((await selectWith(fakeApi({ stopRuns: [{ ...stop, app: { id: 2 } }] }))).modelRung, "");
+});
+
+// The first weaken-required stop on a head takes one fresh fixer round:
+// apply-patch gets weakenRetry only while the head has no lane stop, and the
+// round after a weaken retry stop carries the runner's brief and the pull
+// request's stated change. A lane stop for another reason, or a status by
+// another creator or on another context, carries no brief.
+const LANE_STOP = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
+const weakenStatus = (extra = {}) => ({
+  context: "pr-unblock/fix-ci",
+  state: "failure",
+  description: "Lane stopped: ci-fix-weaken-retry; checked again on a new head",
+  creator: { login: "github-actions[bot]" },
+  ...extra,
+});
+
+test("a head with no lane stop gives a weaken-required stop its fresh round, with no brief yet", async () => {
+  let read = false;
+  const api = {
+    ...fakeApi(),
+    listCommitStatuses: async () => {
+      read = true;
+      return [weakenStatus()];
+    },
+  };
+  const result = await selectWith(api);
+  assert.equal(result.weakenRetry, true);
+  assert.equal(result.modelRung, "");
+  assert.equal(result.file.retry, undefined);
+  assert.equal(read, false, "no statuses read without a lane stop");
+});
+
+test("the round after a weaken retry stop carries the brief and the PR's title and body, and has no retry left", async () => {
+  const pull = { state: "open", head: { sha: HEAD }, title: "feat: print the new banner", body: "x".repeat(5000) };
+  const result = await selectWith(fakeApi({ pull, stopRuns: [LANE_STOP], statuses: [weakenStatus({ state: "success", description: "The lane ran again on this head and did not stop" }), weakenStatus()] }));
+  assert.equal(result.weakenRetry, false);
+  assert.equal(result.modelRung, "1");
+  assert.deepEqual(result.file.retry, { after: "ci-fix-weaken-retry", brief: WEAKEN_BRIEF });
+  assert.match(result.file.retry.brief, /keeps every test's assertions/);
+  assert.match(result.file.retry.brief, /only when the behavior change the pull request states/);
+  assert.equal(result.file.pr_title, "feat: print the new banner");
+  assert.equal(result.file.pr_body.length, 4000);
+});
+
+test("an earlier finished fix-ci attempt on the head leaves no weaken retry, another app's check does not count", async () => {
+  const earlier = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "failure", app: { id: 15368 } };
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [earlier] }))).weakenRetry, false);
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [{ ...earlier, app: { id: 2 } }] }))).weakenRetry, true);
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [{ ...earlier, status: "in_progress" }] }))).weakenRetry, true);
+});
+
+for (const [why, statuses] of [
+  ["another fail-routed stop", [weakenStatus({ description: "Lane stopped: ci-fix-escalated; checked again on a new head" })]],
+  ["another creator", [weakenStatus({ creator: { login: "someone" } })]],
+  ["another context", [weakenStatus({ context: "pr-unblock/conflict" })]],
+  ["no status", []],
+]) {
+  test(`a lane stop with ${why} carries no brief and leaves no weaken retry`, async () => {
+    const result = await selectWith(fakeApi({ stopRuns: [LANE_STOP], statuses }));
+    assert.equal(result.weakenRetry, false);
+    assert.equal(result.file.retry, undefined);
+    assert.equal(result.file.pr_title, undefined);
+  });
+}
+
+test("main writes weaken-retry true on a head with no lane stop, false after one", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: "o/r",
+      GITHUB_OUTPUT: join(dir, "out"),
+      PR_NUMBER: "42",
+      APP_SENDER_ID: String(APP),
+      CONTEXT_FILE: join(dir, "context.json"),
+      FIX_CI_ROUNDS: "3",
+      TRUSTED_ACTORS,
+    };
+    await main(env, { api: fakeApi(), log: () => {} });
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^weaken-retry=true$/m);
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "out2") }, { api: fakeApi({ stopRuns: [LANE_STOP], statuses: [weakenStatus()] }), log: () => {} });
+    assert.match(readFileSync(join(dir, "out2"), "utf8"), /^weaken-retry=false$/m);
+    assert.equal(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")).retry.brief, WEAKEN_BRIEF);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
