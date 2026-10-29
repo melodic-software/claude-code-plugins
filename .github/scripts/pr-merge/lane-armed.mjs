@@ -63,7 +63,7 @@ const LANE_ARMED_MJS = ".github/scripts/pr-merge/lane-armed.mjs";
 // scripts/sync-hold-floor.py) is person-held, so the gate never attests it.
 const FLOOR_AST = ".github/scripts/pr-merge/floor-ast.py";
 export const FLOOR_FILES = Object.freeze([RISK, HOLDS, LANE_ARMED_MJS, FLOOR_AST]);
-const MARKER = /\b(?:BEGIN|END) (?:floor-rows|hold-floor)\b/;
+const MARKER = /\b(?:BEGIN|END) (?:floor-rows|hold-floor|js-dynamic)\b/;
 // A non-ASCII character in an added line: Python folds a fullwidth or other
 // NFKC-equivalent identifier to ASCII, so a fullwidth `FLOOR_CLASSES = ()`
 // rebinds it past IDENTIFIER. Reflection and aliasing in babysit_risk.py are
@@ -168,7 +168,7 @@ export function patchLines(patch) {
 // Why the change `patch` to floor-definition file `path` could weaken the
 // floor, or null. `base` is floorOf of the base copy, required for a floor
 // table file.
-export function floorChange(path, patch, base) {
+export function floorChange(path, patch, base, locked = null) {
   const changes = patchLines(patch);
   if (changes === null) return `${path} has no readable patch`;
   // Only babysit_risk.py and merge-holds.mjs hold floor tables; the judge
@@ -178,6 +178,7 @@ export function floorChange(path, patch, base) {
   for (const { sign, text, at } of changes) {
     const what = `${sign === "+" ? "an added" : "a removed"} line of ${path}`;
     if (MARKER.test(text)) return `${what} names a floor marker`;
+    if (locked && (sign === "-" ? locked.begin < at && at < locked.end : locked.begin <= at && at < locked.end)) return `${what} is inside the JS_DYNAMIC list`;
     if (sign === "+" && NON_ASCII.test(text)) return `${what} holds a non-ASCII character`;
     // A removed line sits strictly between the markers; an added one follows
     // BEGIN or a line before END.
@@ -200,10 +201,16 @@ export function floorChange(path, patch, base) {
 
 // The JS ways to run or reach code by a name no line spells: a head copy of
 // merge-holds.mjs or lane-armed.mjs may hold none of these more often than
-// its base copy. Counted over the whole text, so splitting a string around
-// a table name does not help: the token itself must appear.
+// its base copy. Counted over the whole text but this list, so splitting a
+// string around a table name does not help: the token itself must appear.
+// Each is call-shaped or otherwise not a path segment, so a floor row such
+// as `.github/workflows/eval-browser-dispatch.yml` counts as nothing. The
+// list sits in its own marker block: its literals are not counted, and a
+// patch line inside the block refuses, so deleting one literal cannot make
+// room for a real call.
 const JS_DYNAMIC = Object.freeze([
-  ["eval", /\beval\b/g],
+  // BEGIN js-dynamic JS_DYNAMIC
+  ["eval(", /\beval\s*\(/g],
   ["Function(", /\bFunction\s*\(/g],
   ["new Function", /\bnew\s+Function\b/g],
   ["globalThis", /\bglobalThis\b/g],
@@ -214,14 +221,23 @@ const JS_DYNAMIC = Object.freeze([
   ["require(", /\brequire\s*\(/g],
   ["vm.", /\bvm\s*\./g],
   ["process.binding", /\bprocess\s*\.\s*binding\b/g],
+  // END js-dynamic JS_DYNAMIC
 ]);
+const DYNAMIC_BLOCK = "js-dynamic JS_DYNAMIC";
 
 // Why the head copy of a JS floor file reaches code more dynamically than
 // its base copy, or null.
 export function jsRefusal(baseText, headText) {
+  // The text less the one JS_DYNAMIC block, when a copy has exactly one.
+  const outside = (text) => {
+    const lines = String(text).split("\n");
+    const block = bounds(lines, DYNAMIC_BLOCK);
+    return block ? [...lines.slice(0, block.begin - 1), ...lines.slice(block.end)].join("\n") : lines.join("\n");
+  };
+  const [base, head] = [outside(baseText), outside(headText)];
   for (const [name, pattern] of JS_DYNAMIC) {
-    const count = (text) => (String(text).match(pattern) ?? []).length;
-    if (count(headText) > count(baseText)) return `it adds ${name}`;
+    const count = (text) => (text.match(pattern) ?? []).length;
+    if (count(head) > count(base)) return `it adds ${name}`;
   }
   return null;
 }
@@ -261,8 +277,14 @@ async function floorRefusal(github, repo, pull) {
     const touched = [file.filename, file.previous_filename].filter((name) => FLOOR_FILES.includes(name));
     if (touched.length === 0) continue;
     if (file.status !== "modified" || file.previous_filename) return `it ${file.status} ${touched[0]}`;
-    const base = Object.hasOwn(SHAPES, file.filename) ? floorOf(await text(github, repo, file.filename, mergeBase), file.filename) : null;
-    const why = floorChange(file.filename, file.patch, base);
+    const baseText = await text(github, repo, file.filename, mergeBase);
+    const base = Object.hasOwn(SHAPES, file.filename) ? floorOf(baseText, file.filename) : null;
+    let locked = null;
+    if (file.filename === LANE_ARMED_MJS) {
+      locked = bounds(baseText.split("\n"), DYNAMIC_BLOCK);
+      if (!locked) return `the base copy of ${LANE_ARMED_MJS} has no single JS_DYNAMIC block`;
+    }
+    const why = floorChange(file.filename, file.patch, base, locked);
     if (why) return why;
     if (file.filename === RISK) {
       const parsed = astRefusal(await text(github, repo, RISK, mergeBase), await text(github, repo, RISK, pull.head.sha));

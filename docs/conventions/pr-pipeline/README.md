@@ -2509,7 +2509,7 @@ A lane-armed path clears only when all of these hold at the current head:
    derived from one other than once, at module level, by one assignment: a table to a literal, a
    derived set to the base's expression. `merge-holds.mjs` binds its tables with `const` and
    `Object.freeze`, which no later line can rebind by name. Its head copy, and `lane-armed.mjs`'s,
-   also refuses when it holds more `eval`, `Function(`, `globalThis`, `Reflect.`,
+   also refuses when it holds more `eval(`, `Function(`, `globalThis`, `Reflect.`,
    `Object.defineProperty`, `__proto__`, `import(`, `require(`, `vm.` or `process.binding` than the
    base copy. Any other logic edit there stays the residual below. `floor-ast.py` holds no table:
    its patch is judged for markers and hold names only.

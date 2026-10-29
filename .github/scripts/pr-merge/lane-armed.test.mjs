@@ -179,7 +179,8 @@ function world({ head = HEAD, files = {}, changed, moved = {}, mergeBase = MERGE
     if (path === `/repos/${REPO}/pulls/7`) return { head: { sha: head }, base: { sha: BASE }, changed_files: changed ?? listed.length };
     if (path === `/repos/${REPO}/compare/${BASE}...${head}`) return { merge_base_commit: { sha: mergeBase }, files: listed };
     const file = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
-    if (file) return content(at[file[2]][file[1]]);
+    // A floor file the world does not hold is this checkout's copy.
+    if (file) return content(at[file[2]]?.[file[1]] ?? readFileSync(new URL(`../../../${file[1]}`, import.meta.url), "utf8"));
     if (path.includes("/check-runs?check_name=pr-merge%2Flane-armed")) return { check_runs: checks };
     if (path.includes("/actions/workflows/pr-require-checks.yml/runs?head_sha=")) return { workflow_runs: ciRun ? [{ id: 3, status: "completed" }, ciRun] : [] };
     if (path === `/repos/${REPO}/actions/runs/9/jobs?per_page=100`) return { jobs: [{ id: 76, name: "lint-repo", conclusion: "success" }, ciJob] };
@@ -367,7 +368,8 @@ test("floor-ast.py is judge code: a logic edit is judged for markers and names, 
 test("jsRefusal refuses a JS floor file that reaches code more dynamically than its base", () => {
   const base = MJS(ROWS, ARMED);
   for (const [name, line] of [
-    ["eval", 'eval("HOLD_" + "PATH_FLOOR.length = 0");'],
+    ["eval(", 'eval("HOLD_" + "PATH_FLOOR.length = 0");'],
+    ["eval(", "eval (x);"],
     ["globalThis", 'globalThis["HOLD_" + "PATH_CLASSES"] = [];'],
     ["Function(", 'Function("return 1")();'],
     ["Reflect.", 'Reflect.set(x, "a", 1);'],
@@ -382,13 +384,35 @@ test("jsRefusal refuses a JS floor file that reaches code more dynamically than 
   assert.equal(jsRefusal(`${base}eval(1);\n`, `${base}eval(2);\n`), null);
   assert.equal(jsRefusal(base, base.replace("x + 1", "x + 2")), null);
   assert.equal(jsRefusal(base, `${base}const evaluate = 1;\n`), null);
+  // A floor row for another eval-* workflow is a tightening, not a call.
+  assert.equal(jsRefusal(base, MJS([...ROWS, [".github/workflows/eval-foo.yml", "gate"]], ARMED)), null);
+  assert.equal(judge(HOLDS, base, MJS([...ROWS, [".github/workflows/eval-foo.yml", "gate"]], ARMED)), null);
+});
+
+// lane-armed.mjs holds the very tokens it counts, as literals in its
+// JS_DYNAMIC list; they are not counted, and the list cannot be edited.
+test("lane-armed.mjs cannot trade a JS_DYNAMIC literal for a real call", async () => {
+  const source = readFileSync(new URL("./lane-armed.mjs", import.meta.url), "utf8");
+  const literal = '  ["eval(", /\\beval\\s*\\(/g],\n';
+  assert.ok(source.includes(literal));
+  const traded = source.replace(literal, "").replace("export function jsRefusal(baseText, headText) {", 'export function jsRefusal(baseText, headText) {\n  eval("1");');
+  // The count alone sees the real call once the literal is not counted.
+  assert.equal(jsRefusal(source, traded), "it adds eval(");
+  // The patch rule refuses the edit inside the list before the count runs.
+  const w = world({ files: { [LANE_ARMED_MJS]: { status: "modified", patch: diff(source, traded) } } });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 0, out);
+  assert.ok(out.includes(`its change could weaken the hold floor: a removed line of ${LANE_ARMED_MJS} is inside the JS_DYNAMIC list`), out);
+  assert.deepEqual(w.writes, []);
+  // Moving or dropping the block's markers refuses too.
+  assert.match(floorChange(LANE_ARMED_MJS, diff(source, source.replace("  // END js-dynamic JS_DYNAMIC\n", "")), null), /names a floor marker/);
 });
 
 test("an added eval in merge-holds.mjs is refused end to end", async () => {
   const w = world({ files: { [HOLDS]: MJS(ROWS, ARMED).replace("x + 1", 'eval("x + 1")') } });
   const { code, out } = await run([ROW], w);
   assert.equal(code, 0, out);
-  assert.ok(out.includes(`its change could weaken the hold floor: its ${HOLDS}: it adds eval`), out);
+  assert.ok(out.includes(`its change could weaken the hold floor: its ${HOLDS}: it adds eval(`), out);
   assert.deepEqual(w.writes, []);
 });
 
