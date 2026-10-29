@@ -3,6 +3,46 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.20.0] - 2026-10-29
+
+### Added
+
+- `review-venue --head <sha>` prints a `tests` line: `ci` when every test-lane check run on that commit passed, was skipped or ended neutral, and at least one passed, otherwise `local`. A skipped re-run from a label or body edit does not hide a lane's earlier failure.
+- `ready --verify-local` runs the verify step's test suites locally even when CI's test lanes already passed on the head.
+
+### Changed
+
+- The pr-merge gate lets a pull request a person on the trusted-actor list opened clear a `gate` floor path that only their own commits touched on a clean security review of a head pr-verify passed, as an `enforcement` path clears; lanes App and bot pull requests, a lane fix on a gate path and every `trust` path still wait for a person; `.github/actions/resolve-config/**` and `docs/conventions/pr-pipeline.yaml`, which scope lane tokens, and `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py`, `babysit_review_evidence.py`, `merge-holds.mjs` and `scripts/sync-hold-floor.py`, which compute the lift and the hold tables, and `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and `head-ref-map.mjs`, which apply and enforce the holds, are now `trust`, so it never takes the lift.
+
+- `/source-control:babysit-prs`: the post-merge check (`babysit_postmerge.py`) answers an earlier attempt of a re-run full run from the file named in `BABYSIT_POSTMERGE_ATTEMPTS` before reading it, when the file holds that run's attempt, completed, at the same head SHA. A completed attempt never changes, so the answer decides as the read would. The check writes back the completed attempts it used; a check that looks up no attempt leaves the file as it was. A missing or malformed file (another version or repository, a key that does not match its entry, an attempt not completed, a field the reader does not use) is no file, and every attempt is read as before. Without the variable nothing changes.
+
+- `/source-control:pull-request ready` no longer runs the test suites locally when CI's test lanes have already passed on the head it flips. It reports the verify step as `skipped (CI covers it)` and names the skipped suites. A draft's head still runs them, because a draft skips the test lanes.
+
+- cite the gather-block composition record from its new convention doc
+
+  The record that a skill's whole pre-compute block reaches the shell
+  as one invocation moved to the repository's gather-block convention
+  (#7976). The worktree, babysit-prs and resolve-conflicts skills cite
+  it there. The worktree skill's `reference/gather-block.md` keeps the
+  heading as a pointer, so existing links still resolve, and keeps the
+  accepted command shapes section unchanged.
+
+- The `pr-body-linkage-gate` and `pr-linkage-mcp-gate` hooks block a PR body only when it carries a negated closing reference (`does not close #N`), which GitHub still closes on merge. A body missing a closing line or a `## Summary`, `## Fix`, `## Verification` or `## Related` section now passes, matching CI, which reports those as advisory. An MCP `create_pull_request` with no body passes too. The `/source-control:pull-request create` pre-create section check is unchanged.
+
+### Fixed
+
+- read the artifact listing again after a page body cut short
+
+  gh reports a truncated page as `unexpected end of JSON input`, which the
+  verify-evidence reader treated as a permanent failure: the skip step
+  skipped nothing and the gate refused with `verify:unreadable` without a
+  second read. It is now a transient error: a whole listing cut short is
+  read once more, never twice, since each such read may have paged every
+  artifact. The incremental listing's page reads
+  are read again the same way, and so is a page whose body is cut short
+  while gh exits 0, so one bad page no longer costs a whole listing. A
+  listing that keeps failing still refuses.
+
 ## [3.19.1] - 2026-10-29
 
 ### Fixed

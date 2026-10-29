@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [1.8.0] - 2026-10-29
+
+### Added
+
+- `/session-flow:audit-sessions ticket --pattern '<regex>'`: groups stored sessions by the key the pattern matches in the title or branches, else the working directory. Per key it reports the sessions, output tokens, distinct linked PRs, gaps between sessions, and the first-to-last span, labeled a session-side proxy, not cycle time. `--branch` keeps the one key a branch name matches. The `sweep` report is unchanged.
+- `/session-flow:retro session --pattern '<regex>'` adds a ticket section from that rollup when the current branch has a key.
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: it gains
+  `iter_workflow_agents`, which this plugin does not call; `iter_subagents` is unchanged.
+
 ## [1.7.1] - 2026-10-28
 
 ### Changed
