@@ -46,6 +46,13 @@ for (const [reason, row] of Object.entries(STOP_ROUTES)) {
   if (row.route === "hold" && !HOLD_CLASSES.has(row.class)) {
     throw new Error(`stop-routes.json: ${reason} holds, so its class needs to be one of ${[...HOLD_CLASSES].join(", ")}`);
   }
+  if (row.route !== "hold" && row.class !== undefined) {
+    throw new Error(`stop-routes.json: ${reason} does not hold, so it takes no class`);
+  }
+}
+// runCode's security backstop routes to this row.
+if (STOP_ROUTES["security-risk"]?.route !== "hold" || STOP_ROUTES["security-risk"].class !== "security-risk") {
+  throw new Error("stop-routes.json: security-risk needs a hold route and class security-risk");
 }
 // A spent cap that routed to retry would retry without end.
 for (const spent of ["retry-spent", "turn-cap-spent"]) {
@@ -71,20 +78,27 @@ export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_RO
 export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");
 
 // The codes a run may open its `stopped` reason with, longest first, each in
-// any case and with a space or a hyphen between its words.
+// any case: security-risk with a hyphen, underscore, space or nothing between
+// its words, every other code only hyphenated and followed by a colon, a
+// backtick, closing emphasis, a space or the end, so "Design change in X"
+// names no code.
 const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
-  .map((code) => [code, new RegExp(`^${code.replaceAll("-", "[-\\s]")}\\b`, "i")]);
-// A reason with no code that names security or a vulnerability as a word.
-const SECURITY_WORD = /\b(?:security|vulnerab\w*)\b/i;
+  .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?=[:\\x60*_\\s]|$)`, "i")]);
+// A reason with no code that names security or a vulnerability, even inside
+// a word.
+const SECURITY_WORD = /security|vulnerab/i;
 
-// The code a run's stop reason opens with, past any emphasis, backticks and a
+// The code a run's stop reason opens with, read NFKC-normalized (so a
+// full-width letter reads as its ASCII one) past any emphasis, backticks and a
 // `Reason:` label. With none, security-risk when it names security or a
 // vulnerability, so a misformatted security code still reaches a person; else
 // "stopped". Intent, design and cost words are common in plain reasons, so
 // only their code holds for them.
 export const runCode = (reason) => {
-  const text = String(reason ?? "").replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
+  const text = String(reason ?? "")
+    .normalize("NFKC")
+    .replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
   return CODES.find(([, code]) => code.test(text))?.[0] ?? (SECURITY_WORD.test(text) ? "security-risk" : "stopped");
 };

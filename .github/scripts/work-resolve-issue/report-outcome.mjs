@@ -32,8 +32,8 @@
 //   agent-ready and status: ready, so the triage sweep sends the issue back
 //   through intake; close closes the issue as completed (an already-done
 //   stop only once its cited commit or pull request is on the default
-//   branch and closes the issue or changes a path it names, doneEvidence,
-//   else it retries); fail removes agent-ready and adds no label. A
+//   branch and its commit message closes the issue, doneEvidence, else it
+//   retries); fail removes agent-ready and adds no label. A
 //   route other than hold carries no escalation marker.
 //
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
@@ -1612,17 +1612,6 @@ const openPull = (github, repo, pr, { bot, humans }) =>
       )
     : Promise.resolve("");
 
-// The paths an issue body names: each word between spaces, quotes, brackets or
-// colons (so `path:line` counts), less a blob or tree link's prefix, a `#L`
-// anchor, a leading `./` and a trailing period.
-const bodyPaths = (body) =>
-  new Set(
-    String(body ?? "")
-      .split(/[\s`'"()[\]<>,:;]+/)
-      .map((word) => word.replace(/^.*?\/(?:blob|tree)\/[^/]+\//, "").replace(/#.*$/, "").replace(/^\.\//, "").replace(/\.+$/, ""))
-      .filter(Boolean),
-  );
-
 // Whether `text` closes issue `number` as GitHub reads a closing keyword:
 // close, fix or resolve in any tense and case, an optional colon, then
 // `#<number>`. A `Refs:` line, a follow-up or a squash suffix closes nothing.
@@ -1631,13 +1620,15 @@ const bodyPaths = (body) =>
 const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?![0-9])`, "i").test(text);
 
 // Whether the commit or pull request an already-done reason cites is on the
-// default branch and tied to the issue: a pull request (`#<n>`) merged into
+// default branch and closes the issue: a pull request (`#<n>`) merged into
 // the default branch, or a commit SHA the default branch contains (the
 // compare from it is ahead or identical), merged or committed after the issue
-// opened, whose title, body or message closes the issue (closesIssue) or whose
-// files include a path with a directory that the issue body names. Any merged
-// change is not proof: a release commit once closed an issue it never touched
-// (run 40844966342). A read that fails, or a reason that cites neither, proves nothing.
+// opened, whose commit message closes the issue (closesIssue). A pull request
+// is read by its merge commit, which a squash fills from the body, since its
+// title and body stay editable after the merge. Lane pull requests carry
+// `Closes #N`, so nothing else counts: a release commit once closed an issue
+// it never touched (run 40844966342). A read that fails, or a reason that
+// cites neither, proves nothing.
 export async function doneEvidence(github, repo, reason, issueNumber) {
   const pr = waitedPull(reason, issueNumber);
   // A SHA holds a letter, so a run id or other number is never read as one;
@@ -1652,16 +1643,16 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
   if (!Number.isFinite(opened) || typeof base !== "string" || base === "") {
     return false;
   }
-  const named = new Set([...bodyPaths(issue.body)].filter((path) => path.includes("/")));
-  const tied = async (text, at, files) => Date.parse(at) > opened && (closesIssue(text, issueNumber) || (await files()).some((file) => named.has(file?.filename)));
+  const tied = (commit, at) => Date.parse(at) > opened && closesIssue(String(commit?.commit?.message ?? ""), issueNumber);
   if (
     pr &&
     (await github("GET", `${repo}/pulls/${pr}`)
       .then(
-        (pull) =>
+        async (pull) =>
           Boolean(pull?.merged_at) &&
           pull.base?.ref === base &&
-          tied(`${pull.title ?? ""}\n${pull.body ?? ""}`, pull.merged_at, () => paginate(github, `${repo}/pulls/${pr}/files`)),
+          /^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? "") &&
+          tied(await github("GET", `${repo}/commits/${pull.merge_commit_sha}`), pull.merged_at),
       )
       .catch(() => false))
   ) {
@@ -1672,7 +1663,7 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
     if (
       (comparison?.status === "ahead" || comparison?.status === "identical") &&
       (await github("GET", `${repo}/commits/${encodeURIComponent(sha)}`)
-        .then((commit) => tied(String(commit?.commit?.message ?? ""), commit?.commit?.committer?.date, () => commit?.files ?? []))
+        .then((commit) => tied(commit, commit?.commit?.committer?.date))
         .catch(() => false))
     ) {
       return true;
@@ -1702,7 +1693,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
   }
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
     const why =
-      "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened that closes this issue or changes a path it names, so it retries instead of closing.";
+      "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened whose commit message closes this issue, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (COUNTED.has(plan.action)) {
