@@ -216,7 +216,8 @@ fallback), then:
    - **Pointer**: the probe record in [reference/denial-probe.md](reference/denial-probe.md); the
      docs sections, [Permission modes § When auto mode falls back](https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back)
      and [agent view § Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort).
-   - **As of**: probe 2026-10-28, Claude Code 2.1.312; docs sections read 2026-10-29
+   - **As of**: probe 2026-10-28, Claude Code 2.1.312; docs pages read 2026-10-29, first 100000
+     characters of each only
    - **Recheck trigger**: a Claude Code release note changes how a background session handles a
      classifier denial, or either section starts saying what a background session does when an
      action is denied or auto mode falls back.

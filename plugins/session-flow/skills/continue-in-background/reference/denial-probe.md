@@ -4,7 +4,9 @@ Detail behind the denied-action statement in launch step 2 of [SKILL.md](../SKIL
 statement rests on this probe, not on a docs page: neither
 <https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back> nor
 <https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort> says what a `--bg`
-session does when the auto-mode classifier denies an action (both read 2026-10-29).
+session does when the auto-mode classifier denies an action, as far as each page was read on
+2026-10-29: its first 100000 characters, where the fetch stopped. A later part of either page
+could say it, so a full read of both pages is still owed.
 
 | Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
