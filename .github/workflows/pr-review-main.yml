@@ -96,7 +96,8 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          # The main commit this run started from, so every leg runs the same main.
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
@@ -167,12 +168,13 @@ jobs:
       # the workspace. git diff reads no attributes or diff drivers from it,
       # so nothing in the PR runs; the patch is a data file (write-diff.py).
       # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run. A
-      # file moved unchanged prints as its rename lines alone, so pure moves
-      # stay under the size cap; an edited rename, a move into or out of a
-      # lane source and a move that changes the mode print whole, as
-      # `--no-renames` shows them, so a partial rename into a lane source is
-      # reviewed as the new file. A patch that still
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # and a move whose new path an added line names still print whole. A
+      # patch that still
       # shows a binary file, or is larger than one review can read whole,
       # gets no verdict: the step fails and the lanes stay unbound. The tree
       # the verdict is keyed on comes from git, never from the model.
@@ -204,7 +206,7 @@ jobs:
           git init -q "$SRC"
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
-          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
             exit 1
@@ -497,7 +499,8 @@ jobs:
   review-handoffs:
     needs: review
     if: >-
-      github.ref == 'refs/heads/main'
+      !cancelled()
+      && github.ref == 'refs/heads/main'
       && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -552,7 +555,8 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          # The main commit this run started from, so every leg runs the same main.
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
@@ -623,12 +627,13 @@ jobs:
       # the workspace. git diff reads no attributes or diff drivers from it,
       # so nothing in the PR runs; the patch is a data file (write-diff.py).
       # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run. A
-      # file moved unchanged prints as its rename lines alone, so pure moves
-      # stay under the size cap; an edited rename, a move into or out of a
-      # lane source and a move that changes the mode print whole, as
-      # `--no-renames` shows them, so a partial rename into a lane source is
-      # reviewed as the new file. A patch that still
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # and a move whose new path an added line names still print whole. A
+      # patch that still
       # shows a binary file, or is larger than one review can read whole,
       # gets no verdict: the step fails and the lanes stay unbound. The tree
       # the verdict is keyed on comes from git, never from the model.
@@ -660,7 +665,7 @@ jobs:
           git init -q "$SRC"
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
-          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
             exit 1
@@ -954,7 +959,8 @@ jobs:
   subscription-handoffs:
     needs: review-subscription
     if: >-
-      github.ref == 'refs/heads/main'
+      !cancelled()
+      && github.ref == 'refs/heads/main'
       && (needs.review-subscription.outputs.claude-review != '' || needs.review-subscription.outputs.claude-security-review != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -1002,7 +1008,8 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/heads/main
+          # The main commit this run started from, so every leg runs the same main.
+          ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
 
@@ -1073,12 +1080,13 @@ jobs:
       # the workspace. git diff reads no attributes or diff drivers from it,
       # so nothing in the PR runs; the patch is a data file (write-diff.py).
       # `--text` shows a file git would call binary (a NUL byte early in a
-      # script) as text, so the reviewer sees what node or bash would run. A
-      # file moved unchanged prints as its rename lines alone, so pure moves
-      # stay under the size cap; an edited rename, a move into or out of a
-      # lane source and a move that changes the mode print whole, as
-      # `--no-renames` shows them, so a partial rename into a lane source is
-      # reviewed as the new file. A patch that still
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # and a move whose new path an added line names still print whole. A
+      # patch that still
       # shows a binary file, or is larger than one review can read whole,
       # gets no verdict: the step fails and the lanes stay unbound. The tree
       # the verdict is keyed on comes from git, never from the model.
@@ -1110,7 +1118,7 @@ jobs:
           git init -q "$SRC"
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
-          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
             exit 1

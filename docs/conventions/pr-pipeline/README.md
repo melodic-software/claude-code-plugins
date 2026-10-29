@@ -1078,11 +1078,13 @@ the rules that only tighten in
   the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
   `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
   whole diff) for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. A file moved
-  unchanged (git's 100% similarity) shows as its rename lines alone, so pure moves stay under the
-  size cap; an edited rename, a move into or out of a lane source (`lane_source`) and a move that
-  changes the file mode show whole, as `--no-renames` would (`write-diff.py`), and the caps apply
-  after. A verdict binds only when the head
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
+  `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
+  does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
+  a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
+  symlink or submodule, and one whose new path (or its last directory and name) an added line names
+  show whole (`write-diff.py`); the prompt tells the reviewer a rename-only entry is unseen and that
+  a change referencing a moved path is a finding. The caps apply after. A verdict binds only when the head
   also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
   cancelled before it recorded binds nothing. Each
   lane uploads `verdict.json` as

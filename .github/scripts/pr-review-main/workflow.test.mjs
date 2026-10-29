@@ -6,7 +6,7 @@
 // order, a later leg only for a lane the previous one handed on.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, symlinkSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -80,7 +80,7 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
 
 test("the diff shows every file as text and refuses one a review cannot read whole", () => {
   const diff = step("Write the diff");
-  assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch"/);
+  assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch" "\$MAX_DIFF_BYTES"$/m);
   assert.match(writeDiff, /^DIFF = \["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"\]$/m);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
   assert.match(diff, /-gt "\$MAX_DIFF_BYTES"/);
@@ -131,7 +131,8 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
 
 // write-diff.py run on a fixture repository: each case is a commit on top of
 // a base, and the patch it prints for base...head.
-function diffCase(build) {
+// A cap of 0 makes every patch over it, so moves may collapse.
+function diffCase(build, maxBytes = 0) {
   const src = mkdtempSync(path.join(tmpdir(), "pr-review-main-rename-"));
   try {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
@@ -146,7 +147,11 @@ function diffCase(build) {
       writeFileSync(path.join(src, file), body);
     };
     git("init", "-q");
-    build.base(write);
+    const symlink = (target, file) => {
+      mkdirSync(path.dirname(path.join(src, file)), { recursive: true });
+      symlinkSync(target, path.join(src, file));
+    };
+    build.base(write, symlink);
     git("add", "-A");
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
     const base = git("rev-parse", "HEAD");
@@ -155,7 +160,7 @@ function diffCase(build) {
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "head");
     const head = git("rev-parse", "HEAD");
     const out = path.join(src, "..", `${path.basename(src)}.patch`);
-    const run = spawnSync("python3", ["-I", WRITE_DIFF, src, base, head, out], { encoding: "utf8", env });
+    const run = spawnSync("python3", ["-I", WRITE_DIFF, src, base, head, out, String(maxBytes)], { encoding: "utf8", env });
     assert.equal(run.status, 0, run.stderr);
     const patch = readFileSync(out, "utf8");
     rmSync(out);
@@ -166,20 +171,71 @@ function diffCase(build) {
 }
 const lines = (prefix, n) => `${Array.from({ length: n }, (_, i) => `${prefix} ${i}`).join("\n")}\n`;
 
-test("a file moved unchanged outside the lane sources prints as its rename lines alone", () => {
-  const patch = diffCase({
-    base: (write) => {
-      for (let i = 0; i < 5; i++) write(`docs/a${i}.md`, lines(`file ${i} line`, 400));
-    },
-    head: (git) => {
-      for (let i = 0; i < 5; i++) git("mv", `docs/a${i}.md`, `guide/a${i}.md`);
-    },
-  });
+const fiveMoves = {
+  base: (write) => {
+    for (let i = 0; i < 5; i++) write(`docs/a${i}.md`, lines(`file ${i} line`, 400));
+  },
+  head: (git) => {
+    for (let i = 0; i < 5; i++) git("mv", `docs/a${i}.md`, `guide/a${i}.md`);
+  },
+};
+
+test("under the size cap every move prints whole, as --no-renames shows it", () => {
+  // Five 400-line files, each about 7 KB as added and again as deleted.
+  const patch = diffCase(fiveMoves, 300000);
+  assert.doesNotMatch(patch, /^rename from/m);
+  for (let i = 0; i < 5; i++) {
+    assert.equal(patch.match(new RegExp(`^\\+file ${i} line \\d+$`, "gm")).length, 400);
+    assert.equal(patch.match(new RegExp(`^-file ${i} line \\d+$`, "gm")).length, 400);
+  }
+});
+
+test("over the size cap a file moved unchanged outside the lane sources prints as its rename lines alone", () => {
+  const patch = diffCase(fiveMoves, 1000);
   // Five moves of 400 lines each: five headers, no content line.
   assert.equal(patch.match(/^rename from docs\/a\d\.md$/gm).length, 5);
   assert.equal(patch.match(/^rename to guide\/a\d\.md$/gm).length, 5);
   assert.doesNotMatch(patch, /^[+-]file /m);
   assert.ok(patch.length < 1000, `${patch.length} bytes`);
+});
+
+test("over the size cap a move an added line names prints whole, and so does one that move names", () => {
+  const patch = diffCase({
+    base: (write) => {
+      write("tools/setup.sh", `source x/helper.sh\n${lines("hostile", 20)}`);
+      write("lib/x/helper.sh", lines("helper", 20));
+      write("lib/quiet.md", lines("quiet", 20));
+      write("ci.yml", "steps: []\n");
+    },
+    head: (git, write) => {
+      git("mv", "tools/setup.sh", "build/setup.sh");
+      git("mv", "lib/x/helper.sh", "build/x/helper.sh");
+      git("mv", "lib/quiet.md", "docs/quiet.md");
+      // The edit names the first move by its whole path; that move, printed
+      // whole, names the second by its last directory and name.
+      write("ci.yml", "steps: []\nrun: bash build/setup.sh\n");
+    },
+  });
+  for (const word of ["hostile", "helper"]) {
+    assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 20, word);
+  }
+  assert.match(patch, /^\+source x\/helper\.sh$/m);
+  // The move nothing names still collapses.
+  assert.match(patch, /^rename to docs\/quiet\.md$/m);
+  assert.doesNotMatch(patch, /^\+quiet /m);
+  assert.doesNotMatch(patch, /^rename to build\//m);
+});
+
+test("over the size cap a moved symlink prints whole", () => {
+  const patch = diffCase({
+    base: (_write, symlink) => symlink("../../etc/hostile", "links/run"),
+    head: (git) => git("mv", "links/run", "bin/run"),
+  });
+  // The link's target shows on both sides, as --no-renames prints it.
+  assert.doesNotMatch(patch, /^rename from/m);
+  assert.match(patch, /^new file mode 120000$/m);
+  assert.match(patch, /^\+\.\.\/\.\.\/etc\/hostile$/m);
+  assert.match(patch, /^-\.\.\/\.\.\/etc\/hostile$/m);
 });
 
 test("a move into or out of a lane source, or one that changes the mode, prints whole", () => {
@@ -235,7 +291,9 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   for (const job of LEGS) {
     const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.block));
     assert.equal(checkouts.length, 1, job);
-    assert.match(checkouts[0].block, /^ {10}ref: refs\/heads\/main$/m);
+    // workflow_run's github.sha is the default branch commit whose copy of
+    // this file runs, so every leg checks out that same main.
+    assert.match(checkouts[0].block, /^ {10}ref: \$\{\{ github\.sha \}\}$/m);
     assert.match(checkouts[0].block, /^ {10}persist-credentials: false$/m);
   }
   for (const [, local] of text.matchAll(/^\s+uses: (\.\/\S+)/gm)) {
@@ -412,7 +470,10 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     const routeJob = jobText(route);
     assert.equal(needsOf(route), from);
     assert.match(routeJob, new RegExp(`&& \\(needs\\.${from}\\.outputs\\.claude-review != '' \\|\\| needs\\.${from}\\.outputs\\.claude-security-review != ''\\)`));
-    assert.doesNotMatch(routeJob, /always\(\)|!cancelled\(\)/);
+    // !cancelled(): one lane's failed leg does not drop the other lane's
+    // handoff; the route still passes on only closed-set reasons.
+    assert.match(routeJob, /^ {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/m);
+    assert.doesNotMatch(routeJob, /always\(\)/);
     const leg = jobText(to);
     assert.equal(needsOf(to), route);
     assert.match(leg, new RegExp(`^ {6}matrix: \\$\\{\\{ fromJSON\\(needs\\.${route}\\.outputs\\.matrix\\) \\}\\}$`, "m"));
@@ -485,4 +546,21 @@ test("every later leg repeats the key leg's steps but for its credential and why
     assert.equal(gates(job), gates(KEY));
   }
   assert.equal(input(step("Report the review's outcome", KEY), "fallback-reason"), undefined);
+});
+
+test("one lane handed on beside one that reviewed routes only the handed-on lane", () => {
+  for (const job of Object.keys(ROUTES)) {
+    // The security lane reviewed (no output); the code lane handed on.
+    const { status, matrix } = routeRun(job)({ CODE: "credit-stop", SECURITY: "" });
+    assert.equal(status, 0, job);
+    assert.deepEqual(matrix.include.map((row) => [row.lane, row.reason]), [["claude-review", "credit-stop"]], job);
+  }
+});
+
+test("the prompt says a rename-only entry is unseen and a change that references a moved path is a finding", () => {
+  const flat = prompt.replace(/\s+/g, " ");
+  assert.ok(flat.includes("A file moved unchanged may show only as its `rename from` and `rename to` lines: its content is not in the diff, so you have not seen it."));
+  assert.ok(flat.includes("When any change you can see runs, sources, includes or otherwise references a path such an entry moved (its old or new path), report it as a finding"));
+  // It sits with the diff parts, before the placeholder they replace.
+  assert.ok(prompt.indexOf("rename from") < prompt.indexOf("DIFF_PARTS"));
 });

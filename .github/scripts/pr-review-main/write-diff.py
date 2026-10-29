@@ -1,14 +1,17 @@
 """Write the main-run review's patch for BASE...HEAD of a repository.
 
-usage: write-diff.py <repo> <base-sha> <head-sha> <out-file>
+usage: write-diff.py <repo> <base-sha> <head-sha> <out-file> <max-bytes>
 
-A file moved unchanged (git's 100% similarity) prints as its `rename from` and
-`rename to` lines alone, so a pull request of pure moves stays inside the
-review's size cap. Every other change prints whole, as `--no-renames` shows
-it: an edited rename as a delete and an add, and a move into or out of a lane
-source (babysit_review_evidence.lane_source, the gate's own predicate) or one
-that changes the file mode as its old file deleted and its new file added,
-so the reviewer reads what the lane source holds. `--text` shows a file git
+The patch is `--no-renames`, so every file prints whole, unless that patch is
+over max-bytes, the review's size cap. Then a file moved unchanged (git's 100%
+similarity) prints as its `rename from` and `rename to` lines alone, so a pull
+request of pure moves fits, and every other change still prints whole. A move
+prints whole even then when the reviewer could not judge it from the other
+changes: a move into or out of a lane source
+(babysit_review_evidence.lane_source, the gate's own predicate), one that
+changes the file mode or moves a symlink or a submodule, and one whose new
+path (or its last directory and name) an added line of the patch names, so a
+change that runs a moved file shows what it runs. `--text` shows a file git
 would call binary as text, and no attribute, diff driver or textconv in the
 repository runs. The caller applies its binary, size and line caps to the
 result.
@@ -29,6 +32,8 @@ sys.path.insert(
 import babysit_review_evidence as ev  # noqa: E402
 
 DIFF = ["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"]
+# A symlink's or a submodule's mode: the rename lines show neither target.
+LINK_MODES = {"120000", "160000"}
 
 
 def git(repo: str, *args: str) -> bytes:
@@ -37,11 +42,12 @@ def git(repo: str, *args: str) -> bytes:
     ).stdout
 
 
-def whole_paths(raw: bytes) -> list[str]:
-    """The paths of each exact rename in `git diff --raw -z -M100%` output that
-    must print whole: a lane source on either side, or a mode change."""
+def renames(raw: bytes) -> tuple[list[str], list[tuple[str, str]]]:
+    """From `git diff --raw -z -M100%` output, the paths of each rename that
+    must print whole, and the pure moves that may collapse."""
     fields = raw.split(b"\0")
-    paths: list[str] = []
+    whole: list[str] = []
+    moves: list[tuple[str, str]] = []
     i = 0
     while i < len(fields) and fields[i]:
         old_mode, new_mode, _, _, status = (
@@ -53,35 +59,61 @@ def whole_paths(raw: bytes) -> list[str]:
             if (
                 status != "R100"
                 or old_mode != new_mode
+                or {old_mode, new_mode} & LINK_MODES
                 or ev.lane_source(src)
                 or ev.lane_source(dst)
             ):
-                paths += [src, dst]
+                whole += [src, dst]
+            else:
+                moves.append((src, dst))
         else:
             i += 2
-    return paths
+    return whole, moves
 
 
-def write_diff(repo: str, base: str, head: str) -> bytes:
+def named(path: str, added: bytes) -> bool:
+    """Whether an added line names `path`, or its last directory and name."""
+    tail = "/".join(path.split("/")[-2:])
+    return os.fsencode(path) in added or os.fsencode(tail) in added
+
+
+def write_diff(repo: str, base: str, head: str, max_bytes: int) -> bytes:
     commits = f"{base}...{head}"
-    whole = whole_paths(
+    plain = git(repo, *DIFF, "--no-renames", commits)
+    if len(plain) <= max_bytes:
+        return plain
+    whole, moves = renames(
         git(repo, "diff", "--raw", "-z", "-M100%", "--no-ext-diff", commits)
     )
-    patch = git(
-        repo, *DIFF, "-M100%", commits, "--", *(f":(exclude,literal){p}" for p in whole)
-    )
-    if whole:
-        patch += git(
+    while True:
+        patch = git(
             repo,
             *DIFF,
-            "--no-renames",
+            "-M100%",
             commits,
             "--",
-            *(f":(literal){p}" for p in whole),
+            *(f":(exclude,literal){p}" for p in whole),
         )
-    return patch
+        if whole:
+            patch += git(
+                repo,
+                *DIFF,
+                "--no-renames",
+                commits,
+                "--",
+                *(f":(literal){p}" for p in whole),
+            )
+        # Every `+` line, file headers too: a content line can look like one.
+        added = b"\n".join(line for line in patch.split(b"\n") if line.startswith(b"+"))
+        # A move printed whole adds lines, which may name another move.
+        shown = [move for move in moves if named(move[1], added)]
+        if not shown:
+            return patch
+        for move in shown:
+            moves.remove(move)
+            whole += list(move)
 
 
 if __name__ == "__main__":
-    repo, base, head, out = sys.argv[1:5]
-    Path(out).write_bytes(write_diff(repo, base, head))
+    repo, base, head, out, max_bytes = sys.argv[1:6]
+    Path(out).write_bytes(write_diff(repo, base, head, int(max_bytes)))
