@@ -271,6 +271,7 @@ TS_FILES=()
 PY_FILES=()
 GO_FILES=()
 SYM_FILES=()
+CS_FILES=()
 NOLANE_FILES=()
 SOURCE_FILES=()
 # Filled by the grep lane. Declared here so `set -u` can see the array before
@@ -290,6 +291,7 @@ while IFS= read -r scope_line; do
   py) PY_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   go) GO_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   shell | pwsh) SYM_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
+  cs) CS_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   nolane) NOLANE_FILES+=("$scope_line") SOURCE_FILES+=("$scope_line") ;;
   *) ;;
   esac
@@ -724,10 +726,11 @@ lane_gopls() {
 }
 
 # ---------------------------------------------------------------------------
-# Lane: grep (shell and PowerShell) — measured 4/4 true positives,
-# 0 false positives over 546 .sh / 177,793 lines. High precision, acknowledged
-# low recall. `grep -w -F` is the portable floor and -F is MANDATORY: without
-# it `core.ts` matches `coreXts`.
+# Lane: grep (shell, PowerShell, C#, standalone JS/TS) — shell symbols measured
+# 4/4 true positives, 0 false positives over 546 .sh / 177,793 lines. High
+# precision, acknowledged low recall. C# is read as text and never built.
+# `grep -w -F` is the portable floor and -F is MANDATORY: without it `core.ts`
+# matches `coreXts`.
 # ---------------------------------------------------------------------------
 
 # 0 when a package.json root owns the repo-relative path. JS/TS inside a root
@@ -746,9 +749,9 @@ dc_path_owned_by_package() {
   return 1
 }
 
-# Shell, PowerShell, Python entry points, JS/TS no package.json root owns, and
-# source files with no lane. Go stays with gopls: a module compiles files the
-# path never names.
+# Shell, PowerShell, Python entry points, JS/TS no package.json root owns, C#,
+# and source files with no lane. Go stays with gopls: a module compiles files
+# the path never names.
 collect_file_ref_files() {
   local f
   local -a PKG_ROOTS=()
@@ -768,7 +771,7 @@ collect_file_ref_files() {
     FILE_REF_FILES+=("$f")
     STANDALONE_TS_FILES+=("$f")
   done
-  for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
+  for f in ${CS_FILES[@]+"${CS_FILES[@]}"} ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
     FILE_REF_FILES+=("$f")
   done
 }
@@ -790,10 +793,16 @@ emit_unreferenced_files() {
     [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
     base="${f##*/}"
     # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
-    # `#include "util.h"` spells the name), so a no-lane file is also keyed on
-    # its stem. That saves more, never less: a stem match is a weaker miss.
+    # `#include "util.h"` spells the name), so a C# or no-lane file is also
+    # keyed on its stem. That saves more, never less: a stem match is a weaker
+    # miss. A C# stem drops every extension, so `Counter.razor.cs` is keyed on
+    # the `Counter` its markup and callers spell.
     stem=''
-    [[ "$(dc_lang_of_path "$f")" == 'nolane' ]] && stem="${base%.*}"
+    case "$(dc_lang_of_path "$f")" in
+    cs) stem="${base%%.*}" ;;
+    nolane) stem="${base%.*}" ;;
+    *) ;;
+    esac
     for key in "$base" "$f" ${stem:+"$stem"}; do
       dc_ref_key_ok "$key" || continue
       pair="${key}"$'\x1f'"${f}"
@@ -857,14 +866,14 @@ emit_unreferenced_files() {
 }
 
 lane_grep() {
-  local f lang d_line d_name d_text cnt nm defs hits shape
-  local inspected_n=0 emitted=0 sym_detail names_n
+  local f lang d_line d_name d_shape d_text cnt nm defs hits
+  local inspected_n=0 emitted=0 sym_detail names_n cs_detail=''
   local -A INSPECTED=()
   declare -A DEFS=()
   declare -A HITS=()
   local -a DEF_FILES=()
   collect_file_ref_files
-  DEF_FILES=(${SYM_FILES[@]+"${SYM_FILES[@]}"} ${STANDALONE_TS_FILES[@]+"${STANDALONE_TS_FILES[@]}"})
+  DEF_FILES=(${SYM_FILES[@]+"${SYM_FILES[@]}"} ${STANDALONE_TS_FILES[@]+"${STANDALONE_TS_FILES[@]}"} ${CS_FILES[@]+"${CS_FILES[@]}"})
   for f in ${SYM_FILES[@]+"${SYM_FILES[@]}"} ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
     [[ -n "${INSPECTED[$f]:-}" ]] && continue
@@ -873,7 +882,7 @@ lane_grep() {
   done
   if [[ "$inspected_n" -eq 0 ]]; then
     lane_line grep '.' scanned-zero-files 0 \
-      'no shell, PowerShell, or other unreferenced-file input in candidate scope — a scan of nothing, not a clean bill'
+      'no shell, PowerShell, C#, or other unreferenced-file input in candidate scope — a scan of nothing, not a clean bill'
     return 0
   fi
   printf 'dc_probe_symbol\n' >"$WORK/probe.txt"
@@ -886,9 +895,9 @@ lane_grep() {
   : >"$WORK/defs.tsv"
   for f in ${DEF_FILES[@]+"${DEF_FILES[@]}"}; do
     lang="$(dc_lang_of_path "$f")"
-    while IFS="$TAB" read -r d_line d_name d_text; do
+    while IFS="$TAB" read -r d_line d_name d_shape d_text; do
       [[ -n "$d_name" ]] || continue
-      printf '%s\t%s\t%s\t%s\n' "$f" "$d_line" "$d_name" "$d_text" >>"$WORK/defs.tsv"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$f" "$d_line" "$d_name" "$d_shape" "$d_text" >>"$WORK/defs.tsv"
       DEFS["$d_name"]=$((${DEFS["$d_name"]:-0} + 1))
     done < <(dc_symbol_defs "$f" "$lang")
   done
@@ -909,24 +918,27 @@ lane_grep() {
       [[ -n "$nm" ]] || continue
       HITS["$nm"]="$cnt"
     done < <(LC_ALL=C sort "$WORK/hits.txt" | uniq -c)
-    while IFS="$TAB" read -r f d_line d_name d_text; do
+    while IFS="$TAB" read -r f d_line d_name d_shape d_text; do
       [[ -n "$d_name" ]] || continue
       defs="${DEFS["$d_name"]:-1}"
       hits="${HITS["$d_name"]:-0}"
       # Only the definition sites themselves matched anywhere in the repository.
+      # The search spans every tracked file, so a C# member a Razor or cshtml
+      # view names, or a partial type's other file uses, is saved.
       if [[ "$hits" -le "$defs" ]]; then
-        shape='unreferenced-symbol'
-        [[ "$(dc_lang_of_path "$f")" == 'ts' ]] && shape='ts-unreferenced-symbol'
-        add_candidate "$f" "$d_line" "$shape" "$d_text"
+        add_candidate "$f" "$d_line" "$d_shape" "$d_text"
         emitted=$((emitted + 1))
       fi
     done <"$WORK/defs.tsv"
     names_n="$(wc -l <"$WORK/names.txt" | tr -d ' ')"
     sym_detail="$emitted symbol candidate(s) from $names_n distinct definition name(s)"
   elif [[ ${#DEF_FILES[@]} -eq 0 ]]; then
-    sym_detail='no shell, PowerShell, or standalone JS/TS file in candidate scope'
+    sym_detail='no shell, PowerShell, C#, or standalone JS/TS file in candidate scope'
   else
     sym_detail='no symbol definition matched the extractor set'
+  fi
+  if [[ ${#CS_FILES[@]} -gt 0 ]]; then
+    cs_detail="; ${#CS_FILES[@]} C# file(s) read as text, nothing built"
   fi
   emit_unreferenced_files
   local -a searched_nolane=()
@@ -936,7 +948,7 @@ lane_grep() {
   done
   dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"} ${searched_nolane[@]+"${searched_nolane[@]}"}
   lane_line grep '.' ran "$inspected_n" \
-    "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
+    "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)$cs_detail"
 }
 
 # ---------------------------------------------------------------------------

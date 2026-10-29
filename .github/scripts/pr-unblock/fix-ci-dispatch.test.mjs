@@ -1266,6 +1266,25 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
   assert.ok(capped.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), capped.lines.join("\n"));
 });
 
+// A kill switch turned on after the fix-ci model run stops its push job at
+// the broker (request-lane-token kill-switch-ok): the apply-patch check skips
+// kill-switch, so the attempt did no work. It is retried like a held skip,
+// spending no fix-ci restart, and so is a kill-switch stop of fix-ci itself.
+test("a fix-ci run the kill switch stopped is retried on the same head without spending a restart", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at(time), completed_at: at(time) });
+  const killed = (name, time) => ({ name, status: "completed", conclusion: "neutral", output: { title: "Skipped: kill-switch" }, started_at: at(time), completed_at: at(time) });
+  const twice = await run({
+    pages: [[pr(7)]],
+    history: new Map([[head, [fixCi("10:00"), fixCi("10:30")]]]),
+    stops: new Map([[head, [killed("pr-unblock / apply-patch", "10:05"), killed("pr-unblock / apply-patch", "10:35")]]]),
+  });
+  assert.ok(twice.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), twice.lines.join("\n"));
+  const own = await run({ pages: [[pr(7)]], history: new Map([[head, [killed("pr-unblock / fix-ci", "10:00")]]]) });
+  assert.ok(own.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), own.lines.join("\n"));
+});
+
 // fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
 // workflow run (the run id in each check's external_id; the API returns each
 // check's details_url as the check run's own page). When the rung-up's

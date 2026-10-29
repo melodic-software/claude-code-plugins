@@ -91,21 +91,26 @@ both are non-negotiable:
 
 ## Platform gap: `if` file rules on Windows
 
-Hook `if` file rules do not match an absolute path outside the working directory on Windows
-(Claude Code 2.1.258, Git Bash). That is an upstream matching bug, not a marketplace defect, and
-it is not fixed here (#3680).
+On Windows (Claude Code 2.1.285), an `Edit(...)` rule in a hook `if` does not match a Write tool
+call at any path tested. `Write(...)` and `Edit(...)` rules each match absolute paths outside cwd
+for their own tool. Permission rules differ: there, an `Edit` rule covers every built-in
+file-editing tool. That looks like an upstream matching gap, not a marketplace defect, and it is
+not fixed here (#3680).
 
-Any hook that must see a user-global or managed file (the context-budget settings checkpoint is
-the in-repo case) stays unconditioned until upstream matching reaches those paths. Putting an
-`if` gate on that row would drop the checks silently.
+Any hook whose matcher includes Write and must see every write (for example the context-budget
+settings checkpoint, matcher `Write|Edit|NotebookEdit`) stays unconditioned. One `Edit(...)` gate
+on that row would drop every Write silently.
 
 - **Claim:** this is an upstream candidate; this marketplace does not patch Claude Code's `if`
-  matcher. Guard rows that target paths outside cwd stay unconditioned.
+  matcher. A guard row whose matcher includes Write stays unconditioned, or splits into a gated
+  row per tool after its own probe.
 - **Basis:** the dated probe in `plugins/context-budget/README.md` (the paragraph starting "The
-  registration carries no `if` filter") and #3680.
-- **As of:** 2026-09-29.
-- **Recheck:** a Claude Code release note saying hook `if` file rules match absolute paths outside
-  cwd on Windows. Re-probe before adding an `if` gate to the context-budget row.
+  registration carries no `if` filter") and #3680; for permission rules,
+  [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
+- **As of:** 2026-10-29.
+- **Recheck:** the tool-name gap: a Claude Code release note saying a hook `if` `Edit(...)` rule
+  matches Write tool calls, or #8985 (its upstream report) closes. Re-probe before adding an `if`
+  gate to the context-budget row.
 
 ## What this convention is not
 

@@ -1,0 +1,6 @@
+# The fixture repositories are copied into eval workspaces byte for byte: their Makefile recipes
+# and Tarnquill.sln sections are tab-indented, as make and the solution format write them.
+
+[fixtures/**]
+indent_style = unset
+indent_size = unset

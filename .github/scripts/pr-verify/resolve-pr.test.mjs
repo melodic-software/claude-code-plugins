@@ -16,10 +16,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { main, resolvePull } from "./resolve-pr.mjs";
+import { CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, resolvePull } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
-import { loadRules } from "../intake-triage/admit.mjs";
-import { holds } from "../pr-merge/merge-holds.mjs";
+import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
+import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
@@ -317,6 +317,7 @@ const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
 const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
 const CI_STEPS = [
   ["Set up job", "success"],
+  ["Check the pull-request contract", "success"],
   ["Note a draft", "skipped"],
   ["Fail a pull request carrying the human-gated label", "success"],
   ["Fail a head a pr-unblock lane stopped", "success"],
@@ -363,7 +364,7 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
     "a failed lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]) }],
     "a cancelled lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "cancelled" }]) }],
     "a failed aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === "Aggregate lane results" ? "failure" : c]))) }],
-    "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 5))) }],
+    "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 6))) }],
     "no step list": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob([])) }],
     "a job list cut short": [logOf(PATH_HOLD), { jobs: { ...heldJobs(), total_count: 4 } }],
     "no ci-status job": [logOf(PATH_HOLD), { jobs: heldJobs({ ...ciJob(), name: "other" }) }],
@@ -377,6 +378,57 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
   }
   // With no log reader a failed run is never judged.
   assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
+});
+
+// A session holds a pull request with `do-not-merge`, which fails
+// check-contract's step of ci-status. Its log lines follow that action's
+// run.sh: the label's `::error::` line, then the step's exit.
+const contractLog = (...lines) =>
+  [
+    '2026-10-28T16:21:30.0000000Z ##[group]Run bash "$GITHUB_ACTION_PATH/run.sh"',
+    ...lines.map((line) => `2026-10-28T16:21:31.0000000Z ##[error]${line}`),
+    "2026-10-28T16:21:31.0000001Z ##[error]Process completed with exit code 1.",
+  ].join("\r\n");
+const failing = (...names) => ({
+  jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, names.includes(n) ? "failure" : n === HOLD_STEP ? "success" : c]))),
+});
+
+test("a run that failed only on do-not-merge, alone or beside a hold an approval lifts, is judged", async () => {
+  assert.equal(await held(contractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "ok");
+  assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
+});
+
+test("a contract failure other than do-not-merge, or a label line its step does not account for, starts nothing", async () => {
+  const TITLE = "pr-contract: the PR title does not follow Conventional Commits";
+  const cases = {
+    "a title failure beside the label": [contractLog(DO_NOT_MERGE_LINE, TITLE), failing(CONTRACT_STEP)],
+    "a title failure alone": [contractLog(TITLE), failing(CONTRACT_STEP)],
+    "no label line": [contractLog(), failing(CONTRACT_STEP)],
+    "the label line twice": [contractLog(DO_NOT_MERGE_LINE, DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)],
+    "the label line with the label text changed": [contractLog(DO_NOT_MERGE_LINE.replace("do-not-merge", "hold")), failing(CONTRACT_STEP)],
+    "the label line while the contract step passed": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(HOLD_STEP)],
+    "both steps failed with one exit": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(CONTRACT_STEP, HOLD_STEP)],
+    "the hold step failed with only the label": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf()}`, failing(CONTRACT_STEP, HOLD_STEP)],
+    "the contract step cancelled": [contractLog(DO_NOT_MERGE_LINE), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === CONTRACT_STEP ? "cancelled" : n === HOLD_STEP ? "success" : c]))) }],
+  };
+  for (const [name, [log, setup]] of Object.entries(cases)) {
+    assert.equal(await held(log, setup), "not-a-passing-run", name);
+  }
+});
+
+// Judging a held head loosens no hold: ci-status still fails on the label
+// (check-contract, its default label name, no continue-on-error), and the
+// merge queue's step still refuses a queued pull request that carries it.
+test("do-not-merge still fails ci-status and the merge queue", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const step = (name) => new RegExp(`^ {6}- name: ${name}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(workflow)?.[1] ?? "";
+  const contract = step(CONTRACT_STEP);
+  assert.match(contract, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/check-contract@[0-9a-f]{40} /m);
+  assert.doesNotMatch(contract, /do-not-merge-label|continue-on-error|^ {8}if:/m);
+  assert.match(step("Fail a queued pull request carrying a hold label"), /^ {8}if: github\.event_name == 'merge_group'$/m);
+  assert.deepEqual(labelHolds([{ name: "do-not-merge" }], null, 41), [
+    "#41 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.",
+  ]);
 });
 
 test("main reads the ci-status log through the redirect, without the token, and counts each API request but not the storage read", async () => {
@@ -1044,6 +1096,84 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
 
   for (const [who, author] of [["github-actions", actions], ["a Bot with the App's login and another id", impostor], ["the App as a User", { ...lanes, __typename: "User" }]]) {
     assert.deepEqual(await comments(on([comment(`${MARKER}\nx`, author)])), [], who);
+  }
+});
+
+// #9372: intake's split leaves the human's body untouched, so it stays
+// trusted; the split refinement alone names the item a person runs.
+test("the done-when items intake's split refinement lists as checks a person runs reach the verifier beside the untouched body", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const split = (text = body, extra = {}, items = [2]) => ({
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine(items)}\n**Refinement.**`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+    ...extra,
+  });
+  const entry = async (nodes, overrides = {}) =>
+    (await resolve({ issues: [{ ...ISSUE, body, ...overrides, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+
+  const judged = await entry([split()]);
+  assert.equal(judged.body, body, "the body as its author wrote it");
+  assert.deepEqual(judged.person_checks, ["Run it on a Windows 11 host."]);
+  assert.equal(judged.comments.length, 1);
+
+  for (const [why, nodes, overrides] of [
+    ["a record for another body", [split(`${body}\n- [ ] Added since.`)]],
+    ["an edited refinement", [split(body, { lastEditedAt: "2026-10-16T00:00:00Z", editor: lanes })]],
+    ["a refinement posted after the pull request opened", [split(body, { createdAt: "2026-10-20T00:00:01Z" })]],
+    ["a record naming an item the lane can perform", [split(body, {}, [1])]],
+    ["a record naming a runnable item beside the person-only one", [split(body, {}, [1, 2])]],
+  ]) {
+    const result = await entry(nodes, overrides);
+    assert.equal(result.body, body, why);
+    assert.equal(result.person_checks, undefined, why);
+  }
+  const untrusted = await entry([split()], { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes });
+  assert.equal(untrusted.body, null, "a body the lanes App last edited stays untrusted");
+  assert.equal(untrusted.person_checks, undefined);
+
+  // A split row anywhere but the App's counted refinement names nothing.
+  const forged = `${REFINE_MARKER}\n${bodyVersion(body)}\n${splitItemsLine([2])}`;
+  const human = { ...split(), body: forged, author: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  for (const [why, nodes, overrides] of [
+    ["a split row in the issue body", [], { body: `${body}\n${splitItemsLine([2])}` }],
+    ["a split row in a listed human's comment", [human]],
+  ]) {
+    assert.equal((await entry(nodes, overrides)).person_checks, undefined, why);
+  }
+
+  // A listed human's edit since the split: the body is trusted, the record
+  // names another body, so the refinement's prose split excuses nothing.
+  const stale = await entry([split()], { body: `${body}\n- [ ] Added since.`, lastEditedAt: "2026-10-16T00:00:00Z", editor: ISSUE.author });
+  assert.equal(stale.body, `${body}\n- [ ] Added since.`);
+  assert.equal(stale.person_checks, undefined);
+  assert.deepEqual(stale.comments, [], "the stale split refinement reaches the verifier in no form");
+});
+
+test("a split record holds only under the issue lane's configured web hosts", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Confirm https://example.com/page says 27.", "- [ ] Tests pass."].join("\n");
+  const split = {
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(body)}\n${splitItemsLine([2])}\n**Split.** Done-when item 2 of the issue body needs a person.`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+  };
+  const entry = async (webHosts) =>
+    (await resolve({ issues: [{ ...ISSUE, body, comments: { totalCount: 1, nodes: [split] } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST, webHosts })).specText[0];
+  assert.deepEqual((await entry([])).person_checks, ["Confirm https://example.com/page says 27."], "a host outside the list");
+  for (const hosts of [["example.com"], "any"]) {
+    const result = await entry(hosts);
+    assert.equal(result.person_checks, undefined, `hosts ${hosts}`);
+    assert.deepEqual(result.comments, [], `hosts ${hosts}: the refinement's split prose is left out`);
   }
 });
 

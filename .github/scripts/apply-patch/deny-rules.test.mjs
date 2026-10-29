@@ -59,6 +59,8 @@ test("the issue row's path refusals become Edit rules; its symlink, gitlink and 
     "Edit(/.github/**/settings*.json)",
     "Edit(/docs/**/settings*.json)",
     "Edit(/scripts/**/settings*.json)",
+    "Edit(/.github/actions/resolve-config/lane-grants.json)",
+    "Edit(/.github/standards/trusted-actors/trusted-actors.json)",
   ]);
   assert.ok(ISSUE_REFUSE.some((name) => Object.hasOwn(REFUSALS, name) && !Object.hasOwn(PATH_RULES, name)));
 });
@@ -80,6 +82,8 @@ test("the rules match only paths apply-patch refuses, plugins/ settings files in
     "plugins/x/.claude/settings.local.json",
     ".github/scripts/settings.mjs",
     ".github/actions/x/action.yml",
+    ".github/actions/resolve-config/lane-rules.json",
+    ".github/standards/trusted-actors/trusted-actors.schema.json",
     "docs/x/CODEOWNERS",
     "a/CODEOWNERS",
     "settings.yaml",
@@ -92,7 +96,7 @@ test("the rules match only paths apply-patch refuses, plugins/ settings files in
       path,
     );
   }
-  for (const path of [".github/workflows/ci.yml", ".github/workflows/sub/x.yml", ".github/CODEOWNERS", "CODEOWNERS", "a/b/.gitmodules", ".claude/settings.json", ".claude/settings.local.json", "settings.json", "docs/x/settings.json"]) {
+  for (const path of [".github/workflows/ci.yml", ".github/workflows/sub/x.yml", ".github/CODEOWNERS", "CODEOWNERS", "a/b/.gitmodules", ".claude/settings.json", ".claude/settings.local.json", "settings.json", "docs/x/settings.json", ".github/actions/resolve-config/lane-grants.json", ".github/standards/trusted-actors/trusted-actors.json"]) {
     assert.ok(refused(path), path);
     assert.ok(
       rules.some((rule) => matches(rule, path)),
