@@ -1178,12 +1178,6 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   proceeds(runCheck(run, ""));
 });
 
-// The issue lane's model jobs hold no write token. resolve-issue and its
-// subscription call run on the read runner, whose run job (the one that runs
-// the model) gets only the job's read-only GITHUB_TOKEN; the App token is
-// minted only by the apply job that commits the patch. The first call holds
-// the issue lane's API key alone, the second its OAuth token alone, the third
-// the central fallback token alone.
 // A fresh start past a stale lane branch (report-outcome --find-prior): the
 // issue file gets that branch's work at the tip issue-prior checked, and
 // lane.json names the branch for report-outcome's once-per-branch comment
@@ -1204,6 +1198,12 @@ test("pr-run-activity-read.yml: issue-prior's stale branch reaches write-issue, 
   assert.equal(JSON.parse(readFileSync(join(out, "lane.json"), "utf8")).stale, "work-resolve-issue/issue-7-1-1");
 });
 
+// The issue lane's model jobs hold no write token. resolve-issue and its
+// subscription call run on the read runner, whose run job (the one that runs
+// the model) gets only the job's read-only GITHUB_TOKEN; the App token is
+// minted only by the apply job that commits the patch. The first call holds
+// the issue lane's API key alone, the second its OAuth token alone, the third
+// the central fallback token alone.
 test("work-resolve-issue.yml: the resolve-issue model jobs receive no App token and no write permission", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   for (const [id, input, secret] of [
