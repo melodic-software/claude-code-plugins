@@ -88,5 +88,5 @@ git branch -M main
 # .git, so it stays out of git status.
 origin="$(git rev-parse --absolute-git-dir)/origin.git"
 git init -q --bare -b main "$origin"
-git remote add origin "$origin"
+git remote add origin "$origin" 2>/dev/null || git remote set-url origin "$origin"
 git push -q origin main
