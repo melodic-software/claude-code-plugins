@@ -70,5 +70,24 @@ and runs the tests.
   and `Prices_a_sku_by_its_length` have no finding and stay as they are, so every mutant detected
   before is detected again and the report reads `Gate: pass`. Nothing is committed.
 
+### Lost kill
+
+The `dotnet_lost_kill_blocks` eval runs the same setup to step 6 with two changes in the batch: the
+approved deletion of `Wiring_is_sane`, and `Rejects_options_without_a_url` changed to
+`Assert.Null(Record.Exception(() => new PriceFeed(Options)))`.
+
+- **Gate-blind**: the `Wiring_is_sane` deletion is gate-blind, since `Assert.True(true)` reaches no
+  production file. The `Rejects_options_without_a_url` change is not: it calls the `PriceFeed`
+  constructor in `Shop/ServiceRegistration.cs`, though `PriceFeedTests.cs` has no `using Shop;`.
+- **Step 6**: no other test builds a `PriceFeed` without a URL, so the removal of the constructor's
+  statement now survives and the replay reports `Gate: block` with a newly-surviving line at
+  `Shop/ServiceRegistration.cs:17`. The `PriceOf` mutants stay detected by
+  `Price_feed_prices_two_letter_sku` and `Licensed_feed_prices_a_sku`.
+- **Candidates**: only `Rejects_options_without_a_url` in `Shop.Tests/PriceFeedTests.cs`. The
+  `Wiring_is_sane` deletion is not one, although `WiringTests.cs` has `using Shop;`: a candidate is
+  chosen by the code a test reaches, not by its imports, and listing every changed test applies
+  only when none reaches the file. Cleanup asks which change to revert, reverts nothing and
+  commits nothing.
+
 The fixture's `.gitignore` keeps the `bin/` and `obj/` folders a build leaves out of
 `git status`, so a resumed batch's step 0 check sees only the batch's own edits.
