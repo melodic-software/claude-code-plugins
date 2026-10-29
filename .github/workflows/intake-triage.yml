@@ -543,7 +543,7 @@ jobs:
   # takes an issue admission held at the lanes App's needs-decision for some,
   # not all, of its done-when items being ones a lane run cannot perform: a
   # sound split lists those items in the refinement comment as checks a
-  # person runs and rewrites the issue's done-when to the rest. Three
+  # person runs and leaves the issue body as written. Three
   # jobs, as the reusable and apply-verdict split it: refine-select (no model,
   # read token) picks the issue and writes the context; refine-issue (the
   # model, contents: read only) explores the default branch, checks the
