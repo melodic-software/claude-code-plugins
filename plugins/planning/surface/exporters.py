@@ -15,7 +15,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  from its deferred and planningOwned bullets and the TLDR's opening scope
                  bullets from its tldr. Intent, above Goal, holds its intent paragraph (else
                  `none stated`), then the user's own words: each live ask, note and own event's
-                 text, in event order, under its Q<N>. An answered row that took the
+                 text and each note typed on an accept, alternative or hedged choice, in
+                 event order, under its Q<N>. An answered row that took the
                  recommendation adds its question basis as a `why:` line to its Constraints
                  entry. Captured assumptions holds each
                  unconfirmed commitment as a named risk and a Notes question the user left
@@ -1104,14 +1105,23 @@ def brief_label(r):
     return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
 
 
-# The events whose text is the user's own words, and how the Brief's Intent labels each.
-USER_WORDS = {"ask": "asked", "note": "note", "own": "own answer"}
+# The events whose text is the user's own words, and how the Brief's Intent labels each; an
+# accept, alt or hedged event has text only when the user typed a note on that choice.
+USER_WORDS = {
+    "ask": "asked",
+    "note": "note",
+    "own": "own answer",
+    "accept": "accepted with note",
+    "alt": "chose ({alt}) with note",
+    "hedged": "accepted on condition",
+}
 
 
 def user_words(rows, events, intent):
-    """One Intent bullet per live ask, note and own event, in event order: its question's Q<N>
-    (a note names none) and its text as typed, whitespace runs one space. An undone or
-    withdrawn event is left out, and so is the note that gave the intent paragraph."""
+    """One Intent bullet per live ask, note, own event and choice typed with a note, in event
+    order: its question's Q<N> (a note names none) and its text as typed, whitespace runs one
+    space. An undone or withdrawn event is left out, and so are a repeat of a line already
+    listed and the note that gave the intent paragraph."""
     labels = {r["q"]["id"]: brief_label(r) for r in rows}
     undone = {e.get("undoSeq") for e in events if e.get("kind") == "undo"}
     said = " ".join(str(intent or "").split())
@@ -1126,7 +1136,11 @@ def user_words(rows, events, intent):
             continue
         qid = e.get("id")
         where = f"{labels.get(qid) or clean(qid)} " if qid else ""
-        out.append(f"- {where}{USER_WORDS[kind]}: {text}")
+        label = USER_WORDS[kind].format(alt=clean(e.get("alt")))
+        line = f"- {where}{label}: {text}"
+        # A Reconfirm posts the kept choice and its note again.
+        if line not in out:
+            out.append(line)
     return out
 
 
