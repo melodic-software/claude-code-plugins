@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from frame_seek import check_frame, seek_time  # noqa: E402
+from ripple_geometry import HALO, SMALL_TARGET, ring  # noqa: E402
 
 try:
     import numpy as np
@@ -582,6 +583,59 @@ class FrameSeek(unittest.TestCase):
     def test_full_read_passes_through(self):
         raw = b'\0' * (320 * 180 * 3)
         self.assertIs(check_frame(raw, 338, 30, 320, 180), raw)
+
+
+class RippleGeometry(unittest.TestCase):
+    """The click ring produce.py draws; standard library only, so it runs on CI. Today's ring, unscaled, has
+    stroke 3z and gap (3 + 9 grow)z."""
+    FW, FH = 1920, 1080
+    SMALL = (900, 500, 60, 30)   # the playwright.dev Search button's size, mid-frame
+
+    def test_a_near_edge_limits_only_its_own_side(self):
+        z, box = 1.6, (5, 400, 200, 60)
+        self.assertGreaterEqual(box[2], SMALL_TARGET)
+        g = ring(box, 1.0, z, self.FW, self.FH)
+        self.assertLess(g.gaps[0], 12 * z)
+        for side in g.gaps[1:]:
+            self.assertAlmostEqual(side, 12 * z)
+
+    def test_a_small_target_at_zoom_1_gets_a_larger_ring_inside_the_frame(self):
+        for grow in (0.0, 0.5, 1.0):
+            g = ring(self.SMALL, grow, 1.0, self.FW, self.FH)
+            self.assertGreater(g.stroke, 3.0)
+            for side in g.gaps:
+                self.assertGreater(side, 3 + 9 * grow)
+            for clipped, drawn in zip(g.outer, g.bbox):
+                self.assertAlmostEqual(clipped, drawn, delta=0.06)
+            self.assertTrue(1 <= g.outer[0] < g.outer[2] <= self.FW - 1 and 1 <= g.outer[1] < g.outer[3] <= self.FH - 1)
+
+    def test_a_target_at_zoom_above_1_is_unchanged(self):
+        for z in (1.1, 1.3, 1.6):
+            for box in (self.SMALL, (700, 400, 400, 80)):
+                for grow in (0.25, 0.5, 1.0):
+                    g = ring(box, grow, z, self.FW, self.FH)
+                    self.assertAlmostEqual(g.stroke, 3 * z)
+                    for side in g.gaps:
+                        self.assertAlmostEqual(side, (3 + 9 * grow) * z)
+
+    def test_a_small_target_near_an_edge_never_has_the_ring_over_it(self):
+        w, h = self.SMALL[2:]
+        for d in range(9):
+            for box in ((self.FW - w - d, d, w, h), (d, self.FH - h - d, w, h)):
+                for grow in (0.0, 0.1, 0.3, 0.6, 1.0):
+                    g = ring(box, grow, 1.0, self.FW, self.FH)
+                    self.assertIsNotNone(g)
+                    inset = (HALO - 0.5) * g.stroke   # the halo's inner edge, inside the accent line
+                    self.assertLessEqual(g.line[0] + inset, box[0] - 1 + 1e-9, (d, box, grow))
+                    self.assertLessEqual(g.line[1] + inset, box[1] - 1 + 1e-9, (d, box, grow))
+                    self.assertGreaterEqual(g.line[2] - inset, box[0] + w + 1 - 1e-9, (d, box, grow))
+                    self.assertGreaterEqual(g.line[3] - inset, box[1] + h + 1 - 1e-9, (d, box, grow))
+
+    def test_the_small_target_scale_holds_through_a_zoom_change(self):
+        cssw, cssh = 115, 30
+        strokes = [ring((900, 500, cssw * z, cssh * z), 0.5, z, self.FW, self.FH).stroke / z for z in (1.0, 1.02, 1.04, 1.05)]
+        self.assertEqual(strokes, sorted(strokes, reverse=True))
+        self.assertGreater(strokes[-1], 3.0)
 
 
 if __name__ == '__main__':
