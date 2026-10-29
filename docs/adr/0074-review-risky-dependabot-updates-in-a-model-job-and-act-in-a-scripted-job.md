@@ -135,7 +135,6 @@ model job no longer holds `contents: write`.
   same call's scan handed on no patch, refused nothing, and the head is still the select job's;
   a scan that refused an oversize patch escalates `dependency-fix-not-landed`, and any other gap
   `dependency-invalid`.
-
 The verdict job's checks (Decision 3) and the dispatcher (Decision 4) are unchanged.
 
 ## Addendum (2026-10-24): a workflow change no longer waits for a person
@@ -149,3 +148,15 @@ its action path, both refs full SHAs, only the SHA and trailing comment differin
 [`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs);
 the lanes App merged [#9388](https://github.com/melodic-software/claude-code-plugins/pull/9388),
 which changed three workflow files.
+
+## Addendum (2026-10-28): an invalid verdict retries on the same head
+
+`dependency-invalid` (a verdict or context that failed validation, a lane malfunction) no longer
+holds for a person. It routes to a failing `pr-unblock/review-dependency` status and no label
+(`escalation-routes.json`), and its verdict check skips `lane-stopped`. The dispatcher (Decision
+4) releases the head's earlier `review-dependency` checks on that skip, through the same
+`stopRelease` and `releasedBy` helpers `dispatch.mjs` uses, until `limits.limit-stops-per-head`
+such stops stand on the head; at the cap it records the head and warns. Every other
+review-dependency reason still holds for a person: a Dependabot head moves only when Dependabot
+pushes, and a fresh model session on the same head cannot change their cause. Basis:
+[`dependency-dispatch.mjs`](../../.github/scripts/pr-unblock/dependency-dispatch.mjs).
