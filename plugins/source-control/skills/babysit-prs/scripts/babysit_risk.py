@@ -201,6 +201,10 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # `merge.diff-check.path-holds`: False moves every path hold (the
+    # `high-path:` floor and configured globs, `review-path:`) to
+    # `RiskResult.skipped`; anything else keeps them (owner decision Q15).
+    path_holds: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # The repository is public, where standard hosted runners are free; any
@@ -241,6 +245,8 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
+    # The path holds `RiskInput.path_holds` False left out of `reasons`.
+    skipped: tuple[Reason, ...] = ()
 
 
 # What a lane pull request must not change unattended (owner decisions
@@ -452,11 +458,7 @@ def gated_workflow(stem: str, text: str) -> bool:
     token) or grants `actions: write`, which dispatches those."""
     if _NAMED_GATE_WORKFLOW.fullmatch(stem):
         return True
-    code = "\n".join(
-        line.split(" #", 1)[0]
-        for line in text.split("\n")
-        if not line.lstrip().startswith("#")
-    )
+    code = "\n".join(_code_lines(text.split("\n")))
     return bool(
         _NON_JOB_SECRET.search(code)
         or _MINTED_CREDENTIAL.search(code)
@@ -1694,12 +1696,87 @@ def _on_block_keys(lines: list[str]) -> list[str]:
     return keys
 
 
+# A line whose value opens a block scalar: `key: |`, `- >-`, `key: &a |`.
+_BLOCK_SCALAR_START = re.compile(r"(?:^|[:-])\s+(?:[&!]\S*\s+)*[|>][0-9+-]*\s*$")
+# An anchor or tag a value may carry before its scalar.
+_NODE_PROPERTIES = re.compile(r"(?:(?<=\s)[&!]\S*\s*)+$")
+
+
+def _uncommented(line: str, quote: str) -> tuple[str, str]:
+    """`line` up to a YAML comment, a `#` after whitespace outside quotes,
+    and the quote of a quoted scalar still open at its end; `quote` carries
+    one in from the line before. A quote opens a scalar only where one can
+    start: the line's start, after `: `, `- ` or `? `, after the `:` of a
+    quoted or bracketed key (a flow mapping's `{"K":"v"}`), or after `[`,
+    `{` or `,`. A quote inside a plain scalar is text to YAML, but the line
+    is read as if it opened one, to the line's end at most, so a ` #` after
+    it never hides the rest."""
+    carry = bool(quote)
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if quote == '"' and c == "\\":
+            i += 1
+        elif c == quote:
+            # A doubled `''` is a quote inside the single-quoted scalar.
+            if quote == "'" and line.startswith("''", i):
+                i += 1
+            else:
+                quote = ""
+        elif quote:
+            pass
+        elif c == "#" and i and line[i - 1] in " \t":
+            return line[: i - 1], ""
+        elif c in "'\"":
+            head = _NODE_PROPERTIES.sub("", line[:i])
+            before = head.rstrip()
+            carry = (
+                not before
+                or before[-1] in "[{,"
+                or (before[-1] in ":-?" and len(before) < len(head))
+                or (
+                    before[-1] == ":"
+                    and before[:-1].rstrip()[-1:] in ("'", '"', "]", "}")
+                )
+            )
+            quote = c
+        i += 1
+    return line, quote if carry else ""
+
+
+def _scalar_parent(line: str) -> int:
+    """The indent a block scalar opened on `line` must exceed: its key's
+    column, or a bare list item's dash."""
+    rest = line.lstrip()
+    dash = len(line) - len(rest)
+    while rest == "-" or rest.startswith("- "):
+        dash = len(line) - len(rest)
+        rest = rest[1:].lstrip()
+    return dash if rest[:1] in ("|", ">", "&", "!") else len(line) - len(rest)
+
+
 def _code_lines(lines: list[str]) -> list[str]:
     """Lines with YAML comments dropped: a whole-line comment, or the text
-    after ` #`."""
-    return [
-        line.split(" #", 1)[0] for line in lines if not line.lstrip().startswith("#")
-    ]
+    from a ` #` outside a quoted scalar. A block scalar's body, and a quoted
+    scalar's lines after its first, are text, kept whole."""
+    code: list[str] = []
+    scalar_at: int | None = None
+    quote = ""
+    for line in lines:
+        stripped = line.lstrip()
+        if scalar_at is not None and (
+            not stripped or len(line) - len(stripped) > scalar_at
+        ):
+            code.append(line)
+            continue
+        scalar_at = None
+        if not quote and stripped.startswith("#"):
+            continue
+        cut, quote = _uncommented(line, quote)
+        code.append(cut)
+        if not quote and _BLOCK_SCALAR_START.search(cut):
+            scalar_at = _scalar_parent(cut)
+    return code
 
 
 def _yaml() -> Any:
@@ -2185,17 +2262,31 @@ def _score(inp: RiskInput) -> RiskResult:
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
+    paths = _high_path_reasons(inp, files or [], list(raw_files or ()))
+    skipped = (
+        [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
+    )
     reasons = [
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or [], list(raw_files or ())),
+        *(r for r in paths if r not in skipped),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
         *_trust_gate_reasons(files or [], list(raw_files or ())),
         *_long_line_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
-    return RiskResult(Risk(worst), tuple(reasons))
+    return RiskResult(Risk(worst), tuple(reasons), tuple(skipped))
+
+
+def is_path_hold(reason: Reason) -> bool:
+    """Whether `reason` holds for a changed path alone (`high-path:<glob>`,
+    `review-path:<glob>`), which `merge.diff-check.path-holds` turns off. An
+    unsafe or aliasing path (`high-path:**`) and the manifest review read
+    more than the path, and stay."""
+    return reason.code != UNSAFE_PATH_CODE and reason.code.startswith(
+        ("high-path:", REVIEW_PATH_PREFIX)
+    )
 
 
 # MED reasons an unattended merge passes: the diff's size and the review and

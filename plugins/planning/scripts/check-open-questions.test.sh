@@ -948,6 +948,61 @@ EOF
 printf '\n```text\n- Q2 | open | round 1 | example only |\n```\n' >>"$fenced_outside"
 expect_exit "a fenced row outside the register is documentation -> 0" 0 --ledger "$fenced_outside"
 
+# 60. A page export carries Intent, the sections its confirmed restatement filled and the
+#     user's own words. Under --procedure a stamped Brief without `### Intent` fails, and
+#     --surface fails a Brief that lost a section or an Intent line the page's export writes.
+surface_dir="$TMP/surface"
+mkdir -p "$surface_dir"
+cat >"$surface_dir/questions.json" <<'EOF'
+{"meta": {"title": "Export test"}, "rev": 1, "groups": [], "questions": [], "visuals": [],
+ "restatements": [{"rev": 1, "at": "2026-09-24T10:00:00Z", "sections": {
+   "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.",
+   "acceptance": "- p75 build is 4 min or less", "decisions": "- Q1 only the admin writes"}}]}
+EOF
+cat >"$surface_dir/responses.json" <<'EOF'
+{"seq": 4, "responses": {}, "history": {}, "events": [
+ {"seq": 1, "id": "Q1", "kind": "ask", "alt": null, "text": "Does this cover forks?", "at": "2026-09-24T10:00:00Z"},
+ {"seq": 2, "id": null, "kind": "note", "alt": null, "text": "Remote cache is fine by me.", "at": "2026-09-24T10:00:00Z"},
+ {"seq": 3, "id": "Q1", "kind": "own", "alt": null, "text": "Only the admin writes.", "at": "2026-09-24T10:00:00Z"},
+ {"seq": 4, "id": null, "kind": "confirm-understanding", "alt": "confirm", "text": "", "at": "2026-09-24T11:00:00Z", "contentRev": 1}]}
+EOF
+surface_ledger="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+EOF
+)"
+page_export="$TMP/page-export.md"
+if bash "$SCRIPT_DIR/../surface/round.sh" --dir "$surface_dir" export-brief --ledger "$surface_ledger" --out "$page_export" >/dev/null 2>&1; then
+  pass "the fixture page exports a Brief"
+else
+  fail "the fixture page exports a Brief"
+fi
+for want in "### Intent" "### Decisions" "- Q1 asked: Does this cover forks?" "- note: Remote cache is fine by me." "- Q1 own answer: Only the admin writes."; do
+  if grep -qxF -e "$want" "$page_export"; then pass "the page export carries '$want'"; else fail "the page export carries '$want'"; fi
+done
+no_intent="$TMP/page-export-no-intent.md"
+grep -v -e '^### Intent' "$page_export" >"$no_intent"
+no_decisions="$TMP/page-export-no-decisions.md"
+grep -v -e '^### Decisions' "$page_export" >"$no_decisions"
+no_words="$TMP/page-export-no-words.md"
+grep -v -e '^- Q1 asked: ' -e '^- note: ' -e '^- Q1 own answer: ' "$page_export" >"$no_words"
+expect_exit "--procedure on the whole page export -> 0" 0 --ledger "$surface_ledger" --brief "$page_export" --procedure
+expect_exit "--procedure --surface on the whole page export -> 0" 0 --ledger "$surface_ledger" --brief "$page_export" --procedure --surface "$surface_dir"
+expect_exit "--procedure on a stamped Brief without Intent -> 1" 1 --ledger "$surface_ledger" --brief "$no_intent" --procedure
+if [[ "$(stderr_of --ledger "$surface_ledger" --brief "$no_intent" --procedure)" == *"section matching 'intent'"* ]]; then pass "--procedure names the missing Intent section"; else fail "--procedure names the missing Intent section"; fi
+expect_exit "--procedure on a hand-written Brief without Intent -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_full" --procedure
+expect_exit "--surface on a Brief without the restated Decisions -> 1" 1 --ledger "$surface_ledger" --brief "$no_decisions" --procedure --surface "$surface_dir"
+expect_stdout "a dropped section reports procedure=fail" "status=incomplete procedure=fail" --ledger "$surface_ledger" --brief "$no_decisions" --procedure --surface "$surface_dir"
+if [[ "$(stderr_of --ledger "$surface_ledger" --brief "$no_decisions" --procedure --surface "$surface_dir")" == *"missing the section 'decisions' that the page export writes"* ]]; then pass "--surface names the missing Decisions section"; else fail "--surface names the missing Decisions section"; fi
+expect_exit "--surface on a Brief without the user's words -> 1" 1 --ledger "$surface_ledger" --brief "$no_words" --procedure --surface "$surface_dir"
+no_words_err="$(stderr_of --ledger "$surface_ledger" --brief "$no_words" --procedure --surface "$surface_dir")"
+for want in "- Q1 asked: Does this cover forks?" "- note: Remote cache is fine by me." "- Q1 own answer: Only the admin writes."; do
+  if [[ "$no_words_err" == *"Intent is missing a line the page export writes: $want"* ]]; then pass "--surface names the missing '$want'"; else fail "--surface names the missing '$want' (stderr: '$no_words_err')"; fi
+done
+expect_exit "--surface without --procedure -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --surface "$surface_dir"
+expect_exit "--surface without --brief -> 2" 2 --ledger "$surface_ledger" --procedure --surface "$surface_dir"
+expect_exit "a missing --surface dir -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --procedure --surface "$TMP/no-surface"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1

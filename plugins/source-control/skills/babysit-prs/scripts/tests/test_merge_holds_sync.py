@@ -1166,12 +1166,13 @@ def py_decision(
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
-        if "/activity?" in endpoint:
-            assert endpoint == (
-                "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
-            ), endpoint
-            return 200, _activity(heads)
         return 200, comment
+
+    def get_pages(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        assert endpoint == (
+            "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+        ), endpoint
+        return 200, [_activity(heads)]
 
     def paginated(
         endpoint: str, _label: str, items_key: str | None = None, env: Any = None
@@ -1200,6 +1201,7 @@ def py_decision(
 
     with (
         mock.patch.object(policy, "_get", side_effect=get),
+        mock.patch.object(policy, "_get_pages", side_effect=get_pages),
         mock.patch.object(policy, "_paginated", side_effect=paginated),
         mock.patch.object(policy, "_graphql", graphql),
     ):
