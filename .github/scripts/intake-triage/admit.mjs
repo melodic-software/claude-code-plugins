@@ -407,13 +407,16 @@ const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
 // The trigger-probe harness or the plugin-eval command, not its own test;
 // the harness's validate, score, compare and emit-plugin-eval run no model.
 const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
+// The unrunnable kind that can bill the owner: an owner decision, never the
+// host queue.
+export const PAID_EVAL = "a paid eval";
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
   ],
   [
-    "a paid eval",
+    PAID_EVAL,
     new RegExp(
       [
         String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
@@ -714,16 +717,17 @@ export function unpushablePaths(body, taskList, names, workflows) {
 
 // The refusal reason for unrunnableCriteria's result, with the split it
 // recommends, or null when every item is runnable. Host work goes to the host
-// queue (`host-run`), never to a person.
+// queue (`host-run`); a paid eval, which can bill the owner, to the owner.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
   }
   const list = found.map(({ n, kind, text }) => `item ${n} (${kind}: "${text}")`).join(", ");
+  const to = found.some(({ kind }) => kind === PAID_EVAL) ? "the owner, since a paid eval can bill the owner" : `the host queue (\`${HOST_RUN}\`)`;
   const split =
     found.length === items
-      ? `no done-when item is left for the lane, so the host queue takes it (\`${HOST_RUN}\`)`
-      : `recommended split: keep the other items here as the admissible issue and move these to a \`${HOST_RUN}\` child issue`;
+      ? `no done-when item is left for the lane, so it goes to ${to}`
+      : `recommended split: keep the other items here as the admissible issue and move these to a child issue for ${to}`;
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
@@ -737,6 +741,14 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
   const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
   return names(labels).includes(UNTRUSTED) || removedByOther;
+}
+
+// Whether the newest add of `label` (a `labeled` event) is a listed human's
+// (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
+// `attended`. Pure.
+export function addedByTrusted(events, label, humans, appId) {
+  const actor = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1)?.actor;
+  return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
 }
 
 // Whether `attended` still holds though the label is off: its newest label
@@ -804,8 +816,9 @@ export function admissionSettled(labels, events, isMark) {
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), or, on an issue without `host-run`,
-// done-when items a lane run cannot perform beside items it can, which refine
+// person out of every other refusal), a paid-eval done-when item, or, on an
+// issue without a trusted `host-run` (addedByTrusted), done-when items a lane
+// run cannot perform beside items it can, which refine
 // splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
 // admit() to add `host-run` on a refusal whose only reason is that no item is
 // left for the lane, with no wait or pending split.
@@ -890,12 +903,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
   const unrunnable = unrunnableReason(criteria);
-  // An issue already in the host queue parks at status: confirmed.
-  const queue = unrunnable !== null && !labels.includes(HOST_RUN);
+  // An issue a listed human or the App put in the host queue parks at
+  // status: confirmed. A paid eval can bill the owner, an owner stop reason
+  // (docs/conventions/loop-lane/README.md), so it holds for a person.
+  const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
+  const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
+  const queue = unrunnable !== null && !queued && !paid;
   const hostRun = queue && criteria.found.length === criteria.items;
   if (unrunnable) {
     refuse.push(unrunnable);
-    hold ||= queue && !hostRun;
+    hold ||= paid || (queue && !hostRun);
   }
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for

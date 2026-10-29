@@ -353,7 +353,9 @@ Three labels take work off the unattended path, and each means one thing (owner 
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | An unattended agent run on a host, which the issue lane cannot make | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
-Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and maps a
+Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
+`host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
+paid eval, and nothing else refuses, waits or holds the issue. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../pr-pipeline/README.md#attended-work)).
