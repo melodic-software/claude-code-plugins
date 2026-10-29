@@ -62,8 +62,7 @@ else
 fi
 
 # The stub logs its arguments. A comments read fails when STUB_COMMENTS_FAIL is
-# set, else applies the --jq filter to the STUB_COMMENTS array, as gh does per
-# page. An events read fails when STUB_EVENTS_FAIL is set, else prints
+# set, else answers the STUB_COMMENTS array. An events read fails when STUB_EVENTS_FAIL is set, else prints
 # STUB_EVENTS (pages concatenated, as --paginate prints them). The base
 # commit's config is a fixture directory holding STUB_ACTORS as the
 # trusted-actor list; STUB_CHECKOUT_FAILED leaves BASE_CONFIG empty, as a
@@ -75,8 +74,7 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 */comments*)
   [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
-  while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
-  jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
+  printf '%s\n' "${STUB_COMMENTS:-[]}"
   ;;
 */events*)
   [[ -z "${STUB_EVENTS_FAIL:-}" ]] || exit 1
@@ -107,7 +105,7 @@ EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
 expect() {
   local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
-  rm -rf "$config"
+  rm -rf "$config" "$TMP_ROOT/pr-reads"
   mkdir -p "$config/.github/standards/trusted-actors"
   printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=

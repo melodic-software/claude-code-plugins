@@ -171,8 +171,8 @@ times out after 10 minutes. In order:
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
 posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
-red, not neutral, for the same reason as the write file's `kill-switch` denial: step 3 already
-stopped the common case. Off `pull_request`, a failed broker-check job posts no check, since no
+red, not neutral, `kill-switch` included: step 3 already stopped the common case. Off
+`pull_request`, a failed broker-check job posts no check, since no
 head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
 
 The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
@@ -1087,12 +1087,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      round, so the reply job skips `finding-stands` (when nothing escalates), and the dispatcher's
      half-hourly sweep dispatches the head again, within the select job's round cap and three
      such skips per head; `human` posts nothing and escalates
-     `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`; no
-     verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
+     `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`
+     (a `security` question on a security-review `SUGGESTION` escalates `feedback-unadjudicated`
+     instead); no verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
      adjudication is not adjudicated again: any reply but `VALID` on it escalates
      `feedback-stood-open`. A thread no adjudicator may judge goes elsewhere: a pr-verify note
      left open escalates `feedback-verifier-open`, a thread a trusted person directed, or an
-     `INCORRECT` reply on a security-review, CRITICAL or unknown-lane finding, escalates
+     `INCORRECT` reply on a CRITICAL, unknown-lane or person-rated security-review finding
+     ([below](#the-adjudicator)), escalates
      `feedback-disputed`, and an `UNCERTAIN` or `VALID-defer` reply on one escalates
      `feedback-uncertain`. A thread or head that changed after the lane's reply, or a failed
      write, escalates `feedback-partial`. One round records one reason: one held for a person
@@ -1136,14 +1138,22 @@ trusted person directed (a fix request, or a reply after an escalation) stays th
 reply that leaves it open escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
+a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
+the security-review lane and whose rating is below `IMPORTANT` (`SUGGESTION`; this repository
+counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
 decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
-and the round skips `finding-stands`. A CRITICAL finding, a security-review finding and one
-whose lane its root comment does not name go to a person: an `INCORRECT` reply on one escalates
+and the round skips `finding-stands`. A CRITICAL finding, a security-review finding rated
+`IMPORTANT` or `CRITICAL` or unrated, and one
+whose lane its root comment does not name go to a person. The rating is the lane's own line
+(`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
+the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
+so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
+reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
 and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
@@ -1368,7 +1378,8 @@ its fallback call on the role's OAuth token after the key call hands off
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
    leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses
-   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, symlinks and gitlinks; a
+   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, the central lane grant
+   file and the trusted-actor list, symlinks and gitlinks; a
    change elsewhere, such as `.gitattributes`, an agent instruction file or a check's own script,
    reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
@@ -1411,7 +1422,8 @@ refusal posts nothing.
    head's index (escalating `ci-fix-not-applied` on failure) and refuses the whole patch,
    whatever the report escalated, on any change the row refuses: the universal set
    (`.github/workflows/**`, `CODEOWNERS` at the root, in `.github/` or in `docs/`, `.gitmodules`,
-   `**/settings*.json`, a symbolic link or gitlink, a rename into a refused path, a backslash),
+   `**/settings*.json`, the central lane grant file and the trusted-actor list, a symbolic link or
+   gitlink, a rename into a refused path, a backslash),
    escalating `ci-fix-protected-path`; more than the row's `max-files`
    (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
    `empty-at-push`) escalates `ci-fix-invalid`. It then
@@ -1881,8 +1893,17 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
 | 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
-A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
-means the job's read and the broker's read of the switch disagreed.
+A `kill-switch` denial means the switch was turned on after the run job's own kill-switch step
+read it (the broker reads the switches live). On a pull request run the write file passes
+`kill-switch-ok`, so the denial is a designed stop: the token step ends green with no token, every
+later step skips, and the check is neutral `kill-switch`. A caller job's dependents read the skip
+from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` check as a stop that
+did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
+head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
+a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
+dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
+its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
+re-fires it and a skip would drop the escalation's comment and label.
 
 ### A workflow file the PR changes
 

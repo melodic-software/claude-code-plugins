@@ -449,3 +449,34 @@ test("the kill switch stops the run before any API call", async () => {
   assert.equal(await main({ env: { ...env, KILL_SWITCH: "" }, github: w.github, actions: w.actions, now: NOW }), 0);
   assert.deepEqual(w.calls, []);
 });
+
+// The Re-fire step names lanes-app (its GH_TOKEN, the lane token); the job
+// token's client still counts and plans as github-token: the reading lands in
+// api-budget/github-token, and its read floor uses github-token's limit-cap of
+// 1000 (rate-limits.json), so 950 of 5000 used is under a tenth of the plan
+// left (50 of 1000), where lanes-app's uncapped plan of 5000 would not be.
+test("the job token's client counts its readings and plans its read floor as github-token", async () => {
+  const { actionsClient } = await import("./refire-refused.mjs");
+  const { createRateLimitLatch } = await import("../../actions/log-api-budget/rate-guard.mjs");
+  const { tempDir } = await import("../../../lib/test-tmp.mjs");
+  const { rmSync, existsSync } = await import("node:fs");
+  const dir = tempDir("refire-budget-");
+  const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+  Object.assign(process.env, { RUNNER_TEMP: dir, API_BUDGET_TOKEN: "lanes-app" });
+  try {
+    const lines = [];
+    const latch = createRateLimitLatch({ log: (line) => lines.push(line), fail: () => {}, stopFile: null });
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-used": "950", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    await actionsClient({ ACTIONS_TOKEN: "job" }, { latch, fetchImpl })("GET", "/repos/o/r/actions/runs");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4050 950 1792751600 core\n");
+    assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
+    assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

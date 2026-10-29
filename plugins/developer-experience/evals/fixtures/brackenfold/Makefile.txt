@@ -1,0 +1,10 @@
+.PHONY: test seed release
+
+test:
+	bash scripts/run_tests.sh
+
+seed:
+	python3 scripts/seed_fixtures.py
+
+release:
+	python3 -m bfk.cli release $(VERSION)

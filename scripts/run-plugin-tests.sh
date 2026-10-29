@@ -46,7 +46,17 @@
 # $PLUGIN_TEST_SHARE_DEFAULT seconds (default 30), the share of a suite the file
 # does not list. The medians are CI runner measurements, so the margin covers a
 # slower host and a loaded job pool. Without --budget no suite is timed against
-# anything, which is how CI runs.
+# a share, which is how CI runs.
+#
+# SUITE BUDGET. On GitHub Actions (GITHUB_ACTIONS=true) every suite is timed
+# against a per-suite threshold and ceiling: over the threshold it prints
+# `SLOW:` and a warning annotation and the run still passes; over the ceiling
+# it fails by name. PLUGIN_TEST_SUITE_BUDGET=1 turns the check on anywhere, 0
+# off. The numbers and their basis are in README.md "Per-suite time budget in
+# CI"; PLUGIN_TEST_SUITE_WARN and PLUGIN_TEST_SUITE_CEILING override them. A
+# suite with a row in scripts/suite-budget-exceptions.txt
+# ($PLUGIN_TEST_SUITE_EXCEPTIONS overrides it) has that row's ceiling instead;
+# an entry there gets the serial list's stale guard.
 #
 # SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
 # index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
@@ -111,6 +121,7 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
+EXCEPTIONS_LIST="${PLUGIN_TEST_SUITE_EXCEPTIONS:-$script_dir/suite-budget-exceptions.txt}"
 
 usage() {
   echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] [--budget SECONDS] | --list [--root DIR]" >&2
@@ -232,6 +243,24 @@ if ((budget_given)); then
     fi
   done
 fi
+suite_budget="${PLUGIN_TEST_SUITE_BUDGET:-}"
+if [[ -z "$suite_budget" ]]; then
+  suite_budget=0
+  [[ "${GITHUB_ACTIONS:-}" != true ]] || suite_budget=1
+elif [[ "$suite_budget" != [01] ]]; then
+  echo "error: PLUGIN_TEST_SUITE_BUDGET must be 0 or 1 (got '$suite_budget')" >&2
+  exit 2
+fi
+suite_warn="${PLUGIN_TEST_SUITE_WARN:-120}"
+suite_ceiling="${PLUGIN_TEST_SUITE_CEILING:-300}"
+if ((suite_budget)); then
+  for v in "PLUGIN_TEST_SUITE_WARN:$suite_warn" "PLUGIN_TEST_SUITE_CEILING:$suite_ceiling"; do
+    if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
+      exit 2
+    fi
+  done
+fi
 if ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
   exit 2
@@ -291,6 +320,23 @@ declare -A is_serial=() is_advisory=()
 read_suite_list "$SERIAL_LIST" is_serial
 read_suite_list "$ADVISORY_LIST" is_advisory
 [[ "${PLUGIN_TEST_ADVISORY:-}" == 1 ]] || is_advisory=()
+# The exceptions list: one `<suite> <ceiling-seconds>` row per suite, with the
+# same stale guard.
+declare -A exception_ceiling=()
+if [[ -f "$EXCEPTIONS_LIST" ]]; then
+  while read -r path secs extra || [[ -n "$path" ]]; do
+    [[ -n "$path" && "$path" != \#* ]] || continue
+    if [[ ! "$secs" =~ ^[1-9][0-9]*$ || -n "$extra" && "$extra" != \#* ]]; then
+      echo "error: $EXCEPTIONS_LIST row for '$path' wants '<suite> <ceiling-seconds>'" >&2
+      exit 2
+    fi
+    if [[ -z "${discovered[$path]+x}" ]]; then
+      echo "error: $EXCEPTIONS_LIST names '$path', which matches no discovered suite; remove the stale entry" >&2
+      exit 2
+    fi
+    exception_ceiling["$path"]="$secs"
+  done <"$EXCEPTIONS_LIST"
+fi
 # The supplied selection replaces the discovered corpus HERE: after the stale
 # guard, so the allowlist is still matched against the full discovery, and
 # before the shard, so --suites-from and --shard compose the way --shard alone
@@ -442,6 +488,19 @@ for i in "${!tests[@]}"; do
       echo "FAIL: $t took ${secs}s, over its ${share}s share of the budget" >&2
       suite_annotate error "$t" "$t took ${secs}s, over its ${share}s share of the budget"
       failed=1
+    fi
+  fi
+  if ((suite_budget)); then
+    secs="$(<"$log.secs")"
+    ceiling="${exception_ceiling[$t]:-$suite_ceiling}"
+    if ((secs > ceiling)); then
+      # `FAIL: <suite>` alone on its line, the shape log readers attribute.
+      printf 'FAIL: %s\n  took %ss, over its %ss per-suite ceiling\n' "$t" "$secs" "$ceiling" >&2
+      suite_annotate error "$t" "$t took ${secs}s, over its ${ceiling}s per-suite ceiling (README.md, Per-suite time budget in CI)"
+      failed=1
+    elif ((secs > suite_warn)); then
+      echo "SLOW: $t took ${secs}s, over the ${suite_warn}s per-suite threshold"
+      suite_annotate warning "$t" "$t took ${secs}s, over the ${suite_warn}s per-suite threshold (README.md, Per-suite time budget in CI)"
     fi
   fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"

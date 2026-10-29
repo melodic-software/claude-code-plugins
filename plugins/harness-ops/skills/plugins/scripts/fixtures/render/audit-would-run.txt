@@ -1,13 +1,17 @@
+Result: see the predictions below, nothing under Action needed
 Audit (read-only): every call sync would make is a prediction, prefixed would run:
 Marketplace: market1: needs update, 1 action(s) pending (autoUpdate: on)
-  would run: claude plugin marketplace update market1 (audit: predicted against the unrefreshed catalog, lastUpdated 2026-01-01T00:00:00Z; a lower bound on what sync would update)
+  would run: claude plugin marketplace update market1
+    predicted against the unrefreshed catalog (lastUpdated 2026-01-01T00:00:00Z), a lower bound on what sync would update
 In-repo: 0: <case> has no project/local installs
 Would update: 1 plugin(s)
   would run: claude plugin update alpha@market1 -s user (installed 0.1.0)
 Would withhold: 1 downgrade(s) (--allow-downgrade ignored: audit issues no update either way)
-  - gamma@market1 (user): 0.5.0 → 0.1.0 (catalog moved backward)
-Would install: 1 new catalog plugin(s) (policy install_new: all: once installed, a later sync would reinstall any of these you uninstall; to keep one out, disable it instead of uninstalling)
+  - gamma@market1 (user): 0.5.0 -> 0.1.0 (catalog moved backward)
+Would install: 1 new catalog plugin(s) (policy install_new: all)
   would run: claude plugin install beta@market1 -s user
+  once installed, a later sync would reinstall any of these you uninstall
+    remedy: to keep one out, disable it instead of uninstalling
 Would enable: 1 plugin(s)
   would run: claude plugin enable gamma@market1 -s user
 Divergences: 0 actionable

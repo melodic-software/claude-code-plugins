@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: te-slug-collision-guard
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: hash-computed
+    type: tool_used
+    tool: Bash
+    input_match: 'C#.*(?:sha256sum|shasum)|(?:sha256sum|shasum).*C#'
+  - name: reads-existing-mission
+    type: tool_used
+    tool: Read
+    input_match: 'topic[/\\]c[/\\]MISSION\.md'
+  - name: workspace-path
+    type: regex
+    pattern: '\blearning-root/(?:[a-z0-9]+-)+[0-9a-f]{8}/topic/c-[0-9a-f]{4}(?![0-9A-Za-z_-])'
+    target: last_message

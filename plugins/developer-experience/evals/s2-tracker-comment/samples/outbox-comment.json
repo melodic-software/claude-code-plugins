@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "{\"item\":\"4821\",\"body\":\"Paging fix is merged; verifying on staging tomorrow.\",\"createdUtc\":\"2026-10-29T10:00:00.0000000Z\"}",
+      "why": "what tq item comment writes"
+    },
+    {
+      "answer": "{\n  \"item\": \"4821\",\n  \"body\": \"Paging fix is merged; verifying on staging tomorrow.\"\n}",
+      "why": "indented JSON with the same body"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "{\"item\":\"4821\",\"body\":\"Paging fix merged, verifying on staging tomorrow\",\"createdUtc\":\"2026-10-29T10:00:00.0000000Z\"}",
+      "why": "near miss: the comment text was reworded"
+    },
+    {
+      "answer": "{\"item\":\"4821\",\"body\":\"Paging fix is merged\",\"createdUtc\":\"2026-10-29T10:00:00.0000000Z\"}",
+      "why": "near miss: the body was cut at the semicolon by the shell"
+    },
+    {"answer": "Comment queued for item 4821.", "why": "the command's console output, not the outbox file"}
+  ]
+}

@@ -61,7 +61,9 @@
 #                          --check-bump, --check-preserved and --check-order
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
-#                          file changed
+#                          file changed; without --tests it sets
+#                          CHECK_SKILL_SKIP_SCRIPT_TESTS=1, so the skills'
+#                          scripts/*.test.sh are left to the test tier
 #   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
 #                          --budget <S> --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
@@ -69,6 +71,10 @@
 #                          suites of scripts/outside-node-packages.txt through
 #                          scripts/run-outside-node-suites.sh --paths; any
 #                          other selected suite left unrun makes tests a SKIP
+#
+# validate-plugins, changed-skills and tests are the slow checks; they run last,
+# and only when every other check passed. When one of those failed they are
+# SKIPs naming that, so a static finding is reported at once.
 #
 # Every hygiene gate the CI jobs run that this does not is printed as
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
@@ -420,15 +426,6 @@ else
   skip stale-base-overlap "git fetch of $base_name failed"
 fi
 
-if ((${#plugins[@]} == 0)); then
-  skip validate-plugins "no plugin changed"
-elif ! command -v claude >/dev/null 2>&1; then
-  skip validate-plugins "claude CLI not installed"
-else
-  run_check validate-plugins "scripts/validate-plugins.sh --only \"${plugins[*]}\"" \
-    "$tools/scripts/validate-plugins.sh" --only "${plugins[*]}"
-fi
-
 if ((${#py[@]} == 0)); then
   skip ruff "no changed .py"
 else
@@ -639,16 +636,41 @@ run_check changelog-parity \
   "scripts/check-changelog-parity.sh --check; CHANGELOG_PARITY_COLLISIONS=advisory scripts/check-changelog-parity.sh --check-bump $base; scripts/check-changelog-parity.sh --check-preserved $base; scripts/check-changelog-parity.sh --check-order" \
   parity
 
-if ((!skill_touched)); then
+# The slow checks (a plugin validation, a skill-quality run, the suites) run only
+# when every check above passed: a static finding is already a failed run, and
+# its report should not wait minutes on them.
+halt=${#failed[@]}
+halt_why="a static check failed above"
+
+if ((halt)); then
+  skip validate-plugins "$halt_why"
+elif ((${#plugins[@]} == 0)); then
+  skip validate-plugins "no plugin changed"
+elif ! command -v claude >/dev/null 2>&1; then
+  skip validate-plugins "claude CLI not installed"
+else
+  run_check validate-plugins "scripts/validate-plugins.sh --only \"${plugins[*]}\"" \
+    "$tools/scripts/validate-plugins.sh" --only "${plugins[*]}"
+fi
+
+if ((halt)); then
+  skip changed-skills "$halt_why"
+elif ((!skill_touched)); then
   skip changed-skills "no changed skill file"
 elif ((foreign)); then
   skip changed-skills "runs the checked tree's own skill-quality code"
-else
+elif ((run_tests)); then
   run_check changed-skills "scripts/check-changed-skills.sh $base" \
     "$tools/scripts/check-changed-skills.sh" "$base"
+else
+  # The lint tier leaves each skill's scripts/*.test.sh to --tests and CI's test lanes.
+  run_check changed-skills "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 scripts/check-changed-skills.sh $base" \
+    env CHECK_SKILL_SKIP_SCRIPT_TESTS=1 "$tools/scripts/check-changed-skills.sh" "$base"
 fi
 
-if ((run_tests && foreign && !snapshot)); then
+if ((run_tests && halt)); then
+  skip tests "$halt_why"
+elif ((run_tests && foreign && !snapshot)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
   # Suites load the locked npm packages, which a fresh worktree lacks or a

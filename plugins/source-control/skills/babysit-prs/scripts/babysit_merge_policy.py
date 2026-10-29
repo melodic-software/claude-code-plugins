@@ -1203,6 +1203,32 @@ def with_default_branch(
     when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
+def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
+    """`merge.agent-identity` when the pull request's base commit and the
+    default branch head both declare the same one, with where it was read.
+    Never the head branch: a person merges `CONFIG_PATH`, so a value that
+    widens what the worker may resolve comes only from reviewed config.
+    None, with the reason, when either side is unset, they differ, or a read
+    fails, so the caller keeps its refusal."""
+    try:
+        base = config_at(repo, base_sha)
+        if base.error:
+            return None, f"{CONFIG_PATH} at the base {base_sha}: {base.error}"
+        main = _default_branch_config(repo)
+    except PolicyReadError as exc:
+        return None, str(exc)
+    keys = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
+    if "" in keys or len(keys) != 1:
+        return None, (
+            f"merge.agent-identity is {base.agent_identity!r} at the base {base_sha} "
+            f"and {main.agent_identity!r} at the default branch head {main.base_sha}"
+        )
+    return base.agent_identity, (
+        f"merge.agent-identity in {CONFIG_PATH} at the base {base_sha} and the "
+        f"default branch head {main.base_sha}"
+    )
+
+
 
 
 # --- Effective rung ---------------------------------------------------------------
