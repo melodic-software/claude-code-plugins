@@ -10,7 +10,7 @@ graders:
   - name: no-root-ask-tool
     type: tool_used
     tool: AskUserQuestion
-    input_match: '[Ww]here|[Ff]older|[Dd]irectory|[Rr]oot|[Ll]ocation'
+    input_match: '[Ww]here|[Ff]older|Directory|directory|[Rr]oot|Location|location'
     min: 0
     max: 0
     arm: both

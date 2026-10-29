@@ -9,7 +9,7 @@ graders:
     input_match: 'parse-concern-value\.sh|conventions/education\.yaml'
   - name: names-invalid-value
     type: regex
-    pattern: '^(?=[^\n]*\bexpert\b)(?=[^\n]*\b(?:invalid|not (?:a )?valid|isn''t valid|isn’t valid|unknown|unrecognized|not recognized|unsupported|not one of|isn''t one of|isn’t one of|ignor\w*|drop\w*|neither)\b)(?=[^\n]*\bexplain_starting_rung\b)(?=[^\n]*(?:docs/conventions/education\.yaml|\brepositor(?:y|ies)\b|\brepo\b))'
+    pattern: '^(?=[^\n]*\bexpert\b)(?=[^\n]*\b(?:invalid|not (?:a )?valid|isn''t valid|isn’t valid|unknown|unrecognized|not recognized|unsupported|not one of|isn''t one of|isn’t one of|ign[o]r\w*|drop\w*|neither)\b)(?=[^\n]*\bexplain_starting_rung\b)(?=[^\n]*(?:docs/conventions/education\.yaml|\brepositor(?:y|ies)\b|\brepo\b))'
     flags: 'mi'
     target: last_message
   - name: rung-report-plain-default
