@@ -34,7 +34,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, SHA } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -84,22 +84,27 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 // Whether an adjudicator may judge a dispute on the thread: a review comment
 // that carries no `severity: CRITICAL` line and that keepThreads tagged with
 // the code-review lane (a github-actions[bot] footer; claude[bot] writes its
-// own body, so it names no lane) or as a listed review bot's (from its account
-// id) whose `security` state is clear: the security-review lane reviewed the
-// head the bot reviewed and holds nothing there or since. The bot's own
-// severity badge decides nothing. A listed bot's finding the lane held goes to
-// a person (feedback-question-security); one the lane has not reviewed yet
-// waits for the next round (settleDisputes). A CRITICAL finding, a
-// security-review finding, one of no tagged lane, and a pr-verify verifier
-// note (resolving it leaves the verifier's FAIL holding the merge, and
-// pr-verify judges each head once) always go to a person.
+// own body, so it names no lane), with the security-review lane and a rating
+// below the one a person decides (securityNeedsPerson), or as a listed review
+// bot's (from its account id) whose `security` state is clear: the
+// security-review lane reviewed the head the bot reviewed and holds nothing
+// there or since. The bot's own severity badge decides nothing. A listed
+// bot's finding the lane held goes to a person (feedback-question-security);
+// one the lane has not reviewed yet waits for the next round
+// (settleDisputes). A CRITICAL finding, a security-review finding a person
+// decides, one of no tagged lane, and a pr-verify verifier note (resolving it
+// leaves the verifier's FAIL holding the merge, and pr-verify judges each
+// head once) always go to a person.
 const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].security ?? "pending" : null);
+// Whether the thread's root is a security-review lane finding rated below the
+// one a person decides.
+const minorSecurity = (comments) => comments?.[0]?.lane === "claude-security-review" && !securityNeedsPerson(comments[0].body);
 export const adjudicable = (comments) => {
   const root = comments?.[0];
   if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? ""))) {
     return false;
   }
-  return root.listed === true ? listedState(comments) === "clear" : root.lane === "claude-review";
+  return root.listed === true ? listedState(comments) === "clear" : root.lane === "claude-review" || minorSecurity(comments);
 };
 
 // The locations a review comment cites: path:line tokens in its prose and
@@ -325,13 +330,16 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   CRITICAL: feedback-question-security; one whose head the lane has not
 //   reviewed yet is deferred: no verdict, no escalation, and the round skips
 //   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
-// - any other DISPUTED thread that is not adjudicable (a CRITICAL or
-//   security-review finding, or one of unknown lane) goes to a person:
+// - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
+//   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
+//   with no readable rating, or one of unknown lane) goes to a person:
 //   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
 //   and any verdict for it is ignored;
 // - a DISPUTED thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
-//   only the owner answers stays the owner's;
+//   only the owner answers stays the owner's, except a security question on
+//   a security-review finding rated below SECURITY_PERSON_SEVERITY, which is
+//   feedback-unadjudicated;
 // - lane: on an INCORRECT reply, the fixed reply, then the thread is
 //   resolved; on an UNCERTAIN or VALID-defer reply (the lane could not tell,
 //   or agreed the finding holds) no reply, the thread stays open (the
@@ -387,7 +395,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       continue;
     }
     if (!adjudicable(comments)) {
-      log(`${thread}: not a non-CRITICAL code-review finding; it goes to a person, not to an adjudicator`);
+      log(`${thread}: not a non-CRITICAL code-review finding or a security-review finding rated below ${SECURITY_PERSON_SEVERITY}; it goes to a person, not to an adjudicator`);
       raise(disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain");
       continue;
     }
@@ -398,6 +406,14 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       continue;
     }
     if (verdict.verdict === "human") {
+      // The security-review lane rated this finding below the one a person
+      // decides, so a security question on it ends the lane in a failing
+      // status, not with a person.
+      if (verdict.question === "security" && minorSecurity(comments)) {
+        log(`${thread}: the adjudicator found a security question on a finding the security-review lane rated below ${SECURITY_PERSON_SEVERITY}; left open`);
+        raise("feedback-unadjudicated");
+        continue;
+      }
       log(`${thread}: the adjudicator found a ${verdict.question} question`);
       raise(`feedback-question-${verdict.question}`);
       continue;

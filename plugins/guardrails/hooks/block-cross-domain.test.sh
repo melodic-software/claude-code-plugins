@@ -3,11 +3,12 @@
 #
 # Black-box: the hook runs as a subprocess on a PreToolUse payload, alone and
 # under run-guards.sh. Every exit is 0, so the assertions are on stdout (the
-# identity-write deny; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE steps
-# on stderr (what a call read and parsed), on the telemetry envelope (the cwd's
-# class and what the command names), and, where strace runs, on the processes a
-# call starts. The domain map is built here from placeholder names under the
-# suite's own temp tree.
+# deny document, cross-domain or identity-write; the malformed-map notice), on
+# the GUARDRAILS_CROSS_DOMAIN_TRACE steps on stderr (what a call read and
+# parsed), on the telemetry envelope (the cwd's class, what the command names,
+# and whether it was denied), and, where strace runs, on the processes a call
+# starts. The domain map is built here from placeholder names under the suite's
+# own temp tree.
 # test-scope: plugins/guardrails/hooks/hooks.json
 # shellcheck disable=SC2016  # commands under test carry literal $ spellings
 
@@ -57,8 +58,10 @@ G_ROOT="$HOME_DIR/gamma"
 NEUTRAL="$TEST_TMPDIR/neutral"
 mkdir -p "$A_ROOT/repo" "$B_ROOT/repo" "$D_ROOT/repo" "$G_ROOT" "$NEUTRAL"
 
-# The placeholder map: alpha and beta with markers, delta nested in alpha,
-# gamma below HOME. beta's root carries a trailing separator.
+# The placeholder map: alpha and beta with owners and markers, delta nested in
+# alpha, gamma below HOME, and epsilon on drive Q, spelled as a Windows drive
+# path for Windows and as its WSL mount elsewhere. beta's root carries a
+# trailing separator. No root of epsilon exists on disk: only the text is read.
 MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg other_root "$OTHER_ROOT" \
   --arg a "$A_ROOT" --arg b "$B_ROOT/" --arg d "$D_ROOT" --arg g "$G_ROOT" '{
     domains: {
@@ -67,7 +70,9 @@ MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg
       beta: {roots: {($os): [$b], ($other): [$other_root]}, owners: ["beta-org"],
         identity_markers: ["beta-org"], az_config_dir: "/placeholder/az-beta"},
       delta: {roots: {($os): [$d]}},
-      gamma: {roots: {($os): [$g]}}
+      gamma: {roots: {($os): [$g]}},
+      epsilon: {roots: {windows: ["Q:\\placeholder\\epsilon"], linux: ["/mnt/q/placeholder/epsilon"],
+        macos: ["/mnt/q/placeholder/epsilon"]}}
     },
     identity_files: ["/placeholder/identity"],
     shared_exceptions: ["/placeholder/shared"],
@@ -130,51 +135,128 @@ assert_contains "the second call reads the cache" "$GUARD_ERR" "trace map-cached
 assert_absent "the second call does not compile" "$GUARD_ERR" "trace map-compile"
 assert_absent "the second call, nothing named: the parser does not run" "$GUARD_ERR" "trace parse"
 
-# --- What a command names -----------------------------------------------------
-# hit <label> <command>: the prefilter hits, the parser runs, nothing is denied.
+# --- What a command names, and what it denies ---------------------------------
+# verdict <label> <deny|allow>: what the last call decided. A deny is one
+# PreToolUse document on stdout, and the exit stays 0.
+verdict() {
+  local reason
+  if [[ "$2" == allow ]]; then
+    assert_silent "$1: allowed, nothing on stdout" "$GUARD_OUT"
+    assert_absent "$1: allowed, no deny traced" "$GUARD_ERR" "trace deny"
+    return 0
+  fi
+  assert_eq "$1: denied" deny "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+  reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")
+  assert_contains "$1: the reason says which guard denied it" "$reason" "block-cross-domain: denied"
+  assert_contains "$1: the reason names the way off" "$reason" "block_cross_domain_enabled"
+}
+# hit <label> <command> [deny|allow]: the prefilter hits, the parser runs, and
+# the call from alpha's tree is denied or allowed.
 hit() {
   call "$DATA" "$A_ROOT/repo" "$2"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
-  assert_silent "$1: no decision on stdout" "$GUARD_OUT"
   assert_contains "$1: the prefilter hits" "$GUARD_ERR" "trace prefilter-hit"
   assert_contains "$1: the parser runs" "$GUARD_ERR" "trace parse"
+  [[ -z "${3-}" ]] || verdict "$1" "$3"
 }
-# miss <label> <command>: the prefilter misses and the parser does not run.
+# miss <label> <command>: the prefilter misses, the parser does not run, and the
+# call is allowed.
 miss() {
   call "$DATA" "$A_ROOT/repo" "$2"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
   assert_contains "$1: the prefilter misses" "$GUARD_ERR" "trace prefilter-miss"
   assert_absent "$1: the parser does not run" "$GUARD_ERR" "trace parse"
+  verdict "$1" allow
 }
 FS='/'
 BS="\\"
-hit "another domain's root" "ls '$B_ROOT/repo'"
-hit "a root the map spells with a trailing separator" "ls $B_ROOT"
-hit "the cwd's own root" "ls $A_ROOT/repo/src"
-hit "a marker" 'git clone git@example.invalid:beta-org/repo.git'
-hit "a marker in another case" 'echo BETA-ORG'
-hit "a root below HOME after ~" 'ls ~/gamma/notes'
-hit 'a root below HOME after $HOME' 'ls "$HOME/gamma"'
-hit "a root spelled with backslashes" "ls ${B_ROOT//"$FS"/"$BS"}"
+hit "another domain's root" "ls '$B_ROOT/repo'" deny
+hit "a root the map spells with a trailing separator" "ls $B_ROOT" deny
+hit "another domain's root as a redirection target" "echo x >'$B_ROOT/notes'" deny
+hit "another domain's root after cd" "cd $B_ROOT/repo && git status" deny
+hit "another domain's root inside bash -c" "bash -c 'cat $B_ROOT/repo/README.md'" deny
+hit "the cwd's own root" "ls $A_ROOT/repo/src" allow
+hit "a marker" 'git clone git@example.invalid:beta-org/repo.git' allow
+hit "a marker in another case" 'echo BETA-ORG' allow
+hit "a root below HOME after ~" 'ls ~/gamma/notes' deny
+hit 'a root below HOME after $HOME' 'ls "$HOME/gamma"' deny
+hit 'a root below HOME after a quoted $HOME' 'ls "$HOME"/gamma' deny
+# Unquoted, bash drops each backslash, so the word the parser hands over names
+# no root: the prefilter hits on the raw text and the parse settles it.
+hit "a root spelled with unquoted backslashes" "ls ${B_ROOT//"$FS"/"$BS"}" allow
+hit "a root spelled with quoted backslashes" "ls '${B_ROOT//"$FS"/"$BS"}'" deny
 miss "a longer name that starts like a root" "ls ${B_ROOT}shop"
 miss "a root inside a longer path" "ls /mnt$B_ROOT"
 miss "a marker inside a longer word" 'echo beta-orgs'
 miss "a relative path ending like a root below HOME" 'ls ./gamma/notes'
+miss "a neutral path" "ls $NEUTRAL/x"
 
-# --- Telemetry: the cwd's class and what the command names --------------------
+# Every spelling of a root on drive Q, from whichever form the host's map holds.
+E_WIN="Q:${BS}placeholder${BS}epsilon"
+hit "a drive path with backslashes" "ls '$E_WIN${BS}x'" deny
+hit "a drive path with escaped backslashes" "ls '${E_WIN//"$BS"/"$BS$BS"}'" deny
+hit "a drive path with forward slashes" 'ls Q:/placeholder/epsilon/x' deny
+hit "a drive path in another case" 'ls q:/PLACEHOLDER/Epsilon' deny
+hit "an MSYS drive path" 'ls /q/placeholder/epsilon/x' deny
+hit "a Cygwin drive path" 'ls /cygdrive/q/placeholder/epsilon' deny
+hit "a WSL drive path" 'ls /mnt/q/placeholder/epsilon/x' deny
+hit "a WSL drive path in another case" 'ls /MNT/Q/Placeholder/EPSILON' deny
+miss "a drive path that only starts like a root" 'ls /q/placeholder/epsilons'
+miss "a drive path on another drive" 'ls R:/placeholder/epsilon'
+
+# An owner's directory below ~/src/github.com or ~/worktrees/github.com is that
+# owner's domain's path.
+hit "another domain's owner below ~/src" 'ls ~/src/github.com/beta-org/repo' deny
+hit "another domain's owner below ~/worktrees" 'git -C ~/worktrees/github.com/beta-org/repo/wt status' deny
+hit 'another domain'"'"'s owner after $HOME' 'cat "$HOME/src/github.com/beta-org/repo/README.md"' deny
+hit "another domain's owner by the literal home path" "ls $HOME_DIR/src/github.com/beta-org" deny
+hit "another domain's owner in another case" 'ls ~/src/github.com/Beta-Org/repo' deny
+hit "the cwd's own owner" 'ls ~/src/github.com/alpha-org/repo' allow
+hit "another domain's owner below another host, a marker only" 'ls ~/src/gitlab.com/beta-org/repo' allow
+miss "an owner that only starts like another domain's" 'ls ~/src/github.com/beta-orgs/repo'
+miss "an owner no domain lists" 'ls ~/src/github.com/unlisted-org/repo'
+
+# Where the cwd is decides: from beta's tree alpha's paths are the other
+# domain's, and from a neutral cwd nothing is denied.
+call "$DATA" "$B_ROOT/repo" "ls $A_ROOT/repo ~/src/github.com/alpha-org"
+verdict "from beta's tree, alpha's root and owner" deny
+REASON=$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")
+assert_contains "from beta's tree: the reason names the cwd's domain" "$REASON" "identity domain 'beta'"
+assert_contains "from beta's tree: the reason names alpha once" "$REASON" "another domain ('alpha')"
+call "$DATA" "$A_ROOT/repo" "ls $B_ROOT/repo ~/gamma"
+assert_contains "two other domains: the reason names both, in the order named" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ('beta', 'gamma')"
+call "$DATA" "$NEUTRAL" "ls $A_ROOT $B_ROOT/repo ~/src/github.com/beta-org"
+assert_contains "from a neutral cwd: the parser runs" "$GUARD_ERR" "trace parse"
+verdict "from a neutral cwd, two domains' paths" allow
+call "$DATA" "$A_ROOT/repo" "ls $B_ROOT" CLAUDE_CODE_SESSION_ATTENDED=1
+verdict "an attended session" deny
+
+# An owner's directory classifies the cwd as a root does: inside beta-org's
+# clone the session is beta's.
+OWNED="$HOME_DIR/src/github.com/beta-org/repo"
+call "$DATA" "$OWNED" "ls $A_ROOT/repo"
+verdict "from beta-org's clone, alpha's root" deny
+assert_contains "from beta-org's clone: the reason names beta as the cwd's domain" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "identity domain 'beta'"
+call "$DATA" "$OWNED" "ls ~/worktrees/github.com/beta-org/repo/wt $B_ROOT/repo"
+assert_contains "from beta-org's clone, beta's own paths: the parser runs" "$GUARD_ERR" "trace parse"
+verdict "from beta-org's clone, beta's own paths" allow
+
+# --- Telemetry: the cwd's class, what the command names, and the decision -----
 TEL="$TEST_TMPDIR/tel.json"
 SINK="$(make_sink "cat >\"$TEL\"")"
-# tel <label> <cwd> <command> <form> <cwd class> [tool]
+# tel <label> <cwd> <command> <form> <cwd class> <status> [tool]
 tel() {
   local data
   rm -f "$TEL"
-  guard_invoke --tool "${6:-Bash}" --cwd "$2" --command "$3" -- "CLAUDE_PLUGIN_DATA=$DATA" \
+  guard_invoke --tool "${7:-Bash}" --cwd "$2" --command "$3" -- "CLAUDE_PLUGIN_DATA=$DATA" \
     "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR"
   assert_exit "$1: exit 0" 0 "$GUARD_RC"
   if wait_for_sink "$TEL"; then
     data=$(jq -c '.data' "$TEL")
     assert_eq "$1: hook" block-cross-domain "$(jq -r '.hook' "$TEL")"
-    assert_eq "$1: status" ok "$(jq -r '.status' "$TEL")"
+    assert_eq "$1: status" "$6" "$(jq -r '.status' "$TEL")"
     assert_eq "$1: form" "$4" "$(jq -r '.data.form' "$TEL")"
     assert_eq "$1: cwd" "$5" "$(jq -r '.data.cwd' "$TEL")"
     assert_absent "$1: no domain name in the data" "$data" alpha
@@ -184,20 +266,27 @@ tel() {
   fi
 }
 NL=$'\n'
-tel "cwd in a domain, nothing named" "$A_ROOT/repo" 'git status --short' prefilter-miss domain
-tel "cwd outside every root" "$NEUTRAL" 'git status --short' prefilter-miss neutral
-tel "the cwd's own root" "$A_ROOT/repo" "ls $A_ROOT/repo/src" own-domain domain
-tel "another domain's root" "$A_ROOT/repo" "ls $B_ROOT/repo" other-domain domain
-tel "a domain's root from a neutral cwd" "$NEUTRAL" "ls $A_ROOT" other-domain neutral
-tel "the cwd's own marker" "$A_ROOT/repo" 'git push git@example.invalid:alpha-org/repo.git' own-domain domain
-tel "nested roots: the longer one holds the cwd and the word" "$D_ROOT/repo" "ls $D_ROOT/repo/x" own-domain domain
-tel "nested roots: the outer root is another domain" "$D_ROOT/repo" "ls $A_ROOT/repo" other-domain domain
+tel "cwd in a domain, nothing named" "$A_ROOT/repo" 'git status --short' prefilter-miss domain ok
+tel "cwd outside every root" "$NEUTRAL" 'git status --short' prefilter-miss neutral ok
+tel "the cwd's own root" "$A_ROOT/repo" "ls $A_ROOT/repo/src" own-domain domain ok
+tel "another domain's root" "$A_ROOT/repo" "ls $B_ROOT/repo" other-domain domain blocked
+tel "a domain's root from a neutral cwd" "$NEUTRAL" "ls $A_ROOT" other-domain neutral ok
+tel "the cwd's own marker" "$A_ROOT/repo" 'git push git@example.invalid:alpha-org/repo.git' own-domain domain ok
+tel "another domain's marker" "$A_ROOT/repo" 'git push git@example.invalid:beta-org/repo.git' other-domain domain ok
+tel "another domain's owner" "$A_ROOT/repo" 'ls ~/src/github.com/beta-org/repo' other-domain domain blocked
+tel "nested roots: the longer one holds the cwd and the word" "$D_ROOT/repo" "ls $D_ROOT/repo/x" own-domain domain ok
+tel "nested roots: the outer root is another domain" "$D_ROOT/repo" "ls $A_ROOT/repo" other-domain domain blocked
 tel "two roots in one word: the shorter one still counts" "$D_ROOT/repo" \
-  "docker run -v $B_ROOT/x:$D_ROOT/y img" other-domain domain
-tel "a root only in a heredoc body is no word" "$A_ROOT/repo" "cat <<'EOF'${NL}$B_ROOT${NL}EOF" not-named domain
-tel "PowerShell: another domain's root" "$A_ROOT/repo" "Get-ChildItem '$B_ROOT'" other-domain domain PowerShell
+  "docker run -v $B_ROOT/x:$D_ROOT/y img" other-domain domain blocked
+tel "a root only in a heredoc body is no word" "$A_ROOT/repo" "cat <<'EOF'${NL}$B_ROOT${NL}EOF" not-named domain ok
+tel "PowerShell: another domain's root" "$A_ROOT/repo" "Get-ChildItem '$B_ROOT'" other-domain domain blocked PowerShell
 tel 'PowerShell: a root below HOME after $env:USERPROFILE' "$A_ROOT/repo" \
-  'Get-ChildItem $env:USERPROFILE\gamma' other-domain domain PowerShell
+  'Get-ChildItem $env:USERPROFILE\gamma' other-domain domain blocked PowerShell
+tel "PowerShell: another domain's owner" "$A_ROOT/repo" \
+  "Get-ChildItem \$env:USERPROFILE${BS}src${BS}github.com${BS}beta-org${BS}repo" other-domain domain blocked PowerShell
+tel "PowerShell: a drive path" "$A_ROOT/repo" 'Get-ChildItem Q:\placeholder\epsilon\x' \
+  other-domain domain blocked PowerShell
+tel "PowerShell: a marker only" "$A_ROOT/repo" 'Write-Output beta-org' other-domain domain ok PowerShell
 
 # PowerShell is read as text: the prefilter runs, the Bash parser does not.
 guard_invoke --tool PowerShell --cwd "$A_ROOT/repo" --command "Get-ChildItem '$B_ROOT'" -- \
@@ -205,6 +294,7 @@ guard_invoke --tool PowerShell --cwd "$A_ROOT/repo" --command "Get-ChildItem '$B
 assert_exit "PowerShell: exit 0" 0 "$GUARD_RC"
 assert_contains "PowerShell: the prefilter hits" "$GUARD_ERR" "trace prefilter-hit"
 assert_absent "PowerShell: the Bash parser does not run" "$GUARD_ERR" "trace parse"
+verdict "PowerShell: another domain's root" deny
 
 # --- A malformed map: no deny, the user told once -----------------------------
 BAD_N=0
@@ -294,13 +384,23 @@ printf 'not a cache' >"$EDIT/identity-domains.cache"
 call "$EDIT" "$A_ROOT/repo" 'echo epsilon-org'
 assert_contains "a cache that is not this map's is compiled again" "$GUARD_ERR" "trace map-compile"
 assert_contains "after the recompile the marker is still named" "$GUARD_ERR" "trace prefilter-hit"
+# The owner directories sit below HOME, so the same map under another HOME is
+# compiled again, and the owner below the new HOME is the one denied.
+OTHER_HOME="$TEST_TMPDIR/other-home"
+call "$EDIT" "$A_ROOT/repo" "ls $OTHER_HOME/src/github.com/beta-org/repo" "HOME=$OTHER_HOME"
+assert_contains "the same map under another HOME is compiled again" "$GUARD_ERR" "trace map-compile"
+verdict "another domain's owner below the new HOME" deny
 
 # --- Under the dispatcher, and on the shipped row -----------------------------
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
-assert_exit "dispatched, a root named: exit 0" 0 "$GUARD_RC"
-assert_silent "dispatched, a root named: no decision on stdout" "$GUARD_OUT"
-assert_contains "dispatched, a root named: the parser runs" "$GUARD_ERR" "trace parse"
+assert_exit "dispatched, another domain's root: exit 0" 0 "$GUARD_RC"
+assert_contains "dispatched, another domain's root: the parser runs" "$GUARD_ERR" "trace parse"
+verdict "dispatched, another domain's root" deny
+guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $A_ROOT/repo/src" -- \
+  "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
+assert_exit "dispatched, the cwd's own root: exit 0" 0 "$GUARD_RC"
+verdict "dispatched, the cwd's own root" allow
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command 'git status --short' -- \
   "CLAUDE_PLUGIN_DATA=$DATA" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
 assert_exit "dispatched, nothing named: exit 0" 0 "$GUARD_RC"
@@ -322,9 +422,11 @@ row_rc=0
 row_out=$(cd "$HOOK_DIR" && env CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.." CLAUDE_PLUGIN_DATA="$DATA" \
   CLAUDE_CODE_SESSION_ATTENDED=0 GUARDRAILS_CROSS_DOMAIN_TRACE=1 HOME="$HOME_DIR" \
   bash "$HOOK_DIR/run-guards.sh" "${ROW_ARGS[@]}" <<<"$ROW_PAYLOAD" 2>"$TEST_TMPDIR/row.err") || row_rc=$?
-assert_exit "the shipped row, a root named: exit 0" 0 "$row_rc"
-assert_absent "the shipped row, a root named: no deny" "$row_out" permissionDecision
-assert_contains "the shipped row, a root named: the guard parses it" "$(cat "$TEST_TMPDIR/row.err")" "trace parse"
+assert_exit "the shipped row, another domain's root: exit 0" 0 "$row_rc"
+assert_eq "the shipped row, another domain's root: one document on stdout" 1 "$(jq -s 'length' <<<"$row_out")"
+assert_eq "the shipped row, another domain's root: denied" deny \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$row_out")"
+assert_contains "the shipped row, another domain's root: the guard parses it" "$(cat "$TEST_TMPDIR/row.err")" "trace parse"
 
 # --- The identity rule: global identity writes are denied in every domain -----
 ID_DATA="$TEST_TMPDIR/identity"
@@ -500,9 +602,9 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_eq "strace: compiled map, nothing named: the guard's execve count" 0 "$SHARE_EXECVE"
 
   census_share "ls $B_ROOT/repo" "$CENSUS"
-  assert_exit "strace: compiled map, a root named: exit 0" 0 "$SHARE_RC"
-  assert_eq "strace: compiled map, a root named and parsed: the guard's process creations" 0 "$SHARE_CREATIONS"
-  assert_eq "strace: compiled map, a root named and parsed: the guard's execve count" 0 "$SHARE_EXECVE"
+  assert_exit "strace: compiled map, another domain's root: exit 0" 0 "$SHARE_RC"
+  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's process creations" 0 "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, another domain's root parsed and denied: the guard's execve count" 0 "$SHARE_EXECVE"
 
   census_share 'git config --global user.email a@example.invalid' "$CENSUS"
   assert_exit "strace: compiled map, an identity write: exit 0" 0 "$SHARE_RC"

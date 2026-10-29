@@ -586,7 +586,8 @@ routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` i
 a person settles: a path the lane would itself have to resolve or write that its token may not
 push, or a supply-chain refusal (SAFETY), an intent,
 design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
-security-review or CRITICAL one), or any `review-dependency` stop: its failing status would be per head,
+CRITICAL one, or a security-review one rated `IMPORTANT` or above or with no rating it reads; a
+security-review `SUGGESTION` is adjudicated like a code-review finding), or any `review-dependency` stop: its failing status would be per head,
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
 holds it for a person. Every other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
@@ -2587,10 +2588,10 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
-on the requested threads only. With no such request, a security lane finding, a pr-verify note a
-trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
+on the requested threads only. With no such request, a security lane finding rated `IMPORTANT` or
+`CRITICAL` (or with no rating the lane reads), a pr-verify note a trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
 hands the PR to a person; any other
-finding, an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
+finding, a security lane `SUGGESTION` and an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
 round: once it has run, no sweep, schedule or dispatch starts another, and the next select fails
 the head as `feedback-verifier-open` when only pr-verify notes are open, else as
 `feedback-not-converging`, a comment that names the open threads. A round cap is a lane bound, not
