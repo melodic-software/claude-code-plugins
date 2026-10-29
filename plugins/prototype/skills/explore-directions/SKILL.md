@@ -191,7 +191,7 @@ the variants as above, then emit each offered tier and nothing the session does 
 
 | Tier | Emit per variant | Rules |
 |---|---|---|
-| Screenshots | One to four PNGs, in viewing order | Captured at 2x with `/playwright:playwright` when it is among the available skills, after using the variant's main control once; without it, emit no screenshots and say so |
+| Screenshots | One to four PNG files, in viewing order | Captured at 2x with `/playwright:playwright` when it is among the available skills, after using the variant's main control once; without it, emit no screenshots and say so |
 | HTML snapshot | One self-contained HTML file, with no switcher unless it prototypes the interview page itself (below), since the interview's prototype page tabs between variants | Starts with `<!doctype html>`, at most 10 MB, every style, script, image and font inline; the interview serves it with no network access, so a fetch fails |
 | Live | One static build folder for all variants: `index.html` plus its files, picking the variant from `?variant=<key>` | Every script, style, image and font in its own file in the folder: the live server allows same-origin files only, so inline `<script>`, inline `<style>`, `data:` URLs and the mockup's CSP meta tag are blocked. Synthetic fixtures in a JSON file, every write stubbed in memory, relative or root-absolute URLs, no remote origin, no service worker, no secret or `.env` content. Regular files only (no hidden name, symlink or hard link), at most 2,000 files and 50 MB |
 
