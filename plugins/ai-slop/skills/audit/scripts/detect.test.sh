@@ -1210,9 +1210,9 @@ LONGLINE="$(printf 'x%.0s' $(seq 1 75)) em${EM}dash tail"
 BOUNDARY="$TEST_TMPDIR/boundary.md"
 printf '%s\n' "$LONGLINE" >"$BOUNDARY"
 out="$(bash "$DETECT" "$BOUNDARY" 2>&1)"
-if printf '%s' "$out" | LC_ALL=C grep -q $'\xe2\x80\x94'; then
+if LC_ALL=C grep -q $'\xe2\x80\x94' <<<"$out"; then
   pass "excerpt truncation: em dash at boundary survives whole"
-elif printf '%s' "$out" | LC_ALL=C grep -q $'\xe2'; then
+elif LC_ALL=C grep -q $'\xe2' <<<"$out"; then
   fail "excerpt truncation: no partial multi-byte sequence" "whole em dash or none" "lone lead byte present"
 else
   pass "excerpt truncation: partial sequence dropped cleanly"

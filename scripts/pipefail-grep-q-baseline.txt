@@ -3,7 +3,6 @@
 # comment. The default scan skips these files' findings and fails on an entry
 # whose file is gone or no longer offends, so the list only shrinks. Never add
 # a file here: rewrite the pipe as grep ... <<<"$v" or grep ... < <(producer).
-plugins/ai-slop/skills/audit/scripts/detect.test.sh
 plugins/autonomy/hooks/lane-notify.test.sh
 plugins/autonomy/hooks/lane-stop-gate.test.sh
 plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh
