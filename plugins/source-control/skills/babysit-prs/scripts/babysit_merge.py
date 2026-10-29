@@ -187,6 +187,7 @@ from babysit_gh import (
     collect_lane_runs,
     collect_main_review_counts,
     main_review_critical,
+    main_review_stop,
     collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
@@ -3174,11 +3175,20 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
+    head_sha = str(head.get("sha"))
+    head_file = _head_file(repo, head_sha)
+    base_sha = json_object(pr.get("base")).get("sha")
+    # A lane-source pull request binds the code lane on a main-run review
+    # alone (`bind()`), so only the security lane's runs, which its carried
+    # blocking count reads, are listed.
+    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
     runs = collect_lane_runs(
         repo,
         number,
         str(head.get("ref")),
-        review_evidence.LANES.values(),
+        [review_evidence.LANES[review_evidence.SEVERITY_LANE]]
+        if main
+        else review_evidence.LANES.values(),
         str(pr.get("created_at") or ""),
         read_env,
     )
@@ -3192,9 +3202,6 @@ def _lane_evidence(
             permission=permission,
         )
 
-    head_sha = str(head.get("sha"))
-    head_file = _head_file(repo, head_sha)
-    base_sha = json_object(pr.get("base")).get("sha")
     main_reviews, main_context = _main_reviews(
         repo,
         number,
@@ -3204,6 +3211,7 @@ def _lane_evidence(
         base_sha,
         read_env,
         [str(item.get("sha")) for item in commits],
+        main=main,
     )
     lanes = review_evidence.bind(
         head_sha,
@@ -3230,14 +3238,19 @@ def _main_reviews(
     base_sha: Any,
     read_env: Mapping[str, str] | None,
     pull_request_heads: Sequence[str] = (),
+    *,
+    main: bool | None = None,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
     read from the commit, the default branch, and per lane the most CRITICAL
     findings the record job's check runs carry on any head of the pull
     request: its commits and the heads force pushes replaced), or
-    (None, None) when the pull request changes none, so no read is spent."""
-    if not review_evidence.needs_main_review(changed_paths, head_file, base_sha):
+    (None, None) when the pull request changes none, so no read is spent.
+    `main` is the caller's `needs_main_review` answer, computed when None."""
+    if main is None:
+        main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+    if not main:
         return None, None
     branch = repository_default_branch(repo)
     if not branch:
@@ -3260,12 +3273,21 @@ def _main_reviews(
     checks = {
         lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES
     }
+    # The security lane's CRITICAL carries from every head of the pull
+    # request. The code lane binds only beside its record on the head, and
+    # `_main_lane` never reads its carried count but for None, so its other
+    # heads cost no read.
+    every = [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)]
     counts = collect_main_review_counts(
         repo,
-        [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)],
+        {
+            lane: every if lane == review_evidence.SEVERITY_LANE else [head_sha]
+            for lane in checks
+        },
         checks,
         read_env,
     )
+    on_head = counts.get(head_sha, {})
     return reviews, {
         "repo": repo,
         "pr": number,
@@ -3275,7 +3297,19 @@ def _main_reviews(
         # The record job's counts on this head: a verdict binds only beside
         # one that matches it, so a run cancelled before `record` binds none.
         "head_records": {
-            lane: [list(c) for c in counts.get(head_sha, {}).get(lane, ()) if c]
+            lane: [
+                list(c)
+                for c in on_head.get(lane, ())
+                if c is not None and main_review_stop(c) is None
+            ]
+            for lane in checks
+        },
+        # The designed stops the record job posted on this head (a diff the
+        # review cannot read whole): they name why no verdict binds.
+        "head_stops": {
+            lane: sorted(
+                {s for c in on_head.get(lane, ()) if (s := main_review_stop(c))}
+            )
             for lane in checks
         },
     }
