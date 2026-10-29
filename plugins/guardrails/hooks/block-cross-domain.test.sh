@@ -2,8 +2,8 @@
 # Contract test for block-cross-domain.sh (guardrails plugin).
 #
 # Black-box: the hook runs as a subprocess on a PreToolUse payload, alone and
-# under run-guards.sh. Every exit is 0, so the assertions are on stdout (no
-# deny; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE steps
+# under run-guards.sh. Every exit is 0, so the assertions are on stdout (the
+# config directory rule's deny; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE steps
 # on stderr (what a call read and parsed), on the telemetry envelope (the cwd's
 # class and what the command names), and, where strace runs, on the processes a
 # call starts. The domain map is built here from placeholder names under the
@@ -21,7 +21,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free
-unset CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED GUARDRAILS_CROSS_DOMAIN_TRACE
+unset CLAUDE_PLUGIN_OPTION_BLOCK_CROSS_DOMAIN_ENABLED GUARDRAILS_CROSS_DOMAIN_TRACE GH_CONFIG_DIR AZURE_CONFIG_DIR
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "FAIL: jq is required for these tests" >&2
@@ -58,7 +58,9 @@ NEUTRAL="$TEST_TMPDIR/neutral"
 mkdir -p "$A_ROOT/repo" "$B_ROOT/repo" "$D_ROOT/repo" "$G_ROOT" "$NEUTRAL"
 
 # The placeholder map: alpha and beta with markers, delta nested in alpha,
-# gamma below HOME. beta's root carries a trailing separator.
+# gamma below HOME. beta's root carries a trailing separator. alpha and gamma
+# name a gh config directory (gamma's after `~`) and beta an az one, so beta and
+# delta are gh's default domains and alpha, delta and gamma az's.
 MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg other_root "$OTHER_ROOT" \
   --arg a "$A_ROOT" --arg b "$B_ROOT/" --arg d "$D_ROOT" --arg g "$G_ROOT" '{
     domains: {
@@ -67,7 +69,7 @@ MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg
       beta: {roots: {($os): [$b], ($other): [$other_root]}, owners: ["beta-org"],
         identity_markers: ["beta-org"], az_config_dir: "/placeholder/az-beta"},
       delta: {roots: {($os): [$d]}},
-      gamma: {roots: {($os): [$g]}}
+      gamma: {roots: {($os): [$g]}, gh_config_dir: "~/gh-gamma"}
     },
     identity_files: ["/placeholder/identity"],
     shared_exceptions: ["/placeholder/shared"],
@@ -326,6 +328,114 @@ assert_exit "the shipped row, a root named: exit 0" 0 "$row_rc"
 assert_absent "the shipped row, a root named: no deny" "$row_out" permissionDecision
 assert_contains "the shipped row, a root named: the guard parses it" "$(cat "$TEST_TMPDIR/row.err")" "trace parse"
 
+# --- The config directory rule ------------------------------------------------
+GH_A=/placeholder/gh-alpha
+AZ_B=/placeholder/az-beta
+decision() { jq -r ".hookSpecificOutput.$1 // empty" <<<"$GUARD_OUT"; }
+# denied <label> <cwd> <command> <text in the reason> [env word ...]
+denied() {
+  local label="$1" cwd="$2" cmd="$3" want="$4"
+  shift 4
+  call "$DATA" "$cwd" "$cmd" "$@"
+  assert_exit "$label: exit 0" 0 "$GUARD_RC"
+  assert_eq "$label: denied" deny "$(decision permissionDecision)"
+  assert_contains "$label: the reason" "$(decision permissionDecisionReason)" "$want"
+}
+# allowed <label> <cwd> <command> [env word ...]
+allowed() {
+  local label="$1" cwd="$2" cmd="$3"
+  shift 3
+  call "$DATA" "$cwd" "$cmd" "$@"
+  assert_exit "$label: exit 0" 0 "$GUARD_RC"
+  assert_absent "$label: no deny" "$GUARD_OUT" permissionDecision
+}
+A="$A_ROOT/repo"
+B="$B_ROOT/repo"
+denied "needed gh directory missing" "$A" 'gh pr list' "Set GH_CONFIG_DIR=$GH_A"
+allowed "needed gh directory on the command" "$A" "GH_CONFIG_DIR=$GH_A gh pr list"
+allowed "needed gh directory only in the hook environment" "$A" 'gh pr list' "GH_CONFIG_DIR=$GH_A"
+denied "default domain, another domain's gh directory" "$B" "GH_CONFIG_DIR=$GH_A gh pr list" \
+  "GH_CONFIG_DIR names another identity domain's gh config directory"
+denied "default domain, another domain's az directory" "$A" "AZURE_CONFIG_DIR=$AZ_B az account show" \
+  "AZURE_CONFIG_DIR names another identity domain's az config directory"
+denied "default domain, another domain's directory in the hook environment" "$B" 'gh pr list' \
+  "GH_CONFIG_DIR names another" "GH_CONFIG_DIR=$GH_A"
+allowed "gh --version without the directory" "$A" 'gh --version'
+allowed "az --version without the directory" "$B" 'az --version'
+denied "a gh --version with more arguments" "$A" 'gh --version pr' "GH_CONFIG_DIR"
+denied "needed az directory missing" "$B" 'az account show' "Set AZURE_CONFIG_DIR=$AZ_B"
+denied "another directory than the domain's" "$A" 'GH_CONFIG_DIR=/placeholder/other gh pr list' "GH_CONFIG_DIR"
+denied "gh by its path" "$A" '/usr/local/bin/gh pr list' "GH_CONFIG_DIR"
+denied "gh after other commands" "$A" 'git fetch && gh pr list' "GH_CONFIG_DIR"
+allowed "the directory through env" "$A" "env GH_CONFIG_DIR=$GH_A gh pr list"
+allowed "the directory exported first" "$A" "export GH_CONFIG_DIR=$GH_A && gh pr list"
+allowed "the directory assigned, then exported" "$A" "GH_CONFIG_DIR=$GH_A; export GH_CONFIG_DIR; gh pr list"
+denied "the directory assigned, never exported" "$A" "GH_CONFIG_DIR=$GH_A; gh pr list" "GH_CONFIG_DIR"
+denied "the hook environment's directory unset first" "$A" 'unset GH_CONFIG_DIR; gh pr list' "GH_CONFIG_DIR" \
+  "GH_CONFIG_DIR=$GH_A"
+denied "the hook environment's directory dropped by env -u" "$A" 'env -u GH_CONFIG_DIR gh pr list' "GH_CONFIG_DIR" \
+  "GH_CONFIG_DIR=$GH_A"
+denied "the hook environment cleared by env -i" "$A" 'env -i gh pr list' "GH_CONFIG_DIR" "GH_CONFIG_DIR=$GH_A"
+allowed "a gh directory after ~" "$G_ROOT" 'GH_CONFIG_DIR=~/gh-gamma gh pr list'
+allowed 'a gh directory after $HOME' "$G_ROOT" 'GH_CONFIG_DIR="$HOME/gh-gamma" gh pr list'
+allowed "a gh directory spelled out below HOME" "$G_ROOT" "GH_CONFIG_DIR=$HOME_DIR/gh-gamma gh pr list"
+denied "default domain, a directory the map spells after ~" "$B" "GH_CONFIG_DIR=$HOME_DIR/gh-gamma gh pr list" \
+  "GH_CONFIG_DIR names another"
+allowed "default domain, no directory" "$B" 'gh pr list'
+allowed "nested default domain inside a domain that needs one" "$D_ROOT/repo" 'gh pr list'
+allowed "neutral cwd, no directory" "$NEUTRAL" 'gh pr list'
+allowed "neutral cwd, a domain's directory" "$NEUTRAL" "GH_CONFIG_DIR=$GH_A gh pr list"
+allowed "gh only inside a quoted argument" "$A" 'git commit -m "gh pr list"'
+allowed "gh as an argument" "$A" 'echo gh'
+allowed "a word that only starts like gh" "$A" 'ghq list'
+call "$DATA" "$A" 'echo gh'
+assert_contains "gh named: the parser runs" "$GUARD_ERR" "trace parse"
+call "$DATA" "$B" 'echo gh'
+assert_contains "gh named in its default domain: the parser runs" "$GUARD_ERR" "trace parse"
+call "$DATA" "$NEUTRAL" 'gh pr list'
+assert_contains "neutral cwd: gh alone does not reach the parser" "$GUARD_ERR" "trace prefilter-miss"
+
+# ps <command> [env word ...]: the guard alone on a PowerShell payload from alpha.
+ps() {
+  local cmd="$1"
+  shift
+  guard_invoke --tool PowerShell --cwd "$A" --command "$cmd" -- "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR" "$@"
+}
+ps 'gh pr list'
+assert_eq "PowerShell: needed gh directory missing" deny "$(decision permissionDecision)"
+ps "\$env:GH_CONFIG_DIR = '$GH_A'; gh pr list"
+assert_absent "PowerShell: the directory set by \$env: first" "$GUARD_OUT" permissionDecision
+ps 'gh pr list' "GH_CONFIG_DIR=$GH_A"
+assert_absent "PowerShell: the directory in the hook environment" "$GUARD_OUT" permissionDecision
+ps '& gh.exe --version'
+assert_absent "PowerShell: gh --version through the call operator" "$GUARD_OUT" permissionDecision
+ps "Get-Item . | ForEach-Object { gh pr view }"
+assert_eq "PowerShell: gh as the first word inside a scriptblock" deny "$(decision permissionDecision)"
+ps 'Write-Output "gh pr list"'
+assert_absent "PowerShell: gh inside a string" "$GUARD_OUT" permissionDecision
+
+# A deny under the dispatcher and on the shipped row, and its telemetry.
+guard_invoke --via dispatched --cwd "$A" --command 'gh pr list' -- "CLAUDE_PLUGIN_DATA=$DATA" "HOME=$HOME_DIR"
+assert_exit "dispatched, a deny: exit 0" 0 "$GUARD_RC"
+assert_eq "dispatched, a deny: the decision reaches stdout" deny "$(decision permissionDecision)"
+rm -f "$TEL"
+guard_invoke --cwd "$A" --command 'gh pr list' -- "CLAUDE_PLUGIN_DATA=$DATA" "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR"
+if wait_for_sink "$TEL"; then
+  assert_eq "a deny's telemetry: status" blocked "$(jq -r '.status' "$TEL")"
+  assert_eq "a deny's telemetry: form" config-dir-missing "$(jq -r '.data.form' "$TEL")"
+  assert_absent "a deny's telemetry: no directory in the data" "$(jq -c '.data' "$TEL")" placeholder
+else
+  bad "a deny's telemetry: no telemetry envelope"
+fi
+rm -f "$TEL"
+guard_invoke --cwd "$B" --command "GH_CONFIG_DIR=$GH_A gh pr list" -- "CLAUDE_PLUGIN_DATA=$DATA" \
+  "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR"
+if wait_for_sink "$TEL"; then
+  assert_eq "a foreign directory's telemetry: form" config-dir-foreign "$(jq -r '.data.form' "$TEL")"
+else
+  bad "a foreign directory's telemetry: no telemetry envelope"
+fi
+
 # --- Processes a call starts (#3529 instrument) -------------------------------
 # The kernel counts them: strace follows the dispatcher (-f) and reports each
 # clone/clone3/fork/vfork return and each execve that succeeded. The guard's
@@ -378,6 +488,11 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: compiled map, a root named: exit 0" 0 "$SHARE_RC"
   assert_eq "strace: compiled map, a root named and parsed: the guard's process creations" 0 "$SHARE_CREATIONS"
   assert_eq "strace: compiled map, a root named and parsed: the guard's execve count" 0 "$SHARE_EXECVE"
+
+  census_share 'gh pr list' "$CENSUS"
+  assert_exit "strace: compiled map, a gh call denied: exit 0" 0 "$SHARE_RC"
+  assert_eq "strace: compiled map, a gh call denied: the guard's process creations" 0 "$SHARE_CREATIONS"
+  assert_eq "strace: compiled map, a gh call denied: the guard's execve count" 0 "$SHARE_EXECVE"
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi

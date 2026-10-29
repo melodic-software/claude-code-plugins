@@ -81,7 +81,7 @@
     "block_cross_domain_enabled": {
       "type": "boolean",
       "title": "Block-cross-domain guard",
-      "description": "Reads a machine-local identity-domain map, identity-domains.json in the plugin data directory, classifies the session directory and each Bash or PowerShell command against it, and reports the result to telemetry; it denies nothing. With no map it does nothing. On by default.",
+      "description": "Reads a machine-local identity-domain map, identity-domains.json in the plugin data directory, classifies the session directory and each Bash or PowerShell command against it, and reports the result to telemetry. It denies a gh or az call that lacks its domain's config directory, or that uses another domain's directory in a domain with none. With no map it does nothing. On by default.",
       "default": true
     },
     "block_unresolved_pr_merge_enabled": {
