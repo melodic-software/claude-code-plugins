@@ -4593,7 +4593,11 @@ jobs:
       # lifts. A bot or another account lifting the hold, or no recorded
       # removal, fails; adding the label back and having a trusted person
       # remove it approves: a trusted person's `labeled` event after the hold
-      # starts a new hold that only that list's removal lifts.
+      # starts a new hold that only that list's removal lifts. The one removal
+      # by another account that lifts it is the lanes App's (LANES_APP_ID, on
+      # the base list) own, after its stale-review-hold comment since the hold
+      # names a head no hold comment names (clear-escalations.mjs judges the
+      # trusted move and both lanes' pass at that head).
       # It runs only when the step above read the live labels and found the
       # label off. A hold is the newest hold comment or the newest `labeled`
       # event of the label by github-actions[bot] or claude[bot], whichever is
@@ -4671,6 +4675,31 @@ jobs:
           if [ -z "$lifted_at" ]; then
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
             exit 1
+          fi
+          # A stale hold the lanes App cleared (clear-escalations.mjs
+          # stale-review-hold): the App removed the label itself, after its own
+          # comment since the hold opening with that clear's marker for a head
+          # no review-lane hold comment names, and every hold comment names its
+          # head.
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ && $actor_id == "$LANES_APP_ID" && -z $via_app ]] &&
+            jq -e --argjson id "$LANES_APP_ID" 'any(.actors[]; .id == $id)' <<<"$actors" >/dev/null 2>&1; then
+            # shellcheck disable=SC2016 # $c, $app and the rest are jq variables
+            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --argjson app "$LANES_APP_ID" '(add // []) as $c
+              | [$c[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                  and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                    and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                      | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                | [.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "")
+                  | capture("^<!-- claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=[a-z,-]+ -->$").sha] | first // null] as $held
+              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)
+                | .body | split("\n")[0] | sub("\r$"; "")
+                | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
+              | if any($held[]; . == null) then ""
+                else [$cleared[] | select(. as $h | $held | index($h) == null)] | first // "" end' <<<"$raw") || stale=
+            if [ -n "$stale" ]; then
+              echo "$actor_login cleared the review-lane hold on #$PR_NUMBER as stale: its marker names $stale, which no hold names."
+              exit 0
+            fi
           fi
           if [[ " $humans " != *" $actor_id "* ]]; then
             echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."

@@ -188,6 +188,43 @@ expect "a bot re-adding the label does not move the hold" 1 "melodic-automation-
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 4242 octocat)]"
 expect "an untrusted removal after a trusted re-add fails" 1 "octocat removed 'needs-human'"
 
+# A stale hold the lanes App cleared (clear-escalations.mjs stale-review-hold,
+# owner brief Part A2): the App's own removal lifts it only after its own
+# marked comment names a head no hold comment names.
+OLD_SHA=$(printf 'c%.0s' {1..40})
+NEW_SHA=$(printf 'd%.0s' {1..40})
+APP_USER='{"login":"melodic-automation-lanes[bot]","type":"Bot","id":337595936}'
+held_at() { comment "$LANE" "<!-- claude-lane-hold lane=claude-security-review sha=$1 criteria=critical-security -->"$'\nHeld.\n\nclaude-lane: claude-security-review' "$2"; }
+cleared_for() { comment "${2:-$APP_USER}" "<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=$1 -->"$'\nA review lane held this pull request at an earlier head.' "${3:-2026-10-23T11:29:00Z}"; }
+STALE_HOLD="$(held_at "$OLD_SHA" 2026-10-23T10:00:00Z)"
+export LANES_APP_ID=337595936
+STUB_EVENTS="[$BOT_LIFT]"
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+expect "the lanes App's removal after its stale-review-hold comment for an unheld head passes" 0 \
+  "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale: its marker names $NEW_SHA"
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OLD_SHA")]"
+expect "a stale-review-hold comment naming the held head does not lift it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$(held_at "$NEW_SHA" 2026-10-23T09:30:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+expect "a stale-review-hold comment naming a head an earlier hold names does not lift it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$STALE_HOLD]"
+expect "the lanes App's removal with no stale-review-hold comment still fails" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA" "" 2026-10-23T09:00:00Z)]"
+expect "a stale-review-hold comment from before the hold does not lift it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA" '{"login":"someone","type":"User","id":4242}')]"
+expect "the marker in another account's comment does not lift it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$HOLD,$(cleared_for "$NEW_SHA")]"
+expect "a hold comment whose head does not parse keeps it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+STUB_EVENTS="[$(jq -c '.performed_via_github_app = {slug: "some-app"}' <<<"$BOT_LIFT")]"
+expect "the lanes App's removal through another App does not lift it" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T11:30:00Z 4242 octocat)]"
+expect "another account's removal after the App's comment does not lift it" 1 "octocat removed 'needs-human'"
+STUB_EVENTS="[$BOT_LIFT]"
+LANES_APP_ID='' expect "with no lanes App id the App's removal fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"human"}]}' \
+  expect "a lanes App id the base list does not name fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+unset LANES_APP_ID
+
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
 expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $BASE names no person"

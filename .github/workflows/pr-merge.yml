@@ -1809,7 +1809,10 @@ jobs:
       # Under merge.lane-prs native, a label enable-auto-merge set at the
       # current head is judged again with the gate's reader, at most three
       # reads a run of up to four minutes each, sharing the gate step's run
-      # cache, listing and head-ref map.
+      # cache, listing and head-ref map. A review lane's hold at an older head
+      # comes off as stale-review-hold once trusted human pushes moved the
+      # head and both review lanes passed there with no HIGH or CRITICAL
+      # security finding.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
