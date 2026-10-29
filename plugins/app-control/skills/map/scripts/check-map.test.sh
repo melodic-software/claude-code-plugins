@@ -322,6 +322,34 @@ assert_equals "size-budget: legacy feature file one over" "$(run_check)" \
   "index-missing | features/wishlist.md | no index line names this feature file
 size-budget | features/wishlist.md | 4001 characters, budget 4000"
 
+# ready-listing: a Ready command whose last stage is a bare listing; grep -q on the row clears it.
+LISTING_DETAIL="ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
+  "curl -fsS http://localhost:8080/healthz && docker ps --filter ancestor=shop-db --format {{.Names}}"
+assert_equals "ready-listing: plain line" "$(run_check)" \
+  "ready-listing | SKILL.md | curl -fsS http://localhost:8080/healthz && docker ps --filter ancestor=shop-db --format {{.Names}}: $LISTING_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
+  "curl -fsS http://localhost:8080/healthz && docker ps --format {{.Names}} | grep -q '^shop-db\$'"
+assert_equals "ready-listing: a listing piped to grep -q" "$(run_check)" ""
+# A `|` inside a quoted --format string is not a stage.
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" '```sh
+docker compose ps --format "{{.Name}}|{{.State}}"
+```'
+assert_equals "ready-listing: fenced line with a quoted pipe" "$(run_check)" \
+  "ready-listing | SKILL.md | docker compose ps --format \"{{.Name}}|{{.State}}\": $LISTING_DETAIL"
+# A code span in prose is a command; a listing outside ## Ready is not checked.
+new_case
+# shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" \
+  'Run `kubectl get pods -l app=shop` to see the pods.'
+# shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+replace "$SKILL/SKILL.md" "Stop the process the launch started." 'Stop the process the launch started, then run `docker ps`.'
+assert_equals "ready-listing: code span in prose, other sections skipped" "$(run_check)" \
+  "ready-listing | SKILL.md | kubectl get pods -l app=shop: $LISTING_DETAIL"
+
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"
 bash "$CHECK" "$SKILL" "$SKILL" >/dev/null 2>&1

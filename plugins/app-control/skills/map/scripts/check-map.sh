@@ -23,6 +23,9 @@
 #                      for a folder, in the file for a file, after an optional comment marker)
 #   size-budget        the hub, a feature README.md at any depth or a legacy features/<f>.md has
 #                      more characters than its budget in the contract's "Size budget" section
+#   ready-listing      a command under the hub's `## Ready` (a fenced line, a code span, or a plain
+#                      line with no code span) ends in a container or resource listing, which exits
+#                      0 with no rows; the contract's "The Ready command" says to end it in grep -q
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -275,5 +278,31 @@ while IFS= read -r md; do over_budget "$md" "$FEATURE_BUDGET"; done < <(
     find features \( -name node_modules -o -name '.?*' \) -prune -o -type f -path 'features/*/*' -name README.md -print
   } 2>/dev/null | LC_ALL=C sort
 )
+
+# Ready commands: fenced lines, code spans, and plain lines with no code span, under the hub's
+# `## Ready`.
+# shellcheck disable=SC2016 # the backticks are the Markdown code-span delimiter, not a substitution
+ready_commands() {
+  awk '
+    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+    !fence && /^## / { inside = ($0 ~ /^## Ready[[:space:]]*$/); next }
+    !inside || !NF { next }
+    fence || index($0, "`") == 0 { print; next }
+    {
+      line = $0
+      while (match(line, /`[^`]+`/)) {
+        print substr(line, RSTART + 1, RLENGTH - 2)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }' "$1"
+}
+LISTING_RE='^((docker|podman|nerdctl)[[:space:]]+(ps|container[[:space:]]+(ls|list|ps)|compose[[:space:]]+ps)|docker-compose[[:space:]]+ps|kubectl[[:space:]]+get|systemctl[[:space:]]+list-units)([[:space:]]|$)'
+while IFS= read -r cmd; do
+  # Drop quoted text, so a `|` inside a --format string is not a stage, then keep the last stage.
+  last="$(printf '%s\n' "$cmd" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g; s/.*(&&|\|\||;|\|)//")"
+  last="$(trim "$last")"
+  [[ "$last" =~ $LISTING_RE ]] || continue
+  finding ready-listing SKILL.md "$(trim "$cmd"): ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
+done < <(ready_commands "$dir/SKILL.md")
 
 exit 0
