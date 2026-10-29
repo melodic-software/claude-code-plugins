@@ -4,8 +4,9 @@
 # stands in for a plugin's: mode (enum fast, slow), strict (boolean), workers
 # (integer, minimum 1, maximum 8), count (integer, no bounds), label (string,
 # minLength 1, pattern ^[a-z][a-z0-9-]*$), note (string), session (an object of
-# a boolean and an enum), sizes (an object of objects of non-empty strings) and
-# weird (an array, a shape the checker does not validate). Expected values come
+# a boolean and an enum), sizes (an object of objects of non-empty strings),
+# extras (an object whose leaves are unchecked) and weird (an array, a shape
+# the checker does not validate). Expected values come
 # from that schema, JSON Schema's meaning of each keyword, YAML's reading of a
 # plain true or 5 as a boolean or a number, and the library's stated rules and
 # exit codes.
@@ -68,6 +69,7 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
         "large": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } }
       }
     },
+    "extras": { "type": "object" },
     "weird": { "type": "array" },
     "code": { "type": "string", "pattern": "^a\\-b$" }
   }
@@ -359,6 +361,13 @@ done
 check_ok "a one-level object" $'session:\n  uploads: true\n  names: initials  # note\n' "PASS session:"
 check_warn "an object key with nothing under it" $'session:\n  # nothing yet\n' 'session is empty'
 check_ok "a two-level object" $'sizes:\n  small:\n    label: S\n    note: "tiny: one"\n  large:\n    label: L\n' "PASS sizes:"
+# A leaf shows its source text, never its YAML type's canonical form; an empty
+# leaf holds no scalar, so it shows nothing, unlike null and ~.
+check_ok "typed scalars in an object's leaves" \
+  $'extras:\n  ratio: 1.0\n  octal: 075\n  exp: 1e3\n  flag: True\n  nul: null\n  blank:\n  tilde: ~\n  big: 9007199254740993\n' \
+  "PASS extras: ratio=1.0, octal=075, exp=1e3, flag=True, nul=null, tilde=~, big=9007199254740993"
+refused "a flow map on an object key" $'session: {uploads: true}\n' mode=slow
+assert_contains "a flow map on an object key: names the parse error" "$OUT" "line 1: flow mapping ({...}) is outside the subset"
 check_warn "a wrong leaf type in an object" $'session:\n  uploads: maybe\n' 'session.uploads=maybe is not one of true, false'
 check_warn "a quoted boolean in an object" $'session:\n  uploads: "true"\n' 'session.uploads="true" is not one of true, false'
 check_warn "an enum leaf outside its list" $'session:\n  names: someone\n' 'session.names=someone is not one of full, initials'
