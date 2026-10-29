@@ -167,6 +167,8 @@ A suite that needs more gets a row with its own ceiling in
 so the exception shows in review. The nine suites with a median over 150 s
 start there at 480 s. Outside CI the check is off, since the numbers are CI
 runner times; `PLUGIN_TEST_SUITE_BUDGET=1` turns it on. Python suites in the `test-python` lane are not budgeted.
+Every run, in CI or not, prints a `TIME: <suite> <seconds>s` line after each
+suite's result, so a leg's log shows the time each suite took.
 
 ### Local pre-flight for hygiene gates
 
