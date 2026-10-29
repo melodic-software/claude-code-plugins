@@ -1,4 +1,5 @@
-// Starts pr-unblock's address-feedback activity on a lanes App PR once both
+// Starts pr-unblock's address-feedback activity on a lanes App PR, or an
+// adopted owner PR once idle (ownerAuthored, ownerSkip), once both
 // review lanes have reviewed its current head and left an unresolved thread.
 // Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
@@ -14,7 +15,10 @@
 // - the upstream run is a completed pull_request run of a review workflow,
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
-//   current head, and the lanes App opened it;
+//   current head, and the lanes App opened it, or a person on the base's
+//   trusted-actors list did under an `adoption` section, with no `Hold:` body
+//   line and the PR and its head commit idle-hours old; on such an owner PR
+//   only a thread the select job keeps dispatches;
 // - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
@@ -59,9 +63,9 @@
 // the human gate (a needs-human PR dispatches here whoever applied the label)
 // nor the head's check runs decide it; the hold labels still skip it. It only
 // resolves notes a later pr-verify pass superseded, and the needs-human label
-// it leaves on still blocks the merge. Every round goes only to lanes App PRs:
-// on a PR a person opened, verify-notes.mjs holds a fail with a label it
-// removes itself on the next pass, so there is no thread to resolve.
+// it leaves on still blocks the merge. A pass-only round goes only to lanes
+// App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
+// it removes itself on the next pass, so there is no thread to resolve.
 //
 // A round whose reply job skipped no-model-turn, finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
@@ -74,7 +78,11 @@
 // main whose head's newest reply check took one of those skips, fewer than
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. A sweep dispatches at most once, since the
+// which the record names. With no such head, and no stale stop, it sends the
+// first idle adopted owner PR whose reviewed head has no round yet, or whose
+// round's stop no thread holds any more (sweepIdleOwner), since that PR's own
+// review completion found it active.
+// A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
 // A run of this file an outage lost dispatched nothing the lanes trust when
@@ -117,7 +125,9 @@ import { pathToFileURL } from "node:url";
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+
+export { NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -154,6 +164,27 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too. fix-ci-dispatch.mjs imports
+// it from here, so this floored module loads no unfloored one.
+export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
+
+// Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
+// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:`, and both
+// the PR's last update and its head commit at least idle-hours old, so the
+// lane does not push onto a branch a session is still working on. An
+// unreadable date is not idle.
+export async function ownerSkip({ api, pull, adoption, now }) {
+  if (HOLD_LINE.test(String(pull.body ?? ""))) {
+    return "held by a Hold: line";
+  }
+  const since = now - adoption.idleHours * 3_600_000;
+  if (!(Date.parse(pull.updated_at ?? "") <= since) || !(Date.parse(await api.headCommittedAt(pull.head.sha)) <= since)) {
+    return `owner PR or its head commit active in the last ${adoption.idleHours} hour(s)`;
+  }
+  return "";
+}
 
 // The tick whose completion starts the sweep.
 export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
@@ -270,6 +301,7 @@ export async function dispatchFeedback({
   record = emptyRecord(),
   notesSince = null,
   passOnly = false,
+  adoption = NO_ADOPTION,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -317,8 +349,17 @@ export async function dispatchFeedback({
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
   }
-  if (pull.user?.id !== appSenderId) {
-    return skip(`#${number} was not opened by the lanes App`);
+  // A lanes App PR, or an adopted owner PR once idle. A pass-only round
+  // resolves threads as the lanes App, which only its own PRs allow.
+  const owner = pull.user?.id !== appSenderId;
+  if (owner && (passOnly || !ownerAuthored(pull, adoption))) {
+    return skip(`#${number} was not opened by the lanes App${passOnly ? "" : " or an adopted owner"}`);
+  }
+  if (owner) {
+    const why = await ownerSkip({ api, pull, adoption, now });
+    if (why) {
+      return skip(`#${number}: ${why}`);
+    }
   }
   const sent = record.dispatched.get(head);
   if (sent?.number === number) {
@@ -377,6 +418,11 @@ export async function dispatchFeedback({
     }
     if (!workable && !threads.some((thread) => thread.isResolved === false)) {
       return skip(`#${number} has no unresolved review thread`);
+    }
+    // On an owner PR an unresolved thread the lane does not take (one the
+    // person wrote or answered) stays the person's, so it starts no round.
+    if (owner && !workable) {
+      return skip(`#${number} has no thread the lane works`);
     }
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -467,31 +513,75 @@ export async function dispatchFeedback({
 // Returns dispatchFeedback's result with that run's id, or null.
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest };
-  const pulls = await openAppPulls(context);
+  const listed = await openPulls(context);
+  const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
   const dispatched = await sweepPulls(context, (pull) => sweepOne({ ...context, pull }), pulls);
   if (dispatched !== null) {
     return dispatched;
   }
   log("sweep: no head whose last round left it for another round to dispatch");
   const stale = await sweepPulls(context, (pull) => sweepStale({ ...context, pull }), pulls);
-  if (stale === null) {
-    log("sweep: no head with a failing address-feedback stop and nothing left to fix");
+  if (stale !== null) {
+    return stale;
   }
-  return stale;
+  log("sweep: no head with a failing address-feedback stop and nothing left to fix");
+  const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
+  const idle = owners.length === 0 ? null : await sweepPulls(context, (pull) => sweepIdleOwner({ ...context, pull }), owners);
+  if (idle === null) {
+    log("sweep: no idle owner PR whose reviewed head the lane has not answered");
+  }
+  return idle;
 }
 
-// The selection every sweep uses: each open lanes App PR into the base.
-async function openAppPulls({ api, repository, appSenderId, settings }) {
+// Hours after an owner PR turns idle during which the tick still sends a head
+// with no round (judgment: four of pr-unblock-dispatch.yml's half-hourly ticks,
+// so a late or dropped tick, or a transient skip, does not lose the PR).
+export const IDLE_OWNER_WINDOW_HOURS = 2;
+
+// An owner PR's review completes while the person's session is still on it,
+// so its review-run dispatch skips the idle test; once idle, the tick sends
+// it. A PR still active by the listing's last update spends no read; an idle
+// one spends one check-run read. A head with no round is decided by
+// dispatchFeedback (both markers on the head, a thread the lane works, about
+// six reads) only within IDLE_OWNER_WINDOW_HOURS of turning idle, so each
+// update buys at most that window's ticks of those reads; a new thread, marker
+// or fix request moves the update time and opens the window again. A head
+// with a round spends a reply check-run read, and a status read unless that
+// round's reply released it (sweepOne, as for a lanes App PR); a failing stop
+// with no thread left is then cleared as sweepStale clears one on a lanes App
+// PR, with no window, since resolving a thread may not move the update time.
+async function sweepIdleOwner(context) {
+  const { api, pull, rest, settings } = context;
+  const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
+  const updated = Date.parse(pull.updated_at ?? "");
+  if (!(updated <= since)) {
+    return null;
+  }
+  const rounds = await api.listCheckRuns({ sha: pull.head.sha, checkName: settings.checkName, appId: settings.appId });
+  if (rounds.length > 0) {
+    return (await sweepOne(context)) ?? sweepStale(context);
+  }
+  return updated > since - IDLE_OWNER_WINDOW_HOURS * 3_600_000 ? dispatchAtHead(context) : null;
+}
+
+// Each open lanes App PR into the base, and each adopted owner PR
+// (dispatchFeedback applies its idle test); only the idle pass takes the
+// owner PRs.
+async function openPulls({ api, repository, appSenderId, settings, rest }) {
   return (await api.listOpenPulls(settings.base)).filter(
-    (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
+    (pull) =>
+      (pull.user?.id === appSenderId || ownerAuthored(pull, rest?.adoption)) &&
+      pull.draft === false &&
+      pull.head?.repo?.full_name === repository &&
+      SHA.test(pull.head?.sha ?? ""),
   );
 }
 
-// Each of `pulls` (default: openAppPulls), decided by `decide` in listing
-// order until one dispatches.
+// Each of `pulls` (default: the open lanes App PRs), decided by `decide` in
+// listing order until one dispatches.
 async function sweepPulls(context, decide, pulls = null) {
   const { log } = context;
-  for (const pull of pulls ?? (await openAppPulls(context))) {
+  for (const pull of pulls ?? (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
     let dispatched = null;
     try {
       dispatched = await decide(pull);
@@ -519,13 +609,21 @@ export function newestStatus(statuses, context) {
 // the activity then finds nothing to fix (address-feedback.mjs `resolved`),
 // and report-stop-status clears the status. Once per stop: a pr-unblock run
 // for the PR created after the failing status holds the head. The upstream is
-// the head's newest completed review run, as for any other dispatch.
-async function sweepStale({ api, pull, repository, log, settings, rest }) {
+// the head's newest completed review run, as for any other dispatch. An
+// adopted owner PR (sweepIdleOwner) keeps its Hold: line and idle gates.
+async function sweepStale({ api, pull, repository, appSenderId, log, settings, rest }) {
   const head = pull.head.sha;
   const number = pull.number;
   const status = newestStatus(await api.listStatuses(head), `pr-unblock/${settings.activity}`);
   if (status?.state !== "failure" && status?.state !== "error") {
     return null;
+  }
+  if (pull.user?.id !== appSenderId) {
+    const why = await ownerSkip({ api, pull, adoption: rest.adoption, now: rest.now ?? Date.now() });
+    if (why) {
+      log(`skip: #${number}: ${why}`);
+      return null;
+    }
   }
   const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
   if (held.length > 0) {
@@ -774,6 +872,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
+    // A commit's committer date, the time it was made.
+    headCommittedAt: async (sha) => (await request(`${repo}/commits/${sha}`)).commit?.committer?.date ?? "",
     async listOpenPulls(base) {
       const pulls = [];
       for (let page = 1; page <= 10; page += 1) {
@@ -892,6 +992,8 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
+    adoption: await ownerAdoption(env, log),
+    now,
     log,
   };
   const summary = () => {
