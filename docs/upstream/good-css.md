@@ -19,7 +19,13 @@ commit). Files read, by `git hash-object` blob SHA at the pin:
 `skills/good-css/SKILL.md` and its generated `references/` were read for structure; the skill does
 not ship, wrap or depend on them.
 
-`motion.md` and `show-and-hide.md` also carry recipes from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`, `popover-that-scales-from-its-trigger`, `popover-inside-a-modal`); their provenance is `docs/upstream/aiforui-course.md`, not this record.
+`motion.md`, `show-and-hide.md`, `scroll-and-viewport.md` and `interaction.md` also carry recipes
+from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
+`popover-that-scales-from-its-trigger`, `popover-inside-a-modal`,
+`full-height-that-browser-chrome-cannot-cover`, `gesture-surface-that-claims-only-its-axis`,
+`nothing-wider-than-the-viewport`, `scrollbars-styled-only-inside-small-scrollers`,
+`menu-items-that-fade-at-the-container-edge`, `card-with-a-distinct-link`); their provenance is
+`docs/upstream/aiforui-course.md`, not this record.
 
 - **Pointer**: when re-auditing the techniques, fetch
   <https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md> live and diff it against the pin
@@ -66,7 +72,7 @@ is ours; upstream has no configuration surface.
 - **"References"** and the per-entry `Borrowed from:`, `Background:`, `Docs:` and `Source:` credit
   lines: credits are recorded in the table below, never in skill files.
 - **The is-agentic check**: no check, record or dependency for is-agentic.com.
-- **`whole-card-clickable-from-one-link`** (technique 28): replaced by the course rule in [`aiforui-course.md`](aiforui-course.md) (LX1). A card takes a distinct link; a stretched link survives only as a labeled carve-out for tiles no one selects text in, without the `:has()` ring or the z-index lift.
+- **`whole-card-clickable-from-one-link`** (technique 28): replaced by the course rule in [`aiforui-course.md`](aiforui-course.md). A card takes a distinct link; a stretched link survives only as a labeled carve-out for tiles no one selects text in, without the `:has()` ring or the z-index lift.
 - The site, specimen harness, `scripts/build-skill.js` and the plugin manifest: presentation and
   packaging only.
 
@@ -121,8 +127,8 @@ spellings, so the spell check is off for the table.
 | 24 | `one-focus-ring-with-focus-visible` | Interaction | `interaction.md` | Stephanie Eckles, Modern CSS Upgrades To Improve Accessibility, 2021-04-09, and Smol Focus Styles · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 25 | `hover-styles-only-where-hover-exists` | Interaction | `interaction.md` | Emil Kowalski, mobile-native skill and emil-design-eng skill · Rauno Freiberg, Web Interface Guidelines. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 26 | `press-feedback` | Interaction | `interaction.md` | Emil Kowalski, emil-design-eng skill and mobile-native skill |
-| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list.. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
-| 28 | `whole-card-clickable-from-one-link` | Interaction | `interaction.md` | Heydon Pickering, Cards, for the stretched `::after` · Stripe, for moving the focus ring to the card with `:has()` |
+| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 28 | `whole-card-clickable-from-one-link` | Interaction | `interaction.md` | Heydon Pickering, Cards, for the stretched `::after` · Stripe, for moving the focus ring to the card with `:has()`. Superseded by `card-with-a-distinct-link`; see "Not carried" above. |
 | 29 | `has-for-parent-and-page-state` | Interaction | `interaction.md` | Jen Simmons, Using :has() as a CSS Parent Selector and much more, 2022-08-18 · Josh W. Comeau, The Undeniable Utility Of CSS :has, 2024-09-09 · Chris Coyier, Scroll-Locked Dialogs, 2024-02-19 |
 | 30 | `form-feedback-with-user-invalid` | Interaction | `interaction.md` | Kevin Powell, Improve forms with :user-valid and :user-invalid, 2025-02-20, and Use these CSS features instead of JavaScript, 2026-09-23 |
 | 31 | `textarea-that-grows-with-its-content` | Interaction | `interaction.md` | Jhey Tompkins, @jh3yy on X, 2026-10-01 |
@@ -139,7 +145,7 @@ spellings, so the spell check is off for the table.
 | 42 | `carousel-on-native-scroll` | Scroll and viewport | `scroll-and-viewport.md` | Steve Sewell, Build buttery smooth carousels with pure CSS like Nike. This version swaps his `scrollIntoView()` for `scrollBy()`, which can only scroll the carousel and never the page. |
 | 43 | `scroll-area-between-a-fixed-header-and-footer` | Scroll and viewport | `scroll-and-viewport.md` | Ahmad Shadeed, Defensive CSS, the tips Scrollbars on demand, Scrollbar gutter, Scroll chaining and Minimum content size in flexbox. He gives the four declarations one by one, and the panel around them is added here. |
 | 44 | `styles-that-apply-only-when-a-scroller-overflows` | Scroll and viewport | `scroll-and-viewport.md` | Stripe, in the navigation on stripe.com · Bramus Van Damme, Detect if an element can scroll or not with only CSS. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
-| 45 | `anchor-targets-that-clear-a-sticky-header` | Scroll and viewport | `scroll-and-viewport.md` | Kevin Powell, Stop fixed navigations covering content on scroll, 2022-06-02, and Use these CSS features instead of JavaScript, 2026-09-23 |
+| 45 | `anchor-targets-that-clear-a-sticky-header` | Scroll and viewport | `scroll-and-viewport.md` | Kevin Powell, Stop fixed navigations covering content on scroll, 2022-06-02, and Use these CSS features instead of JavaScript, 2026-09-23. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 46 | `no-rubber-band-bounce-on-desktop` | Scroll and viewport | `scroll-and-viewport.md` | wits, @witsdev on X, 2026-09-30, describing how Vercel gates it behind `pointer: fine` · Jhey Tompkins, @jh3yy on X, for the `any-pointer` version · Emil Kowalski, mobile-native skill, for the inner containers. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 47 | `content-clear-of-the-notch` | Scroll and viewport | `scroll-and-viewport.md` | Emil Kowalski, mobile-native skill. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 

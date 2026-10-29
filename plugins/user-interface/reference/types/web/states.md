@@ -110,6 +110,10 @@ show an id the person can quote.
 The hunt's file and prop names are search tokens for Next.js and React Router; in another router,
 hunt for its own error-route and not-found conventions. A failed form submit is the `forms` concern.
 
+This section grades the failed view: the screen or panel the error replaced. The same generic
+string in a toast, a dialog or an inline message is graded once, as copy, under "Plain-language
+copy" in `../../principles.md`.
+
 - **Pointer**: Next.js, Error Handling, "Nested error boundaries" and "Not found" (the `error` and
   `not-found` file conventions),
   <https://nextjs.org/docs/app/getting-started/error-handling#nested-error-boundaries> and
@@ -121,8 +125,9 @@ hunt for its own error-route and not-found conventions. A failed form submit is 
   drops `errorElement` or `ErrorBoundary` from the route props.
 
 **Audit: Blocking.** A view that renders nothing, spins forever or crashes to a white screen when
-its request fails; a route that no error boundary covers, its own or one above it; "Something went
-wrong" with no next step; or the framework's default error or 404 page left in production.
+its request fails; a route that no error boundary covers, its own or one above it; a failed view
+that says "Something went wrong" with no next step; or the framework's default error or 404 page
+left in production.
 
 **Audit: Important.** An error state that renders a raw exception message, response body or stack
 trace.

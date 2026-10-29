@@ -22,9 +22,9 @@ brand surfaces; section 11 states its scope.
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it, and what that finding looks like.
 
-Lines that belong to other concerns, one home each: generic headlines and other interface copy are
-the plain-language rule in `../../principles.md`, and `/ai-slop:audit copy <source files>` audits
-them; scroll fade-ins and hover scales are the `motion` concern; icon sets, sizes and
+Lines that belong to other concerns, one home each: a generic headline is the interface-copy cue of
+`rule-mechanism-free-claims` in `/ai-slop:audit`, which `/ai-slop:audit copy <source files>`
+checks; other interface copy is the plain-language rule in `../../principles.md`; scroll fade-ins and hover scales are the `motion` concern; icon sets, sizes and
 stroke weights are the `icons` concern; typeface selection and pairing, missing font weights,
 heading wraps, typographic characters, casing in CSS and the `lang` attribute are the `typography`
 concern; building a palette is the `color` concern, and so is the contrast a gradient headline

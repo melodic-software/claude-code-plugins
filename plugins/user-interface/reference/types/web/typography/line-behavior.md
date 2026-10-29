@@ -27,7 +27,8 @@ CSS now offers per-role control over how lines break:
 Together (balance on the heading, pretty on the supporting text) they cover the hero-section
 problem completely. Neither belongs on long-form paragraphs: `balance` applies only up to a line
 count each browser sets (the pointer below) and bails beyond it, and a fully evened-out paragraph
-trades away width that reading actually uses.
+trades away width that reading actually uses. `pretty` is the exception for long-form text, as
+`../typography.md` "Pick a wrap mode per role" states.
 
 - **Pointer**: MDN, `text-wrap` values, the `balance` line limit,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#values>

@@ -563,7 +563,10 @@
         "skip link",
         "alt text",
         "aria-live",
-        "inert"
+        "inert",
+        "navigation drawer",
+        "closed panel",
+        "icon button"
       ],
       "spokes": [
         {
@@ -601,7 +604,10 @@
         "safe area",
         "notch",
         "pull-to-refresh",
-        "scrolls sideways"
+        "scrolls sideways",
+        "page zooms in",
+        "maximum-scale",
+        "pinch to zoom"
       ],
       "spokes": [
         {
@@ -639,7 +645,9 @@
         "bundle size",
         "debounce search",
         "static generation",
-        "autoplay video"
+        "autoplay video",
+        "thousands of rows",
+        "list scrolls slowly"
       ],
       "spokes": [
         {
