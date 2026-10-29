@@ -48,7 +48,8 @@ jobs:
   # this job. It runs check-trusted-trigger from the default branch tip with
   # a read-only token and no secret; the read runner checks the trigger again.
   # A trusted label proceeds no further (check-blockers.mjs, admission's rules)
-  # on an issue untrusted provenance holds, for good, or one a blocker still
+  # on an issue neither a listed human nor the lanes App wrote, or one
+  # untrusted provenance holds, both for good, or one a blocker still
   # blocks, or whose labels, events or blockers cannot be read: agent-ready
   # stays, and work-unblock's sweep re-fires the last two once they clear.
   admit:
@@ -118,7 +119,7 @@ jobs:
       # re-fired.
       - name: Stop on untrusted provenance
         if: steps.blockers.outputs.untrusted == 'true'
-        run: echo "untrusted provenance holds this issue; a person decides it"
+        run: echo "an outside author or untrusted provenance holds this issue; a person decides it"
 
       - name: Log the API budget at the end
         if: always()

@@ -70,7 +70,7 @@
 // a run the blocker gate skipped is re-fired like a run that did no work once
 // none blocks. An umbrella, an issue with an open sub-issue, is skipped and
 // waits the same way until none is open; the listing's sub_issues_summary
-// answers for one with none open at no extra call. A run the gate stopped on untrusted provenance, or an issue
+// answers for one with none open at no extra call. A run the gate stopped on an outside author or untrusted provenance, or an issue
 // whose untrusted-provenance label someone unlisted removed, is never
 // re-fired and gets no needs-human: admission's refusal reaches a person.
 //
@@ -1326,7 +1326,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
-  // The lane stops for good on an issue untrusted provenance holds
+  // The lane stops for good on an issue an outsider wrote or untrusted provenance holds
   // (check-blockers.mjs), so one is never re-fired or handed to a person here:
   // admission's refusal path takes it to a person. The label itself is a hold
   // above; this is the removal by someone unlisted.
@@ -1415,7 +1415,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo);
   if (await stoppedUntrusted(jobsOf, runs)) {
-    return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
+    return { reason: "its lane run stopped on an outside author or untrusted provenance, which a person decides" };
   }
   const { stalled, run: refused, stage } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
   if (stalled) {

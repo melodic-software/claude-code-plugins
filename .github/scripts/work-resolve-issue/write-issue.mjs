@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
-// body and labels go in as written (anyone can write them; the skill reads
-// them as data). Comments go in only when select-trusted-text's author and
+// body and labels go in as written: the admit job's check-blockers.mjs stops
+// the run first on an issue neither a listed human nor the lanes App wrote,
+// and the skill still reads them as data. Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
 // `**Decision recorded.**`, not posted through an App, and unedited or last
