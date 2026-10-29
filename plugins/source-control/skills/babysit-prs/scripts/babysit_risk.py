@@ -276,7 +276,8 @@ class RiskResult:
 #   pr-unblock stop's route (report-escalation.sh, adjudicate-feedback.mjs,
 #   publish-feedback.mjs, apply-patch.mjs) with every module they import and
 #   the routing table they read, so a held reason cannot be dropped unreviewed.
-# A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
+# A `trust` or `gate` path holds for a person (HIGH_FLOOR), except a `gate`
+# path `merge.lane-arm-gate` lane-arms (LANE_ARMED_FLOOR, `lane_armed`). An `enforcement`
 # path holds until the security lane's review binds to the head with no
 # open finding (REVIEW_FLOOR, `review-path:`), so no person is needed. So
 # does a `gate` path on a trusted person's own pull request that only their

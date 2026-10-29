@@ -992,7 +992,8 @@ the rules that only tighten in
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
     `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
     `head-ref-map.mjs`.
-  - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
+  - `gate`, a person merges it unless `merge.lane-arm-gate` lane-arms it
+    ([Lane-armed gate paths](#lane-armed-gate-paths)): the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
     `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
@@ -1006,7 +1007,8 @@ the rules that only tighten in
     named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
     can dispatch those credentialed workflows, `intake-reenter.yml` and
     `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
-    patch hold, so a model verdict alone never clears it. 23 workflows are gated.
+    patch hold, so without `merge.lane-arm-gate` a model verdict alone never clears it (with it,
+    see [Lane-armed gate paths](#lane-armed-gate-paths)). 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
     `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes

@@ -460,6 +460,20 @@ test("a lane-armed gate path arms on the gate's passing read and is a person's o
   ]);
 });
 
+// #10874's shape after clear-escalations takes the label off: the old person
+// refusal on a now lane-armed hold path still stands in the discussion, the
+// label is off, and the gate passes the head. It arms and puts no label back.
+test("a hold-path refusal the switch lane-armed does not relabel once the gate passes the head", async () => {
+  const discussion = { comments: [lanesSaid(personNote("it changes AGENTS.md, a hold path"))] };
+  const { code, writes, notes } = await run([pull(1, { files: [{ filename: "AGENTS.md" }], verdict: PASSED, discussion })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    notes.filter((note) => note.path.endsWith("/labels")),
+    [],
+  );
+});
+
 // Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
 // a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
 // (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a

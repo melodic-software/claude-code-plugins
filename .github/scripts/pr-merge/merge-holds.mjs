@@ -18,7 +18,8 @@
 // - A hold path: a changed file, or a renamed file's old path, matching the
 //   config's merge.diff-check.denied-paths or HOLD_PATH_FLOOR (the floor's
 //   `trust` and `gate` globs; its `enforcement` globs are the merge gate's,
-//   which a clean security review clears). A person on the trusted-actor
+//   which a clean security review clears, and so are the `gate` globs
+//   merge.lane-arm-gate lane-arms, LANE_ARMED_FLOOR). A person on the trusted-actor
 //   list lifts it by approving the head (their newest review of the head
 //   that approves, requests changes or was dismissed must approve), or by
 //   approving an earlier head that carries to it (liftersOf): their newest
@@ -377,7 +378,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   // END hold-floor HOLD_PATH_CLASSES
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
-// person. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge
+// person, less LANE_ARMED_FLOOR below. An `enforcement` glob (REVIEW_FLOOR) holds nothing here: the merge
 // gate holds it (babysit_risk `review-path:`) until a clean security review
 // binds to the head, and enable-auto-merge arms only a head the gate passed.
 // Owner decision Q7 (#10743): with `merge.lane-arm-gate` on, a `gate` glob

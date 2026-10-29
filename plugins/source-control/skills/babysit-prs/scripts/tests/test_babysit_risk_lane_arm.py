@@ -13,9 +13,11 @@ and the follow-up brief, never from running the scorer.
 
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from unittest import mock
@@ -259,6 +261,53 @@ class TheMergeEnforcementList(unittest.TestCase):
             check=False,
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
+def _sync_module():
+    spec = importlib.util.spec_from_file_location(
+        "sync_hold_floor", ROOT / "scripts/sync-hold-floor.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TheGeneratorReadsTheSwitchFailClosed(unittest.TestCase):
+    """The brief: a switch absent or unreadable keeps the person hold."""
+
+    def lane_arm(self, merge_block: str):
+        sync = _sync_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "pr-pipeline.yaml"
+            path.write_text(f"version: 2\nmerge:\n{merge_block}", encoding="utf-8")
+            with mock.patch.object(sync, "PIPELINE", path):
+                return sync.lane_arm()
+
+    def test_only_a_literal_true_turns_it_on(self) -> None:
+        held = "  person-held:\n    - .github/workflows/pr-merge.yml\n"
+        self.assertEqual(
+            self.lane_arm(f"  lane-arm-gate: true\n{held}"),
+            (True, [".github/workflows/pr-merge.yml"]),
+        )
+        # The shared reader unquotes a scalar, so 'true' reads as true.
+        for value in (None, "false", "yes", "True", "1", "on", "~"):
+            with self.subTest(value=value):
+                line = "" if value is None else f"  lane-arm-gate: {value}\n"
+                on, _ = self.lane_arm(f"{line}{held}")
+                self.assertIs(on, False)
+
+    def test_a_person_held_entry_off_the_floor_or_repeated_stops_it(self) -> None:
+        for entries in (
+            ["docs/held.md"],
+            ["plugins/source-control/scripts/source-control-babysit-merge"],
+            # An `enforcement` row is not a person's.
+            ["plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py"],
+            [".github/workflows/pr-merge.yml", ".github/workflows/pr-merge.yml"],
+        ):
+            with self.subTest(entries=entries):
+                block = "".join(f"    - {e}\n" for e in entries)
+                with self.assertRaises(SystemExit):
+                    self.lane_arm(f"  lane-arm-gate: true\n  person-held:\n{block}")
 
 
 if __name__ == "__main__":

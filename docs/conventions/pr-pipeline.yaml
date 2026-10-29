@@ -1095,7 +1095,9 @@ merge:
     majors: review
   # No path is held for being trusted alone (owner direction 2026-10-24)
   # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, owner
-  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B). Its `trust`
+  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B; merge.lane-arm-gate
+  # above lets its `gate` globs outside merge.person-held merge on a clean
+  # main-run review, README.md Lane-armed gate paths). Its `trust`
   # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
   # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
   # guard, every pr-merge script, this file, babysit_merge*, babysit_risk.py,
