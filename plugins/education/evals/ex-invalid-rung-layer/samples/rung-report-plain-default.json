@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Note: `docs/conventions/education.yaml` sets `explain_starting_rung: expert`, which is not a valid value, so that layer is dropped.\n\nThink of a kitchen where the cook plates food faster than the waiter can carry it. That call to slow down is backpressure.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "default reported last"
+    },
+    {
+      "answer": "Backpressure, plainly: the slow end tells the fast end to wait.\n\n`explain_starting_rung: plain (default)`\n",
+      "why": "backticked, trailing newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Backpressure is a flow-control signal that slows producers when a consumer falls behind.\n\nexplain_starting_rung: expert (repository: docs/conventions/education.yaml)",
+      "why": "adopts the invalid value"
+    },
+    {
+      "answer": "Think of a kitchen where the cook plates food faster than the waiter can carry it. That call to slow down is backpressure.\n\nexplain_starting_rung: plain (repository)",
+      "why": "credits the dropped layer"
+    },
+    {
+      "answer": "Think of a kitchen where the cook plates food faster than the waiter can carry it.\n\nexplain_starting_rung: plain (default)\n\nAnything else?",
+      "why": "report is not the last line"
+    }
+  ]
+}

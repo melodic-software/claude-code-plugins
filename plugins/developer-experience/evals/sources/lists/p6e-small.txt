@@ -1,0 +1,16 @@
+# Phase 6 fifth pass, Sonnet and Haiku rows: audit-tools fire (S3, S6, S7) and stays-quiet (Q-audit, S2), 3 runs.
+S3 A2 1
+S6 A2 1
+S7 A2 1
+Q-audit A2 1
+S2 A2 1
+S3 A2 2
+S6 A2 2
+S7 A2 2
+Q-audit A2 2
+S2 A2 2
+S3 A2 3
+S6 A2 3
+S7 A2 3
+Q-audit A2 3
+S2 A2 3

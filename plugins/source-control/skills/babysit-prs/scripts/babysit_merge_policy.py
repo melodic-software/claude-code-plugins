@@ -60,7 +60,10 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
+    AUTHOR_REVIEW_FLOOR,
     FLOOR,
+    HIGH_FLOOR,
+    REVIEW_FLOOR,
     ChangedFile,
     glob_match,
     is_trusted_actors_path,
@@ -2696,6 +2699,60 @@ def _same_modes(merges: Any, trees: Any) -> bool:
     return True
 
 
+# The code a hold-path file loads that is no hold path itself (merge-holds.mjs
+# CARRY_REFUSES, the same list): a push that touches one stops an approval
+# carrying (`ungated_since`); test_merge_holds_sync.py derives that closure.
+CARRY_REFUSES: tuple[str, ...] = (
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".github/scripts/**",
+    ".github/standards/**",
+    "docs/conventions/pr-pipeline/**",
+    "scripts/**",
+    "lib/**",
+    "plugins/source-control/skills/babysit-prs/scripts/**",
+    "plugins/performance/scripts/**",
+    "plugins/harness-ops/skills/inventory/scripts/**",
+    "plugins/ai-briefing/skills/generate/scripts/**",
+    "plugins/harness-config/skills/audit-permission-state/scripts/**",
+    "plugins/knowledge/skills/course-digest/scripts/**",
+    "plugins/knowledge/skills/video-digest/scripts/**",
+    "plugins/skill-quality/scripts/**",
+    "plugins/source-control/scripts/**",
+    "plugins/testing/skills/check-visual-parity/scripts/**",
+)
+
+
+def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
+    """Whether the compare start...H' `merges` touches no hold path and no
+    file a hold path loads, old paths of renames included (merge-holds.mjs
+    `ungatedSince`): `hold_paths` and HIGH_FLOOR, REVIEW_FLOOR and
+    CARRY_REFUSES. H' ahead with nothing behind, its commit list read whole
+    and fewer than the compare API's 300 files listed, each named."""
+    compare = json_object(merges)
+    files = compare.get("files")
+    if (
+        hold_paths is None
+        or compare.get("status") != "ahead"
+        or compare.get("behind_by") != 0
+        or _listed_commits(compare) is None
+        or not is_json_array(files)
+        or len(files) >= 300
+    ):
+        return False
+    paths: list[str] = []
+    for f in files:
+        name = json_object(f).get("filename")
+        if not isinstance(name, str):
+            return False
+        paths.append(name)
+        previous = json_object(f).get("previous_filename")
+        if isinstance(previous, str):
+            paths.append(previous)
+    globs = (*HIGH_FLOOR, *hold_paths, *REVIEW_FLOOR, *CARRY_REFUSES)
+    return not any(glob_match(g, p) for g in globs for p in paths)
+
+
 def approval_carry(
     then: Any,
     now: Any,
@@ -2705,22 +2762,34 @@ def approval_carry(
     based: Any,
     dismissal: str | None = None,
     trees: Any = None,
+    hold_paths: Sequence[str] | None = None,
 ) -> bool:
     """Whether an approval of `start` carries to the head `now` was read at
-    (merge-holds.mjs `approvalCarry`): every commit since is a merge of the
-    base (`base_merges_only`), and the net change is the same
-    (`same_net_change`) or the merges brought exactly the base's changes
-    (`exact_base_carry` over `merges`, `based` and `trees`, None when not
-    read). An approval GitHub dismissed as stale (`auto_dismissed`) passes
-    its `dismissal` commit, which must be one of the commits pushed since
-    `start`."""
-    if not base_merges_only(then, now, start, in_base):
-        return False
-    if dismissal is not None and not any(
-        json_object(c).get("sha") == dismissal for c in _new_commits(then, now) or ()
-    ):
-        return False
-    return same_net_change(then, now) or exact_base_carry(merges, based, trees)
+    (merge-holds.mjs `approvalCarry`), by either of two paths: every commit
+    since is a merge of the base (`base_merges_only`), and the net change is
+    the same (`same_net_change`) or the merges brought exactly the base's
+    changes (`exact_base_carry` over `merges`, `based` and `trees`, None when
+    not read); or, the owner's decision Q10 of 2026-10-28, `merges` (the
+    compare start...H') touches no hold path (`ungated_since`; None
+    `hold_paths` skips this path). An approval GitHub dismissed as stale
+    (`auto_dismissed`) passes its `dismissal` commit, which must be one of
+    the commits pushed since `start`."""
+
+    def pushed(commits: Any) -> bool:
+        return dismissal is None or any(
+            json_object(c).get("sha") == dismissal for c in commits or ()
+        )
+
+    merged = (
+        base_merges_only(then, now, start, in_base)
+        and pushed(_new_commits(then, now))
+        and (same_net_change(then, now) or exact_base_carry(merges, based, trees))
+    )
+    return merged or (
+        hold_paths is not None
+        and ungated_since(merges, hold_paths)
+        and pushed(_listed_commits(json_object(merges)))
+    )
 
 
 def _review_key(value: Any) -> str | None:
@@ -2845,6 +2914,7 @@ def carried_lifters(
     pr: Mapping[str, Any],
     reviews: Sequence[Any],
     humans: Collection[int],
+    hold_paths: Sequence[str] | None = None,
 ) -> list[str]:
     """The trusted people whose approval (`lifts_of` over the REST `reviews`)
     is of the pull request's head or carries to it over merges of its base
@@ -2943,6 +3013,18 @@ def carried_lifters(
                 merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
                 trees = [tree(sha), tree(end)]
             if approval_carry(then, now, lifted, in_base, merges, based, dismissal, trees):
+                lifters.add(login)
+                continue
+            # Q10's path reads start...H' when the base-merge path did not; a
+            # read that fails carries nothing by it.
+            if hold_paths is not None and merges is None:
+                try:
+                    merges = compare(f"{lifted}...{sha}")
+                except PolicyReadError:
+                    merges = None
+            if hold_paths is not None and approval_carry(
+                then, now, lifted, in_base, merges, based, dismissal, trees, hold_paths
+            ):
                 lifters.add(login)
     except PolicyReadError:
         return []
@@ -5034,6 +5116,34 @@ def own_paths(
     )
 
 
+def author_reviewed_paths(
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    humans: Collection[int],
+    verified: bool,
+) -> frozenset[str]:
+    """The `changed` `gate` floor paths (`AUTHOR_REVIEW_FLOOR`) only the
+    author's own commits touched (`foreign_paths`), when a person on the
+    trusted-actor list (`humans`, `trusted_actors`' people) opened the pull
+    request and pr-verify passed its head (`verified`): what
+    `RiskInput.author_reviewed` clears on a clean security review (owner
+    direction 2026-10-27). The lanes App, any other bot, a person off the
+    list, a lane's fix commit on a gate path and commits that do not read
+    get none, so a lane changing its own powers still waits for a person."""
+    user = json_object(pr.get("user"))
+    uid = user.get("id")
+    if not verified or user.get("type") != "User" or type(uid) is not int:
+        return frozenset()
+    if uid not in humans:
+        return frozenset()
+    gate = [p for p in changed if any(glob_match(g, p) for g in AUTHOR_REVIEW_FLOOR)]
+    others = foreign_paths(repo, pr, changed) if gate else frozenset()
+    if others is None:
+        return frozenset()
+    return frozenset(p for p in gate if p not in others)
+
+
 # Manifest and workflow text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
@@ -5860,6 +5970,8 @@ def assess(
                 trusted = trusted_actors(repo, head, exclude=skip)
             except (PolicyReadError, StopReadError):
                 pass
+        # Its people, for the gate-path lift (`author_reviewed_paths`).
+        inputs["trusted_humans"] = trusted[1]
         # Read again right before the enqueue (`recheck_lane_issue`).
         inputs["issue_holds"] = issue_hold_labels(config, human_gated)
         eligible = lane_eligibility(

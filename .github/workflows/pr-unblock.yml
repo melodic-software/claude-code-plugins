@@ -1220,6 +1220,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 0's sealed transcript
+        if: always() && steps.judge-0.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-0.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-0
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 0's verdict
@@ -1281,6 +1292,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 1's sealed transcript
+        if: always() && steps.judge-1.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-1.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-1
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 1's verdict
@@ -1341,6 +1363,17 @@ jobs:
             Skill
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
 
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.

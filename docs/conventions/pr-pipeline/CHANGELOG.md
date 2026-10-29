@@ -1,5 +1,74 @@
 # Changelog for the PR pipeline convention
 
+## [7.2.2] - 2026-10-29
+
+### Fixed
+
+- A pr-merge or intake-triage run that the token broker refuses with reason `kill-switch` no longer
+  ends red. The lane breaker turns the repository kill switch on after a queued run has read its
+  variables, so the run's own kill-switch check passes and only the broker's live read stops it.
+  `request-lane-token` takes a new `kill-switch-ok` input (`token` mode only): on that 403 it ends
+  green with a `lane-token-stopped` notice, no token and `skip-reason` `kill-switch`. Every step in
+  pr-merge's `merge` and `enable-auto-merge` jobs and intake-triage's `apply-verdict` and
+  `apply-refinement` jobs that uses the token already runs only when the token is set, and
+  intake-triage's `refine-select` now skips on apply-verdict's new `stopped` output. Any other
+  denial, and every caller without the input, stays red; work-resolve-issue stays red because
+  work-unblock re-fires its issue from the failed mint step. `version` stays 2.
+
+- pr-merge's `enable-auto-merge` no longer queues a lanes App pull request whose head a pr-unblock
+  lane stopped. ci-status's merge-queue run fails a head whose newest `pr-unblock/*` status by
+  github-actions[bot] is `failure` or `error`, but only after every lane leg ran, and the queue then
+  ejected it. The rule now lives in `merge-holds.mjs` (`unblockStops`, `readStatuses`): a stopped
+  head, or one whose statuses do not read, is left unarmed (an armed one is disarmed), and each
+  such skip gets a line in the run summary. The statuses are read on the job token, whose job now
+  holds `statuses: read`, because the lanes App holds no commit-statuses permission.
+
+- pr-merge's `enable-auto-merge` takes `needs-human` off a lanes App pull request itself when the
+  lane's newest refusal at the head names only hold paths and a person on the trusted-actor list
+  approved that head (merge-holds `pathLifters`, or `liftersOf` over base merges), the release the
+  refusal and ci-status already name. Removing the label re-runs ci-status at the head. A cost,
+  risk or verifier reason, a refusal at another head, an approval of another head, a dismissed
+  approval, an untrusted reviewer or a report-only run lifts nothing. The same label also carries
+  holds that live only in it, so the label stays unless it stands for that refusal alone: no
+  review lane's hold names the head (or fails to parse); the newest `labeled` event is the lanes
+  App's and comes within a minute of the refusal comment, so a label put back with no new comment
+  stays; no review-lane or check-signed-commits hold stands since a person last removed the label
+  (a bot's removal lifts nothing); the lanes App wrote no pr-unblock escalation or other marked
+  comment since; no person commented, replied on a review thread, reviewed (an approval aside) or
+  labeled since; and the head read again just before the delete is the one judged. A failed read
+  keeps it. It never removes a label a person applied or one another escalation stands behind.
+
+- A trusted person's approval of a hold-path head now also carries to a later head when the diff
+  between the two touches no hold path and no file a hold path loads (the owner's decision Q10 of
+  2026-10-28, #10759), in `merge-holds.mjs` `approvalCarry` and its twin
+  `babysit_merge_policy.approval_carry`. The diff is read with the hold-path rules plus the
+  enforcement floor and `CARRY_REFUSES` (workflows, actions, `.github/scripts`, `.github/standards`,
+  the pipeline config's directory, `scripts/`, `lib/`, babysit-prs' scripts and every plugin
+  script directory a hold-path workflow runs a script from). Any edit to such a file, a test-only
+  or comment-only edit included, needs a new approval, and so do a compare not read whole and a
+  head that is not ahead of the approved one. `test_merge_holds_sync.py` derives every file the
+  hold paths load and fails on one outside the floor and `CARRY_REFUSES`. The control is still a
+  person's approval.
+
+- route workflow-staged to a failing status, not needs-human
+
+  A resolve-conflicts stop on workflow-staged now ends in a failing pr-unblock/conflict status and the lane-stopped comment instead of needs-human. The merge carries the pull request's own .github/workflows/ changes together with the base's, which the lane token cannot push, and nothing in it is a person's decision, so a session merges main by hand. escalation-routes.json routes it fail, and the stopping check skips lane-stopped. clear-escalations.mjs still lifts a workflow-staged label an older lane run set, on the same evidence as before.
+
+## [7.2.1] - 2026-10-29
+
+### Fixed
+
+- check-wip-cap closes new admissions when it cannot read the base config (a failed resolve-config import, as after a failed `npm ci` of its dependencies), whatever `wip.pause-from` says: `admission-open` is `false`, and `admission_reason` and `admission_basis` are `config-unreadable`, with a `check-wip-cap` warning. Before, the default limits applied with admissions open, so a broken dependency took the queued cap off. The run pause keeps the last known state as before, and a failed `npm ci` still continues, with a warning that says admissions close.
+
+## [7.2.0] - 2026-10-29
+
+### Added
+
+- **`attended`, separate from `host-run` and `needs-human`.** Work that needs the owner present (a manual step on external state an agent cannot safely run or test) gets the `attended` label. Intake admission refuses it as it refuses `host-run`, parked at `status: confirmed` with no decision asked. While the newest `attended` event is a removal by anyone but a listed human, the lanes App included, admission refuses as if the label were on.
+- **External state in refinements.** An exact intake refinement ends its criteria with one plain line, `External state: none`, `iac (<owner/repo>)` or `manual (<class>: <what>)`. Admission refuses a `manual` one and adds `attended`, until a listed human removes `attended` after that refinement; `iac` routes nothing. The classes are config: the new `attended.classes` section of `pr-pipeline.yaml`, which `refine.mjs --select` puts in the model's context and `--apply` checks.
+- **`attended` holds downstream.** work-unblock never adds `agent-ready` to an issue carrying `attended`, or to an admission-deferred one whose newest `attended` event is a removal by anyone but a listed human; its re-admission paths park an attended refusal at `status: confirmed` with `attended`. resolve-issue and apply-issue-patch hold on `attended`.
+- **`manual-external` stop code.** A resolve-issue run that reaches such a step stops with `manual-external`, whose new `attended` route adds the label and removes `agent-ready`; `host-only` now names a host run alone.
+
 ## [7.1.0] - 2026-10-28
 
 ### Added

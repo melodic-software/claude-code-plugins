@@ -1,0 +1,5 @@
+{
+  "env": {
+    "PATH": "${PROBE_WORKDIR}/bin:/usr/local/bin:/usr/bin:/bin"
+  }
+}

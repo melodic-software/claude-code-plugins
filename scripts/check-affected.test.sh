@@ -271,6 +271,10 @@ check "the failure names the check and how to reproduce it" \
 check "the failing check's output is shown" '[[ $ERR == *"check-changelog-fragments ran"* ]]'
 check "a failure prints nothing on stdout" '[[ -z $OUT ]]'
 
+run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base --tests
+check "a failing static check skips the suites and their npm install" \
+  '[[ $RC == 1 && $ERR == *"FAIL changelog-fragments"* && $ERR == *"SKIP tests (a static check failed above)"* && $ERR != *"affected-tests ran"* && $ERR != *"setup-env ran"* ]]'
+
 run STUB_CHECK_SHELL_PORTABILITY=2 -- --base base
 check "a check that could not run is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP shell-portability (could not run, exit 2"* ]]'
@@ -378,7 +382,7 @@ rm -rf "$repo/node_modules"
 run "${npm_env[@]}" STUB_NPM=1 -- --base base --tests
 check "a failed npm ci fails the run and runs no suites" \
   '[[ $RC == 1 && $ERR == *"FAIL npm-deps"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
-rm -rf "$repo/package-lock.json" "$repo/node_modules" "$repo/.github" "$tmp/npmbin"
+rm -rf "$repo/.github/standards" "$repo/package-lock.json" "$repo/node_modules" "$tmp/npmbin"
 cp "$tmp/setup-env.stub" "$repo/scripts/setup-env.sh"
 
 printf '#!/usr/bin/env bash\necho hi\n' >"$repo/tool"
@@ -424,6 +428,9 @@ run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
 plugin_base_sha="$(git_test_config "$repo" rev-parse plugin-base)"
 check "a changed skill file runs changed-skills against the base, resolved to its commit" \
   '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
+run PATH="$tmp/bin:$PATH" STUB_CHECK_CHANGELOG_FRAGMENTS=1 STUB_VALIDATE_PLUGINS=1 STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
+check "a failing static check reports at once, with validate-plugins and changed-skills skipped" \
+  '[[ $RC == 1 && $ERR == *"FAIL changelog-fragments"* && $ERR == *"SKIP validate-plugins (a static check failed above)"* && $ERR == *"SKIP changed-skills (a static check failed above)"* && $ERR != *"validate-plugins ran"* && $ERR != *"check-changed-skills ran"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_plugin"
 
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
@@ -442,9 +449,9 @@ cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
   check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene; do
-  printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit 1\n' "$s" >"$tools/scripts/$s.sh"
+  printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit "${COPY_STUB_RC:-1}"\n' "$s" >"$tools/scripts/$s.sh"
 done
-printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(1)\n' \
+printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(int(os.environ.get("COPY_STUB_RC", "1")))\n' \
   >"$tools/scripts/sync-plugin-options-docs.py"
 cp "$SELF_DIR/check-affected-gates.txt" "$tools/scripts/"
 chmod +x "$tools"/scripts/*.sh
@@ -464,7 +471,8 @@ printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m skill
 RC=0
-ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+# The copies exit 0 here: a failing static check would skip the slow ones, hiding the reason asserted.
+ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
 check "a copy run elsewhere skips changed-skills, which runs the checked tree's skill-quality code" \
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
@@ -610,7 +618,7 @@ run STUB_STATUS_LOG="$tmp/status.log" -- --uncommitted --tests
 check "--uncommitted --tests runs the suites over the uncommitted change" \
   '[[ $RC == 0 && $ERR != *"SKIP tests"* && $(cat "$tmp/status.log" 2>/dev/null) == *"?? new-tool"* ]]'
 RC=0
-ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --uncommitted --tests 2>&1)" || RC=$?
+ERR="$(cd "$tmp" && COPY_STUB_RC=0 CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --uncommitted --tests 2>&1)" || RC=$?
 check "a copy's --uncommitted --tests run still skips the checked tree's tests" \
   '[[ $ERR == *"SKIP tests (runs the checked tree"* && $ERR != *"copy of affected-tests"* ]]'
 mkdir -p "$repo/plugins/demo"

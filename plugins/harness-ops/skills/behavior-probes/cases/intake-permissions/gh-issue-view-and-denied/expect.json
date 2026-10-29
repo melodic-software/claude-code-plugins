@@ -1,0 +1,14 @@
+{
+  "claim": "Under dontAsk with only Bash(gh issue view *) allowed, gh issue view 1 && touch probe-marker.txt is denied: the rule does not approve the command after the &&.",
+  "tags": ["Bash rule", "compound command", "allowedTools", "dontAsk"],
+  "permission_mode": "dontAsk",
+  "allowed_tools": ["Bash(gh issue view *)"],
+  "platforms": ["linux"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"gh issue view 1 && touch probe-marker\\.txt\"",
+    "example": { "command": "gh issue view 1 && touch probe-marker.txt" }
+  },
+  "outcome": "deny",
+  "control": "intake-permissions/gh-issue-view-runs"
+}
