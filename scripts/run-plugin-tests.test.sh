@@ -480,17 +480,17 @@ assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 # PLUGIN_TEST_ADVISORY=1, which CI sets for runs on main alone. A pull request
 # run leaves it unset, so the same failure fails the leg there.
 r="$(make_root advisory)"
-write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
+write_suite "$r" plugins/planning/shared/tests/ui-a.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
 # shellcheck disable=SC2016 # the suite expands it, not this script
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"; echo "suite sees nonce: [${advisory_nonce:-}]"'
 advisory_list="$scratch/advisory.txt"
-printf '# fixture\nplugins/planning/shared/tests/ui.test.sh\n' >"$advisory_list"
+printf '# fixture\nplugins/planning/shared/tests/ui-a.test.sh\n' >"$advisory_list"
 
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 0 "on main, a failing advisory suite does not fail the run" --root "$r"
 assert_output_has "on main, the advisory failure is a warning titled by its suite" \
-  "::warning title=plugins/planning/shared/tests/ui.test.sh::plugins/planning/shared/tests/ui.test.sh failed (exit 1) but is advisory on this run"
-assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui.test.sh"
+  "::warning title=plugins/planning/shared/tests/ui-a.test.sh::plugins/planning/shared/tests/ui-a.test.sh failed (exit 1) but is advisory on this run"
+assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui-a.test.sh"
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
 assert_output_lacks "on main, the advisory failure gets no error annotation" "::error"
@@ -513,7 +513,7 @@ assert_output_lacks "on a pull request, no nonce is printed" "Advisory nonce:"
 assert_output_has "on a pull request, the failure summary line" "One or more plugin tests failed."
 
 r="$(make_root advisory-other)"
-write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "ok: ui"'
+write_suite "$r" plugins/planning/shared/tests/ui-a.test.sh 'echo "ok: ui"'
 write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
