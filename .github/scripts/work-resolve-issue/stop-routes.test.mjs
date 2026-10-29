@@ -84,14 +84,18 @@ test("a code opens the reason in any case, past emphasis, backticks and a Reason
   assert.equal(runCode("blocked by pr: #5 adds the helper"), "blocked-by-pr");
 });
 
-test("a reason with no code that names an owner reason as a word holds for that reason, security first", () => {
-  assert.equal(runCode("The change would print the token, a security problem."), "security-risk");
-  assert.equal(runCode("It would change what the issue's intent is."), "intent-change");
-  assert.equal(runCode("This needs a Design call on the module split."), "design-change");
-  assert.equal(runCode("The new job would raise the cost of every run."), "cost-risk");
-  assert.equal(runCode("A design question with a security side."), "security-risk");
-  for (const reason of ["The change would print the token, a security problem.", "This needs a Design call."]) {
+test("a reason with no code that names security or a vulnerability holds as security", () => {
+  for (const reason of ["possible security issue in X", "The change would print the token, a Security problem.", "It opens a vulnerability in the parser.", "Two vulnerable reads."]) {
+    assert.equal(runCode(reason), "security-risk", reason);
     assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+// Owner rule: only a real owner reason reaches a person, and plain reasons
+// name intent, design and cost all the time, so only their code holds.
+test("a reason with no code that names intent, design or cost stays stopped", () => {
+  for (const reason of ["the test design needs X", "the cost of retrying", "The intent of the check is unclear.", "insecure-looking but fine"]) {
+    assert.equal(runCode(reason), "stopped", reason);
   }
 });
 

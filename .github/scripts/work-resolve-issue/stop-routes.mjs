@@ -76,14 +76,15 @@ const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
   .map((code) => [code, new RegExp(`^${code.replaceAll("-", "[-\\s]")}\\b`, "i")]);
-// The hold row of each owner reason, found by its stop-reason code as a whole
-// word, security first.
-const OWNER_WORDS = ["security-risk", "intent-change", "design-change", "cost-risk"].map((row) => [row, new RegExp(`\\b${CLASS_CODES[row]}\\b`, "i")]);
+// A reason with no code that names security or a vulnerability as a word.
+const SECURITY_WORD = /\b(?:security|vulnerab\w*)\b/i;
 
 // The code a run's stop reason opens with, past any emphasis, backticks and a
-// `Reason:` label. With none, the hold row of an owner reason it names as a
-// word, so a misformatted owner code still reaches a person; else "stopped".
+// `Reason:` label. With none, security-risk when it names security or a
+// vulnerability, so a misformatted security code still reaches a person; else
+// "stopped". Intent, design and cost words are common in plain reasons, so
+// only their code holds for them.
 export const runCode = (reason) => {
   const text = String(reason ?? "").replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
-  return (CODES.find(([, code]) => code.test(text)) ?? OWNER_WORDS.find(([, word]) => word.test(text)) ?? ["stopped"])[0];
+  return CODES.find(([, code]) => code.test(text))?.[0] ?? (SECURITY_WORD.test(text) ? "security-risk" : "stopped");
 };
