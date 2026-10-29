@@ -348,6 +348,9 @@ NETWORK_ERRORS = (
     "unexpected eof",
     "unexpected end of json input",
 )
+# A whole listing cut short has already paged up to every artifact, so it is
+# read once more at most, not after every wait (`Reader._read_listing`).
+CUT_SHORT = "unexpected end of json input"
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
@@ -1234,8 +1237,9 @@ class Reader:
         """The listing payload, read again after a 5xx or a fast network
         error while time is left: every page, read and wait fits in
         `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
-        case. A `deadline` set by an earlier read is kept; this read's is
-        saved as `_read_deadline`."""
+        case. A read cut short (`CUT_SHORT`) is read once more, and that
+        read's failure refuses. A `deadline` set by an earlier read is kept;
+        this read's is saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
@@ -1253,7 +1257,7 @@ class Reader:
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
-            except _Transient:
+            except _Transient as exc:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
@@ -1261,6 +1265,8 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
+                if CUT_SHORT in str(exc).casefold():
+                    break
         return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:

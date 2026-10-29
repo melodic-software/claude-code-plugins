@@ -3065,13 +3065,15 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(fake.listings(), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
 
-    def test_a_persistently_cut_short_page_refuses_after_three_reads(self) -> None:
+    def test_a_whole_listing_cut_short_is_read_once_more_at_most(self) -> None:
+        # Each cut-short read may have paged every artifact: two whole reads,
+        # never three, then the refusal.
         fake = FlakyListing(["unexpected end of JSON input"] * 3)
         evidence, sleeps = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertIn("unexpected end of JSON input", evidence.detail or "")
-        self.assertEqual(fake.listings(), 3)
-        self.assertEqual(sleeps, [2.0, 4.0])
+        self.assertEqual(fake.listings(), 2)
+        self.assertEqual(sleeps, [2.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
         """Three 502s, the clock reading `clock` in turn, a 60s listing timeout."""
