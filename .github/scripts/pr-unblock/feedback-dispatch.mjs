@@ -124,7 +124,6 @@ import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-f
 import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { HOLD_LINE } from "./fix-ci-dispatch.mjs";
 import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
@@ -159,6 +158,11 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too. fix-ci-dispatch.mjs imports
+// it from here, so this floored module loads no unfloored one.
+export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // No owner is adopted unless the base config's `adoption` section sets
 // idle-hours (pr-pipeline.yaml).
