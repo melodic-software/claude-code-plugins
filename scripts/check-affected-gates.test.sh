@@ -122,16 +122,6 @@ while read -r gate kind rest; do
 done < <(grep -v '^[[:space:]]*\(#\|$\)' "$GATES")
 ((rows_ok)) && ok "every row is a runner check or a CI-only gate with a reason"
 
-# The typos exclusions in the runner are the `exclude:` input of the workflow's
-# typos step.
-runner_excludes="$(awk -F"'" "/--exclude '/ { print \$2 }" "$RUNNER" | LC_ALL=C sort)"
-workflow_excludes="$(awk '/id: typos$/ { t = 1 } t && /^ +exclude: / { sub(/^ +exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$WORKFLOW" | LC_ALL=C sort)"
-if [[ -n "$workflow_excludes" && "$runner_excludes" == "$workflow_excludes" ]]; then
-  ok "the runner's typos exclusions match the workflow's"
-else
-  bad "the runner's typos exclusions match the workflow's" "runner: ${runner_excludes//$'\n'/ } workflow: ${workflow_excludes//$'\n'/ }"
-fi
-
 # The machine-specific-paths exclusions in the runner are the `exclude:` input
 # of the workflow's machine-paths step.
 if machine_path_excludes_match "$RUNNER" "$WORKFLOW"; then

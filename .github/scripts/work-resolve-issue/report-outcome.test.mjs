@@ -3112,6 +3112,21 @@ test("route host-run: a run's host-only code adds host-run, removes agent-ready 
   assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
 });
 
+// Owner decision 2026-10-28: a manual external step goes to attended, never
+// to needs-human, which keeps meaning an owner decision.
+test("route attended: a run's manual-external code adds attended, removes agent-ready and escalates to no person", () => {
+  const plan = stoppedPlan("manual-external: the record needs a DNS change at the registrar");
+  assert.equal(plan.action, "attended");
+  assert.equal(plan.stop, "manual-external");
+  assert.deepEqual(plan.addLabels, ["attended"]);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=attended run=555 -->\n"), plan.comment);
+  assert.ok(!plan.comment.includes("needs-human"), plan.comment);
+  assert.match(plan.comment, /a DNS change at the registrar/);
+  assert.match(plan.comment, /removes `attended` and adds `agent-ready` again/);
+  assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
+});
+
 test("route retry: a crash keeps agent-ready, names the branch and counts toward the cap", () => {
   const plan = decide({ outcome: readOutcome("/nonexistent/work-outcome.json"), issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
   assert.equal(plan.action, "retry");

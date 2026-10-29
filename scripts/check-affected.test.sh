@@ -57,6 +57,23 @@ cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 : >"$repo/_typos.toml"
+# The workflow typos reads its exclusions from: its typos step's `exclude:` line.
+mkdir -p "$repo/.github/workflows"
+cat >"$repo/.github/workflows/pr-require-checks.yml" <<'YAML'
+jobs:
+  lint-repo:
+    steps:
+      - name: Spell-check
+        id: typos
+        with:
+          config: _typos.toml
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/**
+      - name: Machine paths
+        id: machine_paths
+        with:
+          exclude: >-
+            other/**
+YAML
 chmod +x "$repo"/scripts/*.sh
 # A typos stand-in on every run's PATH, so a typos on the machine never sees the
 # fixture's missing config. It echoes its arguments and exits STUB_TYPOS.
@@ -170,6 +187,40 @@ check "typos gets the config, the exclusions and the changed files" \
 run PATH="$(path_without typos)" -- --base base
 check "a missing typos is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP typos (typos not installed)"* ]]'
+# The exclusions are the checked tree's workflow's, so a branch that adds one
+# with the files it exempts is judged by it.
+pre_typos="$(git_test_config "$repo" rev-parse HEAD)"
+workflow="$repo/.github/workflows/pr-require-checks.yml"
+sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-exclude
+run STUB_TYPOS=1 -- --base base
+check "typos takes an exclusion the branch adds to the workflow" \
+  '[[ $ERR == *"--exclude plugins/*/tools/*/vendor/** --exclude legacy/samples/** "* ]]'
+sed -i.bak 's|exclude: plugins/.*|exclude:|' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-no-globs
+run -- --base base
+check "a workflow typos step with no exclude globs fails typos closed" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"no exclude globs"* && $ERR != *"typos ran"* ]]'
+# The scan stops at the end of the typos step, so the next step's exclude is
+# never read as typos'.
+sed -i.bak '/^ *exclude:$/d' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-no-exclude
+run -- --base base
+check "a typos step with no exclude fails closed, not reading the next step's" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"no exclude globs"* && $ERR != *"typos ran"* ]]'
+sed -i.bak 's|config: _typos.toml|&\
+          exclude: >-\
+            folded/**|' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-folded
+run -- --base base
+check "a folded typos exclude is refused with a message" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"block scalar"* && $ERR != *"typos ran"* ]]'
+git_test_config "$repo" rm -q .github/workflows/pr-require-checks.yml
+git_test_config "$repo" commit -q -m typos-no-workflow
+run -- --base base
+check "a missing workflow fails typos closed" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"pr-require-checks.yml"* && $ERR != *"typos ran"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_typos"
 run -- --base base
 # shellcheck disable=SC2034 # read by the eval in check
 base_sha="$(git_test_config "$repo" rev-parse base)"
@@ -226,6 +277,16 @@ check "a check that could not run is a skip, not a failure" \
 
 run -- --base base --tests
 check "--tests runs the affected suites" '[[ $RC == 0 && $OUT == *"passed"* ]]'
+# A passing check's output is not printed, so the stub logs its arguments.
+args_log="$tmp/affected-args.log"
+run -u CHECK_AFFECTED_JOBS -u CHECK_AFFECTED_BUDGET STUB_ARGS_LOG="$args_log" -- --base base --tests
+check "--tests passes a default job count of at most 8 and the 120 s budget" \
+  '[[ $RC == 0 && $(cat "$args_log") =~ ^"--run --jobs "[1-8]" --budget 120 " ]]'
+run CHECK_AFFECTED_JOBS=5 CHECK_AFFECTED_BUDGET=300 STUB_ARGS_LOG="$args_log" -- --base base --tests
+check "CHECK_AFFECTED_JOBS and CHECK_AFFECTED_BUDGET override the defaults" \
+  '[[ $RC == 0 && $(cat "$args_log") == "--run --jobs 5 --budget 300 "* ]]'
+run STUB_ARGS_LOG="$args_log" -- --base base --tests --budget 45
+check "--budget sets the budget passed to affected-tests" '[[ $RC == 0 && $(cat "$args_log") == *" --budget 45 "* ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
@@ -376,8 +437,9 @@ check "a failed fetch skips the stale-base check only" \
 # told which tree to read; the checked tree's own scripts and its test code
 # never run.
 tools="$tmp/tools"
-mkdir -p "$tools/scripts"
+mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
+cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
   check-spoke-plugin-root check-changelog-parity check-changed-skills check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit 1\n' "$s" >"$tools/scripts/$s.sh"
@@ -445,6 +507,15 @@ check "an in-place run scans with the merge-base's patterns file, not the branch
   '[[ $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: settings.json:1:"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
 
+# typos reads its exclusions from the checked tree's workflow, which is data.
+sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
+git_test_config "$repo" commit -q -am typos-exclude
+RC=0
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" STUB_TYPOS=1 bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere takes the typos exclusions from the checked tree's workflow" \
+  '[[ $ERR == *"--exclude legacy/samples/** "* ]]'
+git_test_config "$repo" reset -q --hard HEAD~1
+
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
   mkdir -p "$repo/docs"
@@ -456,13 +527,53 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
   RC=0
   ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
   check "a copy run elsewhere never loads the checked tree's markdownlint config" \
-    '[[ ! -e $tmp/md-payload && $ERR != *"SKIP markdown"* ]]'
+    '[[ ! -e $tmp/md-payload && $ERR != *"SKIP markdown ("* ]]'
   printf '# Title\nText.\n' >"$repo/docs/a.md"
   git_test_config "$repo" commit -q -am bad-md
   RC=0
   ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
   check "a copy run elsewhere still lints the checked tree's markdown" \
     '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"MD022"* ]]'
+  check "a copy run elsewhere says why it refused a JavaScript markdownlint config" \
+    '[[ $ERR == *"SKIP markdown: config docs/.markdownlint-cli2.cjs (refused:"* ]]'
+  pre_md="$(git_test_config "$repo" rev-parse HEAD)"
+
+  # A branch-only nested config that is data exempts the files it covers.
+  mkdir -p "$repo/legacy"
+  printf '# Title\nText.\n' >"$repo/legacy/a.md"
+  printf '{\n  // vendored, never restyled\n  "config": { "default": false, },\n}\n' >"$repo/legacy/.markdownlint-cli2.jsonc"
+  git_test_config "$repo" rm -q docs/a.md
+  git_test_config "$repo" add -A
+  git_test_config "$repo" commit -q -m legacy
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere honors a branch-only nested markdownlint config that is data" \
+    '[[ $ERR != *"FAIL markdown"* && $ERR != *"SKIP markdown ("* && $ERR != *"config legacy/"* ]]'
+
+  # A config naming a custom rule, reaching one through __proto__, or extending
+  # another file is refused whole, so its exemption is not applied either.
+  printf '{ "customRules": ["./rule.cjs"], "config": { "default": false } }\n' >"$repo/legacy/.markdownlint-cli2.jsonc"
+  git_test_config "$repo" add -A
+  git_test_config "$repo" commit -q -m custom-rule
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere refuses a markdownlint config with customRules and lints with the merge-base's" \
+    '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"SKIP markdown: config legacy/.markdownlint-cli2.jsonc (refused:"*"customRules"* ]]'
+  printf '{ "\\u005f_proto__": { "customRules": ["./rule.cjs"] }, "config": { "default": false } }\n' >"$repo/legacy/.markdownlint-cli2.jsonc"
+  git_test_config "$repo" commit -q -am proto
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere refuses a markdownlint config that sets __proto__" \
+    '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"SKIP markdown: config legacy/.markdownlint-cli2.jsonc (refused:"*"__proto__"* ]]'
+  git_test_config "$repo" rm -q legacy/.markdownlint-cli2.jsonc
+  printf '{ "extends": "./rule.cjs", "default": false }\n' >"$repo/legacy/.markdownlint.json"
+  git_test_config "$repo" add -A
+  git_test_config "$repo" commit -q -m extends
+  RC=0
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere refuses a markdownlint config with extends" \
+    '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"SKIP markdown: config legacy/.markdownlint.json (refused:"*"extends"* ]]'
+  git_test_config "$repo" reset -q --hard "$pre_md"
 else
   ok "SKIP markdown copy cases (markdownlint-cli2 not installed)"
 fi
@@ -590,6 +701,8 @@ run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
 run -- --jobs 0
 check "a --jobs count below one is a usage error" '[[ $RC == 2 && $ERR == *"--jobs N"* ]]'
+run -- --budget 0
+check "a --budget below one second is a usage error" '[[ $RC == 2 && $ERR == *"--budget S"* ]]'
 run -- --base no-such-ref
 check "an unresolvable base is exit 2" '[[ $RC == 2 && $ERR == *"merge-base"* ]]'
 

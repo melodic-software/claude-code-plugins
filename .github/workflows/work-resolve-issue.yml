@@ -15,7 +15,7 @@ name: work-resolve-issue
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
 # comments on the issue and routes the stop by stop-routes.json (needs-human,
-# host-run, a capped retry, or a failed stop); an issue its dimensions skip
+# host-run, attended, a capped retry, or a failed stop); an issue its dimensions skip
 # gets the same from report-skip. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
 # docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a

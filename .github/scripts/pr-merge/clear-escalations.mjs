@@ -29,11 +29,13 @@
 //   review, other lanes) are not someone speaking; an App marker is judged
 //   by the rule above instead.
 // - Every recorded reason no longer holds at the current head:
-//     workflow-staged          main changed nothing under .github/workflows/
-//                              since its merge base with the head, so merging
-//                              main into the head stages no workflow change;
-//                              or a trusted move (below) and the head
-//                              contains main as it was at the escalation
+//     workflow-staged          (a label set before escalation-routes.json
+//                              routed it `fail`) main changed nothing under
+//                              .github/workflows/ since its merge base with
+//                              the head, so merging main into the head stages
+//                              no workflow change; or a trusted move (below)
+//                              and the head contains main as it was at the
+//                              escalation
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/

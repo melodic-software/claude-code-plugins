@@ -313,6 +313,154 @@ describe("initWatchChecklist", () => {
     expect(stdout.join("\n")).not.toContain("Dropped");
   });
 
+  describe("generated ticks", () => {
+    /**
+     * A slice whose watch.json records a complete CLI bootstrap and whose selection.json
+     * agrees with it: 2 frames, 3 sheets, 2 densification windows, 8h, highVolume true.
+     *
+     * @param {{ selection?: object, withTempDirs?: boolean }} [options]
+     */
+    function makeBootstrappedSlice({ selection = {}, withTempDirs = true } = {}) {
+      const done = (/** @type {object} */ metrics = {}) => ({
+        completedAt: "2026-10-01T00:00:00.000Z",
+        metrics,
+      });
+      const base = makeSliceDir({ selection: { selectedFrames: [{ file: "a" }, { file: "b" }] } });
+      const contactSheetsDir = path.join(base, "tmp", "sheets");
+      const framesDir = path.join(base, "tmp", "frames");
+      if (withTempDirs) {
+        fs.mkdirSync(contactSheetsDir, { recursive: true });
+        fs.mkdirSync(framesDir, { recursive: true });
+      }
+      const watch = {
+        phases: {
+          acquire: done(),
+          transcript: done(),
+          watching: done({
+            frameCount: 2,
+            contactSheetCount: 3,
+            densificationWindows: 2,
+            highVolume: true,
+          }),
+          harvest: done(),
+        },
+        tempSession: { contactSheetsDir, framesDir },
+      };
+      fs.writeFileSync(path.join(base, "run-state", "watch.json"), JSON.stringify(watch));
+      const selectionPath = path.join(base, "key-frames", "selection.json");
+      const current = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
+      fs.writeFileSync(selectionPath, JSON.stringify({ ...current, ...selection }));
+      return base;
+    }
+
+    /**
+     * @param {string[]} lines
+     * @param {string} id
+     * @returns {{ ticked: boolean, next: string | undefined }}
+     */
+    function row(lines, id) {
+      const index = lines.findIndex((line) => line.includes(`] **${id}**`));
+      expect(index).toBeGreaterThan(-1);
+      return { ticked: lines[index].startsWith("- [x]"), next: lines[index + 1] };
+    }
+
+    const readLines = (/** @type {string} */ sliceDir) =>
+      fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
+
+    it("ticks 1.1, 1.3, 1.4, 1.5 and 1.6 from a complete watch.json and matching selection.json", () => {
+      const lines = readLines(makeBootstrappedSlice());
+
+      for (const id of ["1.1", "1.3", "1.4", "1.5", "1.6"]) {
+        const { ticked, next } = row(lines, id);
+        expect(ticked, id).toBe(true);
+        expect(next, id).toMatch(/^ {2}- evidence \(generated\): \S/);
+      }
+      expect(row(lines, "1.3").next).toContain(
+        "2 frames, 3 contact sheets, 2 densification windows",
+      );
+    });
+
+    it("never ticks rows 0.1-0.4 and 1.2", () => {
+      const lines = readLines(makeBootstrappedSlice());
+
+      for (const id of ["0.1", "0.2", "0.3", "0.4", "1.2"]) {
+        expect(row(lines, id).ticked, id).toBe(false);
+      }
+    });
+
+    it("leaves 1.3 unticked, with no evidence line, when selection.json disagrees with watch.json", () => {
+      const lines = readLines(
+        makeBootstrappedSlice({ selection: { contactSheets: [{ id: "1" }, { id: "2" }] } }),
+      );
+
+      const { ticked, next } = row(lines, "1.3");
+      expect(ticked).toBe(false);
+      expect(next).not.toMatch(/evidence/);
+    });
+
+    it("ticks 1.4 only when the tempSession directories exist on disk", () => {
+      expect(row(readLines(makeBootstrappedSlice()), "1.4").ticked).toBe(true);
+
+      const { ticked, next } = row(readLines(makeBootstrappedSlice({ withTempDirs: false })), "1.4");
+      expect(ticked).toBe(false);
+      expect(next).not.toMatch(/evidence/);
+    });
+
+    it("leaves 1.5 unticked when highVolume contradicts the sheet, duration and densification rule", () => {
+      const lines = readLines(makeBootstrappedSlice({ selection: { highVolume: false } }));
+
+      expect(row(lines, "1.5").ticked).toBe(false);
+    });
+
+    it("ticks 0b.1-0b.5 as n/a when source/companion-sources.md is absent", () => {
+      const lines = readLines(makeBootstrappedSlice());
+
+      for (const id of ["0b.1", "0b.2", "0b.3", "0b.4", "0b.5"]) {
+        const { ticked, next } = row(lines, id);
+        expect(ticked, id).toBe(true);
+        expect(next, id).toBe(
+          "  - evidence (generated): n/a, no `source/companion-sources.md` exists",
+        );
+      }
+    });
+
+    it("leaves the 0b rows unticked when source/companion-sources.md exists", () => {
+      const sliceDir = makeBootstrappedSlice();
+      fs.mkdirSync(path.join(sliceDir, "source"), { recursive: true });
+      fs.writeFileSync(path.join(sliceDir, "source", "companion-sources.md"), "# Brief\n");
+      const lines = readLines(sliceDir);
+
+      for (const id of ["0b.1", "0b.2", "0b.3", "0b.4", "0b.5"]) {
+        expect(row(lines, id).ticked, id).toBe(false);
+      }
+      expect(lines.join("\n")).not.toContain("evidence (generated): n/a");
+    });
+
+    it("drops the n/a ticks on a rerun after source/companion-sources.md appears", () => {
+      const sliceDir = makeBootstrappedSlice();
+      expect(row(readLines(sliceDir), "0b.1").ticked).toBe(true);
+
+      fs.mkdirSync(path.join(sliceDir, "source"), { recursive: true });
+      fs.writeFileSync(path.join(sliceDir, "source", "companion-sources.md"), "# Brief\n");
+      const lines = readLines(sliceDir);
+
+      for (const id of ["0b.1", "0b.2", "0b.3", "0b.4", "0b.5"]) {
+        expect(row(lines, id).ticked, id).toBe(false);
+      }
+      expect(lines.join("\n")).not.toContain("evidence (generated): n/a");
+    });
+
+    it("keeps generated ticks on a rerun without repeating their evidence lines", () => {
+      const sliceDir = makeBootstrappedSlice();
+      readLines(sliceDir);
+      const lines = readLines(sliceDir);
+
+      expect(row(lines, "1.1").ticked).toBe(true);
+      expect(lines.filter((line) => line.includes("`run-state/watch.json` present"))).toHaveLength(1);
+      expect(lines.filter((line) => line.includes("evidence (generated): n/a"))).toHaveLength(5);
+    });
+  });
+
   it("skips when checklist exists without force", () => {
     const sliceDir = makeSliceDir();
     initWatchChecklist(sliceDir, { force: true });
