@@ -1056,9 +1056,11 @@ the rules that only tighten in
   re-added on another job hides nothing, or one set to an expression. In a workflow whose head text uses a model action or a
   local `uses: ./` workflow or action, it is also, head text against base text at each job's key
   path (a step's timeouts compared among its job's steps), block or flow style, one raised, set
-  to an expression, set where none was above GitHub's
+  to an expression, added above the highest number already at its path, a `timeout-minutes` set
+  where none was above GitHub's
   [360-minute default](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
-  or removed from a job or step the head still has, so that default or the action's own applies.
+  or one removed from a job or step the head still has, so that default or the action's own
+  applies. A `leg-timeout-minutes` set where none was is a cap, not a raise.
 
   Cost means only what can bill. Model usage under a subscription or prepaid credit does not, so
   a `--model` or `--max-turns` flag reports nothing; nor do hosted minutes or artifact storage on
@@ -1071,7 +1073,8 @@ the rules that only tighten in
   A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
   `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
   in a `${{ }}` expression outside a string, such as `${{ secrets }}` or
-  `contains(secrets, 'X')`; every `${{` starts a fresh read, and an expression whose string is
+  `contains(secrets, 'X')`, or in an `if:` value without `${{ }}`, job or step level, quoted or a
+  block scalar; every `${{` starts a fresh read, and an expression whose string is
   still open where its read ends counts as one) scores HIGH as
   `secret-exposure-review`, and a workflow or composite action patch that gains a `uses:` of
   `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line

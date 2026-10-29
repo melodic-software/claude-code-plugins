@@ -699,6 +699,35 @@ class LowRatedShapes(_Finding):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
                 self.assertNotIn(COST_CODE, _codes(_cost([wf], public=False)))
 
+    def test_a_timeout_added_at_or_below_the_highest_at_its_path_does_not_count(self):
+        def step(timeout: str = "", leg: str = "") -> str:
+            return (
+                "      - uses: ./.github/actions/judge\n"
+                + (f"        timeout-minutes: {timeout}\n" if timeout else "")
+                + (f"        with:\n          leg-timeout-minutes: {leg}\n" if leg else "")
+            )  # fmt: skip
+
+        def wf(*steps: str) -> str:
+            return "jobs:\n  a:\n    timeout-minutes: 30\n    steps:\n" + "".join(steps)
+
+        for base, head, line in (
+            # A step timeout added at or below an existing step's.
+            (wf(step("10")), wf(step("10"), step("5")), "+        timeout-minutes: 5"),
+            (wf(step("10")), wf(step("10"), step("10")), "+        timeout-minutes: 10"),
+            # A leg timeout set where the base had none: a cap, not a raise.
+            (wf(step()), wf(step(leg="10")), "+          leg-timeout-minutes: 10"),
+        ):  # fmt: skip
+            with self.subTest(head=head):
+                f = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
+                self.assertNotIn(COST_CODE, _codes(_cost([f], public=False)))
+        # Above the highest one at its path still counts.
+        raised = _file(
+            WORKFLOW,
+            patch=_patch("+        timeout-minutes: 20"),
+            contents=(wf(step("10")), wf(step("10"), step("20"))),
+        )
+        self.assertCharge(raised)
+
     def test_a_removed_leg_timeout_counts(self):
         leg = (
             "      - uses: o/r/.github/actions/run-claude-cli@abc\n"
@@ -843,6 +872,20 @@ class LowRatedShapes(_Finding):
             # A literal still open where the read ends holds unread.
             ("+  # ${{ '",),
             ("+  K: ${{ 'a", "+  # ${{ x }}"),
+            # An `if:` value is an expression without `${{ }}`, at job and
+            # step level, quoted or as a block scalar.
+            ("+    if: contains(secrets, 'LANE_TOKEN')",),
+            ("+      - if: contains(secrets, 'LANE_TOKEN')",),
+            ("+        if: format('{0}{1}', secrets, 'x') != ''",),
+            ("+    if: format('{0}', secrets) != ''",),
+            ('+    if: "secrets != null"',),
+            ("+    if: 'contains(secrets, ''LANE_TOKEN'')'",),
+            ("+  a: {runs-on: ubuntu-24.04, if: \"contains(secrets, 'X')\"}",),
+            (
+                "+    if: >-",
+                "+      github.event_name == 'push' &&",
+                "+      contains(secrets, 'X')",
+            ),
         ):
             with self.subTest(lines=lines):
                 wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
@@ -856,6 +899,12 @@ class LowRatedShapes(_Finding):
             "+    if: ${{ contains(fromJSON(needs.a.outputs.jobs || '[]'), 'x-secrets') }}",
             "+    if: ${{ needs.x.outputs.has-secrets }}",
             "+    if: ${{ steps.secrets-check.outputs.ok }}",
+            "+    if: contains(fromJSON(needs.a.outputs.jobs || '[]'), 'x-secrets')",
+            "+    if: needs.x.outputs.has-secrets",
+            "+      - if: steps.secrets-check.outputs.ok",
+            "+    if: github.event_name == 'push'  # secrets stay unread",
+            "+          if-no-files-found: secrets",
+            "+    run-if: secrets",
         ):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))

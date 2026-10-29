@@ -77,11 +77,13 @@ Off a public repository, a raised timeout is a `timeout-minutes` or
 read, one the patch adds above every one it removes once equal values cancel
 or an added expression; and on one that names a model leg or a local `uses:
 ./` workflow or action, head text against base text at each key path (list
-indices dropped), one raised, set to an expression, added above
-`DEFAULT_TIMEOUT_MINUTES`, or removed from a job or step the head keeps.
+indices dropped), one raised, set to an expression, added above the highest
+number already at its path (a `timeout-minutes` path with none above
+`DEFAULT_TIMEOUT_MINUTES`; a `leg-timeout-minutes` set where none was is a
+cap, not a raise), or removed from a job or step the head keeps.
 
 A workflow patch that gains a `_SECRET_REF` (or a bare `secrets` inside a
-`${{ }}` expression, outside a string) rates HIGH as `secret-exposure-review`, and one that
+`${{ }}` expression or an `if:` value, outside a string) rates HIGH as `secret-exposure-review`, and one that
 gains a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, in a workflow or a
 composite action's `action.yml`, rates HIGH as `agent-surface-review`, each
 counted against the lines it removes, an expression split across lines read
@@ -121,6 +123,7 @@ from __future__ import annotations
 
 import enum
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -1057,6 +1060,14 @@ _SECRET_REF = re.compile(
 # too; `has-secrets` or `steps.secrets-check` is another name.
 _STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 _BARE_SECRETS = re.compile(r"(?<![\w.-])secrets(?![\w-])(?!\s*[.\[])", re.IGNORECASE)
+# An `if:` value is an expression without `${{ }}`, so its bare `secrets`
+# counts too; a block scalar's lines are joined to it first.
+_IF_VALUE = re.compile(
+    r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?if['\"]?\s*:\s*(.*)", re.IGNORECASE
+)
+_IF_BLOCK = re.compile(
+    r"(\s*(?:-\s+)?['\"]?if['\"]?\s*:)\s*[|>][-+0-9]*\s*(?:#.*)?", re.IGNORECASE
+)
 # A model leg: a claude-code-* action or image, run-claude-cli, or the
 # Claude Code npm package on a run line.
 _MODEL_ACTION_NAME = re.compile(
@@ -1208,14 +1219,44 @@ def _secret_refs(line: str) -> list[str]:
     """Each `${{` body's bare `secrets`, and a body whose literal is still
     open where its read ends (the line ends, or a `${{` cuts it short), which
     this read cannot follow, so it holds under its own text: only the same
-    body removed elsewhere offsets it."""
+    body removed elsewhere offsets it. An `if:` value with no `${{` is read
+    as one body, its YAML quotes removed and a trailing comment cut."""
     found = _SECRET_REF.findall(line)
     for body in _expressions(line)[0]:
         blanked = _STRING_LITERAL.sub("''", body)
         if "'" in blanked.replace("''", ""):
             found.append(f"unclosed literal in ${{{{{body}")
         found += _BARE_SECRETS.findall(blanked)
+    for value in _IF_VALUE.findall(line):
+        if "${{" in value:
+            continue
+        value = value.strip()
+        if m := re.match(r'"((?:[^"\\]|\\.)*)"', value):
+            value = m[1]
+        elif m := re.match(r"'((?:[^']|'')*)'", value):
+            value = m[1].replace("''", "'")
+        blanked = _STRING_LITERAL.sub("''", value).split(" #", 1)[0]
+        found += _BARE_SECRETS.findall(blanked)
     return found
+
+
+def _if_blocks(lines: list[str]) -> list[str]:
+    """`lines` with each `if:` block scalar joined to its more-indented lines,
+    so `_secret_refs` reads its value whole."""
+    joined: list[str] = []
+    indent: int | None = None
+    for line in lines:
+        if indent is not None and (
+            not line.strip() or len(line) - len(line.lstrip()) > indent
+        ):
+            joined[-1] += " " + line.strip()
+            continue
+        indent = None
+        if m := _IF_BLOCK.fullmatch(line):
+            indent = len(line) - len(line.lstrip())
+            line = m[1] + " "
+        joined.append(line)
+    return joined
 
 
 def _net_added(
@@ -1251,12 +1292,15 @@ def _timeout_values(lines: list[str]) -> list[str]:
     ]
 
 
-def _raises(new: list[str], old: list[str], where: str = "") -> list[str]:
+def _raises(
+    new: list[str], old: list[str], where: str = "", ceiling: float | None = None
+) -> list[str]:
     """The values in `new` that raise a timeout over `old` once equal values
-    cancel: an expression, or a number above every number left in `old`."""
+    cancel: an expression, or a number above every number left in `old`, or
+    above `ceiling` when none is left."""
     gained = Counter(new) - Counter(old)
     lost = Counter(old) - Counter(new)
-    top = max((int(v) for v in lost if _NUMBER.fullmatch(v)), default=None)
+    top = max((int(v) for v in lost if _NUMBER.fullmatch(v)), default=ceiling)
     at = f" at {where}" if where else ""
     return [
         f"timeout{at} raised to {v}"
@@ -1343,8 +1387,10 @@ def _item_drops(base: list, head: list) -> Counter[tuple[str, ...]]:
 
 
 def _path_timeouts(base: str, head: str) -> list[str]:
-    """Timeouts the head text raises over the base text at the same key path.
-    Where the base had none, a job ran to GitHub's default; one removed from
+    """Timeouts the head text raises over the base text at the same key path:
+    with none lost there, a number above the highest the base had. Where the
+    base had no `timeout-minutes`, a job ran to GitHub's default; where it had
+    no `leg-timeout-minutes`, a number set is a cap; one removed from
     a job or step the head still has lets GitHub's default, or the action's
     own, apply."""
     base_entries, head_entries = _yaml_entries(base), _yaml_entries(head)
@@ -1371,7 +1417,11 @@ def _path_timeouts(base: str, head: str) -> list[str]:
         missing = min(dropped[path], len(before) - len(after))
         if missing > 0:
             after = after + [default] * missing
-        found += _raises(after, before, ".".join(path[:-1]))
+        # With none lost, a number counts above the highest already there; a
+        # key with no default set where none was is a cap, not a raise.
+        numbers = [int(v) for v in before if _NUMBER.fullmatch(v)]
+        ceiling = max(numbers) if numbers else None if before else math.inf
+        found += _raises(after, before, ".".join(path[:-1]), ceiling)
     return found
 
 
@@ -1479,7 +1529,7 @@ def _cost_reasons(
             for s in added:
                 if not public and _COST_PRIVATE_LINE.search(s):
                     charge.append(s.strip())
-            secret = _net_added(_secret_refs, added, removed)
+            secret = _net_added(_secret_refs, _if_blocks(added), _if_blocks(removed))
             if secret:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
             agent = _new_model_legs(added, removed)
