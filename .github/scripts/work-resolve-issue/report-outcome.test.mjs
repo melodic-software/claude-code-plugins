@@ -24,6 +24,7 @@ import {
   main,
   mustHold,
   parseOutcomeMarker,
+  heldPaths,
   readHoldPaths,
   readFunding,
   readChecks,
@@ -313,6 +314,25 @@ for (const [name, text] of [
     });
   });
 }
+
+// merge.diff-check.path-holds (owner decisions Q15 and Q16): off, a denied
+// path holds nothing; on, it holds as before; an unreadable list still holds.
+test("with path holds off a denied path holds nothing, and on it holds the PR", () => {
+  const config = (pathHolds) => JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"], ...(pathHolds === undefined ? {} : { "path-holds": pathHolds }) } } });
+  for (const off of [undefined, false]) {
+    withDir({ "resolved-config.json": config(off) }, (dir) => {
+      const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+      assert.deepEqual(holdPaths, []);
+      assert.ok(!decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.includes("Hold: a human merges this"));
+    });
+  }
+  withDir({ "resolved-config.json": config(true) }, (dir) => {
+    const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+    assert.deepEqual(holdPaths, ["a/**"]);
+    assert.ok(decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.split("\n").includes("Hold: a human merges this"));
+  });
+  withDir({ "resolved-config.json": "{" }, (dir) => assert.equal(heldPaths(join(dir, "resolved-config.json")), null));
+});
 
 test("an unreadable resolved config reads as no denied-path list and holds the PR", () => {
   withDir({}, (dir) => {
@@ -2562,7 +2582,7 @@ const summaryFile = (overrides = {}, output = {}) =>
   });
 // Readable denied paths, so the README-only, read-only-class reuse PRs below
 // hold only because no runner checks or leak scan reached them.
-const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS } } });
+const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS, "path-holds": true } } });
 const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVED_CONFIG: join(dir, "resolved.json") });
 const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
 const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };

@@ -296,6 +296,20 @@ export function readHoldPaths(path) {
   }
 }
 
+// The denied paths a PR holds on: readHoldPaths while
+// merge.diff-check.path-holds is on, none while it is absent or false (owner
+// decisions Q15 and Q16; merge-holds.mjs pathHoldsOf reads it alike). An
+// unreadable config still holds.
+export function heldPaths(path) {
+  const paths = readHoldPaths(path);
+  try {
+    const on = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"];
+    return paths !== null && [undefined, null, false, "false"].includes(on) ? [] : paths;
+  } catch {
+    return paths;
+  }
+}
+
 // The read runner's scan refusal markers, the ones address-feedback.mjs
 // scanRefusal reads; the runner copies only this script's directory, so it
 // cannot import that one. `patch` when every marker names a patch over its
@@ -1790,7 +1804,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       }
     }
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
-    const holdPaths = readHoldPaths(resolvedPath);
+    const holdPaths = heldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. A
     // failed compare leaves its file list unread, which holds the PR.

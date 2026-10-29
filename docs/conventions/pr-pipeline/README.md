@@ -985,7 +985,8 @@ the rules that only tighten in
   `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
-  and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
+  and Q26 option B), matched case-insensitively whatever `high-path-floor` says, while
+  `merge.diff-check.path-holds` is true (owner decision Q15 turns it off here):
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
@@ -1393,9 +1394,13 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the manifest review HIGH; the fixed HIGH path floor scores
-  either way),
+  either way while `path-holds` is true),
+  `path-holds` (true holds a pull request for a changed path alone: the path floor, `denied-paths`
+  and `review-path:` in the gate, enable-auto-merge's and ci-status's hold paths; absent or false
+  holds none and the gate report lists each skipped hold as `risk.pathHoldsSkipped`),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `high-path-floor: false` (owner direction 2026-10-24) and `path-holds: false` (owner decision
+  Q15, 2026-10-29, until open issues and pull requests reach zero); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the manifest review and
   both caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.

@@ -18,6 +18,76 @@
 # shellcheck source=machine-path-patterns.sh
 source "${BASH_SOURCE[0]%/*}/machine-path-patterns.sh"
 
+# hpp::prefilter <content> [project-root]
+#
+# The builtin half of hpp::scan_text's pre-filter gate, with no process: sets
+# HPP_GATE to `clean` (no detailed pattern can match), `scan` (a literal is
+# present: run the full scan) or `grep` (undecided: the gate greps decide), and
+# HPP_GATE_ROOT to the project root's final segment. A caller may skip
+# hpp::scan_text, and the command substitution around it, on `clean`: the scan
+# would print nothing and return 0. A non-empty [project-root] only adds a way
+# to reach `scan`, so `clean` with a root is `clean` without one.
+hpp::prefilter() {
+  # It answers "clean" only where hpp::scan_text's two gate greps would, and
+  # hands everything else to them. Under LC_ALL=C:
+  #   - A literal in the content means the scan runs. Byte substring presence is
+  #     never tighter than grep's line match of the same literals, and a looser
+  #     gate only costs a scan that finds nothing.
+  #   - Otherwise the root segment is compared with ASCII case folding, but only
+  #     when the content and the segment are ASCII and the segment holds no
+  #     newline (grep -F reads a newline as a second pattern). Over ASCII text
+  #     grep -i's locale folding can only match a subset of what ASCII folding
+  #     matches, so "no match" here is "no match" there. Non-ASCII text goes to
+  #     grep, whose locale folding (the Kelvin sign for k) is wider.
+  # A case pattern, not a regex: Git Bash's regex decodes UTF-8 even under C.
+  HPP_GATE=grep HPP_GATE_ROOT=""
+  local content="$1" project_root="${2:-}" hpp_lc_set=${LC_ALL+x} hpp_lc=${LC_ALL-} hpp_nc=0
+  local hpp_non_ascii=$'[!\x01-\x7f]' hpp_non_ascii_nl=$'[!\x01-\x09\x0b-\x7f]'
+  if [[ -n "$project_root" ]]; then
+    HPP_GATE_ROOT="${project_root//\\//}"
+    HPP_GATE_ROOT="${HPP_GATE_ROOT%/}"
+    HPP_GATE_ROOT="${HPP_GATE_ROOT##*/}"
+  fi
+  # Assigning a readonly LC_ALL would abort this function, so a readonly one
+  # skips the pre-gate and the greps decide. So does bash before 4.4, which has
+  # no ${var@a}; eval keeps that expansion out of such a bash's parse. The
+  # expansion trips `set -u` on an unset LC_ALL, so nounset is lifted around it.
+  local hpp_attr=r
+  if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+    case $- in
+    *u*)
+      set +u
+      eval 'hpp_attr=${LC_ALL@a}'
+      set -u
+      ;;
+    *) eval 'hpp_attr=${LC_ALL@a}' ;;
+    esac
+  fi
+  if [[ $hpp_attr != *r* ]]; then
+    LC_ALL=C
+    case $content in
+    *Users* | */home/* | *repos* | *Repos* | *projects* | *Projects* | *dev* | *Dev*) HPP_GATE=scan ;;
+    *$hpp_non_ascii*) ;;
+    *)
+      case $HPP_GATE_ROOT in
+      *$hpp_non_ascii_nl*) ;;
+      "") HPP_GATE=clean ;;
+      *)
+        shopt -q nocasematch && hpp_nc=1
+        shopt -s nocasematch
+        HPP_GATE=clean
+        [[ $content == *"$HPP_GATE_ROOT"* ]] && HPP_GATE=scan
+        ((hpp_nc)) || shopt -u nocasematch
+        ;;
+      esac
+      ;;
+    esac
+    # Restoring an LC_ALL that names a locale this host lacks makes bash warn
+    # "setlocale: cannot change locale"; only the restore is silenced.
+    { if [[ -n "$hpp_lc_set" ]]; then LC_ALL=$hpp_lc; else unset LC_ALL; fi; } 2>/dev/null
+  fi
+}
+
 # hpp::scan_text <content> [project-root] [file-path]
 #
 # Scans <content> for hardcoded machine-specific paths. When [project-root]
@@ -90,63 +160,8 @@ hpp::scan_text() {
   # `printf '%s'` (no trailing newline) also matches the detailed blocks below,
   # so the gate and the scan see byte-identical input.
   #
-  # Builtin pre-gate, no process: it answers "clean" only where the two greps
-  # below would, and hands everything else to them. Under LC_ALL=C:
-  #   - A literal in the content means the scan runs. Byte substring presence is
-  #     never tighter than grep's line match of the same literals, and a looser
-  #     gate only costs a scan that finds nothing.
-  #   - Otherwise the root segment is compared with ASCII case folding, but only
-  #     when the content and the segment are ASCII and the segment holds no
-  #     newline (grep -F reads a newline as a second pattern). Over ASCII text
-  #     grep -i's locale folding can only match a subset of what ASCII folding
-  #     matches, so "no match" here is "no match" there. Non-ASCII text goes to
-  #     grep, whose locale folding (the Kelvin sign for k) is wider.
-  # A case pattern, not a regex: Git Bash's regex decodes UTF-8 even under C.
-  local gate_root="" hpp_gate=grep hpp_lc_set=${LC_ALL+x} hpp_lc=${LC_ALL-} hpp_nc=0
-  local hpp_non_ascii=$'[!\x01-\x7f]' hpp_non_ascii_nl=$'[!\x01-\x09\x0b-\x7f]'
-  if [[ -n "$project_root" ]]; then
-    gate_root="${project_root//\\//}"
-    gate_root="${gate_root%/}"
-    gate_root="${gate_root##*/}"
-  fi
-  # Assigning a readonly LC_ALL would abort this function, so a readonly one
-  # skips the pre-gate and the greps decide. So does bash before 4.4, which has
-  # no ${var@a}; eval keeps that expansion out of such a bash's parse. The
-  # expansion trips `set -u` on an unset LC_ALL, so nounset is lifted around it.
-  local hpp_attr=r
-  if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
-    case $- in
-    *u*)
-      set +u
-      eval 'hpp_attr=${LC_ALL@a}'
-      set -u
-      ;;
-    *) eval 'hpp_attr=${LC_ALL@a}' ;;
-    esac
-  fi
-  if [[ $hpp_attr != *r* ]]; then
-    LC_ALL=C
-    case $content in
-    *Users* | */home/* | *repos* | *Repos* | *projects* | *Projects* | *dev* | *Dev*) hpp_gate=scan ;;
-    *$hpp_non_ascii*) ;;
-    *)
-      case $gate_root in
-      *$hpp_non_ascii_nl*) ;;
-      "") hpp_gate=clean ;;
-      *)
-        shopt -q nocasematch && hpp_nc=1
-        shopt -s nocasematch
-        hpp_gate=clean
-        [[ $content == *"$gate_root"* ]] && hpp_gate=scan
-        ((hpp_nc)) || shopt -u nocasematch
-        ;;
-      esac
-      ;;
-    esac
-    # Restoring an LC_ALL that names a locale this host lacks makes bash warn
-    # "setlocale: cannot change locale"; only the restore is silenced.
-    { if [[ -n "$hpp_lc_set" ]]; then LC_ALL=$hpp_lc; else unset LC_ALL; fi; } 2>/dev/null
-  fi
+  hpp::prefilter "$content" "$project_root"
+  local hpp_gate=$HPP_GATE gate_root=$HPP_GATE_ROOT
   [[ $hpp_gate == clean ]] && return 0
   # `--` on every grep whose pattern comes from the project root: a root whose
   # last segment starts with `-` (`-e`, `--help`) is a pattern, not an option.

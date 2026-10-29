@@ -228,6 +228,7 @@ import {
   pathHoldKind,
   pathLifters,
   personWrote,
+  readPathHolds,
   readStatuses,
   unblockStops,
   vetoers,
@@ -664,26 +665,40 @@ function personReasons(body, head, label) {
 // (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
 // escalation a trusted person's approval of the head lifts, so the lane may
 // take its label off. A cost, risk or verifier reason, a label a person set
-// with no refusal, or a comment at another head is not one.
+// with no refusal, or a comment at another head is not one, except that with
+// `pathHolds` false a risk reason whose every code is a path hold
+// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
+// `review-path:`) is one too.
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
-export function holdPathOnly(body, head, label) {
+const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
+const pathOnlyRisk = (line) =>
+  line.startsWith(READER_HOLDS.risk) &&
+  line.endsWith(")") &&
+  line
+    .slice(READER_HOLDS.risk.length, -1)
+    .split("; ")
+    .every((part) => PATH_HOLD_CODE.test(part.split(": ")[0]));
+export function holdPathOnly(body, head, label, pathHolds = true) {
   const reasons = personReasons(body, head, label);
-  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line));
+  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line) || (pathHolds === false && pathOnlyRisk(line)));
 }
 
 // Whether the lane lifts `label` off `pull`: its newest refusal at the head
 // names only hold paths, the changed files still hold on nothing but a hold
 // path (no cost hold, a listing read whole), and `detail.lifters` holds a
 // trusted person whose approval binds the head (merge-holds pathLifters, or
-// liftersOf over base merges).
-export function approvalLift(pull, detail, { bot, label, holdPaths }) {
-  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label)) {
+// liftersOf over base merges), or `pathHolds` is false, so no hold path holds.
+export function approvalLift(pull, detail, { bot, label, holdPaths, pathHolds = true }) {
+  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label, pathHolds)) {
     return false;
   }
-  if (!Array.isArray(holdPaths) || detail.filesCapped === true || pathHoldKind(detail.files, holdPaths)?.kind !== "hold-path") {
+  // Off, a risk refusal's path may be one only the gate's floor holds, so a
+  // readable listing is enough.
+  const listed = pathHolds === false ? Array.isArray(detail.files) : pathHoldKind(detail.files, holdPaths)?.kind === "hold-path";
+  if (!Array.isArray(holdPaths) || detail.filesCapped === true || !listed) {
     return false;
   }
-  return costHold(detail.files, detail.costDecision) === null && Array.isArray(detail.lifters) && detail.lifters.length > 0;
+  return costHold(detail.files, detail.costDecision) === null && (pathHolds === false || (Array.isArray(detail.lifters) && detail.lifters.length > 0));
 }
 
 // Whether `label` stands for enable-auto-merge's refusal alone, so the lane
@@ -1231,7 +1246,7 @@ export function unblockHold(stops) {
 // `detail` is its discussion; undefined means not read yet, and an arm or a
 // keep then waits on it (action `read`). Its `verify` is the gate's verifier
 // evidence; absent, an arm or a keep waits on it (action `verify`).
-export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
+export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = true }, detail) {
   if (pull.author?.__typename !== "Bot" || pull.author.login !== bot) {
     return { action: "none", reason: "not the lanes App's" };
   }
@@ -1276,7 +1291,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   // head or of an earlier head carried over base merges (`lifters`) as
   // ci-status lifts it; a listing or check that could not run
   // is a lane's, which the next run reads again.
-  const pathHeld = pathHoldKind(detail.files, holdPaths);
+  const pathHeld = pathHoldKind(detail.files, holdPaths, pathHolds);
   if (pathHeld !== null && pathHeld.kind !== "hold-path") {
     return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: "lane" };
   }
@@ -1370,6 +1385,9 @@ export async function main({ env = process.env, github, actions, verify, room, w
     const statuses = [];
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
+    // merge.diff-check.path-holds (owner decision Q15): off, no hold path
+    // holds, and a refusal naming only hold paths comes off (approvalLift).
+    const pathHolds = readPathHolds(env.RESOLVED_CONFIG ?? "");
     // The newest answer's rate limit and body, for an arm GitHub refuses.
     let answer = null;
     const onResponse = (response) => {
@@ -1578,7 +1596,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
           console.log(`enable-auto-merge: #${pull.number} labels did not read whole: ${describe(error)}`);
         }
       }
-      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
+      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths, pathHolds });
       let clears;
       let comment;
       let withdraw;
@@ -1626,7 +1644,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // A hold-path refusal with a trusted person's approval in the
             // discussion reads on, for approvalLift below.
             const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && trustedHumans(env).has(item.userId) && item.state === "APPROVED");
-            unmarked = widen && !isPartial(standing, pull.headRefOid) && !(approvedBy && holdPathOnly(standing, pull.headRefOid, humanGated));
+            unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
             const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
@@ -1637,7 +1655,11 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // (merge-holds.liftersOf) lifts the hold path as ci-status lifts
             // it, so a base merge after a person's approval does not send the
             // pull request back to them.
-            if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
+            const skipped = pathHolds === false ? pathHoldKind(files, holdPaths) : null;
+            if (skipped?.kind === "hold-path") {
+              console.log(`enable-auto-merge: #${pull.number} path holds are off (merge.diff-check.path-holds), so nothing holds it for this: ${escapeCommand(skipped.reason)}`);
+            }
+            if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths, pathHolds)?.kind === "hold-path") {
               lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans, holdPaths)).lifters;
             }
             let stops = null;
@@ -1656,7 +1678,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // The label must stand for that refusal alone (liftBlocker), and
             // the head read again just before the delete must be the one
             // judged. A read that fails keeps the label.
-            let lift = widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths });
+            let lift = widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths, pathHolds });
             if (lift) {
               let kept;
               try {
@@ -1677,7 +1699,8 @@ export async function main({ env = process.env, github, actions, verify, room, w
               if (write) {
                 await github("DELETE", `/repos/${repo[0]}/issues/${pull.number}/labels/${encodeURIComponent(humanGated)}`);
               }
-              console.log(`enable-auto-merge: #${pull.number} ${write ? "lifted" : "would lift (report-only)"} ${escapeCommand(humanGated)}: ${detail.lifters.join(", ")} approved its head, which lifts its hold path`);
+              const why = pathHolds === false ? "path holds are off (merge.diff-check.path-holds)" : `${detail.lifters.join(", ")} approved its head`;
+              console.log(`enable-auto-merge: #${pull.number} ${write ? "lifted" : "would lift (report-only)"} ${escapeCommand(humanGated)}: ${why}, which lifts its hold path`);
               widen = false;
               // Off in this run's view too, so a person's reason the verifier
               // read adds puts the label back (refusalWrites).
@@ -1692,7 +1715,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
         ({ action, reason, clears, comment, withdraw, partial, fold = null } =
           widen && (detail === null || unmarked)
             ? { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null }
-            : decide(judged, { bot: slug, humanGated, holdPaths }, detail));
+            : decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, detail));
         if (detail && reason === unblockHold(detail.unblockStops)) {
           unblockSkips.push(`#${pull.number} ${action === "disarm" ? "disarmed" : "not queued"}: ${escapeCommand(reason)}`);
         }
@@ -1742,7 +1765,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
         }
         answered = evidence !== null && !decided;
         if (!decided) {
-          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
         }
         // A kept answer that holds nothing: read in full once, never armed on.
         if (!decided && action === "verify") {
@@ -1751,7 +1774,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
           } else {
             evidence = await read({ fresh: true });
             if (!decided) {
-              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
             }
           }
         }
