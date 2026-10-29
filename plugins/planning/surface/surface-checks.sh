@@ -11,7 +11,8 @@
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
 # The browser groups run only where playwright-cli resolves; elsewhere they print a SKIP with
-# the number of checks not run, never a pass.
+# the number of checks not run, never a pass. Each graded phase's line ends with its page script's
+# wall seconds (`ui_journey.3: 12 checks in 14s`), so a log shows where a suite's time goes.
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -106,7 +107,7 @@ grade() { # suite output-file
     esac
   done < <(results "$2")
   [[ "$n" -gt 0 ]] || bad "$1: no results ($(head -c 400 "$2"))"
-  echo "$1: $n checks"
+  echo "$1: $n checks in $(cat "$2.secs" 2>/dev/null || echo '?')s"
 }
 
 if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run by the surface-*.test.sh suites
@@ -146,6 +147,17 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
   py=$(command -v python3 || command -v python)
   unhandled() { "$py" "$here/round.py" --dir "${1:-$c}" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
+  # Writes as Claude through apply: the ops JSON goes to a fresh file (apply consumes it), then runs.
+  rapply() { # data-dir ops-file ops-json
+    printf '%s' "$3" >"$2"
+    bash "$here/round.sh" --dir "$1" apply --file "$2"
+  }
+  # One page script through playwright-cli, its wall seconds written beside the output for grade.
+  run_code() { # script-file output-file
+    local start=$SECONDS
+    pw run-code --filename "$(script_path "$1")" >"$2" 2>&1
+    echo "$((SECONDS - start))" >"$2.secs"
+  }
   pw open >/dev/null 2>&1
 
   group_ab() {
@@ -157,9 +169,9 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     for s in ui_a ui_b; do
       sed "s/__PORT__/$port/" "tests/$s.js" >"$tmp/$s.js"
     done
-    pw run-code --filename "$(script_path "$tmp/ui_a.js")" >"$tmp/ui_a.out" 2>&1
-    bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --keep-alternatives --force >/dev/null
-    pw run-code --filename "$(script_path "$tmp/ui_b.js")" >"$tmp/ui_b.out" 2>&1
+    run_code "$tmp/ui_a.js" "$tmp/ui_a.out"
+    rapply "$d" "$tmp/ab-n2.json" '{"ops": [{"op": "revise", "id": "N2", "rec": "Yes. Changed by Claude after you started.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
+    run_code "$tmp/ui_b.js" "$tmp/ui_b.out"
     grade ui_a "$tmp/ui_a.out"
     grade ui_b "$tmp/ui_b.out"
   }
@@ -179,26 +191,26 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
       base64 -d >"$c/images/flow.png"
     printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40"><text x="10" y="25">filemark</text></svg>' \
       >"$c/diagrams/flow.svg"
-    bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
-    bash "$here/round.sh" --dir "$c" archive D0 --why "The old path left the plan" >/dev/null
+    rapply "$c" "$tmp/c-archive-x1.json" '{"ops": [{"op": "archive", "ids": ["X1"], "why": "The old path left the plan"}]}' >/dev/null
+    rapply "$c" "$tmp/c-archive-d0.json" '{"ops": [{"op": "archive", "ids": ["D0"], "why": "The old path left the plan"}]}' >/dev/null
     CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 --emoji-markers true \
       --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
     cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')
     for n in 1 2 3; do
       sed "s/__PORT__/$cport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
     done
-    pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
-    bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --keep-alternatives --force >/dev/null
+    run_code "$tmp/ui_c1.js" "$tmp/ui_c1.out"
+    rapply "$c" "$tmp/c-revise-a2.json" '{"ops": [{"op": "revise", "id": "A2", "rec": "Yes, batch two, changed by Claude.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
     # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
-    bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
-    bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
+    rapply "$c" "$tmp/c-revise-q1.json" '{"ops": [{"op": "revise", "id": "Q1", "commits": ["Uses a private cache", "Runs on every commit"], "force": true}]}' >/dev/null
+    rapply "$c" "$tmp/c-revise-p2.json" '{"ops": [{"op": "revise", "id": "P2", "alternatives": ["a:No", "c:Never"], "force": true}]}' >/dev/null
     # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
-    bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --keep-alternatives --force >/dev/null
+    rapply "$c" "$tmp/c-revise-p1.json" '{"ops": [{"op": "revise", "id": "P1", "rec": "Yes, the upstream step, revised.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
     # Claude declares Q3 as being revised: phase 2 reads the mark on its rail card and detail pane.
     printf '%s' '{"ops": [{"op": "revising-by-claude", "ids": ["Q3"], "why": "auditing the cache choice"}]}' >"$tmp/revising.json"
     bash "$here/round.sh" --dir "$c" apply --file "$tmp/revising.json" >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
-    pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
+    run_code "$tmp/ui_c2.js" "$tmp/ui_c2.out"
     read -r -a seqs <<<"$(unhandled)"
     [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
     # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
@@ -218,7 +230,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
       done
     ) >/dev/null 2>&1 &
     handler=$!
-    pw run-code --filename "$(script_path "$tmp/ui_c3.js")" >"$tmp/ui_c3.out" 2>&1
+    run_code "$tmp/ui_c3.js" "$tmp/ui_c3.out"
     wait "$handler" 2>/dev/null
 
     # ui_c phase 4 runs against a fourth server whose one event was delivered in 2020 and never
@@ -228,7 +240,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$e" ensure-running --port 0 >/dev/null
     eport=$(sed -n 's/^PORT=//p' "$e/.interview-session.env" | tr -d '\r')
     sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
-    pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
+    run_code "$tmp/ui_c4.js" "$tmp/ui_c4.out"
     # Phase 5, same server: an interview round 3, then a newer design round 1, for the header's
     # derived round across two stages.
     for r in interview-3:3 design-1:1; do
@@ -236,7 +248,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
         bad "ui_c.5: add-round ${r%:*} refused"
     done
     sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
-    pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
+    run_code "$tmp/ui_c5.js" "$tmp/ui_c5.out"
 
     # ui_c phase 6 runs against a fifth server with one question and no events. A background
     # handler waits for the page to arm a watcher (the lease shows in /api/state), then handles
@@ -259,7 +271,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
       done
     ) >/dev/null 2>&1 &
     handler=$!
-    pw run-code --filename "$(script_path "$tmp/ui_c6.js")" >"$tmp/ui_c6.out" 2>&1
+    run_code "$tmp/ui_c6.js" "$tmp/ui_c6.out"
     wait "$handler" 2>/dev/null
     bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
 
@@ -272,18 +284,18 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$sd" ensure-running --port 0 >/dev/null
     sport=$(sed -n 's/^PORT=//p' "$sd/.interview-session.env" | tr -d '\r')
     sed "s/__PORT__/$sport/; s/__PHASE__/7/" tests/ui_c.js >"$tmp/ui_c7.js"
-    pw run-code --filename "$(script_path "$tmp/ui_c7.js")" >"$tmp/ui_c7.out" 2>&1
+    run_code "$tmp/ui_c7.js" "$tmp/ui_c7.out"
     read -r -a seqs <<<"$(unhandled "$sd")"
     [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$sd" handle --seq "${seqs[@]}" >/dev/null
-    bash "$here/round.sh" --dir "$sd" add --id D2 --group base --stage interview --short Again --title "Should the step run now?" \
-      --rec "Yes." --depends none --commit none --alt a:No --alt b:Later --supersedes D1 >/dev/null || bad "ui_c.8: add --supersedes D1 refused"
+    printf '%s' '{"id": "D2", "group": "base", "stage": "interview", "short": "Again", "title": "Should the step run now?", "recommendation": "Yes.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]}' >"$tmp/s3-d2.json"
+    bash "$here/round.sh" --dir "$sd" add --file "$tmp/s3-d2.json" --supersedes D1 >/dev/null || bad "ui_c.8: add --supersedes D1 refused"
     bash "$here/round.sh" --dir "$sd" export-ledger --out "$tmp/s3-ledger.md" >/dev/null || bad "ui_c.8: export-ledger refused"
     ledger=$("$py" -c 'import json, sys
 rows = [l.split(" | ") for l in open(sys.argv[1], encoding="utf-8") if l.startswith("- Q") and " | " in l]
 live = [r for r in rows if r[1] != "withdrawn"]
 print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in live), **{r[4].split("]")[0].lstrip("["): r[1] for r in rows}}))' "$tmp/s3-ledger.md")
     sed "s/__PORT__/$sport/; s/__PHASE__/8/; s/__LEDGER__/$ledger/" tests/ui_c.js >"$tmp/ui_c8.js"
-    pw run-code --filename "$(script_path "$tmp/ui_c8.js")" >"$tmp/ui_c8.out" 2>&1
+    run_code "$tmp/ui_c8.js" "$tmp/ui_c8.out"
     bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
 
     # ui_c phases 9 and 10 (#9692) each run against their own restated server: phase 9 accepts
@@ -298,7 +310,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       bash "$here/round.sh" --dir "$x" apply --file "$tmp/restate$n.json" >/dev/null || bad "ui_c.$n: restate refused"
       xport=$(sed -n 's/^PORT=//p' "$x/.interview-session.env" | tr -d '\r')
       sed "s/__PORT__/$xport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
-      pw run-code --filename "$(script_path "$tmp/ui_c$n.js")" >"$tmp/ui_c$n.out" 2>&1
+      run_code "$tmp/ui_c$n.js" "$tmp/ui_c$n.out"
       bash "$here/round.sh" --dir "$x" stop >/dev/null 2>&1
     done
     for n in 1 2 3 4 5 6 7 8 9 10; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
@@ -311,7 +323,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
     gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
     sed "s/__PORT__/$gport/" tests/ui_e.js >"$tmp/ui_e.js"
-    pw run-code --filename "$(script_path "$tmp/ui_e.js")" >"$tmp/ui_e.out" 2>&1
+    run_code "$tmp/ui_e.js" "$tmp/ui_e.out"
     bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
     grade ui_e "$tmp/ui_e.out"
   }
@@ -336,7 +348,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       printf '%s' "$2" >"$j/ops/$1.json"
       bash "$here/round.sh" --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
     }
-    jrun() { pw run-code --filename "$(script_path "$tmp/uj$1.js")" >"$tmp/uj$1.out" 2>&1; }
+    jrun() { run_code "$tmp/uj$1.js" "$tmp/uj$1.out"; }
     jrun 1
     jhandle
     japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}, {"op": "context", "percent": 78, "zone": "amber"}]}'
@@ -366,7 +378,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     japply e2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "One more thing: what should the cache key include?"}]}'
     jrun 4
     jhandle
-    bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --keep-alternatives --force >/dev/null
+    rapply "$j" "$j/ops/rev-q7.json" '{"ops": [{"op": "revise", "id": "Q7", "rec": "Yes, from the merged pull requests and their linked issues.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
     japply f '{"ops": [{"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
     "constraints": "Builds stop at ten minutes."}}]}'
     jrun 5
@@ -410,7 +422,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     japply m2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Q9 is new: which patterns count?"}]}'
     jrun 14
     read -r -a js <<<"$(unhandled "$j")"
-    bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --alt "a:Only the ones in the lock file" --alt "b:Whatever the config names" --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
+    rapply "$j" "$j/ops/rev-q9.json" '{"ops": [{"op": "revise", "id": "Q9", "rec": "All of them, since the lock file lists none.", "alternatives": ["a:Only the ones in the lock file", "b:Whatever the config names"], "affects": "none", "seq": '"${js[${#js[@]} - 1]}"'}]}' >/dev/null
     jhandle
     # The revision goes to the log; the asking reply after it raises the notification in phase 15.
     japply m3 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Does that pattern scope work for you?"}]}'
@@ -458,12 +470,12 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     for n in 1 2 3 4 5 6; do
       sed "s/__PORT__/$lport/; s/__PHASE__/$n/" tests/ui_live.js >"$tmp/ul$n.js"
     done
-    lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
+    lrun() { run_code "$tmp/ul$1.js" "$tmp/ul$1.out"; }
     lrun 1
     printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none", "keepAlternatives": true}]}' >"$l/ops/a.json"
     bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
     lrun 2
-    bash "$here/round.sh" --dir "$l" revise Q1 --rec "Yes, every push on main and every tag." --alt "a:Only on tags" --alt "b:Only by hand" --affects none --force >/dev/null || bad "live: revise refused"
+    rapply "$l" "$l/ops/r1.json" '{"ops": [{"op": "revise", "id": "Q1", "rec": "Yes, every push on main and every tag.", "alternatives": ["a:Only on tags", "b:Only by hand"], "affects": "none", "force": true}]}' >/dev/null || bad "live: revise refused"
     lrun 3
     printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q2", "decision": "accept"}]}' >"$l/ops/b.json"
     bash "$here/round.sh" --dir "$l" apply --file "$l/ops/b.json" >/dev/null || bad "live: record-terminal op refused"
@@ -474,7 +486,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     lrun 4
     # #7757: the page ticks Q3's commitment, then a revise of only its title and short must leave it closed
     lrun 5
-    bash "$here/round.sh" --dir "$l" revise Q3 --title "Should the build cache its dependencies between runs?" --short "Dependency cache" --force >/dev/null || bad "live: title and short revise refused"
+    rapply "$l" "$l/ops/r3.json" '{"ops": [{"op": "revise", "id": "Q3", "title": "Should the build cache its dependencies between runs?", "short": "Dependency cache", "force": true}]}' >/dev/null || bad "live: title and short revise refused"
     grep -qE 'open: .*Q3 |Q3 .*to confirm' <<<"$(bash "$here/round.sh" --dir "$l" status)" && bad "live: status lists Q3 open or to confirm after the title and short revise"
     lrun 6
     bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
@@ -494,19 +506,23 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
     done
-    grun() { pw run-code --filename "$(script_path "$tmp/up$1.js")" >"$tmp/up$1.out" 2>&1; }
-    grev() { bash "$here/round.sh" --dir "$pg" revise "$@" --affects none --keep-alternatives --force >/dev/null || bad "page: revise $1 refused"; }
+    grun() { run_code "$tmp/up$1.js" "$tmp/up$1.out"; }
+    grevn=0
+    grev() { # id json-fields: a revise op affecting none, alternatives kept, forced
+      grevn=$((grevn + 1))
+      rapply "$pg" "$pg/ops/rev$grevn.json" '{"ops": [{"op": "revise", "id": "'"$1"'", '"$2"', "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null || bad "page: revise $1 refused"
+    }
     grun 1
-    grev Q1 --rec "Ship it on Tuesday. Watch the error logs for a week after."
+    grev Q1 '"rec": "Ship it on Tuesday. Watch the error logs for a week after."'
     grun 2
-    grev Q1 --rec "Ship it on Wednesday."
+    grev Q1 '"rec": "Ship it on Wednesday."'
     grun 3
     grun 4
-    grev Q3 --rec "The default image, pinned by digest." --why "A digest cannot move under a tag."
+    grev Q3 '"rec": "The default image, pinned by digest.", "why": "A digest cannot move under a tag."'
     grun 5
     grun 6
     read -r -a gs <<<"$(unhandled "$pg")"
-    bash "$here/round.sh" --dir "$pg" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
+    rapply "$pg" "$pg/ops/reply-q8.json" '{"ops": [{"op": "reply", "id": "Q8", "text": "The support team reads them first.", "seq": '"${gs[${#gs[@]} - 1]}"'}]}' >/dev/null || bad "page: reply refused"
     grun 7
     grun 8
     grun 9
@@ -515,10 +531,10 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/t.json" >/dev/null || bad "page: add and record-terminal refused"
     # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
     "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
-    grev Q9 --rec "The release owner, with the support lead."
+    grev Q9 '"rec": "The release owner, with the support lead."'
     # Phase 10: a Notes reply that asks belongs under Needs you, a plain one in the log.
-    bash "$here/round.sh" --dir "$pg" note-reply --text "Plain note: the owner is settled." >/dev/null || bad "page: note-reply refused"
-    bash "$here/round.sh" --dir "$pg" note-reply --text "Asking note: should support sign off?" --needs-answer >/dev/null || bad "page: note-reply --needs-answer refused"
+    rapply "$pg" "$pg/ops/note-plain.json" '{"ops": [{"op": "note-reply", "text": "Plain note: the owner is settled."}]}' >/dev/null || bad "page: note-reply refused"
+    rapply "$pg" "$pg/ops/note-ask.json" '{"ops": [{"op": "note-reply", "text": "Asking note: should support sign off?", "needsAnswer": true}]}' >/dev/null || bad "page: note-reply --needs-answer refused"
     grun 10
     grun 11
     printf '%s' '{"ops": [{"op": "constraint", "text": "Builds stop at ten minutes."}, {"op": "constraint", "text": "Stdlib only."}]}' >"$pg/ops/k.json"
@@ -538,7 +554,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q13", "group": "g1", "stage": "interview", "round": 3, "short": "Rollback owner", "title": "Who can roll the first region back?", "recommendation": "The on-call engineer.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "The release owner"}, {"key": "b", "text": "Anyone on the team"}]}}]}' >"$pg/ops/up.json"
     bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/up.json" >/dev/null || bad "page: the upstream-changed question was refused"
     grun 15
-    bash "$here/round.sh" --dir "$pg" reconfirm Q13 --why "The rollback owner does not turn on the rollout width." >/dev/null || bad "page: reconfirm refused"
+    rapply "$pg" "$pg/ops/reconfirm.json" '{"ops": [{"op": "reconfirm", "ids": ["Q13"], "why": "The rollback owner does not turn on the rollout width."}]}' >/dev/null || bad "page: reconfirm refused"
     grun 16
     # Phase 17 (#9694): three proposals the page accepts, edits and declines.
     printf '%s' '{"ops": [{"op": "propose", "id": "Q14", "group": "g1", "short": "Health-check pause", "title": "Should the rollout pause on a failed health check?"},

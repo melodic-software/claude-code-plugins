@@ -5,7 +5,8 @@
 // - the run is a completed pull_request run of pr-require-checks.yml, by
 //   exact path, in this repository on a head of this repository, that
 //   succeeded or failed only on holds an approving review of the head lifts
-//   (heldOnly), so a person approves a head pr-verify has judged;
+//   or the `do-not-merge` label (heldOnly), so a person approves, and a
+//   session holding the pull request reads, a head pr-verify has judged;
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
 // - the PR is not a draft and not a dependency manager's (a Bot account with
@@ -49,6 +50,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
@@ -192,6 +194,11 @@ const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "B
 // App pull request, and the step after it that aggregates the lanes.
 export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
 export const AGGREGATE_STEP = "Aggregate lane results";
+// The ci-status step that runs ci-workflows' check-contract (title,
+// `do-not-merge` label, issue linkage), and the one error line its run.sh
+// writes for the label, whose name pr-require-checks.yml leaves the default.
+export const CONTRACT_STEP = "Check the pull-request contract";
+export const DO_NOT_MERGE_LINE = "pr-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
 // What merge-holds.mjs `holds` writes after each hold an approving review of
 // the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
@@ -214,12 +221,15 @@ export const errorLines = (log) =>
     .flatMap((line) => /^﻿?(?:\S+ )?##\[error\](.*)$/.exec(line)?.slice(1) ?? []);
 
 // Whether failed run `runId` failed only because a person has not yet approved
-// pull request `number`'s head: of its latest jobs only ci-status failed, its
-// only failed step is HOLD_STEP, the lanes aggregate succeeded, and every
-// error that job logged is one of `number`'s holds an approval lifts or that
-// step's exit. ci-status still fails, so such a head never merges unapproved;
-// the verdict a judgment writes lifts no hold path. A read that fails, a job
-// or step list cut short, or any other error is false.
+// pull request `number`'s head or holds it with `do-not-merge`: of its latest
+// jobs only ci-status failed, its failed steps are HOLD_STEP, CONTRACT_STEP or
+// both, the lanes aggregate succeeded, and every error that job logged is one
+// of `number`'s holds an approval lifts (at least one when HOLD_STEP failed),
+// DO_NOT_MERGE_LINE (exactly once when CONTRACT_STEP failed, never otherwise)
+// or a failed step's exit. ci-status still fails, so such a head never merges
+// unapproved or labeled; the verdict a judgment writes lifts no hold path and
+// no label. A read that fails, a job or step list cut short, or any other
+// error is false.
 export async function heldOnly(github, readLog, repository, runId, number) {
   try {
     const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
@@ -236,17 +246,25 @@ export async function heldOnly(github, readLog, repository, runId, number) {
     }
     const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
     const failed = steps.filter((step) => step?.conclusion !== "success" && step?.conclusion !== "skipped");
+    const names = failed.map((step) => step?.name);
     if (
-      failed.length !== 1 ||
-      failed[0].name !== HOLD_STEP ||
-      failed[0].conclusion !== "failure" ||
+      failed.length === 0 ||
+      failed.some((step) => step.conclusion !== "failure" || ![HOLD_STEP, CONTRACT_STEP].includes(step.name)) ||
+      new Set(names).size !== names.length ||
       !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
     ) {
       return false;
     }
     const errors = errorLines(await readLog(ci[0].id));
-    const holds = errors.filter((line) => line !== STEP_EXIT);
-    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => personHoldLine(line, number));
+    const reasons = errors.filter((line) => line !== STEP_EXIT);
+    const person = reasons.filter((line) => personHoldLine(line, number));
+    const label = reasons.filter((line) => line === DO_NOT_MERGE_LINE);
+    return (
+      errors.length - reasons.length === failed.length &&
+      person.length + label.length === reasons.length &&
+      (person.length > 0) === names.includes(HOLD_STEP) &&
+      label.length === (names.includes(CONTRACT_STEP) ? 1 : 0)
+    );
   } catch {
     return false;
   }
@@ -652,8 +670,11 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   // A job's log: GitHub answers with a redirect to storage, which is read
   // without the token.
   const send = fetchImpl ?? fetch;
+  // The API request is counted for the job-end api-calls notice; the storage
+  // read it redirects to is not a GitHub API request.
+  const counted = countRequests(send);
   const readLog = async (jobId) => {
-    let response = await send(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
+    let response = await counted(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
       redirect: "manual",
     });

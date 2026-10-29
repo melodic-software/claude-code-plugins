@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4] - 2026-10-29
+
+### Fixed
+
+- `/playwright:demo-video`: a click on a small target the camera cannot zoom in on now gets a readable ring. At zoom 1.0, a target under 120 px on its longer side gets a ring with 2.5 times the stroke width and gap. A frame edge near the target now limits only that side of the ring, not all four, and the ring never covers the target: a side with no room left runs past the frame edge and is clipped.
+
 ## [0.14.3] - 2026-10-27
 
 ### Changed

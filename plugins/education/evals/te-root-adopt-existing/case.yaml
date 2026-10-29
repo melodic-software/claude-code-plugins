@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: te-root-adopt-existing
+graders:
+  - name: adopts-existing-home
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|can''t|can’t|cannot|unable|couldn''t|couldn’t)\b)(?=[^\n]*\bClaude Learning\b)(?=[^\n]*\b(?:adopt\w*|goes|live|lives|root|workspace|use|using)\b)'
+    flags: 'im'
+    target: last_message
+  - name: no-root-question
+    type: regex
+    pattern: '\b(?:where|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?|Claude Learning)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

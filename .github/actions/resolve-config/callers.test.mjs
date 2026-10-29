@@ -497,8 +497,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "success" }), true);
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
+  const selects = (result, stopped) =>
+    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped });
+  assert.equal(selects("success", ""), true);
+  assert.equal(selects("failure", ""), false);
+  assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
   // The subscription leg runs only after the key leg handed off or found no key.
@@ -6849,4 +6852,142 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
   // and one each in ten other workflows.
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
+});
+
+// --- lane transcripts: every model leg keeps its transcript, sealed ---
+
+// The read runner's model job uploads nothing (the test above). The write
+// runner's skill job holds id-token: write while the skill can rewrite any
+// file a later step would run, so no step runs staged code after it there.
+// The mutation audit's mutants run as the runner user and can rewrite code a
+// later step in that job runs, so an upload there would run tampered code
+// holding the runtime token; the token scan there runs with an empty env and
+// absolute paths for the same reason.
+const TRANSCRIPT_EXEMPT = new Set([
+  "pr-run-activity-read.yml#run",
+  "pr-run-activity-write.yml#run",
+  "post-merge-test-mutation.yml#audit",
+]);
+const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
+const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
+
+test("every model leg is followed by a sealed transcript upload of its own execution file, under a job id unique in its workflow", () => {
+  let legs = 0;
+  for (const file of workflowFiles()) {
+    const ids = new Map();
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const uploads = steps.filter(isTranscriptUpload);
+      if (TRANSCRIPT_EXEMPT.has(`${file}#${jobId}`)) {
+        assert.deepEqual(uploads, [], `${file}#${jobId}: exempt, so it uploads no transcript`);
+        continue;
+      }
+      for (const [at, step] of steps.entries()) {
+        if (!isLauncher(step)) continue;
+        legs++;
+        const output = new RegExp(`steps\\.${step.id}\\.outputs\\.execution[-_]file`);
+        const upload = steps.slice(at + 1).find((s) => isTranscriptUpload(s) && output.test(s.with?.["execution-file"] ?? ""));
+        assert.ok(upload, `${file}#${jobId} ${step.id}: no transcript upload reads its execution file`);
+        assert.equal(upload.with["public-key"], "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}", `${file}#${jobId} ${step.id}`);
+        assert.match(String(upload.if), /^always\(\)/, `${file}#${jobId} ${step.id}: runs after a failed leg`);
+        assert.equal(upload["continue-on-error"], true, `${file}#${jobId} ${step.id}: never changes the lane's outcome`);
+      }
+      for (const upload of uploads) {
+        const key = upload.with["job-id"].replaceAll("${{ github.job }}", jobId);
+        assert.ok(!ids.has(key), `${file}: job-id ${key} is in ${ids.get(key)} and ${jobId}`);
+        ids.set(key, jobId);
+        if (job.strategy?.matrix) assert.match(key, /matrix\./, `${file}#${jobId}: a matrix job's job-id names its matrix value`);
+      }
+    }
+  }
+  assert.ok(legs >= 13, `only ${legs} model legs found`);
+});
+
+// request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
+// token, so nothing after it may run on success() alone: every later step is
+// gated, a step that reads the token runs only when it is set, and a job that
+// needs the stopped job's success and reads none of its outputs also needs its
+// skip output empty (an output only a token step sets already stops it). A
+// reusable workflow's caller job stands for its job, so the same holds for
+// the caller's dependents, through the skip output the workflow exposes.
+test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
+  const callers = [];
+  const dependents = (name, jobs, id, skip) => {
+    for (const [otherId, other] of Object.entries(jobs)) {
+      const needs = [other.needs ?? []].flat();
+      const cond = String(other.if ?? "");
+      if (!needs.includes(id) || !cond.includes(`needs.${id}.result == 'success'`)) continue;
+      if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
+      assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
+      assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+    }
+  };
+  const names = readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f));
+  for (const name of names) {
+    const parsed = workflow(name);
+    const { jobs } = parsed;
+    for (const [id, job] of Object.entries(jobs ?? {})) {
+      const steps = job.steps ?? [];
+      // A literal true, or an expression that may render it.
+      const at = steps.findIndex((step) => step.with?.["kill-switch-ok"] === true || String(step.with?.["kill-switch-ok"] ?? "").includes("${{"));
+      if (at === -1) continue;
+      callers.push(`${name}:${id}`);
+      const tokenId = steps[at].id;
+      assert.ok(tokenId, `${name}:${id}: the token step has an id`);
+      const tokenRef = `steps.${tokenId}.outputs.token`;
+      for (const step of steps.slice(at + 1)) {
+        const where = `${name}:${id}: "${step.name}"`;
+        assert.equal(typeof step.if, "string", `${where} has an if:, so it never runs on success() alone`);
+        if (JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes(tokenRef)) {
+          assert.ok(step.if.includes(`${tokenRef} != ''`), `${where} reads the token only when it is set`);
+        }
+      }
+      const [skip] = Object.entries(job.outputs ?? {}).find(([, value]) => value.includes(`steps.${tokenId}.outputs.skip-reason`)) ?? [];
+      dependents(name, jobs, id, skip);
+      const called = parsed.on?.workflow_call;
+      if (!called) continue;
+      const [callSkip] = Object.entries(called.outputs ?? {}).find(([, output]) => String(output.value).includes(`jobs.${id}.outputs.${skip}`)) ?? [];
+      for (const caller of names) {
+        const callerJobs = workflow(caller).jobs ?? {};
+        for (const [callerId, callerJob] of Object.entries(callerJobs)) {
+          if (String(callerJob.uses ?? "").split(" ")[0] !== `./.github/workflows/${name}`) continue;
+          callers.push(`${caller}:${callerId} -> ${name}`);
+          dependents(caller, callerJobs, callerId, callSkip);
+        }
+      }
+    }
+  }
+  assert.deepEqual(callers.sort(), [
+    "intake-triage.yml:apply-refinement",
+    "intake-triage.yml:apply-verdict",
+    "pr-merge.yml:enable-auto-merge",
+    "pr-merge.yml:merge",
+    "pr-refine.yml:apply-docs-patch -> pr-run-activity-write.yml",
+    "pr-run-activity-write.yml:run",
+    "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
+    "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
+    "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:apply-issue-patch -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-outcome -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
+  ].sort());
+});
+
+// work-unblock re-fires an issue from the failed mint step, and no
+// dispatcher re-fires report-escalation, so only a pull request run of any
+// other activity ends a kill-switch refusal green; those two stay red.
+test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only, never for report-escalation", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-token");
+  const value = step.with["kill-switch-ok"];
+  const at = (issue, activity) => evaluate(value, { "inputs.issue-number": issue, "inputs.activity": activity });
+  assert.equal(at("", "publish-feedback"), true, "a pull request run skips");
+  assert.equal(at("7", "apply-issue-patch"), false, "an issue run stays red");
+  assert.equal(at("", "report-escalation"), false, "an escalation stays red");
+  const { jobs } = workflow("pr-unblock.yml");
+  assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
 });

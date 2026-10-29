@@ -33,19 +33,20 @@ export const FILER_LOGIN = "github-actions[bot]";
 // not an intake item.
 const LABELS = ["source: lane-sweep"];
 
-// The job names a unit's data shows: failed jobs of slice A, sampled jobs of
-// slice D. Slice C names pull requests, not workflows, so it binds neither.
+// The job names a unit's data shows: the failed jobs of slice A. Slice D's
+// green samples are not a list of the jobs that ran, and its workflow-level
+// findings (duplicate runs, reruns) name no sampled job, so it binds none.
+// Slice C names pull requests, not workflows, so it binds neither.
 export function unitJobs(unit) {
   if (unit.slice === "A") return (unit.runs ?? []).flatMap((r) => (r.failed_jobs ?? []).map((j) => j.name));
-  if (unit.slice === "D") return (unit.sampled_success_runs ?? []).flatMap((r) => (r.jobs ?? []).map((j) => j.name));
   return null;
 }
 
 // Why a finding does not belong to the unit it came from, else null. The
 // judge reads CI text that can steer it, so slice, and the workflow of A and
-// D, must be what collect wrote for the unit, and so must the job when the
-// unit's data lists any (a D unit with no green run, or an A run whose jobs
-// did not end in failure, lists none).
+// D, must be what collect wrote for the unit, and so must the job of an A
+// unit whose data lists any (an A run whose jobs did not end in failure
+// lists none).
 export function unitMismatch(finding, unit) {
   if (finding.slice !== unit.slice) return "slice-not-unit";
   if (unit.slice !== "C" && finding.workflow !== unit.workflow) return "workflow-not-unit";

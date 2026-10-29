@@ -31,9 +31,9 @@ bounds nothing: the Bash tool returns the command's complete output into context
 anything to decide about. Treat a failure (not a repository, git unavailable) as an unknown value
 and carry on. Keep these as separate body calls rather than pre-compute: the harness composes a
 pre-computed block into one shell invocation, and a worktree-isolated agent refuses a git-bearing
-compound command. The dated record for that composition claim is the `worktree` skill's
-[reference/gather-block.md](../worktree/reference/gather-block.md), "The pre-compute block runs as
-one shell invocation".
+compound command. The dated record for that composition claim is the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation".
 
 ## Purpose
 

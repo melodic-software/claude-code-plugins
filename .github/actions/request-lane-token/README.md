@@ -24,6 +24,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues`, `actions` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer. `actions` is `read` or empty; empty expects no `actions` permission |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
+| `kill-switch-ok` | `token` mode: `true` ends green, with a `lane-token-stopped` notice, no token and `skip-reason` `kill-switch`, on a 403 whose reason is `kill-switch` (a kill switch turned on after the run read its variables, a designed stop). Steps that use the token must gate on `token`, and jobs that need this one on `skip-reason`. Default `false` |
 | `pr-workflow-change-ok` | `token` mode with `pr-number`: `true` ends green, with no token and `skip-reason` `workflow-modified`, on a 403 `workflow-modified` naming a workflow file the PR itself changes ([below](#a-workflow-file-the-pr-changes)). Default `false` |
 | `head-sha`, `default-branch`, `github-token` | Required with `pr-workflow-change-ok`: the gated head, the default branch, and a token that reads the repository's contents, for the compare |
 
@@ -35,7 +36,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
-| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped; empty otherwise |
+| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped, `kill-switch` when `kill-switch-ok` did; empty otherwise |
 
 ## What it does
 
@@ -66,7 +67,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    With `superseded-ok: true`, a 403 with reason `workflow-modified` warns and ends green instead,
    setting no output, so steps gated on the `token` output skip. With `pr-workflow-change-ok: true`,
    such a 403 for a workflow file the PR changes ends green with `skip-reason` set
-   ([below](#a-workflow-file-the-pr-changes)).
+   ([below](#a-workflow-file-the-pr-changes)). With `kill-switch-ok: true`, a 403 with reason
+   `kill-switch` ends green with a notice and `skip-reason` `kill-switch`, setting no token.
 5. On 200, masks the token, then compares the broker's `effect`, `permissions`, `lane`, `activity`
    and `repository_ids` with this job's values (`pull-requests` is `pull_requests` in the API). Any
    difference revokes the token and fails red with `effect-mismatch`. That happens when the PR's

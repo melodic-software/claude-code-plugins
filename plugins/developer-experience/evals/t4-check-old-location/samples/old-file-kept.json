@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.0.1\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq commit` accepts `--yes` to skip the prompts in scripts.\n",
+      "why": "the seeded file, cut short"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.1.0\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit` accepts `--yes` to skip the prompts in scripts.\n",
+      "why": "written_against was bumped"
+    },
+    {
+      "answer": "---\nwritten_against: developer-experience@0.0.1\n---\n# Developer tooling conventions\n\n## Not yet\n- `tq commit` gains `--yes`.\n",
+      "why": "the false line was moved under Not yet"
+    },
+    {
+      "answer": "",
+      "why": "the file was moved or deleted"
+    }
+  ]
+}

@@ -12,8 +12,9 @@ name: pr-unblock
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
-# model job answers them, and script jobs push its patch and post its replies.
+# PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
+# job keeps the threads, a read model job answers them, and script jobs push
+# its patch and post its replies.
 # After a pr-verify pass at a PR's head that left fail-note threads of earlier
 # heads open, it sends one with verify-pass-head: a pass-only round, where the
 # base job lists those threads, no model job runs, and the reply job resolves
@@ -1220,6 +1221,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 0's sealed transcript
+        if: always() && steps.judge-0.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-0.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-0
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 0's verdict
@@ -1281,6 +1293,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 1's sealed transcript
+        if: always() && steps.judge-1.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-1.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-1
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 1's verdict
@@ -1341,6 +1364,17 @@ jobs:
             Skill
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
 
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
@@ -1909,6 +1943,7 @@ jobs:
       pull-requests: read # the PR's head and commits
       checks: read # the head's check runs and their annotations
       actions: read # each failing job's workflow file and log
+      statuses: read # the head's pr-unblock/fix-ci weaken retry stop
     outputs:
       proceed: ${{ steps.context.outputs.proceed }}
       head-sha: ${{ steps.context.outputs.head-sha }}
@@ -1925,6 +1960,9 @@ jobs:
       # "1" for a same-head retry after the push job stopped there
       # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.context.outputs.model-rung }}
+      # true on a head with no lane stop yet, so apply-patch gives a
+      # weaken-required stop one fresh fixer round (ci-fix-weaken-retry).
+      weaken-retry: ${{ steps.context.outputs.weaken-retry }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
@@ -2263,6 +2301,7 @@ jobs:
       patch-prepare: ci-context
       # A same-head retry's producer ran a rung up: no second in-run rung-up.
       patch-model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       # The head fix-ci-context gated, from a job that ran no head code; the
       # read runner's own head-sha output is the run job's, which head code
       # could forge. Both fix-ci calls refuse a context for another head, so a
@@ -2486,6 +2525,8 @@ jobs:
       patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
+      # A weaken-required stop here still takes the head's fresh fixer round.
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       reply-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
 
   # A fix-ci round whose every call posted no check (a run that forged a

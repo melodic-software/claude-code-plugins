@@ -53,10 +53,10 @@ import {
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
+import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { laneStop } from "./limit-stop.mjs";
+import { KILL_SWITCH_STOP, killSwitchStop, laneStop } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -91,10 +91,6 @@ const HELD_SKIP = "Skipped: awaiting-human";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
-// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
-// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
-// included, with a bare CR as a line break too.
-const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // The tracker's human-gated label from .work-item-tracker.json's text, as
 // pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
@@ -165,7 +161,9 @@ const fromRest = (run) => ({
 // is one attempt, read from its last check, that spends one place under the
 // per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
 // check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
-// the head may be retried under the same caps a failed run is. A check's
+// the head may be retried under the same caps a failed run is. One a
+// kill-switch push job check followed reads as that kill-switch skip, which
+// did no work: it is retried like a held skip, spending no restart. A check's
 // attempt is the workflow run attempt postingAttempt names; not its check
 // suite, which GitHub picks for a check created over the API. A stop marks
 // only its own run attempt, so a re-run is a new attempt; a check with no
@@ -174,8 +172,9 @@ const fromRest = (run) => ({
 export function withStops(runs, stopRuns) {
   const startOf = (run) => Date.parse(run.started_at ?? "");
   const stops = stopRuns.filter(laneStop);
+  const kills = stopRuns.filter(killSwitchStop);
   const starts = runs.map(startOf).sort((a, b) => a - b);
-  const stoppedAt = (run) => {
+  const stoppedAt = (run, stops) => {
     const from = startOf(run);
     const until = starts.find((start) => start > from) ?? Infinity;
     return stops.some((stop) =>
@@ -187,25 +186,27 @@ export function withStops(runs, stopRuns) {
   const attempts = new Map();
   for (const run of runs) {
     const key = postingAttempt(run) ?? Symbol();
-    const attempt = attempts.get(key) ?? { last: run, stopped: false, spent: 0 };
+    const attempt = attempts.get(key) ?? { last: run, stopped: false, killed: false, spent: 0 };
     if (startOf(run) >= startOf(attempt.last)) {
       attempt.last = run;
     }
     attempt.spent += 1;
-    attempt.stopped ||= stoppedAt(run);
+    attempt.stopped ||= stoppedAt(run, stops);
+    attempt.killed ||= stoppedAt(run, kills);
     attempts.set(key, attempt);
   }
-  return [...attempts.values()].map(({ last, stopped, spent }) => ({ ...fromRest(last), ...(stopped ? { conclusion: "FAILURE" } : {}), spent }));
+  const as = (stopped, killed) => (stopped ? { conclusion: "FAILURE" } : killed ? { conclusion: "NEUTRAL", title: KILL_SWITCH_STOP } : {});
+  return [...attempts.values()].map(({ last, stopped, killed, spent }) => ({ ...fromRest(last), ...as(stopped, killed), spent }));
 }
 
 // The fix-ci runs that count: an untrusted-trigger skip ran nothing.
 const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")));
 
-// A run that failed, found no failing check to fix, or skipped on a PR held
-// then may be retried; any other run (going, pushed a fix, escalated) handles
-// the head.
-const heldSkip = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
-const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || heldSkip(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+// A run that failed, found no failing check to fix, skipped on a PR held
+// then, or that the kill switch stopped (paused) may be retried; any other
+// run (going, pushed a fix, escalated) handles the head.
+const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP);
+const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
 
 // The number of counted fix-ci model runs when every attempt may be retried
 // and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
@@ -418,8 +419,9 @@ export function skipReason(
   if (runs.length === 0) {
     return "";
   }
-  // A held skip (a held PR stopped above) counts toward the per-head cap with
-  // the rest, so a hold the run reads and this dispatcher does not stops there.
+  // A held skip (a held PR stopped above) or a kill-switch stop counts toward
+  // the per-head cap with the rest, so a hold the run reads and this
+  // dispatcher does not, or a switch that keeps flipping mid-run, stops there.
   if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
@@ -431,7 +433,7 @@ export function skipReason(
   }
   // Only a run on the current base tip counts: one that ended before the tip
   // was committed ran against an older base (an unreadable time counts).
-  const current = runs.filter((run) => !heldSkip(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
+  const current = runs.filter((run) => !paused(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
   if (current.some((run) => run.conclusion !== "FAILURE")) {
     return `head's ${checkName} found no failing check on this base`;
   }

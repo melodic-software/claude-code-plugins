@@ -3,6 +3,44 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.15.3] - 2026-10-29
+
+### Fixed
+
+- plugins skill: three references to the retired `plugins-reference` docs page now name current pages. The recheck trigger for the `--bare` uninstall record in `context/gotchas.md` links the plugin loading reference and the plugin commands reference. The re-verification note in `context/scope-semantics.md` names the retired `plugins-reference` and `discover-plugins` pages by subject instead of slug. The `defaultEnabled` comment in `scripts/fleet-state.test.sh` cites the plugin manifest reference (#10804).
+
+## [4.15.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [4.15.1] - 2026-10-29
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report is easier to read. It opens with a one-line `Result:` verdict: `<N> item(s) under Action needed`, `changes applied, nothing under Action needed`, or `clean, nothing changed and nothing under Action needed`, and in audit `see the predictions below, nothing under Action needed` or `no change predicted, a lower bound against the unrefreshed catalog`. Each line now carries one fact. The `Divergences:` row, the `Timing:` rows, the cache-content tally and the source-checkout row put each part on its own indented line, and a list of more than three ids puts one id per line. Each remedy is a `remedy:` line under the fact it fixes instead of being joined to it with `;`.
+- The render no longer prints the explanatory paragraphs under stale project records and user-home project records on every run, and no longer breaks sentences at fixed columns. The reasons stay in `context/stale-records-cache-content.md` and `context/scope-semantics.md`. Version moves and the `Catalog regression:` interval read `->` in plain ASCII.
+- The messages the report quotes from the scripts no longer join two facts with `;`: `fleet-state.sh` labels a lagging linked-worktree record `update ineffective, uninstall clears it`, and the refresh-failure, cache-content fallback and divergence-split notes read as one sentence each.
+
+## [4.15.0] - 2026-10-29
+
+### Added
+
+- **The parser reader follows an exported `require` alias into its importers.** Bun's runtime chunk exports `import.meta.require` (`var Fe=import.meta.require;export{...,Fe}`), and other modules load files through the imported `Fe("...")`. Under `--reader=parser` such an alias is now a named loader: an importer's call of it with a literal specifier loads that file, followed like `require(...)`. Any other use (a call with no literal, an alias, an escape, a re-export) still counts as a load the parser cannot name, in the sink rule too. The alias stays unknown when Bun's module table names no file for its module, or when a module loads that file whole.
+- A `.require` member read that is only tested for truth no longer counts as a load the parser cannot name: a `&&` operand other than the last, an `if`, loop or `?:` test, or a `!` operand, as in lodash's `w&&w.require&&w.require("util")`. A read that may pass the loader on still counts: the last `&&` operand, or any `||` or `??` operand.
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report's `Normalized:` row now says how many `enabledPlugins` keys moved, `1 of 101 keys moved` for one appended key, instead of counting every key as reordered. `normalize-enabled-plugins.sh` prints `normalized moved=K keys=N` (and `would-normalize moved=K keys=N` under `--check`), K being the fewest keys the reorder moves.
+- `normalize-enabled-plugins.sh` prints `missing-file keys=0` (exit 0) when the settings file does not exist, rather than `already-sorted keys=0`, and the report renders it as `Normalized: skipped, no user settings file`.
+
+## [4.14.0] - 2026-10-29
+
+### Added
+
+- `/harness-ops:behavior-probes`: an `intake-permissions` area that checks, under `dontAsk` with only `Bash(gh issue view *)` allowed, that a plain `gh issue view` runs and that the `;`, `&&`, `|` and `$()` forms adding a second command are denied. A stub `gh` logs the calls, so a failed deny touches no real issue.
+
 ## [4.13.4] - 2026-10-28
 
 ### Fixed

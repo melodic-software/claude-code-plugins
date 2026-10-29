@@ -16,10 +16,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { main, resolvePull } from "./resolve-pr.mjs";
+import { CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, resolvePull } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { loadRules } from "../intake-triage/admit.mjs";
-import { holds } from "../pr-merge/merge-holds.mjs";
+import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
@@ -317,6 +317,7 @@ const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
 const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
 const CI_STEPS = [
   ["Set up job", "success"],
+  ["Check the pull-request contract", "success"],
   ["Note a draft", "skipped"],
   ["Fail a pull request carrying the human-gated label", "success"],
   ["Fail a head a pr-unblock lane stopped", "success"],
@@ -363,7 +364,7 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
     "a failed lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "failure" }]) }],
     "a cancelled lane": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(), [{ id: 9002, name: "lint-repo", conclusion: "cancelled" }]) }],
     "a failed aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === "Aggregate lane results" ? "failure" : c]))) }],
-    "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 5))) }],
+    "a step list cut before the aggregate": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob(CI_STEPS.slice(0, 6))) }],
     "no step list": [logOf(PATH_HOLD), { jobs: heldJobs(ciJob([])) }],
     "a job list cut short": [logOf(PATH_HOLD), { jobs: { ...heldJobs(), total_count: 4 } }],
     "no ci-status job": [logOf(PATH_HOLD), { jobs: heldJobs({ ...ciJob(), name: "other" }) }],
@@ -379,7 +380,58 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
   assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
 });
 
-test("main reads the ci-status log through the redirect, without the token", async () => {
+// A session holds a pull request with `do-not-merge`, which fails
+// check-contract's step of ci-status. Its log lines follow that action's
+// run.sh: the label's `::error::` line, then the step's exit.
+const contractLog = (...lines) =>
+  [
+    '2026-10-28T16:21:30.0000000Z ##[group]Run bash "$GITHUB_ACTION_PATH/run.sh"',
+    ...lines.map((line) => `2026-10-28T16:21:31.0000000Z ##[error]${line}`),
+    "2026-10-28T16:21:31.0000001Z ##[error]Process completed with exit code 1.",
+  ].join("\r\n");
+const failing = (...names) => ({
+  jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, names.includes(n) ? "failure" : n === HOLD_STEP ? "success" : c]))),
+});
+
+test("a run that failed only on do-not-merge, alone or beside a hold an approval lifts, is judged", async () => {
+  assert.equal(await held(contractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "ok");
+  assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
+});
+
+test("a contract failure other than do-not-merge, or a label line its step does not account for, starts nothing", async () => {
+  const TITLE = "pr-contract: the PR title does not follow Conventional Commits";
+  const cases = {
+    "a title failure beside the label": [contractLog(DO_NOT_MERGE_LINE, TITLE), failing(CONTRACT_STEP)],
+    "a title failure alone": [contractLog(TITLE), failing(CONTRACT_STEP)],
+    "no label line": [contractLog(), failing(CONTRACT_STEP)],
+    "the label line twice": [contractLog(DO_NOT_MERGE_LINE, DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)],
+    "the label line with the label text changed": [contractLog(DO_NOT_MERGE_LINE.replace("do-not-merge", "hold")), failing(CONTRACT_STEP)],
+    "the label line while the contract step passed": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(HOLD_STEP)],
+    "both steps failed with one exit": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`.replace(/\r\n[^\r\n]*exit code 1\.(?=\r\n)/, ""), failing(CONTRACT_STEP, HOLD_STEP)],
+    "the hold step failed with only the label": [`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf()}`, failing(CONTRACT_STEP, HOLD_STEP)],
+    "the contract step cancelled": [contractLog(DO_NOT_MERGE_LINE), { jobs: heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === CONTRACT_STEP ? "cancelled" : n === HOLD_STEP ? "success" : c]))) }],
+  };
+  for (const [name, [log, setup]] of Object.entries(cases)) {
+    assert.equal(await held(log, setup), "not-a-passing-run", name);
+  }
+});
+
+// Judging a held head loosens no hold: ci-status still fails on the label
+// (check-contract, its default label name, no continue-on-error), and the
+// merge queue's step still refuses a queued pull request that carries it.
+test("do-not-merge still fails ci-status and the merge queue", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const step = (name) => new RegExp(`^ {6}- name: ${name}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(workflow)?.[1] ?? "";
+  const contract = step(CONTRACT_STEP);
+  assert.match(contract, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/check-contract@[0-9a-f]{40} /m);
+  assert.doesNotMatch(contract, /do-not-merge-label|continue-on-error|^ {8}if:/m);
+  assert.match(step("Fail a queued pull request carrying a hold label"), /^ {8}if: github\.event_name == 'merge_group'$/m);
+  assert.deepEqual(labelHolds([{ name: "do-not-merge" }], null, 41), [
+    "#41 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.",
+  ]);
+});
+
+test("main reads the ci-status log through the redirect, without the token, and counts each API request but not the storage read", async () => {
   const dir = tempDir("resolve-pr-held-");
   const env = {
     GITHUB_TOKEN: "t0ken",
@@ -395,7 +447,9 @@ test("main reads the ci-status log through the redirect, without the token", asy
   writeFileSync(env.GITHUB_OUTPUT, "");
   const github = fake({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
   const storage = [];
+  let apiRequests = 0;
   const fetchImpl = async (url, init = {}) => {
+    apiRequests += url.startsWith("https://api.github.com/") ? 1 : 0;
     if (url === `https://api.github.com/repos/${REPO}/actions/jobs/9001/logs`) {
       assert.equal(init.redirect, "manual");
       assert.equal(init.headers.Authorization, "Bearer t0ken");
@@ -409,9 +463,22 @@ test("main reads the ci-status log through the redirect, without the token", asy
     const json = await github(init.method, new URL(url).pathname + new URL(url).search, body);
     return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
   };
-  await main(env, { fetchImpl });
+  const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+  Object.assign(process.env, { RUNNER_TEMP: dir, API_BUDGET_TOKEN: "github-token" });
+  try {
+    await main(env, { fetchImpl });
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\npr-number=41\n/);
   assert.deepEqual(storage, [{}]);
+  // One reading per GitHub API request, the log's 302 among them; none for storage.
+  const readings = readFileSync(path.join(dir, "api-budget", "github-token"), "utf8").trim().split("\n");
+  assert.equal(readings.length, apiRequests);
+  assert.equal(readings.filter((line) => line.startsWith("302 ")).length, 1);
 });
 
 test("anything but exactly one open same-repository PR into main at that head starts nothing", async () => {

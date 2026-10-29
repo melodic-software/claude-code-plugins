@@ -670,6 +670,7 @@ class AutonomousSeverityGuard(unittest.TestCase):
             mock.patch.object(
                 rt, "fetch_pull_request_author", return_value="worker-bot"
             ),
+            mock.patch.object(rt, "repo_lane_identity", return_value=(None, "unset")),
             mock.patch.object(
                 sys,
                 "argv",
@@ -698,6 +699,7 @@ class AutonomousSeverityGuard(unittest.TestCase):
             mock.patch.object(
                 rt, "fetch_pull_request_author", return_value="worker-bot"
             ),
+            mock.patch.object(rt, "repo_lane_identity", return_value=(None, "unset")),
             mock.patch.object(
                 sys,
                 "argv",
@@ -2129,6 +2131,322 @@ class ExistingModesUnchanged(unittest.TestCase):
         )
         self.assertEqual(result["mode"], "explicit")
         self.assertIsNone(result["disposition"])
+
+
+LANE = "melodic-automation-lanes"
+FIXED = "**pr-unblock / address-feedback: VALID, fixed**\n\nEvidence: `a.py:1`\nFix: abc1234"
+OWNER = "owner-person"
+
+
+def _own_pr_record(*comments: dict[str, object], outdated: bool = True) -> dict:
+    return {
+        "id": "T1",
+        "isResolved": False,
+        "isOutdated": outdated,
+        "comments": list(comments),
+        "comments_total_count": len(comments),
+        "comments_truncated": False,
+    }
+
+
+def _own_pr_run(
+    record: dict[str, object],
+    *extra: str,
+    resolve: bool = False,
+    repo_identity: str | None = None,
+) -> tuple[int, dict[str, object], mock.MagicMock]:
+    """Drive `main` on an own PR (author == self login) through the REAL
+    `project_thread`, so the projection and the own-PR branch both run."""
+    argv = [
+        "owner/repo#1",
+        "--allowed-owners",
+        "owner",
+        "--self-logins",
+        OWNER,
+        "--autonomous",
+        *extra,
+    ]
+    if resolve:
+        argv += [
+            "--resolve",
+            "--thread-id",
+            "T1",
+            "--expected-comment-count",
+            str(record["comments_total_count"]),
+            "--expected-last-updated",
+            "2026-10-28T00:00:00Z",
+        ]
+        for comment in cast(list[dict[str, object]], record["comments"]):
+            comment["updatedAt"] = "2026-10-28T00:00:00Z"
+    buffer = io.StringIO()
+    with (
+        mock.patch.object(
+            rt,
+            "fetch_review_threads",
+            side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+        ),
+        mock.patch.object(rt, "fetch_pull_request_author", return_value=OWNER),
+        mock.patch.object(
+            rt,
+            "repo_lane_identity",
+            return_value=(repo_identity, "merge.agent-identity (test)"),
+        ),
+        mock.patch.object(rt, "resolve_thread", return_value=(True, "")) as resolver,
+        mock.patch.object(rt, "append_resolve_thread_audit"),
+        mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
+        redirect_stdout(buffer),
+    ):
+        code = rt.main()
+    return code, json.loads(buffer.getvalue()), resolver
+
+
+class OwnPrLaneAnsweredException(unittest.TestCase):
+    """#10763: on an owner-login PR the worker may resolve an outdated thread a
+    lane already answered; never a CRITICAL security-lane thread, never a
+    thread a person started or joined."""
+
+    LANES = ("--own-pr-lane-logins", f"{LANE}[bot]")
+
+    def test_answered_lane_thread_is_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        code, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(result["threads"][0]["action"], "resolved")
+        self.assertTrue(result["ownPr"])
+        resolver.assert_called_once_with("T1")
+        self.assertEqual(code, 0)
+
+    def test_unanswered_thread_is_not_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper")
+        )
+        code, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+        self.assertEqual(result["skippedOwnPrNotLaneAnswered"], 1)
+        resolver.assert_not_called()
+        self.assertEqual(code, 10)
+
+    def test_reply_from_a_bot_that_is_not_a_lane_does_not_count(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment("codex", "Bot", "Still applies."),
+        )
+        _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+        resolver.assert_not_called()
+
+    def test_the_lane_replying_to_its_own_finding_does_not_count(self) -> None:
+        record = _own_pr_record(
+            _comment(LANE, "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_a_left_open_lane_reply_is_not_an_answer(self) -> None:
+        for label in ("INCORRECT", "UNCERTAIN", "VALID (defer)"):
+            record = _own_pr_record(
+                _comment("github-actions", "Bot", "P2: rename this helper"),
+                _comment(
+                    LANE,
+                    "Bot",
+                    f"**pr-unblock / address-feedback: {label}, left open**",
+                ),
+            )
+            with self.subTest(label=label):
+                _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+                self.assertEqual(
+                    result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+                )
+                resolver.assert_not_called()
+
+    def test_a_later_left_open_reply_overrides_an_earlier_fix(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+            _comment(
+                LANE, "Bot", "**pr-unblock / address-feedback: UNCERTAIN, left open**"
+            ),
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_the_fixed_header_must_open_the_reply(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", "Still applies.\n" + FIXED),
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_critical_security_lane_thread_is_not_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment(
+                "github-actions",
+                "Bot",
+                "CRITICAL: token reaches the untrusted job",
+            ),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(result["threads"][0]["action"], "skipped-severity-marked")
+        resolver.assert_not_called()
+
+    def test_person_started_thread_is_not_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment("a-reviewer", "User", "Please rename this helper."),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
+        resolver.assert_not_called()
+
+    def test_owner_thread_is_not_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment(OWNER, "User", "Rename this helper."),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
+        resolver.assert_not_called()
+
+    def test_owner_reply_inside_a_bot_thread_blocks_the_resolve(self) -> None:
+        # The self login is neutral as a reply elsewhere, but on an own PR it
+        # is the person who opened the PR, so their reply keeps the thread.
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+            _comment(OWNER, "User", "Not fixed yet."),
+        )
+        _, result, resolver = _own_pr_run(record, *self.LANES, resolve=True)
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+        resolver.assert_not_called()
+
+    def test_current_thread_is_not_resolved(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+            outdated=False,
+        )
+        _, result, _ = _own_pr_run(record, *self.LANES)
+        self.assertEqual(result["threads"][0]["action"], "skipped-not-outdated")
+
+    def test_without_the_flag_the_own_pr_refusal_is_unchanged(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        code, result, resolver = _own_pr_run(record, resolve=True)
+        self.assertTrue(result["skippedOwnPr"])
+        resolver.assert_not_called()
+        self.assertEqual(code, 2)
+
+    def test_an_empty_flag_keeps_the_own_pr_refusal(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        _, result, _ = _own_pr_run(record, "--own-pr-lane-logins", "")
+        self.assertTrue(result["skippedOwnPr"])
+
+    def test_repo_agent_identity_stands_in_when_the_setting_is_unset(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        code, result, resolver = _own_pr_run(
+            record, resolve=True, repo_identity=f"{LANE}[bot]"
+        )
+        self.assertEqual(result["threads"][0]["action"], "resolved")
+        self.assertEqual(result["laneLoginsSource"], "merge.agent-identity (test)")
+        resolver.assert_called_once_with("T1")
+        self.assertEqual(code, 0)
+
+    def test_both_unset_keeps_the_own_pr_refusal(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        code, result, resolver = _own_pr_run(record, resolve=True, repo_identity=None)
+        self.assertTrue(result["skippedOwnPr"])
+        resolver.assert_not_called()
+        self.assertEqual(code, 2)
+
+    def test_the_user_setting_overrides_the_repo_identity(self) -> None:
+        # The setting names another lane, so the repo identity's reply does not
+        # count, and the repo identity is never read.
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", FIXED),
+        )
+        with mock.patch.object(rt, "repo_lane_identity") as repo_read:
+            buffer = io.StringIO()
+            with (
+                mock.patch.object(
+                    rt,
+                    "fetch_review_threads",
+                    side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+                ),
+                mock.patch.object(rt, "fetch_pull_request_author", return_value=OWNER),
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "babysit_resolve_thread.py",
+                        "owner/repo#1",
+                        "--allowed-owners",
+                        "owner",
+                        "--self-logins",
+                        OWNER,
+                        "--autonomous",
+                        "--own-pr-lane-logins",
+                        "other-lane[bot]",
+                    ],
+                ),
+                redirect_stdout(buffer),
+            ):
+                rt.main()
+        result = json.loads(buffer.getvalue())
+        repo_read.assert_not_called()
+        self.assertEqual(result["laneLoginsSource"], "--own-pr-lane-logins")
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
+
+    def test_flag_without_autonomous_is_refused(self) -> None:
+        buffer = io.StringIO()
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "babysit_resolve_thread.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--own-pr-lane-logins",
+                    LANE,
+                ],
+            ),
+            redirect_stdout(buffer),
+        ):
+            code = rt.main()
+        self.assertEqual(code, 2)
+        self.assertIn("requires --autonomous", json.loads(buffer.getvalue())["error"])
 
 
 if __name__ == "__main__":

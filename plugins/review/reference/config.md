@@ -24,12 +24,13 @@ A skill resolves each key lowest layer first, and the later layer wins:
    `skills/setup/scripts/setup-apply.mjs --check`, which validates the whole file against the
    schema. A missing file or key leaves this layer unset; a key that is present but invalid (an
    empty value, `null`, a quoted string, a list such as `[]`) is an invalid layer, not an unset
-   one. A WARN on one key's value (including a key set twice) makes this layer invalid for that
-   key only: the reader exits 1 and still prints a PASS line for every other key, which this layer
-   then sets. A key the schema does not list is one WARN and is ignored the same way, so a valid
-   `downstream_probe` floor beside it still counts. Any whole-file problem prints no PASS line,
-   and the layer is dropped for every key: a parse error, an unknown key set twice or holding a
-   map or list, or a refusal of the file itself (a symlink, a hard link, a path
+   one. A WARN on one key's value (including a key set twice under names that differ only by
+   surrounding spaces) makes this layer invalid for that key only: the reader exits 1 and still
+   prints a PASS line for every other key, which this layer then sets. A key the schema does not
+   list is one WARN and is ignored the same way, so a valid `downstream_probe` floor beside it
+   still counts. Any whole-file problem prints no PASS line, and the layer is dropped for every
+   key: a parse error (a key written the same way twice is one), an unknown key set twice or
+   holding a map or list, or a refusal of the file itself (a symlink, a hard link, a path
    that resolves outside the repository, a target that is not a regular file, a file that cannot
    be read, or a committed entry that is not a regular file).
 

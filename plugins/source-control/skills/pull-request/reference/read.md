@@ -18,7 +18,7 @@ them from the file rather than from a copy of tool output.
 - **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `baseRefName`,
   `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
   `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
-  `INTERNAL`, or `UNKNOWN` when the lookup fails). `<pr>` is a number, a PR URL (which names its own host and
+  `INTERNAL`, or `UNKNOWN` when the lookup fails or the forge CLI is not logged in to the PR's host, which is then never asked). `<pr>` is a number, a PR URL (which names its own host and
   repository), or a head branch; with none
   it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
   name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through

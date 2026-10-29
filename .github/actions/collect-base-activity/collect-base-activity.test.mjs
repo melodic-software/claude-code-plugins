@@ -1620,7 +1620,7 @@ test("run-claude-cli: fix-ci and fix-docs get no review-thread wrapper and stage
 
 // fix-docs runs ai-slop:audit under dontAsk: Bash runs exactly the skill's
 // own scripts by absolute path, bare and quoted (its `!` line runs
-// "<dir>/detect.sh" --show-config), and the fix flow's digest commands,
+// "<dir>/detect.sh" --show-config), the fix flow's digest guard among them,
 // with git, the user-scope script and the read-only print commands denied.
 const SLOP = `${WORKSPACE}/.lane/plugins/ai-slop/skills/audit/scripts`;
 test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the shell deny set", () => {
@@ -1635,18 +1635,21 @@ test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the s
     [
       `Bash("${SLOP}/cross-check.sh" *)`,
       `Bash("${SLOP}/detect.sh" *)`,
+      `Bash("${SLOP}/digest-guard.sh" *)`,
       `Bash("${SLOP}/emit-findings.sh" *)`,
       `Bash("${SLOP}/emit-fix-record.sh" *)`,
       `Bash("${SLOP}/rubric-fanout.sh" *)`,
       `Bash(${SLOP}/cross-check.sh *)`,
       `Bash(${SLOP}/detect.sh *)`,
+      `Bash(${SLOP}/digest-guard.sh *)`,
       `Bash(${SLOP}/emit-findings.sh *)`,
       `Bash(${SLOP}/emit-fix-record.sh *)`,
       `Bash(${SLOP}/rubric-fanout.sh *)`,
-      `Bash(mkdir -p ${WORKSPACE}/.lane/scratch/*)`,
-      "Bash(sha256sum *)",
     ].toSorted(),
   );
+  for (const rule of ["Bash(sha256sum *)", `Bash(mkdir -p ${WORKSPACE}/.lane/scratch/*)`]) {
+    assert.ok(!run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
+  }
   for (const rule of [
     ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash")),
     "Read(//proc/**)",
@@ -1780,7 +1783,7 @@ test("run-claude-cli: tidy gives an issue lane's patch skill the tidy skills, th
     run.allowedTools.filter((rule) => rule.startsWith("Skill(")),
     ["Skill(work-items:work)", "Skill(code-tidying:tidy-diff)", "Skill(docs-hygiene:write-for-agents)", "Skill(ai-slop:audit)"],
   );
-  for (const rule of [`Bash(${TIDY_SCRIPTS}/change-shape.sh *)`, `Bash("${TIDY_SCRIPTS}/change-shape.sh" *)`, `Bash(${SLOP}/detect.sh *)`, "Bash(sha256sum *)"]) {
+  for (const rule of [`Bash(${TIDY_SCRIPTS}/change-shape.sh *)`, `Bash("${TIDY_SCRIPTS}/change-shape.sh" *)`, `Bash(${SLOP}/detect.sh *)`, `Bash(${SLOP}/digest-guard.sh *)`]) {
     assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
   }
   for (const rule of [`Bash(${SLOP}/user-scope.sh *)`, "Bash(git *)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)"]) {

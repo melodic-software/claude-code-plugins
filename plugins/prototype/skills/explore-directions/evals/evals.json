@@ -171,6 +171,20 @@
         "The response does not add a `?variant=` switcher or variant components to the app's /orders route",
         "If the response mentions the real stack, it offers it as an option the user can ask for rather than switching to it"
       ]
+    },
+    {
+      "id": 15,
+      "name": "multi-screen-run-with-states",
+      "prompt": "Our library app needs a new holds flow: a /holds list of a member's holds and a /holds/new form to place one. Mock up options for both screens, including what they look like with no holds, while loading, when the request fails and when the form has errors.",
+      "expected_output": "The run covers two screens, so the plan names each screen with 2 or 3 variants and its enumerated states (for /holds: populated, empty, loading, error; for /holds/new: populated, validation, error). The skill writes one self-contained file:// page per screen under the CSP, each with every variant building every state from one synthetic data set defined once, and the bundled switcher inlined so both variants and states are reachable from it. Interactive and asserted elements carry proposed data-testid values, which the copy-out terminator lists per screen and variant from the markup. The handover's reply template carries one block per screen with state and test-id lines; after the user picks, step 5 records UI acceptance criteria per screen: the chosen variant or graft, the behavior in each state, and the test ids.",
+      "files": [],
+      "expectations": [
+        "The plan names both screens, each with 2 or 3 variants and an enumerated list of its states",
+        "Every variant of a screen builds every listed state, and each state is reachable from the inlined switcher, not only the variants",
+        "All variants and states render one synthetic data set defined once; an empty or error state derives from it rather than from a second copy of the data",
+        "Interactive and asserted elements carry proposed data-testid attributes, and the copy-out terminator lists them per screen and variant from the markup",
+        "The handover's reply template has one `screen:` block per screen with `state:` and `test-ids:` lines, and no variant is folded in before the user answers"
+      ]
     }
   ]
 }
