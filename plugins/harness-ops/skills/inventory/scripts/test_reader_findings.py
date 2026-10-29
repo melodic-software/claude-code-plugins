@@ -929,15 +929,25 @@ class TestOpenFindings(unittest.TestCase):
     INCLUDES = 'import{pY}from"/a.js";pY.includes("x");'
     PATCH = '{includes:()=>function(){this.push("B");return!0}}'
 
-    def test_the_bun_runtime_helpers_on_fresh_objects_clear(self) -> None:
-        """`Ce` defines on an object `Object.create` or `{}` just made, and
-        `$r` on the objects each importer passes it, here a fresh `var X={}`
-        and an object literal, whose setter `r` writes through a bound
-        `this`. With nothing else in the bundle the list stays literal."""
-        importer = (
-            'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
+    def test_the_bun_runtime_helpers_stay_partial_on_their_computed_reads(
+        self,
+    ) -> None:
+        """`Ce` and `$r` define only on fresh objects here, but the verbatim
+        chunk's getters read by a computed key: `this[a]` in `n`, `b[c]` in
+        `$r` and in `ovi`. Each key may spell `require`, so each read is a
+        load the parser cannot name, and the list reads partial."""
+        importer = 'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
+        self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+        h = self.HELPERS
+        reads = [
+            h.index("this[a]", h.index("function n(")),
+            h.index("b[c]", h.index("var $r=")),
+            h.index("b[c]", h.index("ovi=")),
+        ]
+        found = type(self).reader.sinks(h, 0, len(h), ["includes"])
+        self.assertEqual(
+            sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
         )
-        self.assert_across_modules(False, self.HELPERS, importer, self.INCLUDES)
 
     def test_a_runtime_helper_on_a_builtin_prototype_stays_partial(self) -> None:
         self.assert_across_modules(
