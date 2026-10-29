@@ -1,5 +1,66 @@
 # Changelog for the PR pipeline convention
 
+## [7.2.1] - 2026-10-29
+
+### Fixed
+
+- check-wip-cap closes new admissions when it cannot read the base config (a failed resolve-config import, as after a failed `npm ci` of its dependencies), whatever `wip.pause-from` says: `admission-open` is `false`, and `admission_reason` and `admission_basis` are `config-unreadable`, with a `check-wip-cap` warning. Before, the default limits applied with admissions open, so a broken dependency took the queued cap off. The run pause keeps the last known state as before, and a failed `npm ci` still continues, with a warning that says admissions close.
+
+## [7.2.0] - 2026-10-29
+
+### Added
+
+- **`attended`, separate from `host-run` and `needs-human`.** Work that needs the owner present (a manual step on external state an agent cannot safely run or test) gets the `attended` label. Intake admission refuses it as it refuses `host-run`, parked at `status: confirmed` with no decision asked. While the newest `attended` event is a removal by anyone but a listed human, the lanes App included, admission refuses as if the label were on.
+- **External state in refinements.** An exact intake refinement ends its criteria with one plain line, `External state: none`, `iac (<owner/repo>)` or `manual (<class>: <what>)`. Admission refuses a `manual` one and adds `attended`, until a listed human removes `attended` after that refinement; `iac` routes nothing. The classes are config: the new `attended.classes` section of `pr-pipeline.yaml`, which `refine.mjs --select` puts in the model's context and `--apply` checks.
+- **`attended` holds downstream.** work-unblock never adds `agent-ready` to an issue carrying `attended`, or to an admission-deferred one whose newest `attended` event is a removal by anyone but a listed human; its re-admission paths park an attended refusal at `status: confirmed` with `attended`. resolve-issue and apply-issue-patch hold on `attended`.
+- **`manual-external` stop code.** A resolve-issue run that reaches such a step stops with `manual-external`, whose new `attended` route adds the label and removes `agent-ready`; `host-only` now names a host run alone.
+
+## [7.1.0] - 2026-10-28
+
+### Added
+
+- `limits.readmit-per-run` in `pr-pipeline.yaml` (default 20, at most 100): how many open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on. An issue left out before the rules run does not count.
+
+### Fixed
+
+- work-unblock's hourly sweep now runs intake's admission (`admit.mjs` `decide`) on open `status: ready` issues that carry neither `agent-ready` nor `admission-deferred`, such as a deferral whose label was lost or a `status: ready` set by hand. Before, nothing revisited them. One listing per sweep, oldest updated first. An issue with a hold or refuse label, an open blocker or an open sub-issue is left out unread; one whose `status: ready` neither a listed human nor the lanes App added, or whose `agent-ready` removal still stands, is skipped after its events are read. The writes match intake's: `agent-ready` within the queued cap's room, `admission-deferred` past it or while an open pull request is for the issue, and a refusal parked at `status: confirmed`, or at `status: needs-decision` when it holds for a person.
+
+## [7.0.1] - 2026-10-28
+
+### Changed
+
+- The lanes adopt a trusted person's pull request after 2 hours of no trusted-actor push, comment or label change (`adoption.idle-hours`), down from 24. A session waiting in the GITHUB_TOKEN gate is idle for up to 2 hours during a breaker trip, so a longer quiet period no longer shows the session is still working. Pull requests here open ready, so being non-draft does not show one is finished.
+
+## [7.0.0] - 2026-10-28
+
+### Changed
+
+- **Breaking:** `pr-pipeline.schema.json` no longer admits `default` for a profile's `model`, so a `pr-pipeline.yaml` that names it fails validation; name `opus` instead ([#8724](https://github.com/melodic-software/claude-code-plugins/issues/8724)). `default` passed no `--model`, which run-claude-cli cannot pass. `fable` and `best` stay refused for `model` and `subagent-model`. resolve-config now resolves a model profile's `model` and `subagent-model` outside `haiku`, `sonnet` and `opus` to `opus`, as it does for a role profile, so a config that skipped the schema check still never runs `default` or the frontier tier; `inherit` still sets no subagent model. The built-in `standard` profile, this repository's `standard` profile and the example config's now name `opus`.
+
+### Fixed
+
+- pr-verify judges a lanes App pull request whose `ci-status` fails only on a hold an approving review of the head lifts (a hold path, a trusted-actor list widening), so the person approves a head pr-verify has already judged. `ci-status` still fails until that approval, and any other failure still keeps pr-verify from judging the head.
+
+- post-merge-demotion-alert.yml warns when the suite judge (`babysit_postmerge.py --judge-run`) exits 2 to 4, with the judge's `error` from its JSON output, and still files the demotion as before. Before, the record was filed with nothing saying the judge had failed.
+- A dispatched red run is treated as recovered, and files nothing, only when the newer green run's head descends from the red SHA and is on the `main` branch's history. Both `compare <red SHA>...<newer SHA>` and `compare <newer SHA>...<main tip>` must read `ahead` or `identical`, with the main tip read from `git/ref/heads/main`. Any other status, or a failed read, files as if no newer run had passed. A green run on a tag named `main` no longer suppresses the alert unless the tag points at a commit already on the branch.
+- `scripts/run-plugin-tests.sh` prints `Advisory nonce: <16 hex>` before any suite block when advisory suites are on, and repeats the nonce in each advisory warning. The nonce is never exported to suites.
+
+- The `wip.pause-from` docs state that leaving it empty removes intake admission's queued cap: over that cap check-wip-cap leaves admissions open with no room limit, so intake still adds `agent-ready`. An incomplete or failed queued read still defers. An intake admission test covers the empty case.
+
+## [6.5.5] - 2026-10-28
+
+### Fixed
+
+- `work-resolve-issue` no longer writes `Hold: a human merges this` only because the runner's checks did not report (missing or for another tip). That line also failed `ci-status`, so pr-verify never ran and the PR waited on a person for checks `ci-status` reruns anyway. On a reused branch, a leak scan that is anything but `clean` (found, failed or missing) still holds it, since `lint-repo`'s gitleaks scan does not cover what the lane scan flags. A failed runner check, `merge: human`, untrusted provenance and every denied-path or unreadable-listing reason still hold it too (`mustHold` in `report-outcome.mjs`).
+
+- A pass-only `address-feedback` round (sent with `verify-pass-head`) that finds no stale pr-verify fail-note thread now runs the full thread select and reports `stop-resolved`, so `report-stop-status` can clear a failing `pr-unblock/address-feedback` status an earlier attempt of the round left on the head, as on a rerun after the notes were resolved by hand. It still starts no model or reply job.
+
+- `work-resolve-issue` no longer opens a second PR for an issue that another open PR already closes. A PR can gain its closing keyword while the model runs, after the `issue-prior` check read none, as happened with [#10698](https://github.com/melodic-software/claude-code-plugins/pull/10698) and [#10686](https://github.com/melodic-software/claude-code-plugins/pull/10686). `report-outcome` now reads the issue's open closing PRs again just before it opens a PR, applying the same trust rule as `issue-prior` (opened by the lanes App or a listed human). When one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, a new `retry` route in `stop-routes.json`.
+
+- The address-feedback lane no longer stops on `feedback-untaken-threads` when the only unresolved threads are pr-verify fail notes from an older head. It clears its status instead, so ci-status can pass, pr-verify can run, and its pass resolves those notes. Before, the failing status kept pr-verify from ever running, so no pass could arrive to resolve the notes. The notes still hold the merge until they are resolved.
+
+- An `address-feedback` fix commit now names the review threads it fixes. `apply-patch.mjs` adds a `Lane-Thread: <thread id>` line after the `Lane-Activity` trailer for each kept thread that a `VALID` reply in the scanned replies names, under the `review-threads` row's new `thread-trailer` key. A reply that names a thread the select job did not keep adds no line. The push job downloads those replies before the mint (the write workflow's new `patch-replies-attempt` and `patch-replies-sha256` inputs) and fails red unless their SHA-256 is the scan job's. `publish-feedback` credits a fix commit to a thread only when the commit's `Lane-Thread` lines name it, in the same round and on a retry's earlier fix alike. A `VALID` thread that no trailer names ends the round `feedback-not-landed`. Before this change, a sibling commit that fixed another finding in the same file could be credited, and the thread resolved, while its own finding stood. Lane fix commits made before this change carry no `Lane-Thread` lines, so a retry no longer credits them.
+
 ## [6.5.4] - 2026-10-28
 
 ### Changed

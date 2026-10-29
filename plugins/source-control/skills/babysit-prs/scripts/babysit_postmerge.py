@@ -855,7 +855,7 @@ _BASH_NO_RESULT = re.compile(
 # own output prints cannot carry it, so it excuses nothing.
 _BASH_NONCE = re.compile(r"Advisory nonce: ([0-9a-f]{16})")
 _BASH_ADVISORY = re.compile(
-    r"(?:::warning::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
+    r"(?:::warning(?: title=[^:]*)?::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
     r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
 _PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")

@@ -22,7 +22,8 @@
 //             the outcome file says.
 //   Every stop below takes its route from stop-routes.json (stop-routes.mjs):
 //   hold hands the issue to a person as pushback does; host-run adds the
-//   host-run label and removes agent-ready; retry keeps agent-ready, so
+//   host-run label and removes agent-ready; attended adds the attended label
+//   and removes agent-ready; retry keeps agent-ready, so
 //   work-unblock restarts it, up to limits.stop-retries; fail removes
 //   agent-ready and adds no label. A route other than hold carries no
 //   escalation marker.
@@ -124,7 +125,7 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
-import { HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
@@ -462,9 +463,10 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 
 // The comment and labels of a stop whose route is not hold, which carries no
 // escalation marker: retry keeps agent-ready (work-unblock restarts it and the
-// next run resumes the branch), host-run adds the host-run label, fail adds
-// none; both remove agent-ready.
-const ROUTE_OUTCOME = { retry: "retry", "host-run": "host-run", fail: "failed" };
+// next run resumes the branch), host-run and attended add their label, fail
+// adds none; all three remove agent-ready.
+const ROUTE_OUTCOME = { retry: "retry", "host-run": "host-run", attended: "attended", fail: "failed" };
+const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
 function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
@@ -473,8 +475,10 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "host-run"
-        ? `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: a maintainer session on a host builds it, and it waits on no decision from a person.`
-        : "It removed `agent-ready` and added no label.",
+        ? `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`
+        : route === "attended"
+          ? `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`
+          : "It removed `agent-ready` and added no label.",
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
@@ -491,6 +495,8 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   }
   if (route === "host-run") {
     lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and add \`agent-ready\` again.`);
+  } else if (route === "attended") {
+    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and adds \`agent-ready\` again.`);
   } else if (route === "fail") {
     lines.push("", "To run it again, add `agent-ready`.");
   }
@@ -501,7 +507,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     issueNumber,
     runId,
     comment: lines.join("\n"),
-    addLabels: route === "host-run" ? [HOST_RUN_LABEL] : [],
+    addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     removeLabels: route === "retry" ? [] : ["agent-ready"],
   };
 }
@@ -1087,7 +1093,7 @@ function humanLabelFrom(path) {
 
 // The outcomes after which the next run continues the marked run's branch.
 // work-unblock's `failed` names the limit or funding stop's run it ends.
-export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "host-run", "failed"]);
+export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "host-run", "attended", "failed"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -1513,7 +1519,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
   }
 }
 
-// A hand-back, host-run or fail plan's edits. The label first, so a failed
+// A hand-back, host-run, attended or fail plan's edits. The label first, so a failed
 // comment still leaves the issue on its route. A fail plan adds none: its
 // comment's marker is the route, so it is posted before agent-ready goes, and
 // a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a

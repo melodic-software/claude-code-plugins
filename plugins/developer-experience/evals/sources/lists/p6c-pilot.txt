@@ -1,0 +1,4 @@
+# Phase 6 final pass, Opus pilot (kept as run 1 of its cell).
+S1 A2 1
+T1 A2 1
+T4 A2 1

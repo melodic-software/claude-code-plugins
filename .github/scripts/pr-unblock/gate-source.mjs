@@ -38,7 +38,7 @@ export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ he
 export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
 // A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
-const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
+export const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
 // check-signed-commits' escalation comment opens with this line; its report
 // job posts it with GITHUB_TOKEN, as github-actions[bot].

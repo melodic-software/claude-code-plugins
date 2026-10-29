@@ -544,6 +544,47 @@ PLUGIN_TEST_ADVISORY_LIST="$stale_advisory" PLUGIN_TEST_SERIAL_LIST="$empty_list
   run_runner 2 "an advisory entry that matches no suite is rejected" --root "$r"
 assert_output_has "the stale advisory entry is named" "plugins/gone/gone.test.sh"
 
+# --- --budget: a suite over its share fails by name ------------------------------
+#
+# The slow suite sleeps past two whole seconds, so its whole-second timing is at
+# least 2 whatever the clock boundary, over a 1 s share; the quick one is 0 or 1.
+r="$(make_root budget)"
+write_suite "$r" plugins/slow/slow.test.sh 'sleep 2.1; echo "ok: slow"'
+write_suite "$r" plugins/quick/quick.test.sh 'echo "ok: quick"'
+no_seconds="$scratch/no-such-seconds.txt"
+PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "a suite over its share fails the run" --root "$r" --jobs 2 --budget 1
+assert_output_has "the over-share suite is named with its time and share" "FAIL: plugins/slow/slow.test.sh took "
+assert_output_has "the share it went over is named" "s, over its 1s share of the budget"
+assert_output_lacks "a suite inside its share is not failed" "FAIL: plugins/quick/quick.test.sh"
+assert_error_count "the over-share suite gets one error annotation" 1
+assert_output_has "the overrun of the whole run is reported" "OVER BUDGET: the suites took "
+assert_output_has "the overrun names the slowest suite" "s plugins/slow/slow.test.sh"
+
+PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST="$no_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --budget no suite is timed against a share" --root "$r" --jobs 2
+assert_output_lacks "without --budget no suite is failed for its time" "share of the budget"
+assert_output_lacks "without --budget no overrun is reported" "OVER BUDGET"
+
+budget_seconds="$scratch/budget-seconds.txt"
+printf '%s\n' "# seconds" "plugins/slow/slow.test.sh 5" >"$budget_seconds"
+PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST="$budget_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a listed median raises the share, and an overrun alone does not fail" \
+  --root "$r" --jobs 2 --budget 1
+assert_output_lacks "the listed suite inside its 5 s share is not failed" "over its"
+assert_output_has "the overrun is still reported" "OVER BUDGET: the suites took "
+
+PLUGIN_TEST_SECONDS_LIST="$budget_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "a run inside the budget says so" --root "$r" --budget 600
+assert_output_has "the time against the budget is reported" "s of the 600s budget."
+
+for bad in 0 x -1 ''; do
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "--budget '$bad' is rejected" --root "$r" --budget "$bad"
+done
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --budget= is rejected, not a run with no budget" --root "$r" --budget=
+PLUGIN_TEST_SHARE_MARGIN=0 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero share margin is rejected" --root "$r" --budget 60
+assert_output_has "the bad margin is named" "PLUGIN_TEST_SHARE_MARGIN must be a positive integer (got '0')"
+
 # --- the shipped lists against the shipped corpus -------------------------------
 #
 # Every entry in scripts/run-plugin-tests-serial.txt and

@@ -27,6 +27,7 @@ import {
   UNLABELED_QUERY,
   decide,
   describe,
+  unblockHold,
   liftedByPerson,
   READER_EVENTS,
   personReason,
@@ -54,7 +55,7 @@ import {
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, personWrote, unblockStops, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -94,6 +95,8 @@ function detail({ comments = [], reviews = [], inline = [], disabledBy = null } 
     reviews: page(reviews),
     reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
     timelineItems: { nodes: disabledBy ? [{ actor: disabledBy }] : [] },
+    // The head's pr-unblock stops (merge-holds.unblockStops): none.
+    unblockStops: [],
   };
 }
 const said = (login, body, at, association = "OWNER", typename = "User") => ({
@@ -135,6 +138,18 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (own) {
       return own.rest[path];
     }
+    // A lift's reads (liftBlocked): the issue timeline (`timeline`; with none
+    // the read fails), review comments (`threadComments`), reviews
+    // (`restReviews`), and the head read again before the delete (`freshHead`,
+    // else the head).
+    const lift = /^\/repos\/melodic-software\/claude-code-plugins\/(?:issues\/([0-9]+)\/timeline\?|pulls\/([0-9]+)\/comments\?since=[^&]+&|pulls\/([0-9]+)\/reviews\?|pulls\/([0-9]+)$)/.exec(path);
+    if (method === "GET" && lift) {
+      const found = pulls.find((candidate) => [lift[1], lift[2], lift[3], lift[4]].includes(String(candidate.number)));
+      if (lift[1] !== undefined && found?.timeline === undefined) {
+        throw new Error("GET timeline failed with status 502");
+      }
+      return lift[1] !== undefined ? found.timeline : lift[2] !== undefined ? (found?.threadComments ?? []) : lift[3] !== undefined ? (found?.restReviews ?? []) : { head: { sha: found?.freshHead ?? found?.headRefOid } };
+    }
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
     if (method === "GET" && listing && filesError) {
       throw filesError;
@@ -142,6 +157,16 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && listing) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
+    }
+    // The head's commit statuses: a pull request's `statuses`, none by
+    // default; `statuses: "error"` fails the read.
+    const statusPage = /^\/repos\/melodic-software\/claude-code-plugins\/commits\/([0-9a-f]{40})\/statuses\?per_page=100&page=1$/.exec(path);
+    if (method === "GET" && statusPage) {
+      const statuses = pulls.find((candidate) => candidate.headRefOid === statusPage[1])?.statuses ?? [];
+      if (statuses === "error") {
+        throw new Error("GET statuses failed with status 502");
+      }
+      return statuses;
     }
     // The cost decision reads (merge-holds.costDecision): the owner's comment
     // 7 on pull request 40's closing issue, and each pull request closes its own
@@ -198,6 +223,11 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
         throw noteThrows.shift();
       }
       return {};
+    }
+    // The lane lifting the human-gated label (approvalLift).
+    if (method === "DELETE" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/labels\/[^/]+$/.test(path)) {
+      notes.push({ method, path });
+      return [];
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULL_OPENED_QUERY) {
@@ -276,7 +306,8 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
+    const actions = options.jobToken ? options.jobToken(github) : undefined;
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
@@ -674,19 +705,17 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   const after = await run([held({ verdict: RISK_HELD, discussion: { comments: [lanesSaid(personNote(BOTH))] } })]);
   assert.deepEqual(after.verified, []);
   assert.deepEqual(after.notes, []);
-  // A verdict that would arm it, with the hold path lifted, never arms a labeled one.
-  // Its answer came and names no person's reason: the mark comes off in
-  // place, so the next run reads no verdict.
-  const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
+  // A hold-path-only refusal a trusted person's approval of the head lifts:
+  // the lane takes the label off and judges it unlabeled, so a passing
+  // verdict arms it (approvalLift; the label tests below cover each refusal).
+  const lifted = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] }, timeline: liftTimeline(personNote(HOLD_PATH_REASON, true)) })], trustedKyle());
   assert.deepEqual(lifted.verified, [2]);
-  assert.deepEqual(lifted.writes, []);
-  assert.deepEqual(lifted.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
-  const laneVerdict = await run([held({ verdict: MISSING, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON, true))] } })], trustedKyle());
-  assert.deepEqual(laneVerdict.notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(HOLD_PATH_REASON) } }]);
-  const next = await run([held({ verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
+  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  assert.equal(lifted.writes.at(-1)?.mutation, "arm");
+  // With no partial comment and no approval, only the discussion is read: no file listing.
+  const next = await run([held({ verdict: PASSED, discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } })], trustedKyle());
   assert.deepEqual(next.verified, []);
   assert.deepEqual(next.notes, []);
-  // With no partial comment, only the discussion is read: no file listing.
   const listed = (calls) => calls.filter(({ path }) => /\/pulls\/2\/files\?/.test(path)).length;
   assert.equal(listed(next.calls), 0);
   // A held lane spends no read on it, partial or not.
@@ -1373,6 +1402,18 @@ const reviewed = (state, { id = 5, login = "kyle-sexton", oid = HEAD, at = "2026
   submittedAt: at,
   authorAssociation: "OWNER",
 });
+// The REST issue timeline of a hold-path escalation the lane may lift: the
+// App's person refusal, the App's label a second later (refusalWrites posts
+// the comment first), then Kyle's approval of the head.
+const APP_USER = { login: "melodic-automation-lanes[bot]", type: "Bot" };
+const KYLE = { login: "kyle-sexton", id: 5, type: "User" };
+const restSaid = (user, body, at) => ({ event: "commented", user, body, created_at: at, updated_at: at });
+const labelEvent = (actor, at, { event = "labeled", name = "needs-human" } = {}) => ({ event, actor, label: { name }, created_at: at });
+const liftTimeline = (note = personNote(HOLD_PATH_REASON)) => [
+  restSaid(APP_USER, note, "2026-10-23T10:00:00Z"),
+  labelEvent(APP_USER, "2026-10-23T10:00:01Z"),
+  { event: "reviewed", user: KYLE, state: "approved", submitted_at: "2026-10-26T16:41:00Z", commit_id: HEAD },
+];
 function trustedKyle() {
   const dir = tempDir("enable-auto-merge-");
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
@@ -2946,4 +2987,155 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned.map((args) => args.includes("--answers-only")), [false, false, false, true]);
   assert.deepEqual(timeouts, [VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, CACHE_ONLY_TIMEOUT_MS]);
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
+});
+
+// ci-status's merge-queue run fails a head whose newest pr-unblock/* status by
+// github-actions[bot] is failure or error (pr-require-checks.yml "Fail a head a
+// pr-unblock lane stopped"), so enable-auto-merge never queues one.
+const BOT = { login: "github-actions[bot]" };
+const unblock = (context, state, creator = BOT, description = "stopped") => ({ context, state, creator, description });
+
+test("unblockStops keeps each pr-unblock context's newest github-actions status that fails", () => {
+  assert.deepEqual(
+    unblockStops([
+      unblock("pr-unblock/fix-ci", "failure", BOT, "fix-ci\tstopped"),
+      unblock("pr-unblock/fix-ci", "success"),
+      unblock("pr-unblock/address-feedback", "success"),
+      unblock("pr-unblock/address-feedback", "failure"),
+      unblock("pr-unblock/resolve-conflicts", "error"),
+      unblock("pr-unblock/fix-docs", "failure", { login: "someone" }),
+      unblock("ci-lanes", "failure"),
+    ]),
+    [
+      { context: "pr-unblock/fix-ci", state: "failure", description: "fix-ci stopped" },
+      { context: "pr-unblock/resolve-conflicts", state: "error", description: "stopped" },
+    ],
+  );
+  assert.throws(() => unblockStops(null), /not a list/);
+});
+
+test("a head a pr-unblock lane stopped is not queued and is named in the summary; an unheld one still arms", async () => {
+  const summary = join(tempDir("enable-auto-merge-unblock-"), "summary.md");
+  writeFileSync(summary, "");
+  const stopped = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "failure")] });
+  const { writes, lines } = await run([stopped], { GITHUB_STEP_SUMMARY: summary });
+  assert.deepEqual(writes, []);
+  const reason = "a pr-unblock lane stopped its head (pr-unblock/fix-ci is failure), which ci-status fails in the merge queue";
+  assert.ok(lines.some((line) => String(line).includes(reason)), lines.join("\n"));
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: #1 not queued: ${reason}\n`);
+
+  const cleared = pull(1, { verdict: PASSED, statuses: [unblock("pr-unblock/fix-ci", "success"), unblock("pr-unblock/fix-ci", "failure")] });
+  assert.equal((await run([cleared])).writes[0]?.mutation, "arm");
+  assert.equal((await run([pull(1, { verdict: PASSED })])).writes[0]?.mutation, "arm");
+});
+
+// The lanes App holds no commit-statuses permission, so the head's statuses
+// are read on the job token (statuses: read): a lanes token that cannot read
+// them stops nothing when the job token can.
+test("the head's statuses are read on the job token, not the lanes App token", async () => {
+  const jobToken = (github) => async (method, path, ...rest) => (path.includes("/statuses?") ? [] : github(method, path, ...rest));
+  const { writes } = await run([pull(1, { verdict: PASSED, statuses: "error" })], {}, { jobToken });
+  assert.equal(writes[0]?.mutation, "arm");
+});
+
+test("a head whose statuses do not read is not queued, and an armed one is disarmed", async () => {
+  assert.deepEqual((await run([pull(1, { verdict: PASSED, statuses: "error" })])).writes, []);
+  const armed = pull(1, { verdict: PASSED, statuses: "error", autoMergeRequest: { enabledAt: NOW } });
+  assert.equal((await run([armed])).writes[0]?.mutation, "disarm");
+  assert.equal(unblockHold(null), "its head's pr-unblock statuses could not be read");
+  assert.equal(unblockHold([]), null);
+});
+
+// The owner's approval of the head is the documented release of a hold-path
+// escalation, so the lane takes its needs-human label off itself; nothing
+// else does, and the approval control is the one ci-status applies.
+test("a hold-path escalation lifts its label only on a trusted person's approval of the head", async () => {
+  const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
+  const held = (discussion, files = HELD, overrides = {}) => pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion, timeline: liftTimeline(), ...overrides });
+  const escalated = [lanesSaid(personNote(HOLD_PATH_REASON))];
+  const lifted = await run([held({ reviews: [reviewed("APPROVED")], comments: escalated })], trustedKyle());
+  assert.deepEqual(lifted.notes, [LIFT]);
+  assert.equal(lifted.writes.at(-1)?.mutation, "arm");
+
+  const refused = {
+    "an approval of another head": held({ reviews: [reviewed("APPROVED", { oid: "e".repeat(40) })], comments: escalated }),
+    "an approval later dismissed": held({ reviews: [reviewed("APPROVED"), reviewed("DISMISSED", { at: "2026-10-26T17:00:00Z" })], comments: escalated }),
+    "an approval by an account off the trusted-actor list": held({ reviews: [reviewed("APPROVED", { id: 9, login: "someone" })], comments: escalated }),
+    "a cost escalation": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(COST_REASON))] }, COST_FILES),
+    "a hold path beside a risk hold": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(BOTH))] }),
+    "a label with no lane escalation": held({ reviews: [reviewed("APPROVED")], comments: [] }),
+    "an escalation at an earlier head": held({ reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON).replaceAll(HEAD, "e".repeat(40)))] }),
+  };
+  for (const [why, pr] of Object.entries(refused)) {
+    const result = await run([pr], trustedKyle());
+    assert.ok(!result.notes.some(({ method }) => method === "DELETE"), `${why} lifts nothing`);
+    assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), `${why} arms nothing`);
+  }
+
+  const reportOnly = await run([held({ reviews: [reviewed("APPROVED")], comments: escalated })], { ...trustedKyle(), REPORT_ONLY: "true" });
+  assert.deepEqual(reportOnly.notes.filter(({ method }) => method === "DELETE"), []);
+  assert.ok(reportOnly.lines.some((line) => String(line).includes("would lift (report-only) needs-human")), reportOnly.lines.join("\n"));
+});
+
+// The same label carries holds that live only in the label: a pr-unblock
+// escalation adds no labeled event when the label is already on, a review
+// lane's or check-signed-commits' hold, a label a person added. Each case is
+// the liftable timeline with one thing changed, and keeps the label for its
+// own named reason.
+test("an approved hold-path escalation keeps its label while anything else stands behind it", async () => {
+  const held = (overrides) => pull(2, { files: HELD, labels: labels("needs-human"), verdict: PASSED, discussion: { reviews: [reviewed("APPROVED")], comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, timeline: liftTimeline(), ...overrides });
+  const [note, label, approval] = liftTimeline();
+  const after = "2026-10-24T09:00:00Z";
+  const OLD = "e".repeat(40);
+  const escalation = ["<!-- work-items:escalation lane=pr-unblock kind=escalated -->", `<!-- pr-unblock resume-key=${"a".repeat(40)} -->`, "- Reason: `security-finding`"].join("\n");
+  const claude = { login: "claude[bot]", type: "Bot" };
+  const actions = { login: "github-actions[bot]", type: "Bot" };
+  const cases = {
+    "a label a person added": [{ timeline: [note, labelEvent(KYLE, "2026-10-23T10:00:01Z"), approval] }, "was last added by kyle-sexton, not the lanes App"],
+    "a label a pr-unblock escalation set before the refusal": [
+      { timeline: [restSaid(APP_USER, escalation, "2026-10-22T09:00:00Z"), labelEvent(APP_USER, "2026-10-22T09:00:01Z"), { ...note, created_at: "2026-10-23T10:00:00Z" }, approval] },
+      "does not pair with enable-auto-merge's refusal",
+    ],
+    "a pr-unblock escalation in the same second as the refusal": [
+      { timeline: [restSaid(APP_USER, escalation, "2026-10-23T10:00:00Z"), note, label, approval] },
+      "does not pair with enable-auto-merge's refusal",
+    ],
+    "a pr-unblock escalation since the label": [{ timeline: [note, label, restSaid(APP_USER, escalation, after), approval] }, "carries another marker: <!-- work-items:escalation lane=pr-unblock"],
+    "a review lane's hold on an earlier head": [{ timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=security -->`, after), approval] }, "a review lane holds it"],
+    "a review lane's hold the approval came after": [{ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=intent -->`, "2026-10-22T09:00:00Z"), note, label, approval] }, "a review lane holds it"],
+    // The second security review's probe: a hold on this head, a bot's
+    // unlabel, the lane putting the label back, then the approval.
+    "a hold on the head under a bot's unlabel and the lane's relabel": [
+      { timeline: [note, label, restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=security -->`, after), labelEvent(actions, "2026-10-24T09:01:00Z", { event: "unlabeled" }), labelEvent(APP_USER, "2026-10-24T09:02:00Z"), approval] },
+      `a review lane holds head ${HEAD}`,
+    ],
+    "a hold whose marker does not parse": [{ timeline: [note, label, restSaid(claude, "<!-- claude-lane-hold lane=claude-review sha=short -->", after), approval] }, "or its hold does not parse"],
+    // A bot's unlabel lifts no earlier hold, even under a newly paired label.
+    "an earlier head's hold under a bot's unlabel": [
+      { timeline: [restSaid(APP_USER, personNote(HOLD_PATH_REASON), "2026-10-22T08:00:00Z"), labelEvent(APP_USER, "2026-10-22T08:00:01Z"), restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(actions, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] },
+      "a review lane holds it",
+    ],
+    "a refusal posted longer than PAIRED_MS before the label": [{ timeline: [note, labelEvent(APP_USER, "2026-10-23T10:01:01Z"), approval] }, "does not pair with enable-auto-merge's refusal"],
+    "check-signed-commits' hold": [{ timeline: [note, label, restSaid(actions, "<!-- check-signed-commits hold -->\nA lane commit is unverified.", after), approval] }, "check-signed-commits holds it"],
+    "a person's comment since the label": [{ timeline: [note, label, restSaid(KYLE, "Wait for the design call.", after), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
+    "a person's label event since the label": [{ timeline: [note, label, labelEvent(KYLE, after, { name: "question" }), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
+    "a person's reply on a review thread": [{ threadComments: [{ user: KYLE, created_at: after, updated_at: after }] }, "kyle-sexton spoke or labeled after needs-human went on"],
+    "a person's review that is not an approval": [{ restReviews: [{ user: KYLE, state: "COMMENTED", submitted_at: after }] }, "kyle-sexton spoke or labeled after needs-human went on"],
+    "a head that moved before the delete": [{ freshHead: "e".repeat(40) }, `its head moved to ${"e".repeat(40)}`],
+    "a timeline that does not read": [{ timeline: undefined }, "the label's history did not read"],
+  };
+  for (const [why, [overrides, reason]] of Object.entries(cases)) {
+    const result = await run([held(overrides)], trustedKyle());
+    assert.ok(!result.notes.some(({ method }) => method === "DELETE"), `${why} lifts nothing`);
+    assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), `${why} arms nothing`);
+    assert.ok(result.lines.some((line) => String(line).startsWith("enable-auto-merge: #2 keeps needs-human: ") && String(line).includes(reason)), `${why}: ${result.lines.join("\n")}`);
+  }
+  // The approval itself, the refusal edited after the label and a bot's
+  // comment are not a reason to keep it.
+  // A person who removed the label lifted an earlier head's hold under it.
+  const personLifted = await run([held({ timeline: [restSaid(claude, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=security -->`, "2026-10-22T09:00:00Z"), labelEvent(KYLE, "2026-10-22T09:30:00Z", { event: "unlabeled" }), note, label, approval] })], trustedKyle());
+  assert.deepEqual(personLifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+  const edited = { ...note, updated_at: after };
+  const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
+  assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
 });

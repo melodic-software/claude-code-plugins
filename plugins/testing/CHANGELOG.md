@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` resolves a feature id named in the scenario, either `<module>/<feature>` or a single-level `<feature>`, to its feature file in `/app-control:drive`'s order, on the drive route and on its own driving alike. The id comes from the control skill's index path, and a legacy flat `features/<feature>.md` gives `<feature>`, so the touched-feature refresh names `/app-control:map refresh cart`, never `cart.md`.
+
 ## [1.3.0] - 2026-10-28
 
 ### Added

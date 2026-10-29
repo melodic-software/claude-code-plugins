@@ -397,6 +397,68 @@ test("without superseded-ok, a 403 workflow-modified still fails red", () => {
   );
 });
 
+// The 403 pr-merge run 40747727299 logged when the breaker turned the
+// repository kill switch on after the run had read its variables.
+const KILLED = {
+  status: "403",
+  body: { reason: "kill-switch", detail: 'not-false: the repository CLAUDE_LANES_REPO_DISABLED is set and not exactly "false"' },
+};
+const KILLED_ERROR =
+  'lane-token-denied: the broker answered 403 with reason kill-switch: not-false: the repository CLAUDE_LANES_REPO_DISABLED is set and not exactly "false"';
+
+test("with kill-switch-ok, a 403 kill-switch ends green with a notice, skip-reason kill-switch and no token", () => {
+  const run = request({ ...MERGE, KILL_SWITCH_OK: "true" }, KILLED);
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::notice::lane-token-stopped: the broker refused the token because a lanes kill switch is on/m);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.output, "skip-reason=kill-switch\n");
+  assert.equal(run.auth.length, 1);
+});
+
+test("with kill-switch-ok, any other denial reason still fails red", () => {
+  const run = request({ ...MERGE, KILL_SWITCH_OK: "true" }, { status: "403", body: { reason: "already-minted" } });
+  assert.equal(run.status, 1);
+  assert.equal(run.output, "failure-reason=lane-token-denied: the broker answered 403 with reason already-minted\n");
+});
+
+test("with kill-switch-ok, a kill-switch reason on a status other than 403 still fails red", () => {
+  const run = request({ ...MERGE, KILL_SWITCH_OK: "true" }, { ...KILLED, status: "500" });
+  assert.equal(run.status, 1);
+  assert.doesNotMatch(run.output, /skip-reason/);
+});
+
+test("without kill-switch-ok, a 403 kill-switch still fails red as it did in run 40747727299", () => {
+  const run = request(MERGE, KILLED);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, new RegExp(`^::error::${KILLED_ERROR.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+  assert.equal(run.output, `failure-reason=${KILLED_ERROR}\n`);
+});
+
+test("with kill-switch-ok, an allow still mints the token unchanged", () => {
+  const run = request({ ...MERGE, KILL_SWITCH_OK: "true" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.output, /^token=ghs_lane$/m);
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+  assert.doesNotMatch(run.output, /skip-reason/);
+});
+
+test("kill-switch-ok in check mode fails before the broker request", () => {
+  const run = request(
+    { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", KILL_SWITCH_OK: "true" },
+    KILLED,
+  );
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::kill-switch-ok needs token mode/);
+  assert.equal(run.body, null);
+});
+
+test("a kill-switch-ok other than true or false fails before the broker request", () => {
+  const run = request({ ...MERGE, KILL_SWITCH_OK: "yes" }, KILLED);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::kill-switch-ok must be true or false/);
+  assert.equal(run.body, null);
+});
+
 // #7732: the refusal fix-docs got on #7717, a PR that changes a workflow file.
 // The detail's shape is the broker's, as SUPERSEDED above records it.
 const HEAD = "a".repeat(40);
