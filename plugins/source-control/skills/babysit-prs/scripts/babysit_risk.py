@@ -51,7 +51,7 @@ reported as a MED `findings:<lane>` reason that does not hold (owner decisions
 Q25, Q33 and Q693). A real new charge holds through `cost-review-required`
 and a trusted-actor widening through `trust-gate:trusted-actors`.
 
-Cost is not a stop; only a real new charge is (docs/conventions/loop-lane/
+Cost is not a stop; only a real new charge is (docs/contracts/loop-lane/
 README.md, "When work stops for the owner"). A change that could start one
 (billed infrastructure or billed runner minutes) rates HIGH as
 `cost-review-required` in every lane, floor or not and whatever `floor_exempt`
@@ -1247,7 +1247,7 @@ def holding(result: RiskResult) -> list[Reason]:
 
 
 # The holding reasons only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 # with real-charge and trust holds kept, and for a hold no lane can clear): a
 # CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
 # new secrets reference or model leg, every high path

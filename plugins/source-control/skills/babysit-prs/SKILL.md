@@ -123,7 +123,7 @@ which such a change never qualifies for). A verdict the evidence cannot settle i
 UNCERTAIN, naming the evidence that would settle it, and escalated. The per-finding form is D3
 and D4 in [review-discipline](../../reference/review-discipline.md) §3. Contract:
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
-full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar).
 
 **Reading the merge-conflict blocker string.** The snapshot classifier is mode-agnostic by
 design, it has no tier input, so it emits the same blocker string, `"merge conflict;

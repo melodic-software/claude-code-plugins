@@ -140,7 +140,7 @@ file may simply never have been carried). Removal without this pass loses the ed
 An orphaned-directory candidate (`empty` or `husk`) takes this release after its class's qualifying tests below pass and before the `rm -rf`. Skipping the release is the usual reason a previous `/source-control:worktree cleanup` left husks behind. Step 5 then reports them honestly rather than hiding the failure.
 
 **Workspace environment `down`.** When origin's default branch declares a "Workspace environment"
-entry with a `down` command (contract: `docs/conventions/workspace-environment/README.md` in this
+entry with a `down` command (contract: `docs/contracts/workspace-environment/README.md` in this
 plugin's marketplace repository), run it for a git-tracked candidate once both guards above have
 cleared (for a locked candidate, including the `stale` proof) and the file-lock release has run. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
 [create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,

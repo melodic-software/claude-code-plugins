@@ -39,7 +39,7 @@
 #     SHA-pinned `melodic-software/ci-workflows/.github/actions/<path>@<sha>`
 #     form or ci-workflows' own local `./.github/actions/<path>`), so a consumer
 #     without the step is never gated. This is deliberately NOT the
-#     `pr_body_required_sections` seam (docs/conventions/pr-body-convention/),
+#     `pr_body_required_sections` seam (docs/contracts/pr-body-convention/),
 #     whose portable default excludes `Related` on purpose;
 #   - a call targeting a DIFFERENT repository (tool_input owner/repo not
 #     matching the repo's origin remote) is out of scope and allowed —
