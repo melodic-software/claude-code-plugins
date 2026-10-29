@@ -54,7 +54,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
+import { loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -429,7 +429,8 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // refinement comment by the lanes App (`laneAppId`), the newest and only
 // while unedited (admit.mjs refinementSpec) and created before the pull
 // request, so nothing the App posts once a lane run has the issue becomes
-// spec (`specText`). Other Bot and App text is left out even where
+// spec (`specText`), with the body's done-when items that refinement lists
+// as checks a person runs (`person_checks`). Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
 // admission's `task-list` (admit.mjs splitChildBody, its one home).
@@ -514,11 +515,15 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
     specText: issues.map((issue) => {
       const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
       const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
+      const checks = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList);
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
+        // The body's done-when items that refinement lists as checks a
+        // person runs (admit.mjs personChecks), each as written.
+        ...(checks.length > 0 && { person_checks: checks.map((n) => taskItems(issue.body, taskList)[n - 1].text) }),
       };
     }),
   };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
+import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
@@ -219,6 +219,60 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), reason);
     });
   }
+
+  // #9372: intake's split never edits the body, so it stays the listed
+  // human's text; the split refinement alone takes the person-only item out.
+  describe("intake's split refinement", () => {
+    const issue = issueOf({ body: CANARY });
+    const SPLIT = { exact: true, outcome: "Line 9 says 27 checks.", criteria: [], dependencies: [], related: [], questions: [], sources: [], split: [2], external: { state: "none", repo: "", class: "", what: "" } };
+    const splitRefinement = (body = CANARY, items = [2], extra = {}) => {
+      const output = validateOutput({ ...SPLIT, split: items }, new Set(), { count: 3, items: items.map((n) => ({ n })) });
+      return written(APP_ACTOR, { body: render(output, { body, checks: ["- [ ] a check"], retriage: true }), ...extra });
+    };
+    const held = (spec) => {
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true);
+      assert.match(result.reasons.join("; "), /item 2 \(a run on a host the lane is not/);
+    };
+
+    test("admits the human's untouched body once the refinement lists the item a person runs", () => {
+      const spec = humanSpec(issue, [splitRefinement()]);
+      assert.deepEqual(decide(facts({ issue, spec })), { verdict: "admit", reasons: [] });
+      assert.equal(spec.body, CANARY, "the body is as its author wrote it");
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), [2]);
+    });
+
+    test("holds the item again when the record does not stand", () => {
+      held(humanSpec(issue, [splitRefinement(`${CANARY}\n- [ ] Added since.`)]));
+      held(humanSpec(issue, [splitRefinement(undefined, undefined, { editor: APP_ACTOR })]));
+      held(humanSpec(issue, [splitRefinement(), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\nA newer one.` })]));
+      held(humanSpec(issue, [written(USER(OUTSIDER), { body: splitRefinement().body })]));
+    });
+
+    test("never drops a runnable criterion: the items must be exactly the ones the lane cannot perform", () => {
+      for (const items of [[1], [2, 3], [1, 2]]) {
+        const result = decide(facts({ issue, spec: humanSpec(issue, [splitRefinement(undefined, items)]) }));
+        assert.equal(result.verdict, "refuse", `items ${items}`);
+        assert.equal(result.hold, true);
+      }
+      const all = written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([1, 2, 3])}` });
+      assert.deepEqual(personChecks(humanSpec(issue, [all]), humans, APP, RULES["task-list"]), [], "a record leaving no item for the lane");
+    });
+
+    test("a body another account last edited stays untrusted, the record with it", () => {
+      const spec = { ...written(USER(HUMAN), { body: CANARY, editor: APP_ACTOR }), comments: [splitRefinement()] };
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), []);
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join("; "), /no trusted-human acceptance criteria/);
+    });
+
+    test("a size split leaves the item a person runs out of its parts", () => {
+      const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement()]), humans, RULES["task-list"], APP);
+      assert.deepEqual(lines, [CANARY.split("\n")[2], CANARY.split("\n")[4]]);
+    });
+  });
 
   // Owner Q93 settled Size Large without a person: the split happens at intake,
   // so the issue parks at status: ready (a wait with no pull request).

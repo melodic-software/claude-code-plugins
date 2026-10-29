@@ -18,7 +18,7 @@ import { test } from "node:test";
 
 import { CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, resolvePull } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
-import { loadRules } from "../intake-triage/admit.mjs";
+import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1097,6 +1097,43 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   for (const [who, author] of [["github-actions", actions], ["a Bot with the App's login and another id", impostor], ["the App as a User", { ...lanes, __typename: "User" }]]) {
     assert.deepEqual(await comments(on([comment(`${MARKER}\nx`, author)])), [], who);
   }
+});
+
+// #9372: intake's split leaves the human's body untouched, so it stays
+// trusted; the split refinement alone names the item a person runs.
+test("the done-when items intake's split refinement lists as checks a person runs reach the verifier beside the untouched body", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const split = (text = body, extra = {}) => ({
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(text)}\n${splitItemsLine([2])}\n**Refinement.**`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+    ...extra,
+  });
+  const entry = async (nodes, overrides = {}) =>
+    (await resolve({ issues: [{ ...ISSUE, body, ...overrides, comments: { totalCount: nodes.length, nodes } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST })).specText[0];
+
+  const judged = await entry([split()]);
+  assert.equal(judged.body, body, "the body as its author wrote it");
+  assert.deepEqual(judged.person_checks, ["Run it on a Windows 11 host."]);
+  assert.equal(judged.comments.length, 1);
+
+  for (const [why, nodes, overrides] of [
+    ["a record for another body", [split(`${body}\n- [ ] Added since.`)]],
+    ["an edited refinement", [split(body, { lastEditedAt: "2026-10-16T00:00:00Z", editor: lanes })]],
+    ["a refinement posted after the pull request opened", [split(body, { createdAt: "2026-10-20T00:00:01Z" })]],
+  ]) {
+    const result = await entry(nodes, overrides);
+    assert.equal(result.body, body, why);
+    assert.equal(result.person_checks, undefined, why);
+  }
+  const untrusted = await entry([split()], { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes });
+  assert.equal(untrusted.body, null, "a body the lanes App last edited stays untrusted");
+  assert.equal(untrusted.person_checks, undefined);
 });
 
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
