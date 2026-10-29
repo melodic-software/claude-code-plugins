@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-10-29
+
+### Added
+
+- Three `recall-*` eval cases rebuilt from bugs the review lanes missed (#8254, #7617 and #5997),
+  each with a regex grader that reports the bug found or missed at its file and line in the
+  rebuilt files.
+- The README asks a pull request that changes a review lane's prompt, model or effort to cite the
+  recall score before and after the change.
+
 ## [1.6.4] - 2026-10-28
 
 ### Changed

@@ -3,6 +3,27 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.0] - 2026-10-29
+
+### Added
+
+- `/guardrails:setup apply identity-domains` writes the `block-cross-domain` map, `identity-domains.json` in the plugin data directory, from the identity domains `/harness-ops:machine-profile` recorded ([#9749](https://github.com/melodic-software/claude-code-plugins/issues/9749)). Each domain's tree becomes its root, and a `gh` directory the profile records becomes its `gh_config_dir`. Owners, identity markers, `az_config_dir` and shared exceptions come from the operator or are left out. The map is written only after the operator confirms, and a different map already there is replaced only with `--replace`.
+
+- `block-cross-domain` now denies a Bash or PowerShell command, from a session whose directory is in one identity domain, that names a path of another domain: one of its roots, or `~/src/github.com/<owner>` or `~/worktrees/github.com/<owner>` for an owner the map lists under it. A read is denied as well as a write. The guard matches a path in any case and spelled as a Windows drive path with either slash or escaped backslashes, in its MSYS, Cygwin and WSL drive forms, or below `HOME` after `~`, `$HOME` or `%USERPROFILE%` ([#9744](https://github.com/melodic-software/claude-code-plugins/issues/9744)). The decision is a PreToolUse `deny` on stdout whose reason names the session's domain and the others, and the exit stays 0. A marker alone never denies, and from a session outside every domain's paths nothing is denied. With no map the guard still does nothing, and `block_cross_domain_enabled` turns it off.
+
+- `block-cross-domain` now denies, from a session whose directory is in one identity domain, a Bash or PowerShell command that puts another domain's `identity_markers` entry in an identity position: the URL of `git remote add` or `set-url`, the value of `git config` or `git -c` for `user.email`, `user.name`, the `author.*` and `committer.*` keys or `remote.<name>.url`, `git commit --author`, and an assignment to `GH_CONFIG_DIR`, `AZURE_CONFIG_DIR` or a `GIT_AUTHOR_*` or `GIT_COMMITTER_*` variable. The same marker in a commit message or an `echo` is allowed, as is every call from a neutral directory. The deny is a stdout decision document, and the guard still exits 0 on every call ([#9746](https://github.com/melodic-software/claude-code-plugins/issues/9746)).
+
+### Changed
+
+- The README's hook budget accounting now records the measured `Bash|PowerShell` row cost of `block-cross-domain` ([#9743](https://github.com/melodic-software/claude-code-plugins/issues/9743)) and of the `block-root-delete-target` protected trees ([#9751](https://github.com/melodic-software/claude-code-plugins/issues/9751)) on the Windows reference host: both within the ±0.3 S noise of the untouched rows.
+
+- `block-cross-domain` classifies the session directory by an owner's `~/src/github.com/<owner>` and `~/worktrees/github.com/<owner>` directories as well as by roots, the longest path winning, so a session inside an owner's clone is in that owner's domain. It also drops quotes from the command text before its prefilter, so `"$HOME"/<path>` is parsed like `$HOME/<path>`. The compiled cache now changes with `HOME` as well as with the map.
+
+### Fixed
+
+- The `reference-verify` pre-push entry reports each finding at the line that holds the flag, path or skill reference it names. Before, every finding in a file carried the file's first added line, which for a new file was line 1. When no line the push adds holds that text, the finding falls back to the first added line.
+- A declined `reference-verify` entry (`checks.guardrails.reference-verify.declined`, else `checks.git-hooks.declined`, read the way `install.mjs` reads them) now exits 0 without checking, including when the plugin's lefthook remote runs it from the fetched copy. Before, declining removed only the registrations the installer wrote, so a lefthook-remote consumer kept running the check.
+
 ## [0.61.3] - 2026-10-28
 
 ### Changed
