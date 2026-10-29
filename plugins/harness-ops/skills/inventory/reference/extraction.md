@@ -479,7 +479,8 @@ than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `construc
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
 of `instanceof`) or a build cleared below, any member named `eval` or `Function`, a read of
-`constructor` (by name, by a computed key that may spell it, or as a destructured key; every
+`constructor` (by name, by a computed key that may spell it, as an unknown key does while a loop
+counter does not, or as a destructured key; every
 function's `constructor` is `Function`, as in `(()=>0).constructor("...")()`) other than one that
 is discarded, tested, compared with `===` or `!==`, the right of `instanceof`, or followed by a
 `.name` read or a plain `.prototype` write, since coercing it or writing a key it lacks runs a

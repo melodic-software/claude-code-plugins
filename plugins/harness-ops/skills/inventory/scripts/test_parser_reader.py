@@ -755,8 +755,12 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            # A computed read whose key may be `require` may load node:vm.
-            ('Array["proto"+"type"].includes=f;', ["write", "unknown-load"]),
+            # A computed read whose key may be `require` may load node:vm,
+            # and one whose key may be `constructor` reaches `Function`.
+            (
+                'Array["proto"+"type"].includes=f;',
+                ["write", "function-constructor", "unknown-load"],
+            ),
             ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
             (
                 "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",
@@ -897,6 +901,14 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor", "function-constructor"],
             ),
             ('f["constructor"](s)();', ["function-constructor"]),
+            # A key the scan cannot know (a parameter, a `for in` key) may
+            # spell `constructor`; such a read is a load it cannot name too.
+            (
+                "function get(o,k){return o[k]}",
+                ["function-constructor", "unknown-load"],
+            ),
+            # A loop counter is a number, which spells neither.
+            ("for(let i=0;i<n;i++)f(a[i]);", []),
             ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
             # A method can be called with a function as `this`.
             ("new this.constructor(s);", ["function-constructor"]),
