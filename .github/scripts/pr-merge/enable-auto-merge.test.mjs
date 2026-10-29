@@ -396,53 +396,41 @@ test("a floor path no configured glob names is commented on and labeled human-ga
     ".github/actions/request-lane-token/action.yml",
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/check-kill-switch/check-kill-switch.mjs",
+    ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/rate-limits.json",
     ".github/CODEOWNERS",
     "vendor/.gitmodules",
-    ".github/scripts/pr-merge/merge-holds.mjs",
-    ".github/scripts/pr-merge/enable-auto-merge.mjs",
-    ".github/scripts/pr-merge/superseded.mjs",
-    ".github/scripts/pr-merge/clear-escalations.mjs",
-    ".github/scripts/pr-merge/gate-check.mjs",
     "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+    "scripts/sync-hold-floor.py",
+    ".github/scripts/pr-review-main/write-verdict.mjs",
+    "AGENTS.md",
     "docs/conventions/pr-pipeline.yaml",
     // A workflow that mints a lane token is a gate path.
     ".github/workflows/pr-merge.yml",
     // So is ci-status, which posts the required status and runs the hold step.
-    // Both are in the merge-enforcement set (merge.person-held), so the
-    // switch never lane-arms them.
     ".github/workflows/pr-require-checks.yml",
   ];
   const { code, writes, notes } = await run([
     ...floor.map((filename, index) => pull(index + 1, { files: [{ filename }] })),
     pull(98, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py" }] }),
     pull(99, { files: [{ filename: ".github/scripts/pr-unblock/other.mjs" }] }),
+    // Owner decision Q5: the merge gate's own code is the gate's to judge on
+    // a passing read, never a hold path here; ci-status then holds it until
+    // pr-merge's attestation is at the head.
+    pull(96, { files: [{ filename: ".github/scripts/pr-merge/clear-escalations.mjs" }] }),
+    pull(97, { files: [{ filename: "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py" }] }),
   ]);
   assert.equal(code, 0);
   assert.deepEqual(writes, [
     { mutation: "arm", id: "PR_98", head: HEAD },
     { mutation: "arm", id: "PR_99", head: HEAD },
+    { mutation: "arm", id: "PR_96", head: HEAD },
+    { mutation: "arm", id: "PR_97", head: HEAD },
   ]);
   assert.deepEqual(
     notes,
     floor.flatMap((filename, index) => [
-      { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
-      { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
-    ]),
-  );
-});
-
-// Owner decision Q7 (#10743), narrowed by the security review of #10966:
-// every `gate` row is person-held, so nothing is lane-armed and the agent
-// instruction and settings files, the gate scripts and the gated workflows
-// stay hold paths here (#10874's AGENTS.md included).
-test("with every gate row person-held, a gate path is a hold path a person clears", async () => {
-  const held = [".github/actions/log-api-budget/rate-guard.mjs", ".github/scripts/pr-merge/who.mjs", ".github/workflows/pr-refine.yml", ".claude/settings.json", "AGENTS.md", "plugins/review/skills/security-review/SKILL.md"];
-  const { code, writes, notes } = await run(held.map((filename, index) => pull(index + 1, { files: [{ filename }], verdict: PASSED })));
-  assert.equal(code, 0);
-  assert.deepEqual(writes, []);
-  assert.deepEqual(
-    notes,
-    held.flatMap((filename, index) => [
       { method: "POST", path: `${ISSUES}/${index + 1}/comments`, body: { body: personNote(`it changes ${filename}, a hold path`) } },
       { method: "POST", path: `${ISSUES}/${index + 1}/labels`, body: { labels: ["needs-human"] } },
     ]),

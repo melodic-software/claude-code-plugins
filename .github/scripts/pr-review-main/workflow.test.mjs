@@ -420,6 +420,43 @@ test("only a lane-source pull request is reviewed, by the gate's own predicate",
   assert.match(step("Write the diff"), /^ {8}if: steps\.select\.outputs\.review == 'true'$/m);
 });
 
+// Owner decision Q5: after a red pr-require-checks run, only a pull request
+// changing main's lane-armed code is reviewed, and a cut-short list reviews
+// nothing; after a green one, any lane source is.
+test("after a red ci-status each leg reviews only main's lane-armed code", () => {
+  const root = path.resolve(new URL("../../..", import.meta.url).pathname);
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-select-"));
+  try {
+    symlinkSync(root, path.join(dir, ".base"));
+    for (const job of LEGS) {
+      assert.match(jobText(job), /\(github\.event\.workflow_run\.conclusion == 'success' \|\| github\.event\.workflow_run\.conclusion == 'failure'\)/, job);
+      const select = step("Select a lane-source pull request", job);
+      const program = /python3 -I -c '\n([\s\S]*?)\n {10}' "\$FILES"/.exec(select)[1].replace(/^ {10}/gm, "");
+      // The program sits in a single-quoted shell string: a quote ends it.
+      assert.doesNotMatch(program, /'/, job);
+      const armed = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+      for (const [upstream, files, want] of [
+        ["success", ["AGENTS.md"], "true"],
+        ["success", [armed], "true"],
+        ["success", ["docs/a.md"], "false"],
+        ["success", Array.from({ length: 3000 }, (_, i) => `docs/${i}.md`), "true"],
+        ["failure", [armed], "true"],
+        ["failure", ["docs/a.md", ".github/scripts/pr-merge/who.mjs"], "true"],
+        ["failure", ["AGENTS.md"], "false"],
+        ["failure", [".github/workflows/pr-merge.yml"], "false"],
+        ["failure", [armed, ...Array.from({ length: 2999 }, (_, i) => `docs/${i}.md`)], "false"],
+      ]) {
+        const list = path.join(dir, "files.txt");
+        writeFileSync(list, `${files.join("\n")}\n`);
+        const ran = spawnSync("python3", ["-I", "-c", program, list], { cwd: dir, env: { ...process.env, UPSTREAM: upstream }, encoding: "utf8" });
+        assert.equal(ran.stdout.trim(), want, `${job} ${upstream} ${files[0]}: ${ran.stderr}`);
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // The review lanes' credential order, read from their callers' `secrets:`
 // blocks, never from this workflow: each names the reusable's secret and the
 // repository secret it passes.

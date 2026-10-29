@@ -3599,6 +3599,7 @@ def score_unattended(
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
         base_sha=json_object(pr.get("base")).get("sha"),
+        lanes_app=eligible.adoption is None and eligible.dependabot is None,
         **lane_switches,
     )
     risk_input = with_open_threads(repo, number, risk_input)
@@ -3651,6 +3652,11 @@ def score_unattended(
         if verdict.refusal:
             inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
         reason = verdict.refusal
+    # What gate-check's `pr-merge/lane-armed` attestation records (owner
+    # decision Q5): only with no refusal of the gate's own.
+    record = babysit_risk.lane_arm_record(risk_input, risk)
+    if record is not None:
+        details["laneArmed"] = record | {"refused": record["refused"] or reason}
     return replace(policy, reason=reason, details=details, inputs=inputs)
 
 

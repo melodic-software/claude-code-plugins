@@ -6,7 +6,10 @@ name: pr-review-main
 # pull_request review lanes run the head's copy of their callers and post as
 # github-actions[bot], so a head can rewrite or forge their result; the merge
 # gate binds such a pull request's review only on this run's verdict
-# (babysit_review_evidence `_main_bound`), never on a comment.
+# (babysit_review_evidence `_main_bound`), never on a comment. It runs after
+# a green pr-require-checks run, and after a red one only for a pull request
+# that changes main's lane-armed code (babysit_risk.LANE_ARMED_FLOOR), whose
+# ci-status stays red until pr-merge attests this review (owner decision Q5).
 #
 # workflow_run runs this file from main, never a head's copy. No pull request
 # code runs here: the diff, the trusted pull request text and the lane's
@@ -68,7 +71,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     strategy:
       fail-fast: false
@@ -163,16 +166,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
+          UPSTREAM: ${{ github.event.workflow_run.conclusion }}
         run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
-          import sys
+          import os, sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
           import babysit_review_evidence as ev
+          from babysit_risk import LANE_ARMED_FLOOR, glob_match
           paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
-          # The files API lists at most 3000; a longer list may hide one.
-          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          if os.environ.get("UPSTREAM") == "success":
+              # The files API lists at most 3000; a longer list may hide one.
+              print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          else:
+              # Owner decision Q5: after a red ci-status, only a pull request
+              # changing the lane-armed code on main is reviewed, so pr-merge can
+              # attest it; a list that may be cut short reviews nothing.
+              armed = any(glob_match(g, p) for g in LANE_ARMED_FLOOR for p in paths)
+              print("true" if len(paths) < 3000 and armed else "false")
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
@@ -556,7 +568,7 @@ jobs:
       && needs.review-handoffs.result == 'success'
       && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     strategy:
       fail-fast: false
@@ -641,16 +653,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
+          UPSTREAM: ${{ github.event.workflow_run.conclusion }}
         run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
-          import sys
+          import os, sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
           import babysit_review_evidence as ev
+          from babysit_risk import LANE_ARMED_FLOOR, glob_match
           paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
-          # The files API lists at most 3000; a longer list may hide one.
-          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          if os.environ.get("UPSTREAM") == "success":
+              # The files API lists at most 3000; a longer list may hide one.
+              print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          else:
+              # Owner decision Q5: after a red ci-status, only a pull request
+              # changing the lane-armed code on main is reviewed, so pr-merge can
+              # attest it; a list that may be cut short reviews nothing.
+              armed = any(glob_match(g, p) for g in LANE_ARMED_FLOOR for p in paths)
+              print("true" if len(paths) < 3000 and armed else "false")
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
@@ -1033,7 +1054,7 @@ jobs:
       && needs.subscription-handoffs.result == 'success'
       && github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     strategy:
       fail-fast: false
@@ -1111,16 +1132,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
+          UPSTREAM: ${{ github.event.workflow_run.conclusion }}
         run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
-          import sys
+          import os, sys
           sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
           import babysit_review_evidence as ev
+          from babysit_risk import LANE_ARMED_FLOOR, glob_match
           paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
-          # The files API lists at most 3000; a longer list may hide one.
-          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          if os.environ.get("UPSTREAM") == "success":
+              # The files API lists at most 3000; a longer list may hide one.
+              print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          else:
+              # Owner decision Q5: after a red ci-status, only a pull request
+              # changing the lane-armed code on main is reviewed, so pr-merge can
+              # attest it; a list that may be cut short reviews nothing.
+              armed = any(glob_match(g, p) for g in LANE_ARMED_FLOOR for p in paths)
+              print("true" if len(paths) < 3000 and armed else "false")
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"

@@ -44,6 +44,16 @@
       "reason": "The post-merge check reads the dispatch record of every merge it judges, back to the merges it has not yet judged.",
       "pending-cut": "Under owner review (poteto): about 5,660 artifacts at 90 days."
     },
+    "pr-merge-lane-armed-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/scripts/pr-merge/merge-holds.mjs laneArmedHold: ci-status passes the merge gate's own code only on this artifact of the pr-merge.yml run its pr-merge/lane-armed check run names"
+      ],
+      "reason": "Read by every ci-status run of the head, the merge queue's included, until it merges; past 7 days the next sweep attests the head again.",
+      "uploads": [
+        ".github/workflows/pr-merge.yml#lane-armed"
+      ]
+    },
     "pr-merge-rerun-*": {
       "retention-days": "max",
       "readers": [

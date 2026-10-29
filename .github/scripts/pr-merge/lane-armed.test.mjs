@@ -1,0 +1,202 @@
+// Owner decision Q5 (#10743): pr-merge attests a head whose lane-armed paths
+// its gate passed, and never one that shrinks the hold floor. Expected values
+// come from the decision's conditions (both bound main-run lanes clean, no
+// open thread, no hold-floor shrink against the base), not from the code.
+import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { floorOf, main, recordOf, rowRefusal, shrinks } from "./lane-armed.mjs";
+import { laneArmedRecord } from "./merge-holds.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+const REPO = "owner/repo";
+const HEAD = "a".repeat(40);
+const BASE = "b".repeat(40);
+const RISK = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+const HOLDS = ".github/scripts/pr-merge/merge-holds.mjs";
+const PY = (rows, armed) =>
+  `FLOOR_CLASSES = (\n${rows.map(([g, c]) => `    ("${g}", "${c}"),`).join("\n")}\n)\nLANE_ARMED: tuple[str, ...] = (\n${armed.map((g) => `    "${g}",`).join("\n")}\n)\n`;
+const MJS = (rows, armed) =>
+  `export const HOLD_PATH_CLASSES = Object.freeze([\n${rows.map(([g, c]) => `  ["${g}", "${c}"],`).join("\n")}\n]);\nexport const LANE_ARMED = Object.freeze([\n${armed.map((g) => `  "${g}",`).join("\n")}\n]);\n`;
+const ROWS = [
+  [".github/actions/request-lane-token/**", "trust"],
+  [".github/scripts/pr-merge/who.mjs", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
+  [".github/scripts/pr-unblock/gate-source.mjs", "enforcement"],
+];
+const ARMED = [".github/scripts/pr-merge/who.mjs"];
+
+test("floorOf reads both files' rows and lane-armed lists", () => {
+  for (const text of [PY(ROWS, ARMED), MJS(ROWS, ARMED)]) {
+    const floor = floorOf(text);
+    assert.deepEqual([...floor.rows], ROWS);
+    assert.deepEqual(floor.armed, ARMED);
+  }
+  assert.equal(floorOf("nothing here"), null);
+  assert.equal(floorOf(PY(ROWS, ARMED).replace(/LANE_ARMED[\s\S]*/, "")), null);
+});
+
+test("shrinks names a removed row, a weaker class and a newly lane-armed glob", () => {
+  const base = floorOf(PY(ROWS, ARMED));
+  assert.equal(shrinks(base, floorOf(PY(ROWS, ARMED))), null);
+  // Stricter or added rows are no shrink.
+  assert.equal(shrinks(base, floorOf(PY([...ROWS.slice(0, 3), [".github/scripts/pr-unblock/gate-source.mjs", "gate"], ["docs/x/**", "gate"]], ARMED))), null);
+  assert.equal(shrinks(base, floorOf(PY(ROWS.slice(1), ARMED))), "it removes the floor row .github/actions/request-lane-token/**");
+  assert.equal(
+    shrinks(base, floorOf(PY([[".github/actions/request-lane-token/**", "gate"], ...ROWS.slice(1)], ARMED))),
+    "it moves .github/actions/request-lane-token/** from trust to gate",
+  );
+  assert.equal(shrinks(base, floorOf(PY(ROWS, [...ARMED, ".github/workflows/pr-merge.yml"]))), "it lane-arms .github/workflows/pr-merge.yml, which the base does not");
+  assert.equal(shrinks(null, base), "the floor rows could not be read");
+  assert.equal(shrinks(base, null), "the floor rows could not be read");
+});
+
+const ROW = { pr: 7, head: HEAD, ready: false, laneArmed: { paths: ARMED, lanes: { "claude-review": 0, "claude-security-review": 0 }, threads: 0, refused: null } };
+
+test("rowRefusal passes only a clean record the gate did not refuse", () => {
+  assert.equal(rowRefusal(ROW), null);
+  for (const [armed, why] of [
+    [{ ...ROW.laneArmed, refused: "2 review thread(s) open" }, "2 review thread(s) open"],
+    [{ ...ROW.laneArmed, threads: 1 }, "the open review threads are not zero"],
+    [{ ...ROW.laneArmed, threads: null }, "the open review threads are not zero"],
+    [{ ...ROW.laneArmed, lanes: { "claude-review": 0, "claude-security-review": 1 } }, "a review lane has an open finding"],
+    [{ ...ROW.laneArmed, lanes: { "claude-review": 0 } }, "a review lane has an open finding"],
+    [{ ...ROW.laneArmed, paths: [] }, "the gate recorded no lane-armed paths"],
+  ]) {
+    assert.equal(rowRefusal({ ...ROW, laneArmed: armed }), why);
+  }
+});
+
+test("recordOf is the countable line ci-status reads back", () => {
+  const record = recordOf(ROW, "4242");
+  assert.deepEqual(record, { v: 1, pr: 7, head: HEAD, paths: ARMED, lanes: { "claude-review": 0, "claude-security-review": 0 }, threads: 0, run: 4242 });
+  assert.deepEqual(laneArmedRecord(`x\nlane-armed ${JSON.stringify(record)}\n`), record);
+});
+
+// A GitHub with `files` at each ref, the pull's head and base, existing check
+// runs and a red ci-status job; it records every write.
+function world({ head = HEAD, files = {}, checks = [], ciRun = { id: 9, status: "completed" }, ciJob = { id: 77, name: "ci-status", conclusion: "failure" }, fail } = {}) {
+  const writes = [];
+  const content = (text) => ({ encoding: "base64", content: Buffer.from(text).toString("base64") });
+  const at = { [BASE]: { [RISK]: PY(ROWS, ARMED), [HOLDS]: MJS(ROWS, ARMED) }, [HEAD]: { [RISK]: PY(ROWS, ARMED), [HOLDS]: MJS(ROWS, ARMED), ...files } };
+  const github = async (method, path, body) => {
+    if (fail?.(path)) throw new Error("GET failed with status 502");
+    if (method !== "GET") {
+      writes.push({ method, path, body });
+      return {};
+    }
+    if (path === `/repos/${REPO}/pulls/7`) return { head: { sha: head }, base: { sha: BASE } };
+    const file = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
+    if (file) return content(at[file[2]][file[1]]);
+    if (path.includes("/check-runs?check_name=pr-merge%2Flane-armed")) return { check_runs: checks };
+    if (path.includes("/actions/workflows/pr-require-checks.yml/runs?head_sha=")) return { workflow_runs: ciRun ? [{ id: 3, status: "completed" }, ciRun] : [] };
+    if (path === `/repos/${REPO}/actions/runs/9/jobs?per_page=100`) return { jobs: [{ id: 76, name: "lint-repo", conclusion: "success" }, ciJob] };
+    throw new Error(`unexpected ${path}`);
+  };
+  return { github, writes };
+}
+
+async function run(rows, w, mode = "attest", extra = {}) {
+  const dir = tempDir("lane-armed-");
+  writeFileSync(join(dir, "summary.json"), JSON.stringify(rows));
+  writeFileSync(join(dir, "output"), "");
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const env = { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "4242", SUMMARY_PATH: join(dir, "summary.json"), LANE_ARMED_OUT: join(dir, "out"), GITHUB_OUTPUT: join(dir, "output"), ...extra };
+    const code = await main({ env, github: w.github, mode });
+    return { code, out: lines.join("\n"), output: readFileSync(join(dir, "output"), "utf8"), dir };
+  } finally {
+    console.log = log;
+  }
+}
+
+test("a clean lane-armed head gets the check run, its record notice, and names the artifact to upload", async () => {
+  const w = world();
+  const { code, out, output, dir } = await run([ROW, { pr: 8, head: "c".repeat(40), ready: true }], w);
+  assert.equal(code, 0, out);
+  assert.equal(w.writes.length, 1, out);
+  const [post] = w.writes;
+  assert.equal(post.path, `/repos/${REPO}/check-runs`);
+  assert.equal(post.body.name, "pr-merge/lane-armed");
+  assert.equal(post.body.head_sha, HEAD);
+  assert.equal(post.body.external_id, "4242");
+  assert.equal(post.body.details_url, `https://github.com/${REPO}/actions/runs/4242`);
+  assert.equal(post.body.conclusion, "success");
+  const record = laneArmedRecord(post.body.output.summary);
+  assert.deepEqual(record, recordOf(ROW, 4242));
+  assert.ok(out.includes(`::notice::lane-armed ${JSON.stringify(record)}`), out);
+  assert.equal(output, `artifact=pr-merge-lane-armed-7-${HEAD}\nhead=${HEAD}\n`);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "out", "lane-armed.json"), "utf8")), record);
+});
+
+test("one head is attested a run: a later clean head waits for the next", async () => {
+  const w = world();
+  const second = { ...ROW, pr: 9 };
+  const { code, out, output } = await run([ROW, second], w);
+  assert.equal(code, 0, out);
+  assert.equal(w.writes.length, 1, out);
+  assert.ok(out.includes(`::notice::lane-armed refused ${JSON.stringify({ v: 1, pr: 9, head: HEAD, reason: "this run attested #7; the next run attests this head" })}`), out);
+  assert.equal(output, `artifact=pr-merge-lane-armed-7-${HEAD}\nhead=${HEAD}\n`);
+});
+
+test("rerun re-runs only a finished red ci-status job of the attested head", async () => {
+  const rerun = world();
+  let result = await run([], rerun, "rerun", { LANE_ARMED_HEAD: HEAD });
+  assert.equal(result.code, 0, result.out);
+  assert.deepEqual(rerun.writes, [{ method: "POST", path: `/repos/${REPO}/actions/jobs/77/rerun`, body: undefined }]);
+  for (const [w, said] of [
+    [world({ ciJob: { id: 77, name: "ci-status", conclusion: "success" } }), "ci-status is not red"],
+    [world({ ciRun: { id: 9, status: "in_progress" } }), "no finished ci-status run to re-run"],
+    [world({ ciRun: null }), "no finished ci-status run to re-run"],
+  ]) {
+    result = await run([], w, "rerun", { LANE_ARMED_HEAD: HEAD });
+    assert.equal(result.code, 0, result.out);
+    assert.ok(result.out.includes(said), result.out);
+    assert.deepEqual(w.writes, []);
+  }
+  result = await run([], world(), "rerun", { LANE_ARMED_HEAD: "x" });
+  assert.equal(result.code, 1, result.out);
+});
+
+test("each failed condition is logged as a refusal and nothing is written", async () => {
+  const refused = (pr, reason) => `::notice::lane-armed refused ${JSON.stringify({ v: 1, pr, head: HEAD, reason })}`;
+  for (const [rows, w, reason] of [
+    [[{ ...ROW, laneArmed: { ...ROW.laneArmed, refused: "1 review thread(s) open" } }], world(), "1 review thread(s) open"],
+    [[ROW], world({ head: "d".repeat(40) }), "the head the gate judged is not the pull request's head"],
+    [[ROW], world({ files: { [RISK]: PY(ROWS.slice(1), ARMED) } }), "the head shrinks the hold floor: it removes the floor row .github/actions/request-lane-token/**"],
+    [[ROW], world({ files: { [HOLDS]: MJS(ROWS, [...ARMED, ".github/workflows/pr-merge.yml"]) } }), "the head shrinks the hold floor: it lane-arms .github/workflows/pr-merge.yml, which the base does not"],
+    [[ROW], world({ files: { [HOLDS]: "export const X = 1;\n" } }), "the head shrinks the hold floor: the floor rows could not be read"],
+  ]) {
+    const { code, out } = await run(rows, w);
+    assert.equal(code, 0, out);
+    assert.ok(out.includes(refused(7, reason)), `${reason}\n${out}`);
+    assert.deepEqual(w.writes, [], reason);
+  }
+  const w = world({ fail: (path) => path.includes("/contents/") });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 1, out);
+  assert.match(out, /lane-armed refused .*a read or write failed/);
+  assert.deepEqual(w.writes, []);
+});
+
+// ci-status trusts only a schedule or workflow_dispatch run of pr-merge.yml on
+// main (merge-holds laneArmedHold), so the job that attests runs on nothing
+// else: a pull_request_target run's head_branch is the pull request's.
+test("pr-merge.yml attests only from a scheduled or hand-started run on main", async () => {
+  const { readFileSync } = await import("node:fs");
+  const workflow = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
+  const job = /\n  lane-armed:\n([\s\S]*?)(?=\n  [a-z-]+:\n)/.exec(workflow)[1];
+  assert.match(job, /needs: \[merge\]/);
+  assert.match(job, /&& github\.ref == 'refs\/heads\/main'\n\s+&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
+  // Post, then upload the proof, then re-run ci-status, each its own step.
+  const attest = job.indexOf("run: node .base/.github/scripts/pr-merge/lane-armed.mjs attest");
+  const upload = job.indexOf("name: ${{ steps.attest.outputs.artifact }}");
+  const rerun = job.indexOf("run: node .base/.github/scripts/pr-merge/lane-armed.mjs rerun");
+  assert.ok(attest > 0 && upload > attest && rerun > upload, job);
+  assert.match(workflow, /reason: \(\.unattended\.reason \/\/ \.error\),[\s\S]*?\+ \(if \(\.unattended\.laneArmed \| type\) == "object" then \{laneArmed: \.unattended\.laneArmed\} else \{\} end\)/);
+});

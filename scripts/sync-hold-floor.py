@@ -17,10 +17,12 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
 - ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`).
 - babysit_risk.py and merge-holds.mjs `LANE_ARM`: `merge.lane-arm-gate` (on only when it
-  reads exactly `true`) and `merge.person-held` from docs/conventions/pr-pipeline.yaml, read
-  through the shared YAML reader, with every gated workflow added to the person-held list. A
-  person-held entry that is not a `trust` or `gate` floor row, a repeated one, a file the
-  reader rejects, or, with the switch on, any `gate` row left lane-armed stops the script.
+  reads exactly `true`), the lane-armed rows (the merge gate's own code, `lane_armable`, less
+  `merge.person-held`) and every other `trust` and `gate` row as person-held, read from
+  docs/conventions/pr-pipeline.yaml through the shared YAML reader. A person-held entry that
+  is not a `trust` or `gate` floor row, a repeated one, a file the reader rejects, or a `gate`
+  row outside the merge gate's code that is neither listed nor a gated workflow stops the
+  script.
 - `.github/trust-path-hold.json`, the whole file, which ci-workflows'
   pr-require-checks-trust-paths reads at the base SHA: `.github/**`, then the `hold_patterns`
   outside `.github/`, and `merge.trust-path-hold-apps` from pr-pipeline.yaml as `apps`. Its
@@ -116,15 +118,27 @@ SWITCH_KEY = "merge.lane-arm-gate"
 HELD_KEY = "merge.person-held"
 
 
-def lane_arm() -> tuple[bool, list[str]]:
-    """(`merge.lane-arm-gate` is exactly `true`, the person-held globs):
-    `merge.person-held`, each entry checked to be a `trust` or `gate` floor
-    row, then every gated workflow (`gate_workflows`), so a workflow that
-    gains a credential is person-held at once. With the switch on, a `gate`
-    row left outside them (a lane-armed glob) stops the script: ci-status
-    would pass it on its own, and nothing yet attests at the head that the
-    lane-arm conditions held, nor checks that no person-held file imports or
-    runs it."""
+# The merge gate's own code, the only rows the switch may lane-arm (owner
+# decision Q5): babysit_risk.py and the pr-merge scripts, `trust` rows
+# included. Every other `trust` row is person-held.
+LANE_ARMABLE_FILE = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"
+LANE_ARMABLE_DIR = ".github/scripts/pr-merge/"
+
+
+def lane_armable(glob: str) -> bool:
+    return glob == LANE_ARMABLE_FILE or (
+        glob.startswith(LANE_ARMABLE_DIR) and "/" not in glob[len(LANE_ARMABLE_DIR) :]
+    )
+
+
+def lane_arm() -> tuple[bool, list[str], list[str]]:
+    """(`merge.lane-arm-gate` is exactly `true`, the person-held globs, the
+    lane-armed globs). The lane-armed globs are the `lane_armable` floor rows
+    not in `merge.person-held`, none with the switch off; the person-held
+    globs are every other `trust` and `gate` row. Each `merge.person-held`
+    entry must be a `trust` or `gate` floor row, and every `gate` row outside
+    `lane_armable` must be in it or be a gated workflow (`gate_workflows`), so
+    a workflow that gains a credential is person-held at once."""
     import babysit_merge_policy  # noqa: PLC0415
 
     text = PIPELINE.read_text(encoding="utf-8")
@@ -142,22 +156,35 @@ def lane_arm() -> tuple[bool, list[str]]:
             f"trust or gate floor row: {bad or held}"
         )
     on = values[SWITCH_KEY] == ["true"]
-    held = [*held, *(g for g in gate_workflows() if g not in held)]
-    armed = [g for g, c in floor_classes() if c == "gate" and g not in held]
-    if on and armed:
+    listed = {*held, *gate_workflows()}
+    loose = [
+        g
+        for g, c in floor_classes()
+        if c == "gate" and not lane_armable(g) and g not in listed
+    ]
+    if loose:
         raise SystemExit(
-            f"sync-hold-floor: {SWITCH_KEY} would lane-arm {armed}: add them to "
-            f"{HELD_KEY}, or first give ci-status an attestation that the "
-            "lane-arm conditions held at the head and a closure check that no "
-            "person-held file loads them"
+            f"sync-hold-floor: {loose} are `gate` rows outside the merge gate's own "
+            f"code: add them to {HELD_KEY}"
         )
-    return on, held
+    armed = [
+        g
+        for g, c in floor_classes()
+        if on and c in ("trust", "gate") and lane_armable(g) and g not in held
+    ]
+    person = [
+        g for g, c in floor_classes() if c in ("trust", "gate") and g not in armed
+    ]
+    return on, person, armed
 
 
 def risk_lane_arm(indent: str) -> list[str]:
-    on, held = lane_arm()
+    on, held, armed = lane_arm()
     return [
         f"{indent}LANE_ARM_GATE = {on}",
+        f"{indent}LANE_ARMED: tuple[str, ...] = (",
+        *(f"{indent}    {json.dumps(g)}," for g in armed),
+        f"{indent})",
         f"{indent}PERSON_HELD: tuple[str, ...] = (",
         *(f"{indent}    {json.dumps(g)}," for g in held),
         f"{indent})",
@@ -165,9 +192,12 @@ def risk_lane_arm(indent: str) -> list[str]:
 
 
 def mjs_lane_arm(indent: str) -> list[str]:
-    on, held = lane_arm()
+    on, held, armed = lane_arm()
     return [
         f"{indent}export const LANE_ARM_GATE = {json.dumps(on)};",
+        f"{indent}export const LANE_ARMED = Object.freeze([",
+        *(f"{indent}  {json.dumps(g)}," for g in armed),
+        f"{indent}]);",
         f"{indent}export const PERSON_HELD = Object.freeze([",
         *(f"{indent}  {json.dumps(g)}," for g in held),
         f"{indent}]);",

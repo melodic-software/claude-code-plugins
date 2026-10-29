@@ -42,7 +42,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import FLOOR, LONG_LINE_BYTES, LaneEvidence, glob_match
+from babysit_risk import (
+    FLOOR,
+    LANE_ARMED_FLOOR,
+    LONG_LINE_BYTES,
+    LaneEvidence,
+    glob_match,
+)
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -585,7 +591,9 @@ def _full_name(repository: Any) -> Any:
 
 def lane_source(path: Any) -> bool:
     """Whether a changed path is one the pull request's checkout feeds its
-    own review; a path that is not a string counts as one."""
+    own review, or the merge gate's own code the switch lane-arms
+    (`babysit_risk.LANE_ARMED_FLOOR`), which only a main-run review may clear
+    (owner decision Q5); a path that is not a string counts as one."""
     if not isinstance(path, str):
         return True
     # A bare directory path (a symlink in its place) counts as the directory.
@@ -594,6 +602,7 @@ def lane_source(path: Any) -> bool:
         f"{path}/".startswith(LANE_SOURCE_PREFIXES)
         or LANE_SOURCE_SEGMENT in parts
         or parts[-1] in LANE_SOURCE_NAMES
+        or any(glob_match(glob, path) for glob in LANE_ARMED_FLOOR)
     )
 
 

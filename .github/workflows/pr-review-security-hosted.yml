@@ -231,7 +231,8 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
-        .github/actions/report-check-run/**
+        .github/scripts/pr-merge/lane-armed.mjs
+        .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
@@ -289,8 +290,6 @@ jobs:
         **/AGENTS.md
         REVIEW.md
         docs/standards/**
-        plugins/review/skills/**
-        plugins/review/reference/**
         .github/workflows/dependabot-fragments.yml
         .github/workflows/eval-browser-dispatch.yml
         .github/workflows/intake-reenter.yml

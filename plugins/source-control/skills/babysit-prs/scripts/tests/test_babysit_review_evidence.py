@@ -456,6 +456,24 @@ class LaneSourceTests(Base):
                 for lane in LANES:
                     self.assertUnbound(result[lane], "lane-source-changed")
 
+    def test_the_merge_gates_lane_armed_code_binds_only_on_a_main_run(self) -> None:
+        # Owner decision Q5: only a main-run review lane-arms it, so its
+        # pull_request reviews bind nothing; the rest of babysit-prs does.
+        for path in (
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            ".github/scripts/pr-merge/clear-escalations.mjs",
+            ".GitHub/Scripts/PR-Merge/who.mjs",
+        ):
+            with self.subTest(path):
+                result = self.bound("app.py", path)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+        result = self.bound(
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        )
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+
     def test_a_path_that_is_not_a_string_binds_no_lane(self) -> None:
         result = self.bound("app.py", None)  # type: ignore[arg-type]
         for lane in LANES:

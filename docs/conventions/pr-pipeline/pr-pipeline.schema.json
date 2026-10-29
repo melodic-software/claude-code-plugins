@@ -1141,14 +1141,14 @@
         "lane-arm-gate": {
           "type": "boolean",
           "default": false,
-          "description": "true: a pull request held only by `gate` floor paths (the gated workflows, the merge gate's other scripts, the agent settings and instruction files) merges without a person when both review lanes are bound to the main-run review at its head with no finding and no review thread is open (README.md, Lane-armed gate paths). Every `trust` path and every person-held path still waits for a person. Absent, false or any other value: every `gate` path waits for a person. scripts/sync-hold-floor.py copies it into babysit_risk.py and merge-holds.mjs."
+          "description": "true: a pull request held only by the merge gate's own code (babysit_risk.py and the .github/scripts/pr-merge/ scripts on the floor, less `person-held`) merges without a person when both review lanes are bound to the main-run review at its head with no finding, no review thread is open, and pr-merge's `pr-merge/lane-armed` check run from a pr-merge.yml run on the default branch is at the head (README.md, Lane-armed gate paths). Every other `trust` and `gate` path waits for a person. Absent, false or any other value: every one waits for a person. scripts/sync-hold-floor.py copies it into babysit_risk.py and merge-holds.mjs."
         },
         "person-held": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true,
           "default": [],
-          "description": "The merge-enforcement set: `trust` or `gate` floor globs that wait for a person whatever lane-arm-gate says (README.md, Lane-armed gate paths). scripts/sync-hold-floor.py refuses an entry that is not a `trust` or `gate` floor row."
+          "description": "The `gate` floor globs outside the merge gate's own code, each waiting for a person whatever lane-arm-gate says (README.md, Lane-armed gate paths); a merge-gate row listed here stays with a person too. scripts/sync-hold-floor.py adds every gated workflow and every other `trust` row, and refuses an entry that is not a `trust` or `gate` floor row or a `gate` row outside the merge gate's code left unlisted."
         },
         "diff-check": {
           "type": "object",

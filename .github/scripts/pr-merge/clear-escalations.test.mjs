@@ -789,30 +789,32 @@ test("a lane-class label comes off at its head once nothing refuses", async () =
   }
 });
 
-// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a refusal recorded
-// only on `gate` paths the switch lane-arms (#10874's shape: "it changes
-// AGENTS.md, a hold path", or the risk score's `high-path:` on one) is read
-// again at its head and comes off only when the reader refuses nothing there.
-const AGENTS_PATH = "it changes AGENTS.md, a hold path";
-// The generated LANE_ARMED_FLOOR is empty while every `gate` row is
-// person-held, so these tests give the rule rows of their own.
-const ARMED = ["**/AGENTS.md", "**/.claude/**", ".github/workflows/pr-refine.yml"];
-const AGENTS_RISK = risk("high-path:**/AGENTS.md: AGENTS.md");
+// Owner decisions Q7 and Q5 (#10743): with merge.lane-arm-gate on, a refusal
+// recorded only on the merge gate's own code ("it changes <path>, a hold
+// path" from before it was lane-armed, or the risk score's `high-path:` on
+// one) is read again at its head and comes off only when the reader refuses
+// nothing there. ci-status still holds the head until pr-merge's
+// attestation, which the label no longer blocks: pr-review-main reviews a
+// lane-armed head after a red ci-status too.
+const WHO = ".github/scripts/pr-merge/who.mjs";
+const RISK_PY = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py";
+const AGENTS_PATH = `it changes ${WHO}, a hold path`;
+const AGENTS_RISK = risk(`high-path:${WHO}: ${WHO}`);
 test("a refusal on lane-armed gate paths alone comes off at its head once the gate's reader refuses nothing", async () => {
   for (const reason of [
     AGENTS_PATH,
-    `${AGENTS_PATH}\nit changes .claude/settings.json, a hold path`,
+    `${AGENTS_PATH}\nit changes ${RISK_PY}, a hold path`,
     AGENTS_RISK,
-    risk("high-path:.github/workflows/pr-refine.yml: .github/workflows/pr-refine.yml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; evidence-unbound:claude-review: not bound: rerun-allowed"),
+    risk(`high-path:${RISK_PY}: ${RISK_PY}`),
+    risk(`high-path:${WHO}: ${WHO}; evidence-unbound:claude-review: not bound: rerun-allowed`),
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE, ARMED);
+    const { code, logs } = await run(w, NATIVE);
     assert.equal(code, 0, logs.join("\n"));
     assert.equal(w.reads.length, 1, reason);
     assert.equal(w.writes().length, 2, reason);
     assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`, reason);
-    assert.match(w.writes()[0].body.body, /merge\.lane-arm-gate lane-arms its gate paths/, reason);
+    assert.match(w.writes()[0].body.body, /merge\.lane-arm-gate lane-arms the merge gate's own code it changes/, reason);
     assert.deepEqual(w.writes()[1], DELETE, reason);
   }
 });
@@ -820,7 +822,7 @@ test("a refusal on lane-armed gate paths alone comes off at its head once the ga
 test("a refusal on lane-armed gate paths stays while the gate's reader refuses anything at its head", async () => {
   for (const evidence of [
     // Still the person's high-path hold: a lane unbound or not main-run, a finding, an open thread.
-    reviewsNow("high-path:**/AGENTS.md: AGENTS.md"),
+    reviewsNow(`high-path:${WHO}: ${WHO}`),
     // A lane cause a lane-class label would tolerate is not enough here.
     reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed"),
     reviewsNow("unreadable: no agent identity"),
@@ -830,7 +832,7 @@ test("a refusal on lane-armed gate paths stays while the gate's reader refuses a
   ]) {
     for (const reason of [AGENTS_PATH, AGENTS_RISK]) {
       const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
-      const { code, logs } = await run(w, NATIVE, ARMED);
+      const { code, logs } = await run(w, NATIVE);
       assert.equal(code, 0, logs.join("\n"));
       assert.equal(w.reads.length, 1, reason);
       assert.deepEqual(w.writes(), [], `${reason} ${evidence}`);
@@ -839,35 +841,24 @@ test("a refusal on lane-armed gate paths stays while the gate's reader refuses a
   }
 });
 
-test("with the real config every gate row is person-held, so #10874's refusal is never read or lifted", async () => {
-  for (const reason of [AGENTS_PATH, AGENTS_RISK, "it changes .claude/settings.json, a hold path"]) {
-    const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE);
-    assert.equal(code, 0, logs.join("\n"));
-    assert.deepEqual(w.reads, [], reason);
-    assert.deepEqual(w.writes(), [], reason);
-    assert.match(logs.join("\n"), /one a person clears/, reason);
-  }
-});
-
-test("a refusal naming a merge-enforcement or trust path is never read or lifted at its head", async () => {
+test("a refusal naming a person-held path is never read or lifted at its head", async () => {
   for (const reason of [
     "it changes .github/workflows/pr-require-checks.yml, a hold path",
-    "it changes .github/scripts/pr-merge/merge-holds.mjs, a hold path",
-    "it changes .github/scripts/pr-merge/enable-auto-merge.mjs, a hold path",
+    "it changes AGENTS.md, a hold path",
+    "it changes .claude/settings.json, a hold path",
+    "it changes plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py, a hold path",
     "it changes .github/workflows/pr-review-main.yml, a hold path",
     `${AGENTS_PATH}\nit changes .github/workflows/pr-merge.yml, a hold path`,
     risk("high-path:.github/workflows/pr-require-checks.yml: .github/workflows/pr-require-checks.yml"),
     risk("high-path:.github/actions/request-lane-token/**: .github/actions/request-lane-token/action.yml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; high-path:docs/conventions/pr-pipeline.yaml: docs/conventions/pr-pipeline.yaml"),
-    risk("high-path:**/AGENTS.md: AGENTS.md; security-finding: 1 open"),
+    risk(`high-path:${WHO}: ${WHO}; high-path:docs/conventions/pr-pipeline.yaml: docs/conventions/pr-pipeline.yaml`),
+    risk(`high-path:${WHO}: ${WHO}; security-finding: 1 open`),
     // A path off the floor is a configured denied path: a person's.
     "it changes docs/held.md, a hold path",
-    // A path a lane-armed glob matches that a trust glob matches too.
-    "it changes .github/actions/request-lane-token/.claude/x.json, a hold path",
+    risk("high-path:**/AGENTS.md: AGENTS.md"),
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence: clean });
-    const { code, logs } = await run(w, NATIVE, ARMED);
+    const { code, logs } = await run(w, NATIVE);
     assert.equal(code, 0, logs.join("\n"));
     assert.deepEqual(w.reads, [], reason);
     assert.deepEqual(w.writes(), [], reason);

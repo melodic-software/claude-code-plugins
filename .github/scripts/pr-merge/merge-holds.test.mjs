@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, LANE_ARM_GATE, LANE_ARMED_FLOOR, PERSON_HELD, PULL_OPENED_QUERY, REVIEW_FLOOR, laneArmedFloor, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, LANE_ARM_GATE, LANE_ARMED, LANE_ARMED_CHECK, LANE_ARMED_FLOOR, PERSON_HELD, PULL_OPENED_QUERY, REVIEW_FLOOR, laneArmedArtifact, laneArmedHold, laneArmedRecord, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -312,7 +312,7 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // maps a ref (BASE, HEAD) to the trusted-actor list's text there.
 // `queue` adds the merge queue's verdict inputs: { verdicts, link, evidence },
 // each written as given (a string as it is), `evidence` left out when undefined.
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, attest } = {}) {
   const dir = tempDir("merge-holds-");
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
@@ -332,6 +332,10 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   }
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
+    const attested = attest?.(method, path);
+    if (attested !== undefined) {
+      return attested;
+    }
     const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
     if (listed) {
       assert.equal(method, "GET");
@@ -385,13 +389,7 @@ const FLOOR_FILES = [
   "plugins/foo/codeowners",
   ".gitmodules",
   "vendor/sub/.gitmodules",
-  ".github/scripts/pr-merge/merge-holds.mjs",
-  ".github/scripts/pr-merge/enable-auto-merge.mjs",
-  ".github/scripts/pr-merge/superseded.mjs",
-  ".github/scripts/pr-merge/clear-escalations.mjs",
-  ".github/scripts/pr-merge/gate-check.mjs",
-  ".github/scripts/pr-merge/head-ref-map.mjs",
-  // The merge-enforcement set's `gate` rows (merge.person-held).
+  // The person-held `gate` rows (merge.person-held and every gated workflow).
   ".github/workflows/pr-merge.yml",
   ".github/workflows/pr-require-checks.yml",
   ".github/workflows/pr-review-hosted.yml",
@@ -401,9 +399,14 @@ const FLOOR_FILES = [
   ".github/workflows/pr-verify.yml",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
   "docs/conventions/pr-pipeline.yaml",
+  ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/report-check-run/posting-run.mjs",
+  ".claude/settings.json",
+  "AGENTS.md",
+  "REVIEW.md",
+  "docs/standards/README.md",
 ];
 const ENFORCEMENT_FILES = [
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
@@ -431,29 +434,20 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/work-resolve-issue/stop-routes.json",
   ".github/scripts/work-resolve-issue/stop-routes.mjs",
 ];
-// `gate` paths Q7 meant to lane-arm, all person-held since the security
-// review of #10966 (merge.person-held).
+// Owner decision Q5: the merge gate's own code, lane-armed.
 const LANE_ARMED_FILES = [
-  ".github/actions/log-api-budget/rate-guard.mjs",
-  ".github/actions/log-api-budget/rate-limits.json",
+  ".github/scripts/pr-merge/merge-holds.mjs",
+  ".github/scripts/pr-merge/clear-escalations.mjs",
   ".github/scripts/pr-merge/who.mjs",
   ".github/scripts/pr-merge/rate-stop.bash",
-  ".github/workflows/pr-refine.yml",
-  ".github/workflows/work-resolve-issue.yml",
-  ".claude/settings.json",
-  "plugins/foo/.claude/rules/x.md",
-  "AGENTS.md",
-  "docs/CLAUDE.md",
-  "docs/standards/README.md",
-  "plugins/review/skills/security-review/SKILL.md",
-  "plugins/review/reference/x.md",
-  ".github/actions/report-check-run/report-check-run.mjs",
+  ".github/scripts/pr-merge/lane-armed.mjs",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
 ];
-test("the floor's enforcement globs and the lane-armed gate globs are the merge gate's, every other one holds here", () => {
+test("the floor's enforcement globs and the merge gate's own code are not hold paths here, every other one is", () => {
   assert.deepEqual(REVIEW_FLOOR, HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
   assert.deepEqual(
     HOLD_PATH_FLOOR,
-    HOLD_PATH_CLASSES.filter(([glob, kind]) => kind === "trust" || (kind === "gate" && !LANE_ARMED_FLOOR.includes(glob))).map(([glob]) => glob),
+    HOLD_PATH_CLASSES.filter(([glob, kind]) => kind !== "enforcement" && !LANE_ARMED_FLOOR.includes(glob)).map(([glob]) => glob),
   );
   assert.deepEqual([...new Set(HOLD_PATH_CLASSES.map(([, kind]) => kind))].sort(), ["enforcement", "gate", "trust"]);
   for (const path of ENFORCEMENT_FILES) {
@@ -461,36 +455,147 @@ test("the floor's enforcement globs and the lane-armed gate globs are the merge 
     assert.equal(pathHold([path], []), null, path);
   }
 });
-test("pr-pipeline.yaml turns the switch on, and every gate row is person-held, so nothing is lane-armed", () => {
+test("the switch lane-arms babysit_risk.py and the pr-merge scripts, and every other trust and gate row is person-held", () => {
   assert.equal(LANE_ARM_GATE, true);
+  assert.deepEqual(LANE_ARMED_FLOOR, [...LANE_ARMED]);
   const kind = new Map(HOLD_PATH_CLASSES);
+  assert.deepEqual(
+    [...LANE_ARMED].sort(),
+    HOLD_PATH_CLASSES.filter(([glob, k]) => k !== "enforcement" && (glob.startsWith(".github/scripts/pr-merge/") || glob.endsWith("/babysit_risk.py")))
+      .map(([glob]) => glob)
+      .sort(),
+  );
   for (const glob of PERSON_HELD) {
     assert.ok(["trust", "gate"].includes(kind.get(glob)), glob);
     assert.ok(HOLD_PATH_FLOOR.includes(glob), glob);
   }
-  // Tripwire: a non-empty set would pass ci-status on its own, with nothing
-  // yet attesting the lane-arm conditions at the head (sync-hold-floor.py
-  // refuses to generate one).
-  assert.deepEqual(LANE_ARMED_FLOOR, []);
-  assert.deepEqual(HOLD_PATH_CLASSES.filter(([, k]) => k === "gate").map(([g]) => g).filter((g) => !PERSON_HELD.includes(g)), []);
   for (const path of LANE_ARMED_FILES) {
-    assert.match(pathHold([path], []), /a hold path$/, path);
+    assert.equal(pathHold([path], []), null, path);
   }
 });
-test("the switch off, or anything but true, lane-arms nothing", () => {
-  const classes = [["a/**", "trust"], ["b/**", "gate"], ["c/**", "gate"], ["d/**", "enforcement"]];
-  for (const off of [false, undefined, null, "true", 1]) {
-    assert.deepEqual(laneArmedFloor(off, [], classes), [], String(off));
+
+// A world in which `head` carries a `pr-merge/lane-armed` check run from
+// `run`, each field overridable to forge it.
+const RUN_ID = 4242;
+const attestation = ({ head = HEAD, paths = LANE_ARMED_FILES, check = {}, run = {}, record = {}, branch = "main", artifact = {}, fail } = {}) => {
+  const line = `lane-armed ${JSON.stringify({ v: 1, pr: 99, head, paths, lanes: { "claude-review": 0, "claude-security-review": 0 }, threads: 0, run: RUN_ID, ...record })}`;
+  const runs = [
+    {
+      name: LANE_ARMED_CHECK,
+      app: { slug: "github-actions" },
+      head_sha: head,
+      status: "completed",
+      conclusion: "success",
+      external_id: String(RUN_ID),
+      details_url: `https://github.com/${REPO}/actions/runs/${RUN_ID}`,
+      output: { summary: `x\n\n\`\`\`text\n${line}\n\`\`\`` },
+      ...check,
+    },
+  ];
+  const workflowRun = {
+    id: RUN_ID,
+    path: ".github/workflows/pr-merge.yml",
+    head_branch: "main",
+    event: "schedule",
+    status: "in_progress",
+    conclusion: null,
+    repository: { full_name: REPO },
+    head_repository: { full_name: REPO },
+    ...run,
+  };
+  return (method, path) => {
+    if (fail?.(path)) throw new Error("unreadable");
+    if (path === `/repos/${REPO}`) return { default_branch: branch };
+    if (path.startsWith(`/repos/${REPO}/commits/`) && path.includes("/check-runs?check_name=pr-merge%2Flane-armed")) return { check_runs: path.includes(`/commits/${HEAD}/`) ? runs : [] };
+    if (path === `/repos/${REPO}/actions/runs/${RUN_ID}`) return workflowRun;
+    if (path === `/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?name=pr-merge-lane-armed-99-${HEAD}&per_page=100`) {
+      return { artifacts: artifact === null ? [] : [{ name: `pr-merge-lane-armed-99-${HEAD}`, expired: false, workflow_run: { id: RUN_ID }, ...artifact }] };
+    }
+    return undefined;
+  };
+};
+const reader = (world) => async (method, path) => {
+  const answer = world(method, path);
+  if (answer === undefined) throw new Error(`unexpected ${path}`);
+  return answer;
+};
+
+test("laneArmedHold passes the merge gate's own code only on a pr-merge.yml run of main that attested this head", async () => {
+  assert.equal(await laneArmedHold(reader(attestation()), REPO, HEAD, LANE_ARMED_FILES, 99), null);
+  for (const run of [{ event: "workflow_dispatch" }, { status: "completed", conclusion: "success" }]) {
+    assert.equal(await laneArmedHold(reader(attestation({ run })), REPO, HEAD, LANE_ARMED_FILES, 99), null, JSON.stringify(run));
   }
-  assert.deepEqual(laneArmedFloor(true, ["c/**"], classes), ["b/**"]);
-  assert.deepEqual(laneArmedFloor(true, null, classes), []);
+  // A path off the lane-armed set needs no attestation and reads nothing.
+  assert.equal(await laneArmedHold(async () => assert.fail("read"), REPO, HEAD, ["docs/a.md", ".github/workflows/pr-merge.yml"], 99), null);
 });
-test("ci-status holds each gate path the switch would lane-arm, since every one is person-held", async () => {
+
+test("laneArmedHold holds on a forged, stale or unreadable attestation", async () => {
+  const forged = {
+    "another app's check run": { check: { app: { slug: "evil-app" } } },
+    "a check run that did not succeed": { check: { conclusion: "neutral" } },
+    "a check run still in progress": { check: { status: "in_progress", conclusion: null } },
+    "a check run at another head": { check: { head_sha: "c".repeat(40) } },
+    "a check run with no run id": { check: { external_id: "pr-merge-gate" } },
+    "a details_url naming another run": { check: { details_url: `https://github.com/${REPO}/actions/runs/1` } },
+    "a record of another head": { record: { head: "c".repeat(40) } },
+    "a record naming another run": { record: { run: 1 } },
+    "a record of another version": { record: { v: 2 } },
+    "a record of another pull request": { record: { pr: 98 } },
+    // The real pr-merge.yml run of main, copied into a check run it never
+    // posted: that run uploaded no attestation of this head.
+    "a genuine pr-merge run that attested nothing here": { artifact: null },
+    "an expired attestation artifact": { artifact: { expired: true } },
+    "an artifact of another run": { artifact: { workflow_run: { id: 1 } } },
+    "an artifact of another name": { artifact: { name: `pr-merge-lane-armed-98-${HEAD}` } },
+    "an artifact read that fails": { fail: (path) => path.includes("/artifacts?") },
+    "a record missing a changed lane-armed path": { paths: LANE_ARMED_FILES.slice(1) },
+    "a run of another workflow": { run: { path: ".github/workflows/pr-refine.yml" } },
+    "a run from a pull request branch": { run: { head_branch: "feat/x" } },
+    "a pull_request_target run": { run: { event: "pull_request_target" } },
+    "a pull_request run": { run: { event: "pull_request" } },
+    "a run that failed": { run: { status: "completed", conclusion: "failure" } },
+    "a queued run": { run: { status: "queued" } },
+    "a run in a fork": { run: { head_repository: { full_name: "fork/repo" } } },
+    "a run of another repository": { run: { repository: { full_name: "other/repo" } } },
+    "a run whose id differs": { run: { id: 1 } },
+    "a check-run read that fails": { fail: (path) => path.includes("/check-runs") },
+    "a run read that fails": { fail: (path) => path.endsWith(`/actions/runs/${RUN_ID}`) },
+    "a default branch read that fails": { fail: (path) => path === `/repos/${REPO}` },
+    "no default branch": { branch: "" },
+  };
+  for (const [name, overrides] of Object.entries(forged)) {
+    const held = await laneArmedHold(reader(attestation(overrides)), REPO, HEAD, LANE_ARMED_FILES, 99);
+    assert.match(String(held), /the merge gate's own code/, name);
+  }
+  // No check run at all, and a malformed head.
+  assert.match(await laneArmedHold(reader(attestation()), REPO, "c".repeat(40), LANE_ARMED_FILES, 99), /no pr-merge\/lane-armed check run/);
+  assert.match(await laneArmedHold(reader(attestation()), REPO, "HEAD", LANE_ARMED_FILES, 99), /cannot be looked up/);
+  assert.match(await laneArmedHold(reader(attestation()), REPO, HEAD, LANE_ARMED_FILES, 0), /cannot be looked up/);
+  assert.equal(laneArmedArtifact(99, HEAD), `pr-merge-lane-armed-99-${HEAD}`);
+});
+
+test("laneArmedRecord reads only a version-1 record line", () => {
+  assert.deepEqual(laneArmedRecord('a\nlane-armed {"v":1,"pr":1}\nb'), { v: 1, pr: 1 });
+  for (const text of ["", "lane-armed {", 'lane-armed {"v":2}', 'x lane-armed {"v":1}', null]) {
+    assert.equal(laneArmedRecord(text), null, String(text));
+  }
+});
+
+test("ci-status holds the merge gate's own code until pr-merge attests the head, or a trusted person approves it", async () => {
   for (const path of LANE_ARMED_FILES) {
-    const held = await ci([{ filename: path, status: "modified" }]);
+    const held = await ci([{ filename: path, status: "modified" }], { attest: attestation({ check: { app: { slug: "evil-app" } } }) });
     assert.equal(held.code, 1, `${path}: ${held.out}`);
-    assert.ok(held.out.includes(`it changes ${path}, a hold path`), `${path}: ${held.out}`);
+    assert.ok(held.out.includes(`it changes ${path}, the merge gate's own code`), `${path}: ${held.out}`);
+    const attested = await ci([{ filename: path, status: "modified" }], { attest: attestation() });
+    assert.equal(attested.code, 0, `${path}: ${attested.out}`);
+    assert.match(attested.out, /pr-merge\/lane-armed at this head, from a pr-merge\.yml run on the default branch, covers/);
+    const approved = await ci([{ filename: path, status: "modified" }], { reviews: [approve], attest: attestation({ run: { head_branch: "feat/x" } }) });
+    assert.equal(approved.code, 0, `${path}: ${approved.out}`);
   }
+  // An attestation never lifts a person-held path beside it.
+  const both = await ci([{ filename: LANE_ARMED_FILES[0], status: "modified" }, { filename: "AGENTS.md", status: "modified" }], { attest: attestation() });
+  assert.equal(both.code, 1, both.out);
+  assert.ok(both.out.includes("it changes AGENTS.md, a hold path"), both.out);
 });
 test("ci-status leaves an enforcement path to the merge gate's security review", async () => {
   for (const path of ENFORCEMENT_FILES) {
@@ -498,9 +603,9 @@ test("ci-status leaves an enforcement path to the merge gate's security review",
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
   }
   // Beside a gate path it still holds on that one.
-  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/scripts/pr-merge/gate-check.mjs", status: "modified" }]);
+  const both = await ci([{ filename: ENFORCEMENT_FILES[0], status: "modified" }, { filename: ".github/workflows/pr-verify.yml", status: "modified" }]);
   assert.equal(both.code, 1, both.out);
-  assert.ok(both.out.includes("it changes .github/scripts/pr-merge/gate-check.mjs, a hold path"), both.out);
+  assert.ok(both.out.includes("it changes .github/workflows/pr-verify.yml, a hold path"), both.out);
 });
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {

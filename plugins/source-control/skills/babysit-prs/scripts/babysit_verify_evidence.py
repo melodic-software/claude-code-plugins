@@ -2471,6 +2471,8 @@ def lane_risk_refusal(
             high_floor=config.high_path_floor,
             max_changed_files=config.max_changed_files,
             lines_optional=True,
+            # Only the lanes App's own pull request lane-arms (owner decision Q5).
+            lanes_app=json_object(pr.get("user")).get("login") == identity,
         )
         risk_input = babysit_merge.with_open_threads(repo, number, risk_input)
         risk = babysit_risk.score(risk_input)

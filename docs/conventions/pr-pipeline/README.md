@@ -997,9 +997,10 @@ the rules that only tighten in
     `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
     `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
-    `head-ref-map.mjs`.
-  - `gate`, a person merges it ([Lane-armed gate paths](#lane-armed-gate-paths): every row is
-    person-held): the rest of the merge gate's own code, which is the rate guard
+    `head-ref-map.mjs`. `babysit_risk.py` and those pr-merge scripts are lane-armed
+    ([Lane-armed gate paths](#lane-armed-gate-paths)); every other `trust` row is person-held.
+  - `gate`, a person merges it, except the pr-merge scripts, which are lane-armed
+    ([Lane-armed gate paths](#lane-armed-gate-paths)): the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
     `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
@@ -1013,8 +1014,8 @@ the rules that only tighten in
     named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
     can dispatch those credentialed workflows, `intake-reenter.yml` and
     `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
-    patch hold, so a model verdict alone never clears it; every gated workflow is person-held
-    ([Lane-armed gate paths](#lane-armed-gate-paths)). 23 workflows are gated.
+    patch hold, so a model verdict alone never clears it; every gated workflow is person-held.
+    23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
     `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
     gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
@@ -2451,54 +2452,56 @@ the next head, so the pass that removes it would never come.
 
 ## Lane-armed gate paths
 
-Owner decision Q7 ([#10743](https://github.com/melodic-software/claude-code-plugins/pull/10743#issuecomment-6486023647)):
-`merge.lane-arm-gate: true` lets a pull request held only by lane-armed `gate` floor paths merge
-with no person. A lane-armed path's hold clears only when all of these are true at the current
-head:
+Owner decisions Q7 ([#10743](https://github.com/melodic-software/claude-code-plugins/pull/10743#issuecomment-6486023647))
+and Q5 (2026-10-29, option 1): `merge.lane-arm-gate: true` lets a pull request held only by the
+merge gate's own code merge with no person. The lane-armed set is exactly
+`plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py` and every
+`.github/scripts/pr-merge/` script on the floor, `trust` rows included
+(`scripts/sync-hold-floor.py` `lane_armable`). A change that keeps every hold path but weakens
+these files' logic merges on the two bound AI reviews alone.
 
-- both review lanes are bound by the main-run review (`pr-review-main.yml`,
-  `babysit_review_evidence._main_lane`), never by a pull_request run;
-- each lane counts no open finding, any severity;
-- the pull request has no unresolved review thread (`babysit_merge.with_open_threads`).
+Every other `trust` and `gate` row is person-held: every workflow, the credential and token paths
+(`request-lane-token`, the trusted-actor list, `check-trusted-trigger`, `check-kill-switch`,
+`resolve-config`), the rate guard and its limits, the check-run poster, the main-run review's
+scripts, the review criteria and agent files (`REVIEW.md`, `docs/standards/**`, `**/.claude/**`,
+the untrusted-content and instruction-exception conventions), the rest of babysit-prs
+(`babysit_merge*.py`, `babysit_review_evidence.py`), and `scripts/sync-hold-floor.py` and
+`docs/conventions/pr-pipeline.yaml`, which define the floor and `merge.person-held` itself.
 
-**No path is lane-armed today.** `merge.person-held` holds every `gate` row, as an independent
-security review of [#10966](https://github.com/melodic-software/claude-code-plugins/pull/10966)
-required. Every `trust` path waits for a person as well. The person-held list covers:
+A lane-armed path clears only when all of these hold at the current head:
 
-- the pr-merge scripts with every module and script they import or run, the rate guard
-  (`rate-guard.mjs`, `rate-limits.json`) and `.github/actions/report-check-run/**`;
-- the main-run review's scripts (`.github/scripts/pr-review-main/**`);
-- the review criteria and the agent settings and instruction files (owner decision Q11):
-  `REVIEW.md`, `docs/standards/**`, the untrusted-content and instruction-exception conventions,
-  `**/.claude/**`, `**/.claude-lane/**`, `**/.mcp.json`, `**/AGENTS.md`, `**/CLAUDE.md`,
-  `**/CLAUDE.local.md`, and `plugins/review/skills/**` and `plugins/review/reference/**`, which the
-  main-run review copies from main;
-- every gated workflow. `scripts/sync-hold-floor.py` adds each row `babysit_risk.gated_workflow`
-  derives, so a workflow that gains a secret, a lane or App token, OIDC or `actions: write` is
-  person-held at once.
+1. Both review lanes are bound by the main-run review (`pr-review-main.yml`), never by a
+   pull_request run: a lane-armed path is a lane source (`babysit_review_evidence.lane_source`).
+   `pr-review-main.yml` reviews such a pull request after a red ci-status too, deciding from
+   main's lane-armed globs and the full file list (a list that may be cut short reviews nothing),
+   so neither the red ci-status nor the human-gated label blocks the review.
+2. Each lane counts no open finding, any severity, and the pull request has no unresolved review
+   thread (`babysit_risk.lane_armed`).
+3. The merge gate's risk score and verdict pass (`babysit_risk.lane_arm_record`).
+4. The head does not shrink the hold floor against the base: every `FLOOR_CLASSES` and
+   `HOLD_PATH_CLASSES` row stays with its class or a stricter one, and nothing new is lane-armed
+   (`lane-armed.mjs` `shrinks`).
 
-The repository rulesets stay the owner's.
+Then pr-merge's `lane-armed` job, on a scheduled or hand-started run of main, posts the check run
+`pr-merge/lane-armed` at the head with the run's id as `external_id` and in `details_url`, and
+re-runs the head's red ci-status job. ci-status (`merge-holds.mjs` `laneArmedHold`, read from the
+base commit, on pull_request and merge_group runs alike, keyed on the pull request's head) passes a
+lane-armed path only when that check run is from the GitHub Actions app, succeeded, carries a
+record of this head and of every lane-armed path changed now, and names a run of
+`.github/workflows/pr-merge.yml` on the default branch, started by schedule or
+workflow_dispatch, running or succeeded. Any workflow with `checks: write` posts as the same app,
+so the run is the proof, not the check run. Anything missing or unreadable holds. A trusted
+person's approval of the head lifts it as it lifts a hold path.
 
-`scripts/sync-hold-floor.py` controls what the switch can do:
+Each attestation is one countable record, the line
+`lane-armed {"v":1,"pr":N,"head":"<sha>","paths":[...],"lanes":{"claude-review":0,"claude-security-review":0},"threads":0,"run":<id>}`
+in the check run's summary and as a `::notice::` in the pr-merge run. A head the job declines
+logs `::notice::lane-armed refused {"v":1,"pr":N,"head":"<sha>","reason":"..."}` with the
+failed condition.
 
-- It reads both keys through the shared YAML reader. The switch is on only when it reads exactly
-  `true`.
-- It writes them into the `LANE_ARM` blocks of `babysit_risk.py` and `merge-holds.mjs`.
-- It refuses a person-held entry that is not a `trust` or `gate` floor row.
-- With the switch on, it refuses to leave any `gate` row lane-armed.
-
-A lane-armed path would hold nothing in ci-status on its own, and two controls are still missing:
-
-- Nothing yet attests at the head that the lane-arm conditions held.
-  `pr-merge/unarmed`'s `success` cannot serve, because any token with `statuses: write` can post
-  it as the GitHub Actions bot.
-- A closure check that no person-held file loads the path.
-  `test_merge_holds_sync.py` checks only that the closure of the person-held files contains no
-  lane-armed path.
-
-The scorer, the clear-escalations same-head clear (`armedCause`) and the approval-carry refusal
-(`ungatedSince`) are built and tested against a sample lane-armed set, so they work once a set is
-allowed.
+clear-escalations lifts a human-gated label recorded on lane-armed paths alone at the same head
+once the gate's reader refuses nothing there (`armedCause`), and an approval never carries over
+a push that touches a lane-armed path (`ungatedSince`).
 
 ## Trust-root paths
 

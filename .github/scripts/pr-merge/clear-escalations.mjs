@@ -106,12 +106,14 @@
 // above and enable-auto-merge labels the new head again if the cause holds.
 // An unread answer and a failed read keep it; so does a hold or cost path,
 // which no reader answer clears, except under merge.lane-arm-gate (owner
-// decision Q7): a refusal recorded only on `gate` paths the switch lane-arms
-// (merge-holds LANE_ARMED_FLOOR; `armedCause`) is read again at that head and
-// comes off as `refusal-cleared` only when the reader refuses nothing there,
-// which needs both review lanes bound to a main-run review of the head with
-// no finding and no open review thread. A merge-enforcement (merge.person-held)
-// or `trust` path in it keeps the label. ci-status reads the removal as no
+// decisions Q7 and Q5): a refusal recorded only on the merge gate's own code
+// the switch lane-arms (merge-holds LANE_ARMED_FLOOR; `armedCause`) is read
+// again at that head and comes off as `refusal-cleared` only when the reader
+// refuses nothing there, which needs both review lanes bound to a main-run
+// review of the head with no finding and no open review thread; pr-review-main
+// runs that review while the label keeps ci-status red. A person-held
+// (merge.person-held) path in it keeps the label. ci-status still holds the
+// head until pr-merge's `pr-merge/lane-armed` attestation, and reads the removal as no
 // approval: merge-holds counts only a trusted person's approving review, and
 // its review-lane hold check fails a review lane's hold an App lifted. At most NATIVE_READS_PER_RUN reads a run,
 // starting at an offset that moves with the run number (rotated), so labels
@@ -244,19 +246,18 @@ function laneCause(kind, reason) {
 const reasonCodes = (kind, reason) => reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
 const onLaneCauses = (kind, code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry));
 
-// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a `gate` hold the
+// Owner decisions Q7 and Q5 (#10743): with merge.lane-arm-gate on, a hold the
 // switch lane-arms (merge-holds LANE_ARMED_FLOOR) was a person's when it was
 // recorded and is the lanes' now. A refusal recorded on such a hold alone is
 // judged again at its head, and lifted only when the gate's reader refuses
-// nothing there (`armedLift`): a merge-enforcement or `trust` path, any other
+// nothing there (`armedLift`): a person-held path, any other
 // person code, or a reader answer short of a pass keeps the label.
 // - A risk refusal: each code is on LANE_CAUSES.risk or `high-path:<glob>`
 //   with the glob on LANE_ARMED_FLOOR, and at least one is the latter.
 // - A hold-path refusal (merge-holds pathHoldKind's "it changes <path>, a
 //   hold path", every reason line one): each path matches a LANE_ARMED_FLOOR
 //   glob and no other `trust` or `gate` floor glob.
-// `armed` is LANE_ARMED_FLOOR, a parameter so tests can give it rows: the
-// generated set is empty while every `gate` row is person-held.
+// `armed` is LANE_ARMED_FLOOR, a parameter so tests can give it rows.
 export function armedCause(refusal, armed = LANE_ARMED_FLOOR) {
   if (armed.length === 0 || refusal === null) {
     return false;
@@ -652,7 +653,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
           `it refused this head (${native.reason})`,
           held === null
             ? armed
-              ? "merge.lane-arm-gate lane-arms its gate paths, and the gate now takes its issue link, verifier verdict and risk score: both review lanes are bound to a main-run review of this head with no finding and no review thread is open"
+              ? "merge.lane-arm-gate lane-arms the merge gate's own code it changes, and the gate now takes its issue link, verifier verdict and risk score: both review lanes are bound to a main-run review of this head with no finding and no review thread is open"
               : "the gate now takes its issue link, verifier verdict and risk score"
             : `what refuses now is one the lanes clear: ${held}`,
         ]),
