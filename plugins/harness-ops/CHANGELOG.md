@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.15.4] - 2026-10-29
+
+### Changed
+
+- `/harness-ops:changelog`'s surface discovery counts contract folders under `docs/contracts/` as well as `docs/conventions/`, so a marketplace keeps its contract count through the plugin-contracts move.
+
+- `/harness-ops:lanes` and `/harness-ops:observability` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
 ## [4.15.3] - 2026-10-29
 
 ### Fixed
