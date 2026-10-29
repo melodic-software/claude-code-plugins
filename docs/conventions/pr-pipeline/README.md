@@ -15,6 +15,7 @@
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
+- [Write identities](#write-identities)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -1084,8 +1085,16 @@ the rules that only tighten in
   the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
   `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
   whole diff) for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff
-  uses `--no-renames`, so a renamed file is reviewed whole. A verdict binds only when the head
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
+  `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
+  does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
+  a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
+  symlink or submodule, one that may run or load (an executable, a path under a `skills`, `agents`,
+  `commands` or `hooks` directory, or a file a tool reads by name such as `SKILL.md`, `hooks.json`,
+  `plugin.json`, `marketplace.json`, `conftest.py`, `__init__.py` or `settings.json`), and one whose
+  new path, last directory and name, name, or name without its extension an added line names
+  show whole (`write-diff.py`); the prompt tells the reviewer a rename-only entry is unseen and that
+  a change referencing a moved path is a finding. The caps apply after. A verdict binds only when the head
   also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
   cancelled before it recorded binds nothing. Each
   lane uploads `verdict.json` as
@@ -1106,7 +1115,21 @@ the rules that only tighten in
   an artifact or a comment, not a check run, and a forged one can only add a hold. A count that
   cannot be read leaves the lane unbound. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
   floor `enforcement` path beside it waits for that review. Each lane runs one leg on the reviews
-  role's API key and leaves a lane record (`report-lane-outcome`); a run that leaves no verdict
+  role's credentials in the review lanes' order: the API key (`REVIEWS_CLAUDE_API_KEY`); then,
+  for a lane whose key leg handed off (a credit stop, a 401 or 402) or whose key is empty, the
+  subscription token (`REVIEWS_CLAUDE_CODE_OAUTH_TOKEN`) in the `review-subscription` job; then,
+  for a lane that leg handed off (a limit stop, a credit stop, a 401 or 402, or an empty token)
+  with `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the fallback token in `review-fallback`. Each leg
+  is a job on a new VM holding one credential, and a route job with no secret passes on only
+  lanes whose handoff reason is in a closed set. The key leg checks out the main tip when it
+  starts and records that commit; a later leg checks out the recorded commit, which the route
+  passes on only as 40 hex characters, so a re-run of an old run cannot bring back older review
+  code. Every leg writes the same verdict, so neither the
+  record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
+  credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
+  comes from a successful run. A run whose first attempt failed before any lane's verdict write
+  started (every leg stopped) is re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is (`maintenance-reconcile-lost-runs`); any other run that leaves no verdict
   leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
@@ -2230,7 +2253,10 @@ head:
   sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
-  so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
+  so a listed human's edit vouches for ticked boxes, never for other text. To amend such a
+  sub-issue, a listed human comments on it; any other line added to its body
+  leaves it untrusted, whoever adds it ([#10734](https://github.com/melodic-software/claude-code-plugins/issues/10734),
+  [#10936](https://github.com/melodic-software/claude-code-plugins/issues/10936)). A parent with more than
   100 comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
   refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The
   model's spec text holds what such
@@ -2626,6 +2652,19 @@ It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
 workflow. The kill switch stops it. The lanes App reading in signal 2 is what pr-merge's token sees
 at the start and end of each run, not the broker's own quota record, which this token cannot read.
+
+## Write identities
+
+Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's rule on which
+`GITHUB_TOKEN` events start workflow runs is on its
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
+
+| Identity | Workflows | Why |
+|---|---|---|
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
 
