@@ -282,7 +282,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 13, "gate": 19, "enforcement": 43},
+            {"trust": 18, "gate": 14, "enforcement": 43},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1952,6 +1952,24 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             with self.subTest(path=path):
                 result = self._score(path, (_lane("claude-security-review"),))
                 self.assertIn(f"high-path:{path}", _codes(result))
+                self.assertTrue(holds(result))
+
+    def test_the_hold_applying_scripts_hold_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise weaken a hold these scripts
+        # apply on a clean review, and the weakened script would judge every
+        # later PR.
+        for name in (
+            "enable-auto-merge",
+            "superseded",
+            "clear-escalations",
+            "gate-check",
+            "head-ref-map",
+        ):
+            path = f".github/scripts/pr-merge/{name}.mjs"
+            with self.subTest(path=path):
+                self.assertNotIn(path, babysit_risk.AUTHOR_REVIEW_FLOOR)
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertEqual(_codes(result), (f"high-path:{path}",))
                 self.assertTrue(holds(result))
 
     def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):

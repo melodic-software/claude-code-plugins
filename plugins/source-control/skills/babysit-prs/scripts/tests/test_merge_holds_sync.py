@@ -18,8 +18,9 @@ workflow change after auto-merge is armed.
   matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
-  floor, every pr-merge script as `gate`, and of babysit-prs/scripts/ exactly
-  the Python that decides the holds, `babysit_merge*` as `gate`. The review
+  floor, every pr-merge script as `gate` or, for the scripts that apply the
+  holds, `trust`, and of babysit-prs/scripts/ exactly the Python that decides
+  the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
   lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and

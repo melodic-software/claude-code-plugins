@@ -224,7 +224,9 @@ class RiskResult:
 #   author lift and the hold tables: babysit_merge*, babysit_risk.py and
 #   babysit_review_evidence.py (which compute the review's clear
 #   condition), merge-holds.mjs and scripts/sync-hold-floor.py, which writes
-#   this table's copies.
+#   this table's copies, and the pr-merge scripts that apply and enforce the
+#   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
+#   gate-check.mjs and head-ref-map.mjs.
 # - `gate`: the rest of the merge gate's own code: the rate guard and the
 #   other pr-merge scripts.
 # - `enforcement`: the pr-merge and ci-status workflows, the rest of the
@@ -256,12 +258,12 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
     (".github/actions/log-api-budget/rate-limits.json", "gate"),
     (".github/scripts/pr-merge/merge-holds.mjs", "trust"),
-    (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
-    (".github/scripts/pr-merge/superseded.mjs", "gate"),
-    (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
+    (".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"),
+    (".github/scripts/pr-merge/superseded.mjs", "trust"),
+    (".github/scripts/pr-merge/clear-escalations.mjs", "trust"),
     (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
-    (".github/scripts/pr-merge/gate-check.mjs", "gate"),
-    (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
+    (".github/scripts/pr-merge/gate-check.mjs", "trust"),
+    (".github/scripts/pr-merge/head-ref-map.mjs", "trust"),
     (".github/scripts/pr-merge/lane-records.mjs", "gate"),
     (".github/scripts/pr-merge/last-report.mjs", "gate"),
     (".github/scripts/pr-merge/rate-stop.bash", "gate"),
