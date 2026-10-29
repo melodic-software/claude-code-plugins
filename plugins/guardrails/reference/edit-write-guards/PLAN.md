@@ -47,7 +47,7 @@ Done when:  the PreToolUse Write|Edit|NotebookEdit row has a CI spawn ratchet wh
 | Event | Census row | Programs (successful execs) | spawns | Wall p50 (direct bash) | k | Ideal |
 | --- | --- | --- | ---: | ---: | ---: | --- |
 | PreToolUse Bash `git status --short` | `block-no-verify.sh` | sh, bash. 0 clones | 2 | 21.29 ms (31.8 S) | 2 | 2 × S |
-| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | sh, bash, grep, 2× git. Replacement: not attempted | 13 | 20.32 ms (30.4 S) | 5 execs; 1 in exec form (CI ratchet `guardrails-pretooluse-write-edit-spawns`) | 1 × S |
+| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | node, bash, grep. Clean content skips both git probes | 7 | not re-measured | 3 execs; 1 in exec form (CI ratchet `guardrails-pretooluse-write-edit-spawns`) | 1 × S |
 | PostToolUse Edit `.md`, deleted-path finding, cold | `cli-flag-verify.sh` | sh, bash, 5× git | 19 | 23.98 ms (35.8 S) | 7 execs | 7 × S |
 | Same finding, second fire at that HEAD | `--seed` | history walk omitted | 13 |  |  |  |
 | PostToolUse Edit `.md`, no finding | same row, existing path | sh, bash, 2× git | 9 |  |  |  |
@@ -61,12 +61,18 @@ the shell, the dispatcher, and five git processes: repo root, the tracked list,
 HEAD, the deleted-path walk, and the skip-worktree tag. awk, tr, and cut were
 incidental and are gone (cold finding 25 → 19, warm 19 → 13). Only for that
 path was it shown that no further process can be removed without deleting a
-check. For PreToolUse Edit and Write (13 spawns) the programs are listed (`grep -E`
-for the secret oracle, `git rev-parse`, `git check-ignore`), but replacing them
-with builtins or session state was not attempted, and neither was it for
-PostToolUse:Write. #4390 names hardcoded-path-check's git probes as the suspect
-for its 25-process Windows figure, so the floor for those rows is unknown, not
-demonstrated.
+check. For PreToolUse Edit and Write, clean content (14 → 7 spawns on the
+census payload) no longer reaches hardcoded-path-check's `git rev-parse` or
+`git check-ignore`: its builtin prefilter (`hpp::prefilter`) proves the content
+clean first, and every branch after it allows clean content. The secret oracle
+decides clean content in the parent shell (`secrets::any_match`), so the capture
+subshell runs only on a hit. What remains is the launcher (node, its fork,
+bash), the secret `grep -E` with its process substitution, and, for a target
+under a temp root as the census writes, one `cd -P` subshell. The process
+substitution stays: a here-string deadlocks at the pipe-size boundary
+(lib/path-detection/hardcoded-path-patterns.sh). Replacing the grep with a
+builtin was not attempted, nor anything for PostToolUse:Write, so the floor for
+those rows is unknown, not demonstrated.
 
 **Basis:** `scripts/hook-census.sh` on this host after that cut, and the
 interleaved wall samples above. `spawn_probe` / `is_measurable` as quoted.
