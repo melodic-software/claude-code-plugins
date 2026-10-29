@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: s3-script-cleanup
+context:
+  scaffold_script: scaffold.sh

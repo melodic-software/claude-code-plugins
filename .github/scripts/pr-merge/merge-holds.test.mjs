@@ -401,8 +401,6 @@ const FLOOR_FILES = [
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
-  ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-merge.yml",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",

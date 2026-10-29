@@ -3,6 +3,42 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.0] - 2026-10-29
+
+### Added
+
+- A shared interview's named tunnel can run from any machine. Before a machine starts it, `ensure-running` asks `https://<tunnel_hostname>` itself; only Cloudflare's no-connector page (HTTP 530 with error 1033, as an HTML page or the plain text Cloudflare sends a non-browser client) counts as free, and any other answer or a failure to ask runs a quick tunnel and says why on stderr and in the output's `tunnelFallback`, so a second machine does not start a replica that would split the link's guests ([#8607](https://github.com/melodic-software/claude-code-plugins/issues/8607)).
+- New `tunnel_api_token_file` option: the path of a Cloudflare API token with "Cloudflare One Connector: cloudflared Write", which cannot touch DNS but can change every tunnel in the account. When it is set, a session refuses the tunnel while another machine's connector is connected, points the tunnel's own hostname rule at its guest port while keeping the rest of the tunnel's configuration, and after starting checks again for a second connector or a rewritten route, so a named session can use any free port instead of 8765. The server's restart of an exited named tunnel goes through the same checks. Both token file options accept a path starting with `~/`.
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- The interview page's header eyebrow line, rail group headings, Activity headings, section headings in the detail and summary views, Why and Details tabs, and Source text toggle now use 13px sans in place of the small uppercase mono style. Legends, panel titles and table headers already use 13px sans (#10211).
+
+- A named tunnel whose token file is missing, empty or readable by others now falls back to a quick tunnel and says why, instead of refusing to start, so the options can be set on every machine before each one holds its files. A hostname that is not a DNS name still refuses, and a session whose named tunnel already runs keeps it and warns.
+- The shared README's setup names the account API token permission "Cloudflare One Connector: cloudflared", which replaces "Cloudflare Tunnel" there.
+
+- The interview surface's browser suites (`surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh`) now print each graded phase's wall seconds on its result line, as in `ui_journey.3: 12 checks in 14s`, so a CI log shows which page scripts cost a suite its time ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [0.125.0] - 2026-10-29
+
+### Changed
+
+- Both interview pages now render markdown through one renderer in `question-shape.js`, which builds elements and text nodes only. It reads the union of the two pages' dialects. Blocks are paragraphs, `#` headings, bullet and numbered lists, and `>` quotes. Inline it renders code, bold, emphasis, `[text](url)` and bare http(s) links, and `owner/repo#N`. When the session names a repository it also links `#N`, and with a commit, repository paths. Each page adds its own plain-text runs to that: the shared page its @mention chips, the 1:1 page its question-id chips and glossary terms. The shared page now renders headings, quotes, emphasis, markdown links and `owner/repo#N`, and the 1:1 page now renders bare links and keeps a paragraph's line breaks. The page-local `md`/`inline` (1:1 page) and `rich`/`inline`/`links` (shared page) builders are gone (#10210).
+
+## [0.124.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+- The 1:1 interview page's README lists where its question screen, answer note, keys and phone pin still differ from the shared page, each with its reason. Its deferred list gains two open items: the shared page's question screen on the 1:1 page, and the visual-viewport pin above 820 px for a phone held landscape.
+
+### Fixed
+
+- On a phone, the 1:1 interview page's text fields use 16 px text, as the shared page's do, so iOS Safari no longer zooms in when the note box or another field gets focus.
+
 ## [0.124.0] - 2026-10-29
 
 ### Added

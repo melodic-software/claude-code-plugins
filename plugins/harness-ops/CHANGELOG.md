@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.15.4] - 2026-10-29
+
+### Changed
+
+- `/harness-ops:changelog`'s surface discovery counts contract folders under `docs/contracts/` as well as `docs/conventions/`, so a marketplace keeps its contract count through the plugin-contracts move.
+
+- `/harness-ops:lanes` and `/harness-ops:observability` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
+## [4.15.3] - 2026-10-29
+
+### Fixed
+
+- plugins skill: three references to the retired `plugins-reference` docs page now name current pages. The recheck trigger for the `--bare` uninstall record in `context/gotchas.md` links the plugin loading reference and the plugin commands reference. The re-verification note in `context/scope-semantics.md` names the retired `plugins-reference` and `discover-plugins` pages by subject instead of slug. The `defaultEnabled` comment in `scripts/fleet-state.test.sh` cites the plugin manifest reference (#10804).
+
+## [4.15.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
 ## [4.15.1] - 2026-10-29
 
 ### Fixed

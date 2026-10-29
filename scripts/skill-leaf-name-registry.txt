@@ -105,8 +105,8 @@
 # verb's: bare invocation runs the engine's one read-only `scan` and reports the
 # snapshot, which is written under the plugin data directory and never into the
 # target. The skill has no override and no removal lane; removal is the sibling
-# `clean`, which stays manual-only, so a model-invocable leaf that promised
-# removal would contradict the verb table's `clean` meaning. `scan` is the
+# `clean`, so a leaf that promised removal would contradict the verb table's
+# `clean` meaning. `scan` is the
 # verb-table synonym but names the engine subcommand, not the product, a
 # findings report with a handoff to `clean` (#5516).
 audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-budget,disk-hygiene,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,repo-fleet-hygiene,testing

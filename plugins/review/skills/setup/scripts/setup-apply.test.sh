@@ -575,7 +575,16 @@ per_key "a null value" $'ratchet_offer: null\n'
 per_key "an empty quoted string" $'ratchet_offer: ""\n'
 per_key "a flow list" $'ratchet_offer: [true]\n'
 per_key "a block list" $'ratchet_offer:\n  - true\n'
-per_key "a key set twice" $'ratchet_offer: true\nratchet_offer: false\n'
+file_level_dup() { # a key set twice is a parse error, so no key keeps a PASS line
+  local r out
+  r="$(new_root "fl-dup")"
+  printf 'ratchet_offer: true\nratchet_offer: false\ndownstream_probe: report\n' >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  assert_eq "case 24: a key set twice exits 1" "1" "$?"
+  assert_contains "case 24: a key set twice names the parse error" "$out" "line 2: duplicate key \`ratchet_offer\` (first at line 1)"
+  assert_eq "case 24: a key set twice prints no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
+}
+file_level_dup
 file_level() { # file_level <label> <file body>
   local r out
   r="$(new_root "fl-$1")"

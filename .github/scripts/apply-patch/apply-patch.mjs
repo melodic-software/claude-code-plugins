@@ -113,6 +113,7 @@ export const REFUSALS = {
   codeowners: PROTECTED_REFUSALS.codeowners,
   gitmodules: PROTECTED_REFUSALS.gitmodules,
   settings: PROTECTED_REFUSALS.settings,
+  "lane-grants": PROTECTED_REFUSALS["lane-grants"],
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
@@ -164,7 +165,8 @@ export function rungUpEscalation(text) {
 
 // An escalation only a person settles, and the reason it stops with: a fix
 // that needs a path the lane token may not push, or one that would weaken a
-// required check (escalation-routes.json holds both).
+// required check after its fresh fixer round (weakenStop; escalation-routes.json
+// holds both).
 const HELD_ESCALATIONS = [
   ["protected-path", "ci-fix-protected-path"],
   ["weaken-required", "ci-fix-weaken-required"],
@@ -175,6 +177,13 @@ export function heldEscalation(text) {
   const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
   return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
 }
+
+// The first weaken-required stop on a head stops for one fresh fixer round
+// instead of a person: a fail-routed reason, whose lane-stopped check the
+// fix-ci dispatcher retries on the same head with the no-weaken brief
+// (fix-ci-context.mjs). The guard itself stays: the round still may not weaken.
+export const WEAKEN_RETRY = "ci-fix-weaken-retry";
+const weakenStop = (held, weakenRetry) => (held === "ci-fix-weaken-required" && weakenRetry ? WEAKEN_RETRY : held);
 
 const reportText = (reportDir) => {
   const file = reportDir ? join(reportDir, "reply.txt") : "";
@@ -410,7 +419,9 @@ export function patchProblem(file, expected) {
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
 // report escalated only checks a stronger model may answer skips rung-up, and
 // the caller runs the producer once more at rung 1, instead of escalating.
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, mergeState = "" }) {
+// `weakenRetry` is true when the head has had no lane stop yet, so a
+// weaken-required stop there takes its one fresh fixer round (weakenStop).
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, weakenRetry = false, mergeState = "" }) {
   checkRow(row);
   // A stop routed to a failing status skips lane-stopped (escalation-routes.mjs).
   const decide = (proceed, skipReason, escalationReason) => ({
@@ -446,7 +457,7 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (escalated && rung === 0 && report.rungUp(reportDir)) {
       return decide(false, "rung-up", "");
     }
-    const held = escalated ? report.held(reportDir) : "";
+    const held = escalated ? weakenStop(report.held(reportDir), weakenRetry) : "";
     return decide(false, "awaiting-human", held || reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
@@ -1094,6 +1105,15 @@ function modelRung(value = "") {
   return value === "1" ? 1 : 0;
 }
 
+// WEAKEN_RETRY from fix-ci-context's weaken-retry output: `true`, or empty or
+// `false`; anything else is refused.
+function weakenRetryFrom(value = "") {
+  if (!["", "true", "false"].includes(value)) {
+    throw new Error("WEAKEN_RETRY must be empty, true or false");
+  }
+  return value === "true";
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
   const target = TARGETS[row.target];
@@ -1108,6 +1128,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
       rung: modelRung(env.MODEL_RUNG),
+      weakenRetry: weakenRetryFrom(env.WEAKEN_RETRY),
       mergeState: env.MERGE_STATE ?? "",
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);

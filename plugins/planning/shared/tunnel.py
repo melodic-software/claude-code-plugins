@@ -36,6 +36,7 @@ renames `--token-file`, or a release changes that log line.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -56,6 +57,9 @@ LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
 BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
 READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first connection to Cloudflare
+# The id Cloudflare's connections list names this cloudflared by, logged before its first connection
+# (prepareTunnelConfig in cmd/cloudflared/tunnel/configuration.go, as of 2026-10-29; recheck when a release changes it).
+CONNECTOR = re.compile(r"Generated Connector ID: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
 RETIRE_SECONDS = 600.0  # judgment: how long the old address keeps answering after a switch, so open pages move
@@ -96,41 +100,41 @@ def hostname_problem(hostname):
     return None
 
 
-def token_file_problem(path):
-    """Why `path` cannot be the tunnel token file, or None. Checks the file, never reads it."""
+def token_file_problem(path, what="tunnel token file", option="tunnel_token_file"):
+    """Why `path` cannot be the token file `what` names, or None. Checks the file, never reads it."""
     if not path:
-        return "a named tunnel needs its token file (the tunnel_token_file option)"
+        return f"a named tunnel needs its {what} (the {option} option)"
     p = Path(path)
     if not p.is_absolute():
-        return f"the tunnel token file must be an absolute path, got {path!r}"
+        return f"the {what} must be an absolute path, got {path!r}"
     try:
         st = p.stat()
     except OSError:
-        return f"the tunnel token file {path} does not exist"
+        return f"the {what} {path} does not exist"
     if not p.is_file() or not st.st_size:
-        return f"the tunnel token file {path} is not a file with a token in it"
+        return f"the {what} {path} is not a file with a token in it"
     if not os.access(p, os.R_OK):
-        return f"the tunnel token file {path} cannot be read"
+        return f"the {what} {path} cannot be read"
     if detached.WINDOWS:
-        return _acl_problem(path)
+        return _acl_problem(path, what)
     if st.st_mode & 0o077:
-        return f"the tunnel token file {path} can be read by other users: run chmod 600 on it"
+        return f"the {what} {path} can be read by other users: run chmod 600 on it"
     return None
 
 
 WINDOWS_ALLOWED = ("S-1-5-18", "S-1-5-32-544", "S-1-3-4")  # SYSTEM, Administrators and OWNER RIGHTS, beside the user
 
 
-def _acl_problem(path):
+def _acl_problem(path, what="tunnel token file"):
     """Why the token file's Windows DACL lets more than this user, the file's owner, SYSTEM and Administrators in, or None."""
     got = _windows_acl(path)
     if got is None:
-        return f"the permissions of the tunnel token file {path} cannot be read"
+        return f"the permissions of the {what} {path} cannot be read"
     me, sids = got
     others = sorted(set(sids) - {me, *WINDOWS_ALLOWED})
     if others:
         return (
-            f"the tunnel token file {path} can be read by others ({', '.join(others)}): allow only your account, SYSTEM and"
+            f"the {what} {path} can be read by others ({', '.join(others)}): allow only your account, SYSTEM and"
             f' Administrators (icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" SYSTEM:F *S-1-5-32-544:F)'
         )
     return None
@@ -328,6 +332,10 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
     rec = {**(fields or {}), "pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     if hostname:
         rec.update(hostname=hostname, tokenFile=token_file)
+        with contextlib.suppress(OSError):
+            m = CONNECTOR.search(log.read_text(encoding="utf-8", errors="replace"))
+            if m:
+                rec["connector"] = m.group(1)
     if retired_entry:
         rec["retired"] = retired_entry
     _write(d, rec, path)
@@ -339,15 +347,19 @@ def _retire_seconds():
     return float(os.environ.get("SHARED_RETIRE_SECONDS") or RETIRE_SECONDS)
 
 
-def ensure(data_dir, port, hostname="", token_file="", verify=None):
+def ensure(data_dir, port, hostname="", token_file="", verify=None, fields=None):
     """The running tunnel to `port` with this hostname and token file ("" for a quick tunnel), reattached or started;
     raises TunnelDown. A switch from a running tunnel to the same port at another address happens only once
     `verify(new url)` returns None (server.py's probe); the old tunnel then stays up as the record's `retired`. With no
-    `verify` the old tunnel is ended instead, so no page is ever sent to an address nothing checked."""
+    `verify` the old tunnel is ended instead, so no page is ever sent to an address nothing checked. `fields`: kept in
+    the record beside the tunnel's (share.py's apiTokenFile)."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = alive(d, held=True)
         if rec and rec.get("port") == port and config(rec) == (hostname, token_file):
+            if fields and any(rec.get(k) != v for k, v in fields.items()):
+                rec.update(fields)
+                _write(d, rec)
             return rec
         if hostname and rec and rec.get("port") == port and rec["url"] == f"https://{hostname}":
             _end(rec)  # the same address with another token file: nothing to move to
@@ -357,16 +369,33 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None):
         if rec and not keep:
             _end(rec)
         if not keep:  # a restart at the same address: the tunnel retired before keeps its grace time
-            return _start(d, port, hostname, token_file, retired_entry=old)
+            return _start(d, port, hostname, token_file, retired_entry=old, fields=fields)
         if verify is None:
             _end(keep)
-            new = _start(d, port, hostname, token_file)
+            new = _start(d, port, hostname, token_file, fields=fields)
         else:
             entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
-            new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify)
+            new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify, fields=fields)
         if old and detached.alive(*_identity(old)):
             _end(old)  # one retired tunnel at a time, ended only once the switch has landed
         return new
+
+
+def fall_back(data_dir, port):
+    """End the running tunnel to `port` at once, never keeping it as retired (a named one may serve another machine's
+    route), and serve a quick tunnel instead: the quick tunnel it retired when that still runs, since open pages hold
+    its link, else a new one."""
+    d = Path(data_dir)
+    with detached.locked(d / LOCK):
+        rec = alive(d, held=True)
+        old = (rec or read(d) or {}).get("retired")
+        if rec:
+            _end(rec)
+        if isinstance(old, dict) and isinstance(old.get("pid"), int) and URL.fullmatch(str(old.get("url"))) and detached.alive(*_identity(old)):
+            back = {k: v for k, v in old.items() if k != "until"} | {"port": port, "startedAt": time.time()}
+            _write(d, back)
+            return back
+    return ensure(d, port)
 
 
 def retired(data_dir):

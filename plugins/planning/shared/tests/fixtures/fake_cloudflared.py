@@ -1,5 +1,5 @@
 """fake-cloudflared.sh for hosts without bash on PATH for a spawned script (Windows): same
-arguments (the quick and the named form), same output, same knobs (FAKE_CF_DELAY, FAKE_CF_NOURL, FAKE_CF_ARGS)."""
+arguments (the quick and the named form), same output, same knobs (FAKE_CF_DELAY, FAKE_CF_NOURL, FAKE_CF_ARGS, FAKE_CF_CONNECTOR)."""
 
 import os
 import secrets
@@ -22,6 +22,8 @@ if args[:4] == ["tunnel", "--no-autoupdate", "run", "--token-file"] and len(args
     if not ok:
         print(f"{ts} ERR cannot read the tunnel token file {args[4]}", file=sys.stderr)
         sys.exit(1)
+    connector = os.environ.get("FAKE_CF_CONNECTOR") or "00000000-0000-4000-8000-" + secrets.token_hex(6)
+    print(f"{ts} INF Generated Connector ID: {connector}", file=sys.stderr, flush=True)
     time.sleep(float(os.environ.get("FAKE_CF_DELAY") or 0))
     if not os.environ.get("FAKE_CF_NOURL"):
         print(f"{ts} INF Registered tunnel connection connIndex=0 connection=00000000-0000-4000-8000-000000000000 event=0 ip=192.0.2.10 location=fake01 protocol=quic", file=sys.stderr, flush=True)

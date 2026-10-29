@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": ".PHONY: test seed release\n\ntest:\n\tbash scripts/run_tests.sh\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n\nrelease:\n\tpython3 -m bfk.cli release $(VERSION)\n",
+      "why": "the scaffold Makefile, already calling the kept script"
+    },
+    {
+      "answer": ".PHONY: test seed release\n\ntest:\n\t./scripts/run_tests.sh\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n\nrelease:\n\tpython3 -m bfk.cli release $(VERSION)\n",
+      "why": "calls the kept script directly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": ".PHONY: test seed release\n\ntest:\n\tbash scripts/test.sh\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n",
+      "why": "near miss: points at the removed script"
+    },
+    {
+      "answer": ".PHONY: test test-alt\n\ntest:\n\tbash scripts/run_tests.sh\n\ntest-alt:\n\tbash scripts/test.sh\n",
+      "why": "near miss: still names the removed script beside the kept one"
+    },
+    {
+      "answer": "# brackenfold\n\nAccount tooling for the brackenfold team. Standard library only.\n",
+      "why": "answer to a different question: README text"
+    }
+  ]
+}

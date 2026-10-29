@@ -1,0 +1,19 @@
+using Tarnquill.Cli.Infrastructure;
+
+namespace Tarnquill.Cli.Commands;
+
+public static class EnvCheckCommand
+{
+    public static int Run()
+    {
+        var git = ProcessRunner.Run("git", "--version");
+        if (git.ExitCode != 0)
+        {
+            Console.Error.WriteLine("missing: git");
+            return 1;
+        }
+
+        Console.WriteLine($"OK: {git.StdOut.Trim()}");
+        return 0;
+    }
+}
