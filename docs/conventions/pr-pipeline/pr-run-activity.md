@@ -83,6 +83,7 @@ permissions, and passes no App key.
 | `fallback-ready` | `''` | Read file only: the second call's `true` or `false`, from its handoff job, which run-claude-cli's `fallback-ready` takes; `true` lets the subscription leg hand off to the third call |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
+| `patch-weaken-retry` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), `fix-ci-context`'s `weaken-retry`; `true` turns a `weaken-required` escalation into `ci-fix-weaken-retry` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
@@ -1353,18 +1354,24 @@ its fallback call on the role's OAuth token after the key call hands off
 [`apply-patch`](#prepare-apply-patch) script job.
 
 1. `pr-unblock.yml`'s `fix-ci-context` job runs the default branch tip's
-   `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks
-   and Actions, and checks out no PR head. After the kill switch it hands the pull request to a
-   person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds` commits with
-   the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads every check run on the head
-   (`filter=all`, as the fix-ci dispatcher does), takes per name the latest that is not a skip, so a
-   contract-only run's later skip does not hide a lane's failure, and keeps those that ended `failure`, `timed_out` or `startup_failure`, except
-   `ci-status` and any GitHub Actions check run that is no workflow job (a lane's own check),
-   at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
-   at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
-   characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
-   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks,
+   commit statuses and Actions, and checks out no PR head. After the kill switch it hands the pull
+   request to a person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds`
+   commits with the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads every check run
+   on the head (`filter=all`, as the fix-ci dispatcher does), takes per name the latest that is not
+   a skip, so a contract-only run's later skip does not hide a lane's failure, and keeps those that
+   ended `failure`, `timed_out` or `startup_failure`, except `ci-status` and any GitHub Actions
+   check run that is no workflow job (a lane's own check), at most 10. For each it writes the name,
+   the workflow file that defines the job (or `null`), at most 20 annotations of at most 500
+   characters, and the last 80 lines, at most 3,000 characters, of the job log, as `context.json`,
+   uploaded as `ci-context-<run attempt>` with its SHA-256 as a job output. On the head's first
+   fix-ci attempt (no finished `pr-unblock / fix-ci` check and no lane-stopped `pr-unblock /
+   apply-patch` check on it) its `weaken-retry` output is `true`. On a same-head retry whose head
+   carries the `pr-unblock/fix-ci` status `Lane stopped: ci-fix-weaken-retry; ...` by
+   `github-actions[bot]` (a status, so a later clear does not remove it), `context.json` also holds
+   `retry` (`after: ci-fix-weaken-retry` and a fixed `brief`: fix the code under test and keep
+   every test's assertions and expected values). A closed pull request or a head with no such check skips the rest, and a
+   scripted job posts the fix-ci check neutral `not-applicable` on that head with
    `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
@@ -1410,7 +1417,12 @@ refusal posts nothing.
    (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
    report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
    escalation (output `rung-up` `true`), so the caller runs the producer once more at
-   `model-rung` 1. A `patch-state` other than `written`
+   `model-rung` 1. A report that escalated `protected-path` escalates `ci-fix-protected-path`
+   and, failing that, one that escalated `weaken-required` escalates `ci-fix-weaken-required`,
+   held for a person, or with `patch-weaken-retry` `true` `ci-fix-weaken-retry`, routed to a
+   failing status: the fix-ci dispatcher retries the head once at `model-rung` 1, and that
+   fresh fixer round reads the `retry` brief ([`prepare: ci-context`](#prepare-ci-context)).
+   A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A `written` patch proceeds with no escalation, whatever the report

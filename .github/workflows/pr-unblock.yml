@@ -1942,6 +1942,7 @@ jobs:
       pull-requests: read # the PR's head and commits
       checks: read # the head's check runs and their annotations
       actions: read # each failing job's workflow file and log
+      statuses: read # the head's pr-unblock/fix-ci weaken retry stop
     outputs:
       proceed: ${{ steps.context.outputs.proceed }}
       head-sha: ${{ steps.context.outputs.head-sha }}
@@ -1958,6 +1959,9 @@ jobs:
       # "1" for a same-head retry after the push job stopped there
       # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.context.outputs.model-rung }}
+      # true on a head with no lane stop yet, so apply-patch gives a
+      # weaken-required stop one fresh fixer round (ci-fix-weaken-retry).
+      weaken-retry: ${{ steps.context.outputs.weaken-retry }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
@@ -2296,6 +2300,7 @@ jobs:
       patch-prepare: ci-context
       # A same-head retry's producer ran a rung up: no second in-run rung-up.
       patch-model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       # The head fix-ci-context gated, from a job that ran no head code; the
       # read runner's own head-sha output is the run job's, which head code
       # could forge. Both fix-ci calls refuse a context for another head, so a
@@ -2519,6 +2524,8 @@ jobs:
       patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
+      # A weaken-required stop here still takes the head's fresh fixer round.
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       reply-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
 
   # A fix-ci round whose every call posted no check (a run that forged a
