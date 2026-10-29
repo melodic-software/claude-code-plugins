@@ -4700,36 +4700,46 @@ jobs:
           fi
           # A stale hold the lanes App cleared (clear-escalations.mjs
           # stale-review-hold): the App removed the label itself, after its own
-          # comment since the hold opening with that clear's marker for a head
-          # no review-lane hold comment names, every hold comment names its
-          # head, and none names this head; and the base commit's
-          # clear-escalations.mjs recheckStaleHold finds the hold no longer
-          # standing at this head. A hold the App missed names the head its lane reviewed, this
-          # one. A later head no hold names is judged afresh by the same
-          # module.
+          # comment since the hold opening with that clear's marker; the
+          # newest such marker names a head no review-lane hold comment names,
+          # every hold comment names its head, and none names this head. Hold
+          # comments count from the label's last removal before the label the
+          # App removed went on, as clear-escalations.mjs holdsSince counts
+          # them, so a hold a person already lifted counts for nothing. The
+          # base commit's clear-escalations.mjs recheckStaleHold must then find
+          # the hold no longer standing at the marker's head as it was when the
+          # App removed the label. A later head is judged by its own review
+          # lanes, as after a person's lift, so a clean push after the clear
+          # stays green before they run.
           if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ && $actor_id == "$LANES_APP_ID" && -z $via_app && ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] &&
             jq -e --argjson id "$LANES_APP_ID" 'any(.actors[]; .id == $id)' <<<"$actors" >/dev/null 2>&1; then
+            # shellcheck disable=SC2016 # $e and $on are jq variables
+            since=$(jq -rs --arg label "$HUMAN_GATED" --arg lifted_at "$lifted_at" '[add[] | select(.label.name == $label)] as $e
+              | ([$e[] | select(.event == "labeled" and .created_at < $lifted_at) | .created_at] | max) as $on
+              | [$e[] | select(.event == "unlabeled" and $on != null and .created_at <= $on) | .created_at] | max // ""' <<<"$events") || since=
             # shellcheck disable=SC2016 # $c, $app and the rest are jq variables
-            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --arg head "$HEAD_SHA" --argjson app "$LANES_APP_ID" '(add // []) as $c
+            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --arg since "$since" --arg head "$HEAD_SHA" --argjson app "$LANES_APP_ID" '(add // []) as $c
               | [$c[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                  and ([.created_at, (.updated_at // .created_at)] | max) >= $since
                   and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                     and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                       | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
                 | [.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "")
                   | capture("^<!-- claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=[a-z,-]+ -->$").sha] | first // null] as $held
-              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)
-                | .body | split("\n")[0] | sub("\r$"; "")
-                | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
+              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)] | sort_by(.created_at)
+                | [last // empty | .body | split("\n")[0] | sub("\r$"; "")
+                  | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
               | if any($held[]; . == null or . == $head) then ""
-                else [$cleared[] | select(. as $h | $held | index($h) == null)] | unique | join(" ") end' <<<"$raw") || stale=
+                else [$cleared[] | select(. as $h | $held | index($h) == null)] | first // "" end' <<<"$raw") || stale=
             # The marker only points here: the base commit's
             # clear-escalations.mjs recheckStaleHold, the predicate the App
-            # ran, judges the hold again at this head with this job's token.
-            # The module is not the first argument, which would run its main.
+            # ran, judges the hold again at the marker's head with this job's
+            # token. The module is not the first argument, which would run
+            # its main.
             module="$BASE_CONFIG/.github/scripts/pr-merge/clear-escalations.mjs"
             if [ -n "$stale" ] && [ -f "$module" ]; then
               # shellcheck disable=SC2016 # JavaScript, not shell
-              if PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" HUMAN_GATED="$HUMAN_GATED" \
+              if PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" CLEARED_SHA="$stale" HUMAN_GATED="$HUMAN_GATED" \
                 TRUSTED_ACTORS_PATH="$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" \
                 node --input-type=module -e 'import { pathToFileURL } from "node:url";
                   const { recheckStaleHold } = await import(pathToFileURL(process.argv[2]).href);

@@ -62,11 +62,16 @@ const baseTimeline = () => [{ event: "labeled", actor: ACTIONS_BOT, label: { nam
 
 // Review threads, root comment first. The fixture's one open security finding
 // is a SUGGESTION, so a clear shows the bar is HIGH or CRITICAL, not any finding.
-const thread = (isResolved, author, body) => ({ isResolved, comments: { nodes: [{ author, body }] } });
-const securityThread = (severity, isResolved = false) =>
-  thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`);
+// A thread carries its file and the commit its root comment was made on.
+const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD) => ({ isResolved, path, comments: { nodes: [{ author, body, originalCommit: { oid: commit } }] } });
+const securityThread = (severity, isResolved = false, path = undefined, commit = undefined) =>
+  thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`, path, commit);
 const codeThread = thread(false, { __typename: "Bot", login: "github-actions" }, "A code finding.\n\nclaude-lane: claude-review");
-const baseThreads = () => [securityThread("severity: SUGGESTION"), securityThread("severity: CRITICAL", true), codeThread];
+// The held CRITICAL finding: inline at OLD on the file the person's fix changed, now resolved.
+const heldFinding = () => securityThread("severity: CRITICAL", true, "plugins/x/y.py", OLD);
+const baseThreads = () => [securityThread("severity: SUGGESTION"), heldFinding(), codeThread];
+// The compare from the held head to the head: the person's one fix commit.
+const baseHeldCompare = () => ({ total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py" }] });
 
 const completeNotice = (lane, scope = "scope=whole") => ({
   annotation_level: "notice",
@@ -83,7 +88,7 @@ const baseLanes = () => ({
 const push = (actor, sha, at) => ({ activity_type: "push", actor, after: sha, timestamp: at });
 const basePushes = () => [push(PERSON, HEAD, "2026-10-18T11:00:00Z"), push(PERSON, OLD, "2026-10-18T09:50:00Z"), { activity_type: "branch_creation", actor: PERSON, after: "e".repeat(40), timestamp: "2026-10-18T08:00:00Z" }];
 
-function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }] } = {}) {
+function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }], heldCompare = baseHeldCompare() } = {}) {
   const calls = [];
   // `later` answers the reads after the first judgment: { head, timeline }.
   const seen = { pull: 0, timeline: 0 };
@@ -109,6 +114,9 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${MAIN}...${HEAD}`) {
       return { files: headFiles };
+    }
+    if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
+      return heldCompare;
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequest: { reviewThreads: { nodes: threads, pageInfo: { hasNextPage: false } } } } } };
@@ -243,4 +251,35 @@ test("a hold written, or a head pushed, after the judgment and before the delete
     );
     assert.match(log, new RegExp(`#7 kept: ${why}`));
   }
+});
+
+// Fixes from the security review of e18df308 (thread PRRT_kwDOTCGFQM6xmJXW): a
+// lane's later verdict alone never lifts a critical-security hold, and a push
+// that only merges the base is no fix.
+test("a critical-security hold stays for a person when its lane left no CRITICAL inline finding at the held head", async () => {
+  await assertKept(world({ threads: [securityThread("severity: SUGGESTION"), codeThread] }), `the critical-security hold at ${OLD} has no CRITICAL inline claude-security-review finding there`);
+  await assertKept(
+    world({ threads: [securityThread("severity: SUGGESTION"), securityThread("severity: CRITICAL", true, "plugins/x/y.py", "f".repeat(40)), codeThread] }),
+    `the critical-security hold at ${OLD} has no CRITICAL inline claude-security-review finding there`,
+  );
+});
+
+test("a critical-security hold stays when no push since the held head changed the held finding's file", async () => {
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), files: [{ filename: "plugins/x/other.py" }] } }), `plugins/x/y.py, which holds a CRITICAL finding at ${OLD}, is unchanged since then`);
+});
+
+test("the hold stays when only merges moved the head off the held head, or the compare does not read whole", async () => {
+  const merge = { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] };
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), commits: [merge] } }), `only merge commits moved the head off ${OLD}`);
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), total_commits: 2 } }), `the compare from ${OLD} to ${HEAD} did not read whole`);
+});
+
+test("a hold other than critical-security needs no inline finding at the held head", async () => {
+  const gate = commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-security-review`, "2026-10-18T10:00:02Z");
+  const w = world({ timeline: [baseTimeline()[0], gate, summary()], threads: [securityThread("severity: SUGGESTION"), codeThread] });
+  await run(w);
+  assert.deepEqual(
+    w.writes().map(({ method }) => method),
+    ["POST", "DELETE"],
+  );
 });

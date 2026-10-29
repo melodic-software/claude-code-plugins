@@ -118,12 +118,12 @@ expect() {
     cat >"$config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-const { PR_NUMBER, HEAD_SHA, HUMAN_GATED, TRUSTED_ACTORS_PATH, STUB_LOG, STUB_PREDICATE } = process.env;
+const { PR_NUMBER, HEAD_SHA, CLEARED_SHA, HUMAN_GATED, TRUSTED_ACTORS_PATH, STUB_LOG, STUB_PREDICATE } = process.env;
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   appendFileSync(STUB_LOG, "clear-escalations main ran\n");
 }
 export async function recheckStaleHold() {
-  appendFileSync(STUB_LOG, `predicate pr=${PR_NUMBER} head=${HEAD_SHA} label=${HUMAN_GATED} trusted=${TRUSTED_ACTORS_PATH}\n`);
+  appendFileSync(STUB_LOG, `predicate pr=${PR_NUMBER} head=${HEAD_SHA} cleared=${CLEARED_SHA} label=${HUMAN_GATED} trusted=${TRUSTED_ACTORS_PATH}\n`);
   console.log(`stale-review-hold: stub ${STUB_PREDICATE ?? "unset"}`);
   return STUB_PREDICATE === "pass" ? 0 : 1;
 }
@@ -258,6 +258,26 @@ expect "a hold naming this head keeps it beside a marker for an unheld head" 1 "
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 HEAD_SHA="$OTHER_SHA" expect "a later head no hold names passes after the App's clear of an earlier one" 0 \
   "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
+if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+  ok "at a later head the predicate judges the head the App's marker names"
+else
+  fail "at a later head the predicate was not given the marker's head: '$(cat "$TMP_ROOT/log")'"
+fi
+# Only the newest marker before the removal names the cleared head.
+STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OTHER_SHA" "" 2026-10-23T11:10:00Z),$(cleared_for "$NEW_SHA")]"
+expect "the newest marker before the removal is the one judged" 0 "its marker names $NEW_SHA,"
+# A hold a person already lifted counts for nothing (thread PRRT_kwDOTCGFQM6xmJXy):
+# an old unparseable hold, its trusted lift, then the lane's new label and hold.
+STUB_COMMENTS="[$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review' 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+STUB_EVENTS="[$(unlabeled needs-human 2026-10-22T12:00:00Z 153232337 kyle-sexton),$(labeled needs-human 2026-10-23T09:59:00Z 'github-actions[bot]'),$BOT_LIFT]"
+expect "an unparseable hold a person lifted before the label went on again does not block the App's clear" 0 \
+  "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
+STUB_COMMENTS="[$(held_at "$NEW_SHA" 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
+expect "a lifted hold naming the head the App cleared does not block it" 0 \
+  "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z 'github-actions[bot]'),$BOT_LIFT]"
+expect "with no removal before the label, every hold comment counts" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_EVENTS="[$BOT_LIFT]"
 HEAD_SHA='' expect "an empty head fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 # The marker only points ci-status at the hold: the base commit's
@@ -266,7 +286,7 @@ HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal cl
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_PREDICATE=stands expect "a valid marker whose predicate now finds the hold standing fails" 1 \
   "melodic-automation-lanes[bot] removed 'needs-human'"
-if grep -qxF "predicate pr=6419 head=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+if grep -qxF "predicate pr=6419 head=$NEW_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
   ok "the predicate runs at this head with the base commit's trusted-actor list and the resolved label"
   if grep -q 'clear-escalations main ran' "$TMP_ROOT/log"; then fail "importing the base module ran its sweep"; else ok "importing the base module runs no sweep"; fi
 else

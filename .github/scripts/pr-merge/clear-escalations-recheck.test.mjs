@@ -1,10 +1,12 @@
 // Expected values come from the owner's needs-human brief, Part A2, and the
 // coordinator's direction that ci-status re-runs the App's predicate instead
 // of trusting its marker: after the lanes App removed a stale review-lane hold,
-// the base commit's clear-escalations.mjs recheckStaleHold, run by ci-status with its own token
-// at the event's head, passes only while the hold still no longer stands
-// there. A CRITICAL thread opened after the clear, or a lane with no run at
-// the head, makes it fail. Shapes are the review lanes' (#10743).
+// the base commit's clear-escalations.mjs recheckStaleHold, run by ci-status with its own token,
+// judges the head the App's marker names (CLEARED_SHA), which must be the
+// head when the App removed the label, so a later clean push stays green
+// before its lanes run (thread PRRT_kwDOTCGFQM6xmIfF). A CRITICAL thread opened
+// after the clear, or a lane with no run at the cleared head, makes it fail.
+// Shapes are the review lanes' (#10743).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,6 +23,7 @@ const APP_ACTOR = { login: APP.login, id: 337595936, type: "Bot" };
 const MAIN = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const OLD = "c".repeat(40);
+const LATER = "d".repeat(40);
 
 const DIR = mkdtempSync(join(tmpdir(), "stale-review-hold-"));
 after(() => rmSync(DIR, { recursive: true, force: true }));
@@ -35,7 +38,7 @@ writeFileSync(
     ],
   }),
 );
-const ENV = { GITHUB_REPOSITORY: REPO, PR_NUMBER: "7", HEAD_SHA: HEAD, HUMAN_GATED: "needs-human", TRUSTED_ACTORS_PATH: TRUSTED };
+const ENV = { GITHUB_REPOSITORY: REPO, PR_NUMBER: "7", HEAD_SHA: HEAD, CLEARED_SHA: HEAD, HUMAN_GATED: "needs-human", TRUSTED_ACTORS_PATH: TRUSTED };
 
 const commented = (user, body, at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: at });
 // The timeline ci-status sees on the unlabeled event: the lane's label and
@@ -47,10 +50,13 @@ const timeline = [
   commented(APP, `<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=${HEAD} -->\nCleared.`, "2026-10-18T12:00:00Z"),
   { event: "unlabeled", actor: APP, label: { name: "needs-human" }, created_at: "2026-10-18T12:00:01Z" },
 ];
-const thread = (severity, lane = "claude-security-review") => ({
-  isResolved: false,
-  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}` }] },
+const thread = (severity, lane = "claude-security-review", { isResolved = false, path = "plugins/x/z.py", commit = HEAD } = {}) => ({
+  isResolved,
+  path,
+  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, originalCommit: { oid: commit } }] },
 });
+// The held CRITICAL finding, inline at OLD on the file the fix changed, resolved.
+const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });
 const notice = (lane) => ({ annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=0 inline=0 scope=whole` });
 const LANES = {
   "pr-review-hosted.yml": { check: "pr-review / claude-review-status", lane: "claude-review" },
@@ -62,7 +68,7 @@ const pushes = [
 ];
 
 // One token answers every read, as ci-status's job token does.
-function world({ threads = [thread("severity: SUGGESTION")], notRun = null, head = HEAD } = {}) {
+function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes } = {}) {
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
@@ -77,7 +83,10 @@ function world({ threads = [thread("severity: SUGGESTION")], notRun = null, head
       return { files: [{ filename: "plugins/x/y.py" }] };
     }
     if (method === "GET" && route === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}`) {
-      return pushes;
+      return activity;
+    }
+    if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
+      return { total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py" }] };
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequest: { reviewThreads: { nodes: threads, pageInfo: { hasNextPage: false } } } } } };
@@ -137,8 +146,29 @@ test("ci-status's recheck fails when the pull request's head is not the event's"
 });
 
 test("ci-status's recheck fails closed on missing input", async () => {
-  for (const key of ["HEAD_SHA", "PR_NUMBER", "HUMAN_GATED"]) {
+  for (const key of ["HEAD_SHA", "CLEARED_SHA", "PR_NUMBER", "HUMAN_GATED"]) {
     const { code } = await run(world(), { ...ENV, [key]: "" });
     assert.equal(code, 1, key);
   }
+});
+
+test("ci-status's recheck at a later head judges the head the App cleared, before the lanes run there and after a lanes App push", async () => {
+  const later = [{ activity_type: "push", actor: APP_ACTOR, after: LATER, timestamp: "2026-10-18T12:30:00Z" }, ...pushes];
+  const { code, log } = await run(world({ head: LATER, activity: later }), { ...ENV, HEAD_SHA: LATER });
+  assert.equal(code, 0, log);
+  assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}`));
+});
+
+test("ci-status's recheck fails when a lanes App push landed the cleared head", async () => {
+  const appLanded = [{ activity_type: "push", actor: APP_ACTOR, after: HEAD, timestamp: "2026-10-18T11:00:00Z" }, pushes[1]];
+  const { code, log } = await run(world({ activity: appLanded }));
+  assert.equal(code, 1);
+  assert.match(log, /no trusted push alone moved the head off the held head/);
+});
+
+test("ci-status's recheck fails when the cleared head was not the head as the App removed the label", async () => {
+  const moved = [{ activity_type: "push", actor: PERSON, after: LATER, timestamp: "2026-10-18T11:59:00Z" }, ...pushes];
+  const { code, log } = await run(world({ head: LATER, activity: moved }), { ...ENV, HEAD_SHA: LATER });
+  assert.equal(code, 1);
+  assert.match(log, /no trusted push alone moved the head off the held head/);
 });
