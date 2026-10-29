@@ -1046,7 +1046,9 @@ the rules that only tighten in
     reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
     `retry-fetch.mjs` copy in each of those two directories, and the stop routes
     `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
-    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads), the scripts that act on a pr-unblock
+    with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads), the
+    review criteria `pr-review-main.yml` copies from main for the model (`plugins/review/skills/**`
+    and `plugins/review/reference/**`), the scripts that act on a pr-unblock
     stop's route (`report-escalation.sh`, which labels a held reason, `adjudicate-feedback.mjs` and
     `publish-feedback.mjs`, which decide and resolve threads, and
     `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
@@ -2485,7 +2487,10 @@ A lane-armed path clears only when all of these hold at the current head:
 3. The merge gate's risk score and verdict pass (`babysit_risk.lane_arm_record`).
 4. The head does not shrink the hold floor against the base: every `FLOOR_CLASSES` and
    `HOLD_PATH_CLASSES` row stays with its class or a stricter one, and nothing new is lane-armed
-   (`lane-armed.mjs` `shrinks`).
+   (`lane-armed.mjs` `shrinks`). Only rows between each file's markers count (`floor-rows
+   FLOOR_CLASSES` in `babysit_risk.py`, `hold-floor HOLD_PATH_CLASSES` and `hold-floor LANE_ARM`):
+   a marker missing, repeated or out of order, or a block comment or multi-line string inside a
+   region, refuses.
 
 Then pr-merge's `lane-armed` job, on a scheduled or hand-started run of main, posts the check run
 `pr-merge/lane-armed` at the head with the run's id as `external_id` and in `details_url`, and
@@ -2494,9 +2499,15 @@ base commit, on pull_request and merge_group runs alike, keyed on the pull reque
 lane-armed path only when that check run is from the GitHub Actions app, succeeded, carries a
 record of this head and of every lane-armed path changed now, and names a run of
 `.github/workflows/pr-merge.yml` on the default branch, started by schedule or
-workflow_dispatch, running or succeeded. Any workflow with `checks: write` posts as the same app,
-so the run is the proof, not the check run. Anything missing or unreadable holds. A trusted
+workflow_dispatch, running or succeeded, whose commit is the branch tip or an ancestor of it (the
+compare API against the tip the branches API reads, since a tag can share the branch's name), and
+that uploaded the artifact. Any workflow with `checks: write` posts as the same app, so the run is
+the proof, not the check run. Anything missing or unreadable holds. A trusted
 person's approval of the head lifts it as it lifts a hold path.
+
+The residual Q5 accepts: none of these checks reads what a lane-armed file's logic does. A head
+that keeps every floor row and weakens that logic merges on the two bound AI reviews plus the
+attestation.
 
 Each attestation is one countable record, the line
 `lane-armed {"v":1,"pr":N,"head":"<sha>","paths":[...],"lanes":{"claude-review":0,"claude-security-review":0},"threads":0,"run":<id>}`

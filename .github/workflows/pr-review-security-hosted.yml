@@ -279,6 +279,8 @@ jobs:
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        plugins/review/skills/**
+        plugins/review/reference/**
         .github/scripts/pr-review-main/**
         **/.claude/**
         **/.claude-lane/**

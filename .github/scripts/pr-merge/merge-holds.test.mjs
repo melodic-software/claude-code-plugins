@@ -477,7 +477,9 @@ test("the switch lane-arms babysit_risk.py and the pr-merge scripts, and every o
 // A world in which `head` carries a `pr-merge/lane-armed` check run from
 // `run`, each field overridable to forge it.
 const RUN_ID = 4242;
-const attestation = ({ head = HEAD, paths = LANE_ARMED_FILES, check = {}, run = {}, record = {}, branch = "main", artifact = {}, fail } = {}) => {
+const MAIN_TIP = "d".repeat(40);
+const RUN_SHA = "e".repeat(40);
+const attestation = ({ head = HEAD, paths = LANE_ARMED_FILES, check = {}, run = {}, record = {}, branch = "main", artifact = {}, compare = "ahead", tip = MAIN_TIP, fail } = {}) => {
   const line = `lane-armed ${JSON.stringify({ v: 1, pr: 99, head, paths, lanes: { "claude-review": 0, "claude-security-review": 0 }, threads: 0, run: RUN_ID, ...record })}`;
   const runs = [
     {
@@ -496,6 +498,7 @@ const attestation = ({ head = HEAD, paths = LANE_ARMED_FILES, check = {}, run = 
     id: RUN_ID,
     path: ".github/workflows/pr-merge.yml",
     head_branch: "main",
+    head_sha: RUN_SHA,
     event: "schedule",
     status: "in_progress",
     conclusion: null,
@@ -508,6 +511,8 @@ const attestation = ({ head = HEAD, paths = LANE_ARMED_FILES, check = {}, run = 
     if (path === `/repos/${REPO}`) return { default_branch: branch };
     if (path.startsWith(`/repos/${REPO}/commits/`) && path.includes("/check-runs?check_name=pr-merge%2Flane-armed")) return { check_runs: path.includes(`/commits/${HEAD}/`) ? runs : [] };
     if (path === `/repos/${REPO}/actions/runs/${RUN_ID}`) return workflowRun;
+    if (path === `/repos/${REPO}/branches/main`) return { name: "main", commit: { sha: tip } };
+    if (path === `/repos/${REPO}/compare/${workflowRun.head_sha}...${MAIN_TIP}`) return { status: compare };
     if (path === `/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?name=pr-merge-lane-armed-99-${HEAD}&per_page=100`) {
       return { artifacts: artifact === null ? [] : [{ name: `pr-merge-lane-armed-99-${HEAD}`, expired: false, workflow_run: { id: RUN_ID }, ...artifact }] };
     }
@@ -522,6 +527,8 @@ const reader = (world) => async (method, path) => {
 
 test("laneArmedHold passes the merge gate's own code only on a pr-merge.yml run of main that attested this head", async () => {
   assert.equal(await laneArmedHold(reader(attestation()), REPO, HEAD, LANE_ARMED_FILES, 99), null);
+  // The run's commit is main's tip, or an ancestor of it.
+  assert.equal(await laneArmedHold(reader(attestation({ compare: "identical" })), REPO, HEAD, LANE_ARMED_FILES, 99), null);
   for (const run of [{ event: "workflow_dispatch" }, { status: "completed", conclusion: "success" }]) {
     assert.equal(await laneArmedHold(reader(attestation({ run })), REPO, HEAD, LANE_ARMED_FILES, 99), null, JSON.stringify(run));
   }
@@ -548,6 +555,14 @@ test("laneArmedHold holds on a forged, stale or unreadable attestation", async (
     "an artifact of another run": { artifact: { workflow_run: { id: 1 } } },
     "an artifact of another name": { artifact: { name: `pr-merge-lane-armed-98-${HEAD}` } },
     "an artifact read that fails": { fail: (path) => path.includes("/artifacts?") },
+    // A tag named main: head_branch reads "main", but the run's commit is
+    // not on the main branch.
+    "a run whose commit is not on main": { compare: "diverged" },
+    "a run whose commit is ahead of main": { compare: "behind" },
+    "a run with no commit": { run: { head_sha: null } },
+    "a branch tip that is not a SHA": { tip: "main" },
+    "a branch read that fails": { fail: (path) => path.endsWith("/branches/main") },
+    "a compare read that fails": { fail: (path) => path.includes("/compare/") },
     "a record missing a changed lane-armed path": { paths: LANE_ARMED_FILES.slice(1) },
     "a run of another workflow": { run: { path: ".github/workflows/pr-refine.yml" } },
     "a run from a pull request branch": { run: { head_branch: "feat/x" } },

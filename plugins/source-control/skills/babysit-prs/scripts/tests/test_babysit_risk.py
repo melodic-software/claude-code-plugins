@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 49, "enforcement": 40},
+            {"trust": 18, "gate": 49, "enforcement": 42},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -2074,12 +2074,33 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 40)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
-                result = self._score(glob, (_lane("claude-security-review"),))
+                path = glob.replace("**", "x.md")
+                result = self._score(path, (_lane("claude-security-review"),))
                 self.assertEqual(result.score, Risk.LOW, _codes(result))
                 self.assertFalse(holds(result))
+
+    def test_the_review_criteria_main_runs_copy_hold_until_a_clean_review(self):
+        # pr-review-main.yml copies these from main as the model's criteria:
+        # a change to them waits for a clean bound security review, no person.
+        for path, code in (
+            (
+                "plugins/review/skills/security-review/SKILL.md",
+                "review-path:plugins/review/skills/**",
+            ),
+            (
+                "plugins/review/reference/severity.md",
+                "review-path:plugins/review/reference/**",
+            ),
+        ):
+            with self.subTest(path):
+                held = self._score(path, ())
+                self.assertIn(code, _codes(held))
+                self.assertFalse(person_reasons(held.reasons))
+                cleared = self._score(path, (_lane("claude-security-review"),))
+                self.assertFalse(holds(cleared), _codes(cleared))
 
     def test_an_enforcement_path_holds_without_a_clean_bound_review(self):
         security = "claude-security-review"

@@ -50,15 +50,43 @@ const RANK = { enforcement: 1, gate: 2, trust: 3 };
 const LANES = ["claude-review", "claude-security-review"];
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-// The floor rows and lane-armed globs a file's text declares: babysit_risk.py
-// `("glob", "class"),` and merge-holds.mjs `["glob", "class"],` rows, and the
-// entries of its generated LANE_ARMED list. Null when either is missing.
-export function floorOf(text) {
+// The marker pairs that bound each file's floor rows and its generated
+// LANE_ARMED list: only rows between them count, so a row kept in a comment
+// or string elsewhere in the file is no decoy.
+const ROW_MARKERS = { [RISK]: "floor-rows FLOOR_CLASSES", [HOLDS]: "hold-floor HOLD_PATH_CLASSES" };
+const ARMED_MARKER = "hold-floor LANE_ARM";
+
+// The text strictly between the one `BEGIN <name>` and the one `END <name>`
+// comment line, or null when either is missing or repeated, END comes first,
+// or the region holds, outside a one-line string, a block comment or a
+// multi-line string that could hide a row from the code.
+export function region(text, name) {
+  const lines = String(text).split("\n");
+  const at = (word) => lines.flatMap((line, i) => (new RegExp(`^\\s*(?:#|//) ${word} ${name}(?::.*)?$`).test(line) ? [i] : []));
+  const [begin, end] = [at("BEGIN"), at("END")];
+  if (begin.length !== 1 || end.length !== 1 || begin[0] >= end[0]) {
+    return null;
+  }
+  const inside = lines.slice(begin[0] + 1, end[0]).join("\n");
+  // Globs hold `/*`, so string literals are dropped before the check.
+  return /\/\*|\*\/|"""|'''|`/.test(inside.replaceAll(/"[^"\n]*"/g, '""')) ? null : inside;
+}
+
+// The floor rows and lane-armed globs `path`'s text declares inside its
+// markers: babysit_risk.py `("glob", "class"),` and merge-holds.mjs
+// `["glob", "class"],` rows, and the entries of its generated LANE_ARMED
+// list. Null when a region is unreadable or holds none.
+export function floorOf(text, path) {
+  const rowsText = region(text, ROW_MARKERS[path]);
+  const armedText = region(text, ARMED_MARKER);
+  if (rowsText === null || armedText === null) {
+    return null;
+  }
   const rows = new Map();
-  for (const [, glob, kind] of String(text).matchAll(/^\s*[[(]"([^"]+)", "(trust|gate|enforcement)"[\])],/gm)) {
+  for (const [, glob, kind] of rowsText.matchAll(/^\s*[[(]"([^"]+)", "(trust|gate|enforcement)"[\])],$/gm)) {
     rows.set(glob, kind);
   }
-  const block = /LANE_ARMED(?::[^=]*)? = (?:Object\.freeze\()?[[(]\n([\s\S]*?)\n\s*[\])]/.exec(String(text));
+  const block = /LANE_ARMED(?::[^=]*)? = (?:Object\.freeze\()?[[(]\n([\s\S]*?)\n\s*[\])]/.exec(armedText);
   if (rows.size === 0 || !block) {
     return null;
   }
@@ -157,7 +185,7 @@ export async function main({ env = process.env, github, fetchImpl, mode = proces
         // Each file against its own base copy: either one is what runs.
         let shrunk = null;
         for (const path of [RISK, HOLDS]) {
-          shrunk ??= shrinks(floorOf(await text(github, repo, path, pull.base.sha)), floorOf(await text(github, repo, path, row.head)));
+          shrunk ??= shrinks(floorOf(await text(github, repo, path, pull.base.sha), path), floorOf(await text(github, repo, path, row.head), path));
         }
         if (shrunk) {
           refuse(`the head shrinks the hold floor: ${shrunk}`);

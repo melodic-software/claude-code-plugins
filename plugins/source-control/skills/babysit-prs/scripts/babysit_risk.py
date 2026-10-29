@@ -307,8 +307,11 @@ class RiskResult:
 # pull request, always waits for a person.
 # The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
 # HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
-# hold_patterns, and test_merge_holds_sync.py runs its --check.
+# hold_patterns, and test_merge_holds_sync.py runs its --check. The
+# floor-rows markers bound the rows pr-merge's lane-armed.mjs compares
+# between base and head.
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
+    # BEGIN floor-rows FLOOR_CLASSES
     (".github/actions/check-trusted-trigger/**", "trust"),
     ("**/CODEOWNERS", "trust"),
     ("**/.gitmodules", "trust"),
@@ -382,6 +385,9 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
+    # The review criteria pr-review-main.yml copies from main for the model.
+    ("plugins/review/skills/**", "enforcement"),
+    ("plugins/review/reference/**", "enforcement"),
     (".github/scripts/pr-review-main/**", "gate"),
     # Agent settings and instruction files, whatever their name or depth:
     # settings, hooks and the scripts settings registers, skills, agents,
@@ -423,6 +429,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/workflows/work-resolve-issue.yml", "gate"),
     (".github/workflows/work-unblock.yml", "gate"),
     # END hold-floor GATE_WORKFLOWS
+    # END floor-rows FLOOR_CLASSES
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 

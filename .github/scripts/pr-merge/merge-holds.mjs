@@ -343,6 +343,8 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
+  ["plugins/review/skills/**", "enforcement"],
+  ["plugins/review/reference/**", "enforcement"],
   [".github/scripts/pr-review-main/**", "gate"],
   ["**/.claude/**", "gate"],
   ["**/.claude-lane/**", "gate"],
@@ -523,7 +525,10 @@ export const laneArmedPaths = (files) => (Array.isArray(files) ? files : []).fil
 // running or succeeded, that
 // uploaded the unexpired artifact laneArmedArtifact(pr, head), which only
 // that run's own steps can; its record must cover every lane-armed path
-// changed now. Any read that fails or answers anything else holds.
+// changed now. head_branch is only a ref name, and a tag can share the
+// branch's name, so the run's head_sha must also be the default branch's tip
+// or an ancestor of it (the compare API's `identical` or `ahead` against the
+// branch tip's SHA). Any read that fails or answers anything else holds.
 export async function laneArmedHold(github, repo, head, files, pr) {
   const armed = laneArmedPaths(files);
   if (armed.length === 0) {
@@ -575,19 +580,41 @@ export async function laneArmedHold(github, repo, head, files, pr) {
     );
     const live = run?.status === "in_progress" || (run?.status === "completed" && run?.conclusion === "success");
     if (
-      String(run?.id) === String(check.external_id) &&
-      run?.path === LANE_ARMED_WORKFLOW &&
-      run?.head_branch === branch &&
-      LANE_ARMED_EVENTS.includes(run?.event) &&
-      run?.repository?.full_name === repo &&
-      run?.head_repository?.full_name === repo &&
-      live &&
-      uploaded
+      !(
+        String(run?.id) === String(check.external_id) &&
+        run?.path === LANE_ARMED_WORKFLOW &&
+        run?.head_branch === branch &&
+        /^[0-9a-f]{40}$/.test(String(run?.head_sha)) &&
+        LANE_ARMED_EVENTS.includes(run?.event) &&
+        run?.repository?.full_name === repo &&
+        run?.head_repository?.full_name === repo &&
+        live &&
+        uploaded
+      )
     ) {
+      continue;
+    }
+    if (await onBranch(github, repo, branch, run.head_sha)) {
       return null;
     }
   }
   return hold(candidates.length === 0 ? `no ${LANE_ARMED_CHECK} check run from the GitHub Actions app is at this head` : `no ${LANE_ARMED_CHECK} check run at this head names a pr-merge.yml run on ${branch} that covers them`);
+}
+
+// Whether commit `sha` is the tip of `branch` or an ancestor of it. The tip
+// comes from the branches API, never from the bare name, which a tag can
+// share; any read that fails answers false.
+async function onBranch(github, repo, branch, sha) {
+  try {
+    const tip = (await github("GET", `/repos/${repo}/branches/${encodeURIComponent(branch)}`))?.commit?.sha;
+    if (!/^[0-9a-f]{40}$/.test(String(tip))) {
+      return false;
+    }
+    const status = (await github("GET", `/repos/${repo}/compare/${sha}...${tip}`))?.status;
+    return status === "identical" || status === "ahead";
+  } catch {
+    return false;
+  }
 }
 
 // Why the changed `files` hold it for the owner's cost decision, or null when
