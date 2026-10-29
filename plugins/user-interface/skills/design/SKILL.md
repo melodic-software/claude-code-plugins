@@ -178,7 +178,8 @@ These apply whatever the route, and the type files give the detail:
 
 When the project lacks a piece the design needs (a token file, a short design-system note, a
 consistent error style), offer to create it in the project's own format, and create it only after
-the user agrees.
+the user agrees. A design-system note, or a request to document the project's tokens and
+components for agents, follows `${CLAUDE_PLUGIN_ROOT}/reference/design-system-doc.md`.
 
 ## Next
 
