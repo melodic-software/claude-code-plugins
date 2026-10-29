@@ -670,16 +670,28 @@ class CostDecision(unittest.TestCase):
         self.assertIsNone(carried(long, unreadable="activity"))
 
     def test_branch_activity_joins_the_pages_and_fails_closed(self) -> None:
+        def full(start: int = 0) -> list[dict[str, Any]]:
+            return [{"id": start + i} for i in range(100)]
+
         self.assertEqual(
-            policy.branch_activity([[{"id": 1}], [{"id": 2}]]), [{"id": 1}, {"id": 2}]
+            policy.branch_activity([full(), [{"id": 100}]]), [*full(), {"id": 100}]
         )
-        # A page that is no list is unreadable, as unran_head names it.
-        self.assertIsNone(policy.branch_activity([[], {"message": "Not Found"}]))
+        # gh stops at an answer with no next link; a full one may not be the end.
+        for pages in ([full()], [full(), full(100)]):
+            with self.assertRaisesRegex(
+                policy.PolicyReadError, "full page with no next link"
+            ):
+                policy.branch_activity(pages)
+        # No page, or a page that is no list, is unreadable, as unran_head names it.
+        self.assertIsNone(policy.branch_activity([full(), {"message": "Not Found"}]))
+        self.assertIsNone(policy.branch_activity([full(), None]))
+        self.assertIsNone(policy.branch_activity([]))
         self.assertIsNone(policy.branch_activity(None))
-        # Fifty pages are read; a fifty-first is refused.
-        self.assertEqual(len(policy.branch_activity([[{"id": i}] for i in range(50)])), 50)
-        with self.assertRaisesRegex(policy.PolicyReadError, "runs past 50 pages"):
-            policy.branch_activity([[{"id": i}] for i in range(51)])
+        # Twenty pages are read; a twenty-first is refused.
+        twenty = [full(i * 100) for i in range(19)] + [[{"id": 1900}]]
+        self.assertEqual(len(policy.branch_activity(twenty)), 1901)
+        with self.assertRaisesRegex(policy.PolicyReadError, "runs past 20 pages"):
+            policy.branch_activity([full(i * 100) for i in range(20)] + [[]])
 
     def test_get_pages_reads_every_page_and_fails_on_any(self) -> None:
         endpoint = "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"

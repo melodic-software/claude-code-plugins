@@ -2558,20 +2558,30 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     return decided if unran_head(activity, ran, decided, at) is None else None
 
 
-ACTIVITY_PAGES = 50
+ACTIVITY_PAGES = 20
 
 
 def branch_activity(pages: Any) -> list[Any] | None:
     """The head branch's activity from `_get_pages`' one entry per page, newest
     first, read to its end (merge-holds.mjs `branchActivity`): the API keeps a
     branch name's history across deletions, so a name recreated for each sync
-    fills any one page. A page that is no list gives None (`unran_head`'s
-    unreadable); more than ACTIVITY_PAGES pages raises."""
-    if not is_json_array(pages) or not all(is_json_array(page) for page in pages):
+    fills any one page. gh stops at the first answer with no next link, and
+    only a short page ends the history, so a full last page raises, as does
+    more than ACTIVITY_PAGES pages. No page, or a page that is no list, gives
+    None (`unran_head`'s unreadable)."""
+    if (
+        not is_json_array(pages)
+        or not pages
+        or not all(is_json_array(page) for page in pages)
+    ):
         return None
     if len(pages) > ACTIVITY_PAGES:
         raise PolicyReadError(
             f"the branch's push history runs past {ACTIVITY_PAGES} pages"
+        )
+    if len(pages[-1]) >= 100:
+        raise PolicyReadError(
+            "the branch's push history has a full page with no next link"
         )
     return [move for page in pages for move in page]
 

@@ -752,14 +752,15 @@ async function noticedHead(read, repo, branch, base, at) {
 // createGitHub) keeps on a list answer, under a registered symbol so this
 // file imports no repository file.
 export const LINK = Symbol.for("github.link");
-export const ACTIVITY_PAGES = 50;
+export const ACTIVITY_PAGES = 20;
 
 // The head `branch`'s activity in `repo`, newest first, read to its end: the
 // API keeps a branch name's history across deletions, so a name recreated
 // for each sync fills any one page. It ignores `page`, so each next page is
-// the `after` cursor of the answer's Link rel="next". A page that is no list
-// gives null (unranHead's unreadable); a next link with no new cursor, or
-// more than ACTIVITY_PAGES pages, throws, as a failed read does.
+// the `after` cursor of the answer's Link rel="next"; only a short page ends
+// it. A page that is no list gives null (unranHead's unreadable); a full page
+// with no next link, a next link with no new cursor, or more than
+// ACTIVITY_PAGES pages throws, as a failed read does.
 export async function branchActivity(read, repo, branch) {
   const path = `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`;
   const rows = [];
@@ -770,9 +771,12 @@ export async function branchActivity(read, repo, branch) {
       return null;
     }
     rows.push(...page);
+    if (page.length < 100) {
+      return rows;
+    }
     const next = /<([^>]*)>;\s*rel="next"/.exec(String(page[LINK] ?? ""));
     if (!next) {
-      return rows;
+      throw new Error("the branch's push history has a full page with no next link");
     }
     // The cursor as the link spells it, encoded: decoding would read a `+` as a space.
     after = /[?&]after=([^&#]+)/.exec(next[1])?.[1];

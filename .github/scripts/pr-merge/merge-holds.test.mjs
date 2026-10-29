@@ -798,23 +798,29 @@ test("branchActivity follows the Link cursor, and fails closed on a bad page or 
     };
     return { read, paths };
   };
+  // A full page of 100 entries, ids from `from`.
+  const full = (from = 0) => Array.from({ length: 100 }, (_, i) => ({ id: from + i }));
   const first = "/repos/o/r/activity?ref=refs%2Fheads%2Fchore%2Fstandards-sync&direction=desc&per_page=100";
-  // The cursor is passed on as the link spells it.
-  const two = reader([page([{ id: 1 }], "Y3Vy%2Bc29y"), page([{ id: 2 }])]);
-  assert.deepEqual(await holdsModule.branchActivity(two.read, "o/r", "chore/standards-sync"), [{ id: 1 }, { id: 2 }]);
+  // The cursor is passed on as the link spells it; a short page ends the read.
+  const two = reader([page(full(), "Y3Vy%2Bc29y"), page([{ id: 100 }])]);
+  assert.deepEqual(await holdsModule.branchActivity(two.read, "o/r", "chore/standards-sync"), [...full(), { id: 100 }]);
   assert.deepEqual(two.paths, [first, `${first}&after=Y3Vy%2Bc29y`]);
+  // A full page with no next link may not be the end.
+  await assert.rejects(holdsModule.branchActivity(reader([page(full())]).read, "o/r", "b"), /full page with no next link/);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(100))]).read, "o/r", "b"), /full page with no next link/);
   // A later page that is no list is unreadable, as unranHead names it.
-  assert.equal(await holdsModule.branchActivity(reader([page([], "a"), { message: "Not Found" }]).read, "o/r", "b"), null);
-  await assert.rejects(holdsModule.branchActivity(reader([page([], "a"), new Error("502")]).read, "o/r", "b"), /502/);
+  assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), { message: "Not Found" }]).read, "o/r", "b"), null);
+  assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), null]).read, "o/r", "b"), null);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), new Error("502")]).read, "o/r", "b"), /502/);
   // A next link with no cursor, or one repeating a cursor, would loop.
-  await assert.rejects(holdsModule.branchActivity(reader([Object.defineProperty([], LINKED, { value: '<https://api.github.com/x>; rel="next"' })]).read, "o/r", "b"), /no new page/);
-  await assert.rejects(holdsModule.branchActivity(reader([page([], "a"), page([], "a")]).read, "o/r", "b"), /no new page/);
-  // Fifty pages are read; a fifty-first is refused.
-  const fifty = reader(Array.from({ length: 50 }, (_, i) => page([{ id: i }], i < 49 ? `c${i}` : undefined)));
-  assert.equal((await holdsModule.branchActivity(fifty.read, "o/r", "b")).length, 50);
-  const more = reader(Array.from({ length: 51 }, (_, i) => page([{ id: i }], `c${i}`)));
-  await assert.rejects(holdsModule.branchActivity(more.read, "o/r", "b"), /runs past 50 pages/);
-  assert.equal(more.paths.length, 50);
+  await assert.rejects(holdsModule.branchActivity(reader([Object.defineProperty(full(), LINKED, { value: '<https://api.github.com/x>; rel="next"' })]).read, "o/r", "b"), /no new page/);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(), "a")]).read, "o/r", "b"), /no new page/);
+  // Twenty pages are read; a twenty-first is refused.
+  const twenty = reader(Array.from({ length: 20 }, (_, i) => (i < 19 ? page(full(i * 100), `c${i}`) : page([{ id: 1900 }]))));
+  assert.equal((await holdsModule.branchActivity(twenty.read, "o/r", "b")).length, 1901);
+  const more = reader(Array.from({ length: 21 }, (_, i) => page(full(i * 100), `c${i}`)));
+  await assert.rejects(holdsModule.branchActivity(more.read, "o/r", "b"), /runs past 20 pages/);
+  assert.equal(more.paths.length, 20);
 });
 
 test("unranHead names the first head pushed after the decided head with no run of every lane", () => {
