@@ -4,7 +4,7 @@ import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader 
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -698,7 +698,7 @@ describe("decide", () => {
 // `elsewhere` answers another repository's issue reads by path; `older` is
 // the count the older-deferred search answers, or "incomplete". `closer` is
 // what the closing-event query answers.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn, done = null } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -707,6 +707,10 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     }
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
+      // mergedRefsPulls' batch: `done` is issue 7 as DONE_QUERY reads it.
+      if (body.query.includes("fragment done on Issue")) {
+        return { data: { repository: { i7: done } } };
+      }
       if (body.query.includes("closedByPullRequestsReferences")) {
         const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
         return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
@@ -1112,6 +1116,110 @@ describe("admit", () => {
   });
 });
 
+
+describe("a merged Refs pull request after the newest decision or refinement", () => {
+  // Issue 7 as DONE_QUERY reads it: opened 10-20, with `comments` and the pull
+  // requests that mention it.
+  const node = ({ comments = [], pulls = [] } = {}) => ({
+    createdAt: "2026-10-20T08:00:00Z",
+    comments: { nodes: comments },
+    timelineItems: { nodes: pulls.map((source) => ({ source })) },
+  });
+  const pull = (overrides = {}) => ({ number: 30, merged: true, mergedAt: "2026-10-27T15:54:34Z", body: "Refs: #7\n\n## Summary", repository: { nameWithOwner: "o/r" }, ...overrides });
+  const comment = (author, body, createdAt) => ({ createdAt, body, lastEditedAt: null, author, editor: null });
+  const decision = (createdAt) => comment(USER(HUMAN), "**Decision recorded.** Build it as the refinement says.", createdAt);
+  const refinement = (createdAt) => comment(APP_ACTOR, `${REFINE_MARKER}\n**Refinement.**`, createdAt);
+  const after = (fields) => mergedRefsAfter(node(fields), 7, "o/r", humans, APP);
+
+  test("one merged after the newest decision comment may have done the work", () => {
+    assert.deepEqual(after({ comments: [decision("2026-10-25T21:47:04Z")], pulls: [pull()] }), [30]);
+  });
+
+  test("one merged before the newest decision or refinement comment did not", () => {
+    assert.deepEqual(after({ comments: [decision("2026-10-28T09:00:00Z")], pulls: [pull()] }), []);
+    assert.deepEqual(after({ comments: [decision("2026-10-25T21:47:04Z"), refinement("2026-10-28T09:00:00Z")], pulls: [pull()] }), []);
+  });
+
+  test("with neither comment, one merged since the issue opened counts", () => {
+    assert.deepEqual(after({ pulls: [pull()] }), [30]);
+  });
+
+  test("no pull request, or one that is open, another repository's, or only mentions it, is none", () => {
+    assert.deepEqual(after(), []);
+    assert.deepEqual(
+      after({
+        pulls: [
+          pull({ number: 31, merged: false, mergedAt: null }),
+          pull({ number: 32, repository: { nameWithOwner: "o/other" } }),
+          pull({ number: 33, body: "Follows the approach in #7." }),
+          pull({ number: 34, body: "Closes #8\nRefs: #70" }),
+        ],
+      }),
+      [],
+    );
+  });
+
+  test("a decision comment someone outside the list wrote, or an outsider edited, moves no cutoff", () => {
+    const outsider = comment(USER(OUTSIDER), "**Decision recorded.** Run it again.", "2026-10-28T09:00:00Z");
+    const edited = { ...decision("2026-10-28T09:00:00Z"), lastEditedAt: "2026-10-28T10:00:00Z", editor: USER(OUTSIDER) };
+    assert.deepEqual(after({ comments: [outsider, edited], pulls: [pull()] }), [30]);
+  });
+
+  test("a Refs line names the issue alone, in a list of issues, or with a note after", () => {
+    for (const body of ["Refs: #7", "  Refs: #7\r", "Refs: #3, #7", "Refs: #7 (closes once the check is green)"]) {
+      assert.equal(refsNames(body, 7), true, body);
+    }
+    for (const body of ["Refs: #70", "Refs: #7, see the thread", "Refs: o/x#7", "Refs: #1; possible overlap with #7", "See #7"]) {
+      assert.equal(refsNames(body, 7), false, body);
+    }
+  });
+
+  test("admit() parks such an issue at status: confirmed with one comment naming the pull request", async () => {
+    const fake = fakeGitHub({ done: node({ comments: [decision("2026-10-25T21:47:04Z")], pulls: [pull()] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.equal(result.status, CONFIRMED);
+    assert.equal(fake.calls.filter((call) => call.path === "/graphql" && call.body.query.includes("fragment done on Issue")).length, 1);
+    assert.deepEqual(writes(fake.calls), [
+      `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`,
+      `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)} undefined`,
+      `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([30]))}` })}`,
+    ]);
+    assert.match(doneReason([30]), /#30/);
+  });
+
+  test("admit() admits one whose Refs pull request merged before its newest decision", async () => {
+    const fake = fakeGitHub({ done: node({ comments: [decision("2026-10-28T09:00:00Z")], pulls: [pull()] }) });
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.equal(fake.calls.filter((call) => call.path === "/graphql" && call.body.query.includes("fragment done on Issue")).length, 1);
+  });
+
+  test("admit() admits one with no pull request", async () => {
+    const fake = fakeGitHub({ done: node() });
+    assert.equal((await go(fake)).outcome, "admitted");
+  });
+
+  test("admit() admits as before when the read fails or answers no repository", async () => {
+    const failing = fakeGitHub({ done: node({ pulls: [pull()] }), failOn: (method, path, body) => path === "/graphql" && body.query.includes("fragment done on Issue") });
+    const logged = [];
+    assert.equal((await admit({ ...goArgs(failing), log: (line) => logged.push(line) })).outcome, "admitted");
+    assert.ok(logged.some((line) => line.startsWith("::warning title=admit::merged Refs pull requests not read")), logged.join("\n"));
+    const empty = { github: async () => ({ errors: [{ message: "rate limited" }] }) };
+    assert.deepEqual(await mergedRefsReader({ ...empty, repository: "o/r", humans, appId: APP, log: () => {} })(7), []);
+  });
+
+  test("a pass reads each batch of its issues in one call", async () => {
+    const queries = [];
+    const github = async (method, path, body) => {
+      queries.push(body.query);
+      return { data: { repository: { i7: node({ pulls: [pull()] }), i8: node(), i9: node({ pulls: [pull({ number: 40, body: "Refs: #9" })] }) } } };
+    };
+    const read = mergedRefsReader({ github, repository: "o/r", numbers: [7, 8, 9], humans, appId: APP });
+    assert.deepEqual([await read(7), await read(8), await read(9)], [[30], [], [40]]);
+    assert.equal(queries.length, 1);
+    assert.match(queries[0], /i7: issue\(number: 7\).*i8: issue\(number: 8\).*i9: issue\(number: 9\)/s);
+  });
+});
 
 describe("unrunnableCriteria", () => {
   const kinds = (line, hosts = HOSTS) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", hosts).found.map(({ kind }) => kind);

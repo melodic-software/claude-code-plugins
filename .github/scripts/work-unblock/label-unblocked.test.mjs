@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -109,7 +109,8 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // `queuedIssues` are the numbers the open agent-ready issue search lists,
 // `deferred` what the open admission-deferred listing answers, and `ready`
 // what the open `status: ready` listing answers.
-// `blobs` maps a path to its blob SHA on main.
+// `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
+// admit.mjs's merged-Refs batch read answers for it.
 // `timeline` and `closing` are per issue, `pulls` per pull request number.
 function world({
   blocking,
@@ -137,6 +138,7 @@ function world({
   specs = {},
   parents = {},
   subIssues = {},
+  done = {},
   failOn,
 } = {}) {
   const calls = [];
@@ -261,6 +263,11 @@ function world({
       Object.values(blockedBy)
         .flat()
         .find((item) => String(item.number) === number && item.repository_url === `${API}/repos/${REPO}`);
+    // admit.mjs mergedRefsPulls: one aliased issue per number asked.
+    if (method === "POST" && route === "/graphql" && body.query.includes("fragment done on Issue")) {
+      const asked = [...body.query.matchAll(/\bi(\d+): issue\(number: \1\)/g)].map((m) => m[1]);
+      return { data: { repository: Object.fromEntries(asked.map((n) => [`i${n}`, done[n] ?? null])) } };
+    }
     // The closer read: the last ClosedEvent of one issue in this repository.
     if (method === "POST" && route === "/graphql" && body.query.includes("closedByPullRequestsReferences")) {
       const refs = { nodes: closing[body.variables.number] ?? [], pageInfo: { hasNextPage: false, endCursor: null } };
@@ -3226,6 +3233,47 @@ test("the sweep lifts a parked status: confirmed beside status: ready when it ad
   assert.deepEqual(writes(ready.calls), [labeled(25), undeferred(25)]);
 });
 
+// Three deferred issues, 25 to 27, each ready with no blocker; `done` is what
+// the merged-Refs read answers per issue.
+const doneNode = (pulls = [], refs = 26) => ({ createdAt: "2026-10-01T00:00:00Z", comments: { nodes: [] }, timelineItems: { nodes: pulls.map((number) => ({ source: { number, merged: true, mergedAt: "2026-10-16T07:00:00Z", body: `Refs: #${refs}`, repository: { nameWithOwner: REPO } } })) } });
+const threeDeferred = (extra = {}) => {
+  const labels = ["admission-deferred", "status: ready"];
+  const numbers = [25, 26, 27];
+  return world({
+    deferred: numbers.map((n) => issue(n, { labels })),
+    issues: Object.fromEntries(numbers.map((n) => [n, issue(n, { labels })])),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [deferredAdd(LANES_BOT)]])),
+    done: { 25: doneNode(), 26: doneNode([41]), 27: doneNode() },
+    ...extra,
+  });
+};
+const doneReads = (calls) => calls.filter((call) => call.startsWith("POST /graphql ") && call.includes("fragment done on Issue"));
+
+test("the sweep parks a deferred issue a merged Refs pull request may have done, reading the pass's issues in one call", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred();
+  assert.equal(await sweep({ github }, PAUSING), 0);
+  assert.equal(doneReads(calls).length, 1);
+  assert.deepEqual(writes(calls), [
+    labeled(25),
+    undeferred(25),
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    undeferred(26),
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    labeled(27),
+    undeferred(27),
+  ]);
+});
+
+test("the sweep admits deferred issues as before when the merged-Refs read fails", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred({ failOn: (method, path, body) => path === "/graphql" && String(body?.query).includes("fragment done on Issue") });
+  assert.equal(await sweep({ github }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(25), undeferred(25), labeled(26), undeferred(26), labeled(27), undeferred(27)]);
+});
+
 // A pull request in this repository that references the deferred issue, as the REST
 // timeline reports it, with the issue lane's Refs line unless `body` says otherwise.
 const namingPull = (state, body = "Refs: #25") => ({
@@ -3342,10 +3390,12 @@ const markedWorld = ({
   comments = [note()],
   extraEvents = [],
   blockers = [issue(10, { state: "closed" })],
+  done = {},
   failOn,
 } = {}) =>
   world({
     specs,
+    done,
     failOn,
     closing: { 25: closing },
     deferred: [markedIssue(labels)],
@@ -3374,6 +3424,18 @@ test("a person's mark admitted with a parked status: confirmed beside status: re
   const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
+});
+
+test("a person's mark on an issue a merged Refs pull request may have done parks it at status: confirmed, not needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    `POST /repos/${REPO}/issues/25/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+    undeferred(25),
+  ]);
 });
 
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
