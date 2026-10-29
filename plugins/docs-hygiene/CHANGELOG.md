@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.12] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
 ## [2.0.11] - 2026-10-29
 
 ### Changed

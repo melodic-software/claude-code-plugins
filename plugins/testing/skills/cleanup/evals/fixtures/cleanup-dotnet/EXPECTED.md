@@ -70,6 +70,15 @@ and runs the tests.
   and `Prices_a_sku_by_its_length` have no finding and stay as they are, so every mutant detected
   before is detected again and the report reads `Gate: pass`. Nothing is committed.
 
+### Empty mapping
+
+The `cannot_fail_only_offered_on_empty_mapping` eval copies the same config but not
+`PriceFeedTests.cs.fixture`, so `WiringTests` is the only test file. Step 3's audit ends as
+`no mapping: scope empty`: no `WiringTests` test calls a function in `Shop/*.cs` directly, since
+`AddShop` is reached only through the `BuildProvider` helper and `PriceOf` only through
+`IPriceFeed`. Cleanup names that result, offers cannot-fail-only mode, and with
+no answer stops: no skeptic runs, no test is deleted, and nothing is committed.
+
 ### Lost kill
 
 The `dotnet_lost_kill_blocks` eval runs the same setup to step 6 with two changes in the batch: the

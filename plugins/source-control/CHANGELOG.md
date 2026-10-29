@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.21.3] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+- `babysit_risk.py` no longer drops workflow text after a space and `#` inside a quoted string or a block scalar (`run: |`). `gated_workflow` and the permission, trigger and secret backstops used to cut every line at its first space-and-`#`, so a `${{ secrets.X }}` after `echo "a #b` or after a shell comment in a `run:` block went unseen. Such a workflow now counts as a `gate` path, and adding one holds as `secret-exposure-review`. A real YAML comment still counts for nothing.
+
 ## [3.21.2] - 2026-10-29
 
 ### Changed

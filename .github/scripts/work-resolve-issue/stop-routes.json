@@ -16,6 +16,7 @@
   "resumed-unchecked": { "route": "retry", "why": "the runner's checks did not pass over the resumed branch, so the next run continues it" },
   "check-failed": { "route": "retry", "why": "a check the runner ran on the branch failed or could not be read, so the next run continues the branch" },
   "required-undone": { "route": "retry", "why": "the run left a required check undone, so the next run continues the branch" },
+  "hold-label-failed": { "route": "retry", "why": "the held PR could not be labeled human-merge-hold, a failed write, not a finding about the issue" },
   "pr-head-moved": { "route": "retry", "why": "the PR opened at a head other than the tip the runner checked, a race, not a finding about the issue" },
   "closed-by-open-pr": { "route": "retry", "why": "an open PR the lanes App or a listed human opened already closes the issue, a race with the earlier-work check, not a finding about the issue; while it stays open the next run stops before any model turn" },
   "turn-cap-spent": { "route": "fail", "why": "the run reached its turn cap with no restart left" },
