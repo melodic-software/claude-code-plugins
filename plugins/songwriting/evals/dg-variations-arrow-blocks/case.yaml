@@ -1,6 +1,13 @@
 schema_version: "1.1"
 name: dg-variations-arrow-blocks
+context:
+  scaffold_script: scaffold.sh
 graders:
+  - name: ran-syllable-count
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?datamuse\.sh(?:\\")?\s+syllables\b'
+    min: 1
   - name: changed-line-marker
     type: regex
     pattern: '►'

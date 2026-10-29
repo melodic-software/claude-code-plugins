@@ -49,10 +49,33 @@
 # guard keyed on PATH SHAPE across every Bash command fired on 45.7% of 14,234
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
-# text does not contain `rm` never reaches the parse at all. The prefilter is a
-# SUBSTRING match, not a token one, so `npm run format` does reach the
-# tokenizer and is allowed there on its command word. The path question is
-# asked only once a recursive `rm` is already established.
+# text holds none of `rm`, `-delete` and `unlink` never reaches the parse at
+# all. The prefilter is a SUBSTRING match, not a token one, so `npm run format`
+# does reach the tokenizer and is allowed there on its command word. The path
+# question is asked only once a recursive `rm` or a deleting find is
+# established.
+#
+# FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
+# or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
+# remove what the find's start points hold, so each start point is judged as
+# an operand of a recursive rm, through every arm below. A find that does
+# neither is not judged, and a word inside an action's command, up to its `;`
+# or the `+` after `{}`, is never read as -delete. GNU and BSD find read the
+# leading options differently, so the start points of both readings are
+# judged. GNU: after -H, -L, -P, -D <debugopts> and -O<level>, the words up to
+# the first that begins with `-` or is `(` or `!`, and `.` when there is none
+# (find(1), man7.org). BSD: after getopt clusters of -E, -H, -L, -P, -X, -d,
+# -s, -x and -f <path>, each -f operand and the words up to the first that
+# begins with `-` or is `(` or `!` (FreeBSD usr.bin/find/main.c). Both read
+# 2026-10-29; recheck when either changes how start points end. A `--` ends
+# the leading options in both readings, which can only add a start point.
+# find follows a start point that is a symlink under -H, -L or -follow
+# (find(1)), so with any of them, a BSD cluster holding H or L included, each
+# start point is judged as `<start point>/`, by where the link points; without
+# them it is judged as rm judges a link named last. -delete turns on -depth,
+# which leaves -prune ineffective (find(1)), and find descends into `.git`, so
+# a find delete started at the git toplevel is refused as a directory holding
+# a `.git` whatever its filters.
 #
 # FOUR MORE TARGET CLASSES, each refused with its own message:
 #   * An EMPTY operand (`rm -rf ""`, `rm -rf "" build`): a path that failed to
@@ -160,8 +183,12 @@
 # src/*/__pycache__` over a large `src` are refused), an operand over 4096
 # bytes or 128 path separators, an expansion followed by a segment of
 # punctuation alone (`${X:-{a,b}}/*` leaves a literal `}`, which names nothing
-# here), a backslash-escaped brace (it reads as partly quoted), and the three
-# launcher lines decided below.
+# here), a backslash-escaped brace (it reads as partly quoted), a find delete
+# started at the git toplevel whose filters match nothing in `.git` (`find .
+# -name '*.pyc' -delete`, or `find -name '*.pyc' -delete` run from there), a
+# BSD leading option ahead of a start point run from the toplevel (`find -E
+# build -regex '.*\.o' -delete`: the GNU reading then has no start point and
+# judges `.`), and the three launcher lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -231,13 +258,21 @@
 #     and a here-string, which is read as ordinary quoting: its body is not
 #     judged, and a quote character inside it ends the span early, so the code
 #     after it is not judged either.
-#   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
-#     `shred`, and a delete performed from inside an interpreter.
+#   * Other delete verbs: `rsync --delete`, `xargs rm`, `shred`, and a delete
+#     performed from inside an interpreter.
+#   * In a find: an action that runs its deleter through a launcher or a child
+#     shell (`-exec sudo rm`, `-exec sh -c 'rm …'`), the action command's own
+#     operands (`-exec rm -rf /x \;` is judged by its start points alone),
+#     a symlink below a start point that -L or -follow makes find follow, the
+#     start points GNU find reads from a file with -files0-from (the BSD
+#     reading of the same words is still judged), and find on the PowerShell
+#     tool, which is not read.
 #   * From the Bash tool, a delete run by a Windows program instead of rm:
 #     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
-#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm command word
-#     only, and its prefilter passes only text holding `rm`; cmd rd /s and
-#     Remove-Item are judged in the PowerShell lane (#6626).
+#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm and find
+#     command words only, and its prefilter passes only text holding `rm`,
+#     `-delete` or `unlink`; cmd rd /s and Remove-Item are judged in the
+#     PowerShell lane (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -315,9 +350,11 @@
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
 #     are not, because the prefilter exits allow before the tokenizer rejoins
-#     them. That is the price of not tokenizing every Bash call, and it is the
-#     right trade here: this guard's threat model is an agent making the
-#     mistake #92593 records, not one deliberately obfuscating a command word.
+#     them, and neither is a find whose `-delete` is split the same way
+#     (`-del''ete`). That is the price of not tokenizing every Bash call, and
+#     it is the right trade here: this guard's threat model is an agent making
+#     the mistake #92593 records, not one deliberately obfuscating a command
+#     word.
 #
 # BLOCKING: on a recursive delete of a root, of an empty or
 # bare-variable operand, of a protected tree, or of a target outside the
@@ -637,8 +674,9 @@ fi
 # A case-SENSITIVE prefilter here would have exited allow first, a bypass of
 # the whole guard rather than a missed spelling.
 #
-# Bash: a substring `rm` is all this can be (`npm run format` still reaches
-# the tokenizer and is allowed on its command word). PowerShell: Remove-Item,
+# Bash: a substring `rm`, `-delete` or `unlink`, the text a recursive rm or a
+# deleting find must hold (`npm run format` still reaches the tokenizer and is
+# allowed on its command word). PowerShell: Remove-Item,
 # rmdir, erase, cmd, rd, del, rm, and `ri` as a command word (not the `ri`
 # inside Write/string). Over-inclusive on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
@@ -654,7 +692,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm*) ;;
+  *rm* | *-delete* | *unlink*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -3007,6 +3045,13 @@ rdt_check_segment() {
     return 0
   fi
 
+  # A find whose expression deletes removes what its start points hold (FIND
+  # DELETES in the header).
+  if [[ "$base" == "find" ]]; then
+    rdt_find_check "$i"
+    return 0
+  fi
+
   [[ "$base" == "rm" ]] || return 0
 
   # Flags and operands. `--` ends option parsing, exactly as rm reads it.
@@ -3055,60 +3100,173 @@ rdt_check_segment() {
   ((recursive)) || return 0
   ((no_preserve)) && rdt_block "no-preserve-root"
 
-  local q x rc
-  local -a bx=()
   for j in ${operand_idx[@]+"${operand_idx[@]}"}; do
-    w="${words[j]}"
-    q="${HOOK_SEG_WORD_QUOTED[j]:-0}"
-    # An EMPTY operand that a BACKSLASH ESCAPE produced is a dropped trailing
-    # backslash: bash passes a literal `\` when one ends the input, and MSYS
-    # resolves that to the current drive root, which is the #92593 incident
-    # minus its quotes. The tokenizer cannot represent it (it has no character
-    # left to emit), so provenance is what separates it from `rm -rf ""`, whose
-    # empty operand comes wholly from a quoted span (provenance 2) and is
-    # refused as an empty operand instead.
-    if [[ -z "$w" ]]; then
-      ((q == 1)) && rdt_block "root-operand" "/"
-      rdt_block "empty-operand"
+    rdt_delete_operand "${words[j]}" "${HOOK_SEG_WORD_QUOTED[j]:-0}"
+  done
+  return 0
+}
+
+# rdt_delete_operand <word> <provenance>: one target of a recursive delete, an
+# rm operand or a find start point, as its argv word, through every arm.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_delete_operand() {
+  local w="$1" q="$2" x rc
+  local -a bx=()
+  # An EMPTY operand that a BACKSLASH ESCAPE produced is a dropped trailing
+  # backslash: bash passes a literal `\` when one ends the input, and MSYS
+  # resolves that to the current drive root, which is the #92593 incident
+  # minus its quotes. The tokenizer cannot represent it (it has no character
+  # left to emit), so provenance is what separates it from `rm -rf ""`, whose
+  # empty operand comes wholly from a quoted span (provenance 2) and is
+  # refused as an empty operand instead.
+  if [[ -z "$w" ]]; then
+    ((q == 1)) && rdt_block "root-operand" "/"
+    rdt_block "empty-operand"
+  fi
+  # No path a filesystem accepts is longer than PATH_MAX (4096 on Linux, and
+  # far less on Windows), so a longer operand names nothing rm could delete.
+  # It is refused before any per-operand scan: the tail strip and the
+  # normalization walk an operand's segments, and a 16 KB operand of `/*`
+  # segments took 17 s on a Linux runner, near the hook timeout the harness
+  # answers WITHOUT a block.
+  ((${#w} > MAX_OPERAND_LEN)) && rdt_block "operand-too-long" "an operand of ${#w} bytes"
+  # Resolving a path costs one lookup per component, and on Windows about
+  # 10 ms each: 2,000 missing components took realpath 90 s. No path in real
+  # use is this deep, so a deeper operand is refused unscanned.
+  x="${w//[^\/\\]/}"
+  ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "operand-too-long" "an operand with ${#x} path separators"
+  # Brace expansion runs before rm sees its argv, so every alternative is
+  # judged as an operand of its own. A fully quoted brace is literal; a
+  # partly quoted one that would expand cannot be told apart from a literal
+  # one by the tokenizer's provenance, so it is refused.
+  if [[ "$w" == *'{'* ]] && ((q != 2)); then
+    # Bounded before the walk: a word of thousands of braces makes the
+    # expander's scan quadratic.
+    x="${w//[^\{]/}"
+    ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace-too-large" "of ${#w} bytes with ${#x} braces"
+    rc=0
+    rdt_brace_expand "$w" || rc=$?
+    if ((rc != 0)); then
+      rdt_block "brace" "'$w'"
+      return 0
     fi
-    # No path a filesystem accepts is longer than PATH_MAX (4096 on Linux, and
-    # far less on Windows), so a longer operand names nothing rm could delete.
-    # It is refused before any per-operand scan: the tail strip and the
-    # normalization walk an operand's segments, and a 16 KB operand of `/*`
-    # segments took 17 s on a Linux runner, near the hook timeout the harness
-    # answers WITHOUT a block.
-    ((${#w} > MAX_OPERAND_LEN)) && rdt_block "operand-too-long" "an operand of ${#w} bytes"
-    # Resolving a path costs one lookup per component, and on Windows about
-    # 10 ms each: 2,000 missing components took realpath 90 s. No path in real
-    # use is this deep, so a deeper operand is refused unscanned.
-    x="${w//[^\/\\]/}"
-    ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "operand-too-long" "an operand with ${#x} path separators"
-    # Brace expansion runs before rm sees its argv, so every alternative is
-    # judged as an operand of its own. A fully quoted brace is literal; a
-    # partly quoted one that would expand cannot be told apart from a literal
-    # one by the tokenizer's provenance, so it is refused.
-    if [[ "$w" == *'{'* ]] && ((q != 2)); then
-      # Bounded before the walk: a word of thousands of braces makes the
-      # expander's scan quadratic.
-      x="${w//[^\{]/}"
-      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace-too-large" "of ${#w} bytes with ${#x} braces"
-      rc=0
-      rdt_brace_expand "$w" || rc=$?
-      if ((rc != 0)); then
-        rdt_block "brace" "'$w'"
-        continue
-      fi
-      if ((${#RDT_BX[@]} != 1)) || [[ "${RDT_BX[0]}" != "$w" ]]; then
-        ((q == 1)) && rdt_block "brace" "'$w'"
-        bx=(${RDT_BX[@]+"${RDT_BX[@]}"})
-        # An empty alternative is dropped, exactly as bash drops it.
-        for x in ${bx[@]+"${bx[@]}"}; do
-          [[ -n "$x" ]] && rdt_check_operand "$x" 0
-        done
-        continue
-      fi
+    if ((${#RDT_BX[@]} != 1)) || [[ "${RDT_BX[0]}" != "$w" ]]; then
+      ((q == 1)) && rdt_block "brace" "'$w'"
+      bx=(${RDT_BX[@]+"${RDT_BX[@]}"})
+      # An empty alternative is dropped, exactly as bash drops it.
+      for x in ${bx[@]+"${bx[@]}"}; do
+        [[ -n "$x" ]] && rdt_check_operand "$x" 0
+      done
+      return 0
     fi
-    rdt_check_operand "$w" "$q"
+  fi
+  rdt_check_operand "$w" "$q"
+}
+
+# rdt_find_check <index of the find word>: a find whose expression deletes has
+# each start point of either reading judged once, as an operand of a recursive
+# rm (FIND DELETES in the header). Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_find_check() {
+  local k w c key del=0 files0=0 gnu=0 follow=0
+  local -a sw=() sq=()
+  local -A seen=()
+  for ((k = $1 + 1; k < n; k++)); do
+    case "${words[k]}" in
+    -delete) del=1 ;;
+    -files0-from) files0=1 ;;
+    -H | -L | -follow) follow=1 ;;
+    -exec | -execdir | -ok | -okdir)
+      k=$((k + 1))
+      c="${words[k]-}"
+      c="${c##*/}"
+      c="${c,,}"
+      case "${c%.exe}" in
+      rm | rmdir | unlink) del=1 ;;
+      *) ;;
+      esac
+      # The action's command runs to its `;`, or to a `+` right after `{}`.
+      while ((k < n)) && [[ "${words[k]}" != ';' ]] &&
+        [[ "${words[k]}" != '+' || "${words[k - 1]}" != '{}' ]]; do
+        k=$((k + 1))
+      done
+      ;;
+    *) [[ "${words[k]}" =~ ^-[EHLPXdsx]*[HL] ]] && follow=1 ;;
+    esac
+  done
+  ((del)) || return 0
+
+  # GNU: the leading options, then the start points; `.` when there is none,
+  # unless -files0-from reads them from a file, which is left alone.
+  k=$(($1 + 1))
+  while ((k < n)); do
+    case "${words[k]}" in
+    -H | -L | -P | -O*) k=$((k + 1)) ;;
+    -D) k=$((k + 2)) ;;
+    --)
+      k=$((k + 1))
+      break
+      ;;
+    *) break ;;
+    esac
+  done
+  while ((k < n)); do
+    w="${words[k]}"
+    [[ "$w" == -* || "$w" == '(' || "$w" == '!' ]] && break
+    sw+=("$w")
+    sq+=("${HOOK_SEG_WORD_QUOTED[k]:-0}")
+    gnu=1
+    k=$((k + 1))
+  done
+  if ((gnu == 0 && files0 == 0)); then
+    sw+=(.)
+    sq+=(0)
+  fi
+
+  # BSD: getopt clusters whose -f takes a start point, attached or as the next
+  # word, then the start points.
+  k=$(($1 + 1))
+  while ((k < n)); do
+    w="${words[k]}"
+    if [[ "$w" == -- ]]; then
+      k=$((k + 1))
+      break
+    elif [[ "$w" =~ ^-[EHLPXdsx]*f(.*)$ ]]; then
+      if [[ -n "${BASH_REMATCH[1]}" ]]; then
+        sw+=("${BASH_REMATCH[1]}")
+        sq+=("${HOOK_SEG_WORD_QUOTED[k]:-0}")
+        k=$((k + 1))
+      else
+        if ((k + 1 < n)); then
+          sw+=("${words[k + 1]}")
+          sq+=("${HOOK_SEG_WORD_QUOTED[k + 1]:-0}")
+        fi
+        k=$((k + 2))
+      fi
+    elif [[ "$w" =~ ^-[EHLPXdsx]+$ ]]; then
+      k=$((k + 1))
+    else
+      break
+    fi
+  done
+  while ((k < n)); do
+    w="${words[k]}"
+    [[ "$w" == -* || "$w" == '(' || "$w" == '!' ]] && break
+    sw+=("$w")
+    sq+=("${HOOK_SEG_WORD_QUOTED[k]:-0}")
+    k=$((k + 1))
+  done
+
+  for ((k = 0; k < ${#sw[@]}; k++)); do
+    w="${sw[k]}"
+    # Under -H, -L or -follow find follows a start point that is a symlink, so
+    # it is judged by where the link points, as rm judges `link/`.
+    ((follow)) && [[ -n "$w" && "$w" != */ ]] && w+=/
+    key="${sq[k]}|$w"
+    [[ -n "${seen[$key]+x}" ]] && continue
+    seen[$key]=1
+    rdt_delete_operand "$w" "${sq[k]}"
   done
   return 0
 }
@@ -3354,9 +3512,9 @@ rdt_brace_rec() {
 
 # rdt_scan_body <body>: tokenize one substitution body, under two budgets.
 #
-# A body whose TEXT does not contain `rm` cannot carry the one verb the matcher
-# recognizes, so it is not tokenized at all: the same reasoning as the prefilter
-# in front of the whole guard.
+# A body whose TEXT holds none of `rm`, `-delete` and `unlink` cannot carry a
+# delete the matcher recognizes, so it is not tokenized at all: the same
+# reasoning as the prefilter in front of the whole guard.
 #
 # The rest are charged against ONE MAX_COMMAND_LEN budget, because the depth cap
 # bounds the nesting and not the WORK. Nesting multiplies the text to tokenize,
@@ -3378,7 +3536,7 @@ rdt_scan_body() {
   local b="$1"
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm*) ;;
+  *rm* | *-delete* | *unlink*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))

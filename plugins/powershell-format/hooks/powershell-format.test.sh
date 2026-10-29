@@ -75,7 +75,7 @@ if jq -e '(.requires | map(.id)) == ["pwsh", "node"]' "$MANIFEST" >/dev/null 2>&
 else
   fail "manifest: expected tools pwsh and node: $(cat "$MANIFEST" 2>&1)"
 fi
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
 if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
   '[.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "POWERSHELL_FORMAT_ENABLED"])] | length == 1' "$HOOKS_JSON" >/dev/null; then
   ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
@@ -100,7 +100,8 @@ else
   while IFS= read -r pg_arg; do
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
 
   # run_probe <value|__unset__> -> run the row with powershell_format_enabled set to <value> (or unset).
   run_probe() {

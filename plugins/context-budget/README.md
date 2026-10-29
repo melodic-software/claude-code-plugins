@@ -147,15 +147,24 @@ settings through a file-editing tool, so the checkpoint does cover this plugin's
 Treat a future audit that finds this gap as re-filing it, not as a new defect.
 
 The registration carries no `if` filter, so the hook process spawns on every matched write and the
-script decides. An `if` gate was evaluated for this row on 2026-09-02 and rejected. On Windows,
-Claude Code's `if` file rules do not match an absolute path outside the working directory under any
-anchoring form tested, including the home-relative `~/`, the root-anchored `//`, the drive-letter
-spelling, and the root-anchored recursive glob. A probe session logged every candidate rule as
-skipped on a write to the user-global settings file and on a write to the managed-settings file,
-while the unconditioned row fired and returned `ask` for both. Only a settings file inside the
-working directory matched. Any gate on this row would therefore drop the user-global and
-managed-settings checks silently, which is the opposite of what the checkpoint exists to do. The row
-stays unconditioned until upstream matching reaches those paths.
+script decides. An `if` gate was evaluated for this row and rejected. A probe on Claude Code 2.1.285
+on Windows (2026-09-30) found that in a hook `if`, an `Edit(...)` rule does not match a Write tool
+call at any path tested, inside or outside the working directory. `Write(...)` and `Edit(...)`
+rules each match absolute paths outside cwd for their own tool, under every form tested: the
+home-relative `~/`, the root-anchored `//`, the drive-letter spelling, the root-anchored recursive
+glob, and an unanchored `*.json`. An earlier probe on 2.1.258 (2026-09-02) attributed the skipped
+rules to the path; on 2.1.285 the path is not the cause, and 2.1.258 was not re-probed. Permission
+rules differ: there, an `Edit` rule covers every built-in file-editing tool. One `Edit(...)` gate on
+this `Write|Edit|NotebookEdit` row would therefore drop every Write silently, which is the opposite
+of what the checkpoint exists to do. The row stays unconditioned; splitting it into a gated row per
+tool needs its own probe, and NotebookEdit was not probed. #8985 tracks the upstream report.
+
+- **Pointer:** [hooks § Common fields](https://code.claude.com/docs/en/hooks#common-fields) (`if`
+  uses permission rule syntax) and
+  [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
+- **As of:** 2026-10-29.
+- **Recheck trigger:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write
+  tool calls, or #8985 closes. Re-probe before gating this row.
 
 ## What makes the numbers trustworthy
 

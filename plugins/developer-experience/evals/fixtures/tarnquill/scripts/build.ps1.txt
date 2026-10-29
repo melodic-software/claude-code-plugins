@@ -1,0 +1,4 @@
+# Build the whole solution.
+$root = Split-Path -Parent $PSScriptRoot
+dotnet build (Join-Path $root 'Tarnquill.sln') --nologo
+Write-Output 'Build finished.'
