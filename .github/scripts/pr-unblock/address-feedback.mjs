@@ -24,8 +24,10 @@
 //           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
-//           awaiting-human when there are none, unless a lane escalation put
-//           the label on and no review lane holds the PR (gate-source.mjs).
+//           awaiting-human when there are none, unless the PR is the lanes
+//           App's, a lane escalation put the label on and no review lane
+//           holds the PR (gate-source.mjs). On an adopted owner PR a body
+//           line starting `Hold:` skips awaiting-human.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -610,12 +612,20 @@ export async function select({
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
+  // An owner PR whose body gained a `Hold:` line after dispatch is held, as
+  // feedback-dispatch.mjs ownerSkip holds it at dispatch.
+  const owner = ownerAuthored(pull, adoption);
+  if (owner && HOLD_LINE.test(String(pull.body ?? ""))) {
+    return { decision: "skip", skipReason: "awaiting-human", threads: [] };
+  }
   // The human-gated label holds the PR except for threads a trusted person
   // with write access asked the lane to fix, unless a lane escalation put it
-  // on and no review lane holds the PR (gate-source.mjs). The label stays on.
+  // on and no review lane holds the PR (gate-source.mjs) on a lanes App PR.
+  // On an owner PR the label holds whoever put it on. The label stays on.
   const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
   const escalated =
     labeled &&
+    !owner &&
     gateSource({
       timeline: [...commentItems(issueComments), ...(await api.listLabelEvents(pr))],
       label: humanGatedLabel,
@@ -657,7 +667,7 @@ export async function select({
     // is the owner's (one they wrote, answered, or a lane answer the lanes App
     // cannot resolve there), and so no stop: it still holds the merge until it
     // is resolved. Any other person's PR still escalates.
-    if (untaken && ownerAuthored(pull, adoption)) {
+    if (untaken && owner) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
     }
     return untaken
@@ -728,7 +738,7 @@ export async function select({
     maxRounds: bound,
     // True drops the human-gated label from the write runner's holds: every
     // kept thread carries a write-access fix request, or a lane escalation
-    // put the label on.
+    // put the label on a lanes App PR.
     fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
@@ -1108,6 +1118,12 @@ export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), i
 // like a lanes App PR's, so a lane answer is told apart from the person's.
 export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
   adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
+
+// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too. On an owner PR it holds the
+// lane off: feedback-dispatch.mjs ownerSkip, select, fix-ci-dispatch.mjs.
+export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // The owners whose PRs a round serves: the base trusted-actors list's people,
 // under the base config's `adoption` section. An unreadable section adopts no

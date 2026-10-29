@@ -46,7 +46,7 @@ function fakeApi(overrides = {}) {
     posted,
     permissionReads,
     // The lanes App opened the PR unless the case names another opener.
-    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
+    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })), body: overrides.body ?? "" }),
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -1637,6 +1637,36 @@ test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it 
   assert.equal((await adopted(fakeApi(threads))).escalationReason, "feedback-untaken-threads", "a lanes App PR");
   assert.equal((await adopted(fakeApi({ ...threads, opener: STRANGER }))).escalationReason, "feedback-untaken-threads", "a stranger's PR");
   assert.equal((await run(fakeApi({ ...threads, opener: HUMAN }))).escalationReason, "feedback-untaken-threads", "an owner PR with no adoption section");
+});
+
+// A `Hold:` body line an owner adds after dispatch holds the round as
+// feedback-dispatch.mjs ownerSkip holds it at dispatch; a lanes App PR's own
+// `Hold: a human merges this` holds only its merge.
+test("on an adopted owner PR a Hold: body line added after dispatch skips awaiting-human before any thread is kept", async () => {
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
+  const held = await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\r\n  HOLD: still on this" }));
+  assert.deepEqual(held, { decision: "skip", skipReason: "awaiting-human", threads: [] });
+  assert.equal((await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\n\nNo hold here." }))).decision, "proceed", "an owner PR with no Hold: line");
+  assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's Hold: line");
+});
+
+// On an adopted owner PR the human-gated label holds whoever put it on, a
+// lane escalation included; a write-access fix request still lifts it. A
+// lanes App PR keeps working past a lane escalation (the test above).
+test("on an adopted owner PR a lane escalation's needs-human holds a reviewer-bot thread; a write-access fix request proceeds", async () => {
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
+  const gate = { labels: ["needs-human"], issueComments: [reviewedHead, LANE_ESCALATION], labelEvents: APP_LABELED };
+  const botOnly = await adopted(fakeApi({ ...gate, opener: HUMAN }));
+  assert.equal(botOnly.decision, "skip");
+  assert.equal(botOnly.skipReason, "awaiting-human");
+  const asked = await adopted(fakeApi({ ...gate, ...escalated({ replies: [[102, HUMAN, REQUEST]] }), opener: HUMAN }));
+  assert.equal(asked.decision, "proceed");
+  assert.equal(asked.fixRequested, true);
+  assert.deepEqual(asked.file.threads.map((thread) => thread.root_comment_id), [100]);
+  const appPr = await adopted(fakeApi(gate));
+  assert.equal(appPr.decision, "proceed", "a lanes App PR under the same adoption section");
 });
 
 test("on an owner PR a thread a person opened is never kept", async () => {

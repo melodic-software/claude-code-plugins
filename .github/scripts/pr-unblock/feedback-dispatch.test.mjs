@@ -1994,6 +1994,36 @@ test("on an owner PR a thread a person wrote or answered stays the person's and 
   }
 });
 
+// A lane escalation's needs-human holds an owner PR's round as any other
+// source does; a write-access fix request still lifts it, as on a lanes App PR.
+test("an owner PR a lane escalation gated dispatches nothing for a reviewer-bot thread", async () => {
+  const api = ownerApi({ pulls: ownerPull({ labels: [{ name: "needs-human" }] }), comments: [...reviewed, escalationComment()], labelEvents: [appLabeled] });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result, null, lines.join("\n"));
+  assert.match(lines.at(-1), /#42 is labeled needs-human \(owner PR: any source holds\) and has no thread a trusted person with write access asked the lane to fix/);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("an owner PR a lane escalation gated dispatches for a write-access trusted person's fix request", async () => {
+  const api = ownerApi({
+    pulls: ownerPull({ labels: [{ name: "needs-human" }] }),
+    comments: [...reviewed, escalationComment()],
+    labelEvents: [appLabeled],
+    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+  });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
+});
+
+test("a lanes App PR a lane escalation gated still dispatches for a reviewer-bot thread under an adoption section", async () => {
+  const api = ownerApi({ pulls: humanGated(), comments: [...reviewed, escalationComment()], labelEvents: [appLabeled] });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
 test("a lanes App PR is decided as before under an adoption section: no idle read", async () => {
   const api = ownerApi({ pulls: pull({ updated_at: "2026-10-28T11:59:00Z" }) }, "2026-10-28T11:59:00Z");
   const { result } = await decideOwner(api);

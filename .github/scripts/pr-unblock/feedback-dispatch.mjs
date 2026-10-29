@@ -29,7 +29,7 @@
 //   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
-//   and no review lane holds the PR (gate-source.mjs gateSource), and
+//   a lanes App PR and no review lane holds it (gate-source.mjs gateSource),
 //   otherwise only a thread where a trusted person with write access asked
 //   the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
@@ -125,9 +125,10 @@ import { pathToFileURL } from "node:url";
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
-export { NO_ADOPTION, ownerAdoption, ownerAuthored };
+// fix-ci-dispatch.mjs imports HOLD_LINE from here.
+export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -164,14 +165,10 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
-// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
-// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
-// included, with a bare CR as a line break too. fix-ci-dispatch.mjs imports
-// it from here, so this floored module loads no unfloored one.
-export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
-// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:`, and both
+// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
+// job checks it again, as the round starts), and both
 // the PR's last update and its head commit at least idle-hours old, so the
 // lane does not push onto a branch a session is still working on. An
 // unreadable date is not idle.
@@ -388,17 +385,20 @@ export async function dispatchFeedback({
     const threads = await api.listReviewThreads(number);
     // A human-gated PR dispatches only for a thread a trusted person with
     // write access asked the lane to fix, unless a lane escalation put the
-    // label on and no review lane holds the PR. The label stays on either way:
+    // label on a lanes App PR and no review lane holds it; on an owner PR the
+    // label holds whoever put it on. The label stays on either way:
     // clear-escalations.mjs owns taking it off.
     const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-    const gate = labeled
-      ? gateSource({
-          timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
-          label: humanGatedLabel,
-          head,
-          isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
-        })
-      : null;
+    const gate = !labeled
+      ? null
+      : owner
+        ? { source: "owner PR", reason: "any source holds" }
+        : gateSource({
+            timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
+            label: humanGatedLabel,
+            head,
+            isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
+          });
     const gated = labeled && gate.source !== "lane-escalation";
     const fixers = await fixRequesters({
       comments: threads.flatMap((thread) =>
