@@ -335,6 +335,29 @@ test("a round that answered, or a newer review-dependency check, still holds the
   }
 });
 
+// A verdict job that stopped on a reason routed to a failing status
+// (dependency-invalid) posts lane-stopped: the next run retries the same head,
+// a fresh model session, until limit-stops-per-head such stops stand on it.
+const laneStopped = (started) => roundRun("apply-dependency-verdict", "neutral", "Skipped: lane-stopped", started);
+test("a head whose last verdict was a lane stop dispatches again under the per-head cap, and not at it", async () => {
+  const limits = { ...LIMIT_DEFAULTS, "limit-stops-per-head": 2 };
+  const node = pr(64);
+  const first = [roundRun("review-dependency", "success", "Passed", "2026-10-17T10:00:00Z"), laneStopped("2026-10-17T10:05:00Z")];
+  const record = emptyRecord();
+  const under = await run(fakeApi({ nodes: [node], checks: headOf(node, first) }), { record, limits });
+  assert.deepEqual(under.dispatched, [{ number: 64, workflowRunId: "7064" }], "1 stop of a cap of 2");
+  assert.equal(record.handled.get(CHECK), undefined, "a released head is not recorded");
+
+  const atCap = [...first, roundRun("review-dependency", "success", "Passed", "2026-10-17T11:00:00Z"), laneStopped("2026-10-17T11:05:00Z")];
+  const lines = [];
+  const capRecord = emptyRecord();
+  const api = fakeApi({ nodes: [node], checks: headOf(node, atCap) });
+  assert.deepEqual((await run(api, { record: capRecord, limits, log: (line) => lines.push(line) })).dispatched, [], "2 stops of a cap of 2");
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#64:") && line.includes("stopped 2 time(s)")), "the cap is named");
+  assert.ok(capRecord.handled.get(CHECK)?.has(node.headRefOid), "a capped head is recorded");
+});
+
 // Between the round's review-dependency check and its verdict job's check, a
 // dispatcher run must not record the head, or the verdict's no-model-turn skip
 // could never release it.

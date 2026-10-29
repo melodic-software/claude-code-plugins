@@ -272,7 +272,11 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
   }
   const others = Object.keys(ROUTES).filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged"].includes(reason));
   assert.ok(others.includes("feedback-not-landed") && others.includes("unexpected-path-staged"));
-  assert.ok(!others.some((reason) => escalationActivity(reason) === "review-dependency"), "every review-dependency stop holds for a person");
+  assert.deepEqual(
+    others.filter((reason) => escalationActivity(reason) === "review-dependency"),
+    ["dependency-invalid"],
+    "every review-dependency stop but dependency-invalid holds for a person",
+  );
   for (const reason of others) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
     const same = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), atHead], headChecks: RED });
