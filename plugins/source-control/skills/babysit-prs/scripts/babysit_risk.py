@@ -86,7 +86,8 @@ gains a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, in a workflow or a
 composite action's `action.yml`, rates HIGH as `agent-surface-review`, each
 counted against the lines it removes, an expression split across lines read
 whole, so a move or repin is not new; so does a composite action file with
-no patch. They widen what a credential or an
+no patch, unless it is deleted or renamed or re-moded with no line added.
+They widen what a credential or an
 agent can reach, so both are a person's (`PERSON_CODES`) and no cost
 decision clears them.
 
@@ -1419,11 +1420,18 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
 
 def _composite_model_legs(f: _File, raw: Any) -> list[str]:
     """New model legs in a composite action's metadata, outside
-    `.github/workflows/`; with no patch to read, one may hide there."""
+    `.github/workflows/`; with no patch to read, one may hide there, unless
+    the file is deleted or renamed or re-moded with no line added."""
     if not any(glob_match(g, p) for g in _ACTIONS for p in f.paths):
         return []
     lines = _patch_lines(getattr(raw, "patch", None))
-    return _new_model_legs(*lines) if lines is not None else ["no patch to read"]
+    if lines is not None:
+        return _new_model_legs(*lines)
+    additions = getattr(raw, "additions", None)
+    unchanged = type(additions) is int and additions == 0
+    if f.status == "removed" or (f.status in ("renamed", "modified") and unchanged):
+        return []
+    return ["no patch to read"]
 
 
 def _raised_retention(added: list[str], removed: list[str]) -> list[str]:

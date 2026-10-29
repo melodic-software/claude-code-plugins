@@ -747,6 +747,41 @@ class LowRatedShapes(_Finding):
                 self.assertSecurityHold(result, AGENT_SURFACE_CODE)
         other = _file(".github/actions/judge/run.mjs", patch=None)
         self.assertNotIn(AGENT_SURFACE_CODE, _codes(_cost([other], public=True)))
+        renamed_and_edited = _file(
+            ".github/actions/judge2/action.yml",
+            status="renamed",
+            previous_path=".github/actions/judge/action.yml",
+            patch=None,
+        )
+        copied = _file(
+            ".github/actions/judge2/action.yml",
+            status="copied",
+            previous_path=".github/actions/judge/action.yml",
+            additions=0,
+            deletions=0,
+            patch=None,
+        )
+        for held in (renamed_and_edited, copied):
+            with self.subTest(status=held.status):
+                self.assertSecurityHold(_cost([held], public=True), AGENT_SURFACE_CODE)
+
+    def test_a_composite_action_moved_deleted_or_re_moded_with_no_patch_passes(self):
+        action = ".github/actions/judge/action.yml"
+        for changed in (
+            _file(
+                ".github/actions/judge2/action.yml",
+                status="renamed",
+                previous_path=action,
+                additions=0,
+                deletions=0,
+                patch=None,
+            ),
+            _file(action, status="removed", additions=0, deletions=40, patch=None),
+            _file(action, additions=0, deletions=0, mode="100755", previous_mode="100644", patch=None),
+        ):
+            with self.subTest(status=changed.status):
+                codes = _codes(_cost([changed], public=True))
+                self.assertNotIn(AGENT_SURFACE_CODE, codes)
 
     def test_new_secret_reference_shapes_hold_for_security(self):
         for lines in (
