@@ -817,7 +817,7 @@ printf '%s\n' 'class Orphan {}' >"$CS_REPO/Orphan.cs"
 printf '%s\n' 'class App { Widget w = new Widget(); }' >"$CS_REPO/App.cs"
 stage_repo "$CS_REPO"
 cs_out="$(cd "$CS_REPO" && bash "$SCAN" --lane grep 2>/dev/null)"
-assert_not_contains "a stem reference saves a no-lane file" "$cs_out" "File: Widget.cs"
+assert_not_contains "a stem reference saves a C# file" "$cs_out" "File: Widget.cs"
 assert_contains "a stem named nowhere else is a candidate" "$cs_out" "File: Orphan.cs"
 
 MD_REPO="$TEST_TMPDIR/unref-md"
@@ -1010,6 +1010,61 @@ assert_contains "the standalone mjs beside the root yields a symbol candidate" "
   "Finding excerpt: export function looseDeadHelper() {"
 assert_contains "only the standalone file is covered by the grep lane" "$own_out" \
   "Lane: grep | root=. | state=ran | files=1 |"
+
+# --- 15. C# declaration pass over the trap corpus ---
+# Text only: a dotnet or msbuild on PATH must never run. The Razor views are in the
+# reference search, so a handler or parameter the markup names is saved. The private
+# Clamp is dead but shares its name with a live method, so it is the recall miss.
+
+CSL_REPO="$TEST_TMPDIR/csharp-lane"
+init_repo "$CSL_REPO"
+cp "$FIXTURES/cs-orders.cs" "$FIXTURES/cs-program.cs" "$FIXTURES/OrderCounter.razor.cs" \
+  "$FIXTURES/OrderCounter.razor" "$FIXTURES/OrderPage.razor" "$CSL_REPO/"
+stage_repo "$CSL_REPO"
+BUILD_BIN="$TEST_TMPDIR/build-bin"
+BUILD_MARK="$TEST_TMPDIR/build-tool-ran"
+mkdir -p "$BUILD_BIN"
+for build_tool in dotnet msbuild; do
+  printf '%s\n' '#!/usr/bin/env bash' "touch '$BUILD_MARK'" >"$BUILD_BIN/$build_tool"
+  chmod +x "$BUILD_BIN/$build_tool"
+done
+csl_exit=0
+csl_out="$(cd "$CSL_REPO" && PATH="$BUILD_BIN:$PATH" bash "$SCAN" --lane grep 2>/dev/null)" || csl_exit=$?
+assert_exit "C# scan exits 0" 0 "$csl_exit"
+build_state='absent'
+[[ -e "$BUILD_MARK" ]] && build_state='present'
+assert_equal "no build tool ran" "absent" "$build_state"
+assert_contains "the grep lane line counts the three C# files" "$csl_out" \
+  "Lane: grep | root=. | state=ran | files=3 | detail=6 symbol candidate(s) from"
+assert_contains "the grep lane line labels the C# pass" "$csl_out" "3 C# file(s) read as text, nothing built"
+assert_equal "three private candidates" "3" "$(count_shape "$csl_out" "Finding shape: cs-unreferenced-private")"
+assert_equal "three symbol candidates" "3" "$(count_shape "$csl_out" "Finding shape: cs-unreferenced-symbol")"
+assert_contains "the dead private method is a candidate" "$csl_out" \
+  "Finding excerpt: private string FormatLegacyOrder(int orderId)"
+assert_contains "the dead private field is a candidate" "$csl_out" "Finding excerpt: private int _staleCounter;"
+assert_contains "the dead internal class is a candidate" "$csl_out" \
+  "Finding excerpt: internal sealed class LegacyOrderExporter"
+assert_contains "a method reached by a computed reflection name is a candidate" "$csl_out" \
+  "Finding excerpt: private void OnAudit()"
+assert_contains "a class reached by assembly scanning is a candidate" "$csl_out" \
+  "Finding excerpt: internal sealed class AuditRequestHandler : IRequestHandler"
+assert_contains "a property only a serializer reads is a candidate" "$csl_out" \
+  'Finding excerpt: public string Sku { get; init; } = "";'
+assert_not_contains "the used class is not a candidate" "$csl_out" "class QuantityRules"
+assert_not_contains "the used service is not a candidate" "$csl_out" "class OrderService"
+assert_not_contains "a dead private name shared with a live method is saved" "$csl_out" "Clamp"
+assert_not_contains "an interface implementation is saved by the interface" "$csl_out" "public void Handle()"
+assert_not_contains "a handler the Razor markup names is saved" "$csl_out" "HandleRefresh"
+assert_not_contains "a parameter the Razor markup sets is saved" "$csl_out" "Total"
+assert_not_contains "no C# candidate is tier 1" "$csl_out" "Finding tier: 1"
+assert_contains "the C# corpus totals" "$csl_out" "Summary file: cs-orders.cs | T1=0 T2=7 T3=0"
+assert_equal "two unreferenced C# files" "2" "$(count_shape "$csl_out" "Finding shape: unreferenced-file")"
+assert_not_contains "a code-behind file is keyed on its component name" "$csl_out" "File: OrderCounter.razor.cs"
+assert_contains "every C# file is covered" "$csl_out" "Summary coverage: covered=3 uncovered=0"
+cs_knip_out="$(cd "$CSL_REPO" && bash "$SCAN" --lane knip 2>/dev/null)"
+assert_contains "a C# file is unselected, not language-less, without the grep lane" "$cs_knip_out" \
+  "Note: uncovered cs-orders.cs — lane not selected"
+assert_not_contains "a C# file is never reported as having no lane" "$cs_knip_out" "no lane for the language"
 
 # --- Final report ------------------------------------------------------------------
 

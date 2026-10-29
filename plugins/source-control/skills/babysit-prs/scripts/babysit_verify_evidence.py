@@ -2467,6 +2467,7 @@ def lane_risk_refusal(
             lanes=lanes,
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+            base_sha=json_object(pr.get("base")).get("sha"),
             high_floor=config.high_path_floor,
             max_changed_files=config.max_changed_files,
             lines_optional=True,

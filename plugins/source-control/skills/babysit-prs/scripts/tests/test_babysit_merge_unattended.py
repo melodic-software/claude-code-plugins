@@ -3403,7 +3403,14 @@ class CostHold(Unattended):
             with self.subTest(held=held):
                 policy._TEXT_AT.clear()
                 self.addCleanup(policy._TEXT_AT.clear)
-                with mock.patch.object(policy, "_file_at", return_value=text):
+                # Base text first, then head: the patch's 30 -> 45 at its key.
+                sides = iter(
+                    f"jobs:\n  a:\n    timeout-minutes: {m}\n    steps:\n{text}"
+                    for m in ("30", "45")
+                )
+                with mock.patch.object(
+                    policy, "_file_at", side_effect=lambda *_: next(sides, None)
+                ):
                     read, out = self.run_with_decision(None)
                 codes = [r["code"] for r in out["risk"]["reasons"]]
                 self.assertEqual("cost-review-required" in codes, held)
@@ -4462,6 +4469,7 @@ class AttachEdits(unittest.TestCase):
         edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
         other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
         editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
         reply = {
             "data": {
                 "nodes": [
@@ -4469,6 +4477,7 @@ class AttachEdits(unittest.TestCase):
                         "id": "IC_b",
                         "lastEditedAt": "2026-10-22T03:00:00Z",
                         "editor": editor,
+                        "userContentEdits": history,
                     }
                 ]
             }
@@ -4477,7 +4486,12 @@ class AttachEdits(unittest.TestCase):
             merge._attach_edits([same, edited, other], "#1")
         self.assertEqual(same["edit"], {"lastEditedAt": None})
         self.assertEqual(
-            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
         )
         self.assertNotIn("edit", other)
         args = read.call_args.args[0]
@@ -5567,7 +5581,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
-        stack.enter_context(mock.patch.object(policy, "base_tip", return_value="e" * 40))
+        stack.enter_context(
+            mock.patch.object(policy, "base_tip", return_value="e" * 40)
+        )
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:

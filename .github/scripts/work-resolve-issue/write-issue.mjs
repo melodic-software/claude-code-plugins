@@ -8,8 +8,17 @@
 // edited by a human, is marked `decision: true` with `decided_at`, its latest
 // create or edit time. The lanes App's own comments never go in, since its
 // pushback quotes the issue body, except its intake refinement (REFINE_MARKER,
-// refine.mjs), tagged `refinement`: admission may have counted its criteria. On any failure no file is left, so the
-// skill never reads a partial issue.
+// refine.mjs), tagged `refinement`: admission may have counted its criteria.
+// `person_checks` lists, as written, the body's done-when items intake's split
+// refinement names as checks a person runs, only under admission's guards
+// (admit.mjs personChecks, over the comments posted before the label, with the
+// issue lane's web hosts); a split refinement whose record does not stand is
+// left out, so its prose excuses no item. `split_parent` holds the body of the
+// native parent a size split filed the issue from, only while the issue
+// counts as that parent's text (admit.mjs splitChildBody) and a listed human
+// wrote, and last edited before the label if ever, that body: the split
+// copies only its task-list lines. On any failure no file is left, so
+// the skill never reads a partial issue.
 //
 // The label admitted the issue as it stood at the label event readAdmittedAt
 // anchors on, so a comment created or edited after that is left out, and a
@@ -35,17 +44,19 @@
 //                         the resumed lane branch, its tip and the earlier
 //                         run's outcome, or empty when the run resumes nothing
 //   BASE_SHA              the trusted base the comparison starts from
+//   ISSUE_LANE_WEB_HOSTS  the issue lane's web hosts as JSON (admit.mjs
+//                         webHostsFrom); unset allows only GitHub hosts
 //   GITHUB_API_URL
 //   GITHUB_OUTPUT         receives refused=edited when the title or body
 //                         changed after the label, which report-outcome names
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { REFINE_MARKER, removalStands } from "../intake-triage/admit.mjs";
+import { carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -197,11 +208,36 @@ export async function main({ env = process.env, github, log = console.log, write
       throw Object.assign(new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`), { refused: "edited" });
     }
 
+    // The body's checks a person runs, as admission read them: the comments
+    // posted before the label, every one read, on the body as written now.
+    const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
+    const spec = await specOf(client, repository, env.ISSUE_NUMBER);
+    const before = spec.comments.filter((node) => timeOf(node.createdAt) < frozenAt);
+    const moved =
+      spec.commentCount === spec.comments.length && spec.body === (data.body ?? "")
+        ? personChecks({ ...spec, comments: before }, humans, lanesAppId, taskList, () => webHostsFrom(env.ISSUE_LANE_WEB_HOSTS))
+        : [];
+    const standing = moved.length > 0 ? refinementSpec(before, lanesAppId)?.databaseId : undefined;
+    // A size split's part: its parent's body, under the part's own trust rule.
+    let splitParent;
+    if (spec.author?.__typename === "Bot" && spec.author.databaseId === lanesAppId && spec.body.startsWith(SPLIT_CHILD_MARKER)) {
+      const parent = await splitParentOf(client, repository, await parentOf(client, `/repos/${repository}/issues/${env.ISSUE_NUMBER}`), lanesAppId);
+      const settled = parent?.spec.lastEditedAt == null || timeOf(parent.spec.lastEditedAt) < frozenAt;
+      if (parent && settled && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null) {
+        splitParent = { number: parent.number, body: parent.spec.body };
+      }
+    }
+    dropped["stale-split"] = 0;
+
     const comments = [];
     for (const { comment, lastEditedAt, lastEditorId } of kept) {
       const refinement = comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(REFINE_MARKER);
       if (comment.user.id === lanesAppId && !refinement) {
         dropped["lanes-app"] += 1;
+        continue;
+      }
+      if (refinement && carriesSplit(comment.body) && comment.id !== standing) {
+        dropped["stale-split"] += 1;
         continue;
       }
       const createdAt = timeOf(comment.created_at);
@@ -233,6 +269,8 @@ export async function main({ env = process.env, github, log = console.log, write
       body: data.body ?? "",
       labels: (data.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
       comments: comments.filter((comment) => !cut.has(comment)),
+      ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),
+      ...(splitParent && { split_parent: splitParent }),
     };
     const resume = await readResume(client, env);
     if (resume) {

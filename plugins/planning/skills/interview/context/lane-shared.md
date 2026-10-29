@@ -60,19 +60,23 @@ designer session and a product owner session), each with its own data dir and li
 3. **Start or resume:**
 
    ```bash
-   bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
+   bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}' --tunnel-api-token-file '${user_config.tunnel_api_token_file}'
    ```
 
    Drop `--open` only when `shared_session_open_browser` is `false`; an unexpanded token means
-   the default `true`, so keep `--open`. Pass the `tunnel_hostname`
-   and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
-   the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
-   tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the
+   the default `true`, so keep `--open`. Pass the `tunnel_hostname`,
+   `tunnel_token_file` and `tunnel_api_token_file` values SKILL.md "Variables" shows, or the
+   hostname and file paths the owner gives in the session; an unexpanded `tunnel_api_token_file`
+   token goes as `''`. An empty `tunnel_hostname` (the key unset) means no named
+   tunnel: pass it as `''`, which runs a quick tunnel. Drop every `--tunnel-*` flag only when the
    `tunnel_hostname` token is still unexpanded; a left-out flag keeps whatever tunnel the session
    already runs. The output carries `guestUrl`
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
-   `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. A named
-   start also prints, on stderr, that only this machine may run the tunnel: pass that line on once. `--open` opens the
+   `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. When a
+   named tunnel was asked for and a quick one runs instead, `tunnelFallback` says why (another
+   session or machine serves the link, the link's answer is unclear, or a token file is not in place): tell the owner once. A named start
+   without `tunnel_api_token_file` prints, on stderr, the guest port the tunnel's route must name:
+   pass that line on once. `--open` opens the
    owner's own link, which is a credential: never print it, paste it or copy it out of the data
    dir. `share.sh url --owner` prints it only when the owner asks. When `shareChanged` is true, tell
    the owner the guest link changed and must be shared again.
@@ -117,11 +121,12 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
-| userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |
+| userConfig `tunnel_token_file` | an absolute path, or one starting with `~/` | empty | none: `--tunnel-token-file` |
+| userConfig `tunnel_api_token_file` | an absolute path, or one starting with `~/`, or empty | empty | none: `--tunnel-api-token-file` (checks the tunnel's connectors and routes it to the session's guest port) |
 
 The `shared_session.*` keys live in the repository's `docs/conventions/planning.yaml` under one
-`shared_session` object; `shared_session_open_browser`, `tunnel_hostname` and `tunnel_token_file`
-are per-user options (the named tunnel: `<plugin-root>/shared/README.md`, "A stable guest link"). `defaults.json` is
+`shared_session` object; `shared_session_open_browser`, `tunnel_hostname`, `tunnel_token_file` and
+`tunnel_api_token_file` are per-user options (the named tunnel: `<plugin-root>/shared/README.md`, "A stable guest link"). `defaults.json` is
 `{"settings": {...}}` with the fields above; the server reads it only when it creates the session's
 state, so a changed setting reaches a running session only through the owner's Host view.
 

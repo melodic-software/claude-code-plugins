@@ -570,6 +570,12 @@ PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST=
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --budget no suite is timed against a share" --root "$r" --jobs 2
 assert_output_lacks "without --budget no suite is failed for its time" "share of the budget"
 assert_output_lacks "without --budget no overrun is reported" "OVER BUDGET"
+if grep -qE '^TIME: plugins/slow/slow\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT" &&
+  grep -qE '^TIME: plugins/quick/quick\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT"; then
+  ok "without --budget each suite's wall seconds still print"
+else
+  fail "without --budget a suite's TIME line is missing; output: $RUN_OUTPUT"
+fi
 
 budget_seconds="$scratch/budget-seconds.txt"
 printf '%s\n' "# seconds" "plugins/slow/slow.test.sh 5" >"$budget_seconds"

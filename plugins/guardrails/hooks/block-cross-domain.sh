@@ -32,8 +32,8 @@
 # (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). An unknown key or any
 # other shape makes the map malformed. Only this host's roots (OSTYPE: msys,
 # cygwin and win32 read `windows`, darwin `macos`, every other host `linux`),
-# the owners and the markers are used here; the other keys are validated and
-# kept for the rules that read them.
+# the owners, the markers and the gh and az config directories are used here;
+# the other keys are validated and kept for the rules that read them.
 #
 # WHAT A CALL COSTS. Each step leaves at the first that settles the call:
 #   1. the kill switch, before any source;
@@ -45,14 +45,16 @@
 #   4. the cwd, classified into the domain whose path holds it (the longest
 #      path wins), else neutral;
 #   5. the prefilter: the command text, lowercased with `\` read as `/` and
-#      its quotes dropped, is tested for each path and marker. A command that
-#      names none leaves here, before it is parsed;
+#      its quotes dropped, is tested for each path and marker, and, from a cwd
+#      in a domain of a map with a gh or az config directory, for the word `gh`
+#      or `az`. A command that names none leaves here, before it is parsed;
 #   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
 #      and redirection targets are tested the same way; on PowerShell the text
 #      as a whole, parsed only for the identity positions below;
 #   7. the decision: from a cwd in a domain, a path of another domain named in
-#      step 6 denies the call, a read as much as a write. A marker never denies
-#      here, and from a neutral cwd nothing is denied.
+#      step 6 denies the call, a read as much as a write, as does a gh or az
+#      call that breaks the CONFIG DIRECTORIES rule below. A marker never
+#      denies here, and from a neutral cwd nothing is denied.
 #
 # A domain's PATHS are its roots and, for each owner, the owner's directory
 # below $HOME/src/github.com and $HOME/worktrees/github.com. A text NAMES a
@@ -88,10 +90,25 @@
 # same marker in any other word (a commit message, an `echo`) is allowed. The
 # deny is a PreToolUse permissionDecision document on stdout.
 #
+# CONFIG DIRECTORIES. From a cwd in a domain, a `gh` call runs with the
+# GH_CONFIG_DIR the command text gives it, else the one in the hook's own
+# environment, and an `az` call likewise with AZURE_CONFIG_DIR. When the cwd's
+# domain has a `gh_config_dir`, a gh call that does not run with it is denied;
+# when it has none, a gh call that runs with another domain's is denied. The
+# same holds for az and `az_config_dir`. `gh --version` and `az --version` are
+# exempt. The text gives a value by a `NAME=value` before the command or after
+# `env`, which holds for that command only, and by `export NAME=value`,
+# `unset NAME` or PowerShell's `$env:NAME = value`, which hold for every later
+# command; a bare `NAME=value` holds for later commands only when NAME is
+# already exported. `env -u NAME` and `env -i` remove it. Directories compare
+# in the prefilter's form, with `~`, `$HOME` and the other HOME spellings read
+# as HOME and, on Windows, a `/c/`, `/cygdrive/c/` or `/mnt/c/` prefix read as
+# `c:/`.
+#
 # Steps 4, 6 and 7 feed the telemetry envelope: `cwd` is domain or neutral,
 # `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, identity-deny, or map-malformed (whose cwd is always
-# neutral), and `status` is blocked for a denied call, else ok. The envelope
+# named), other-domain, identity-deny, config-deny, or map-malformed (whose cwd
+# is always neutral), and `status` is blocked for a denied call, else ok. The envelope
 # names no domain; `subject` is the command word, as in every guard's. The
 # path deny reason, on the model's channel, names the cwd's domain and the
 # others.
@@ -108,6 +125,12 @@
 #     neutral
 #   - an identity position inside a `bash -c` or `sh -c` operand, a git alias,
 #     or a variable set some other way (`declare -x`, `Set-Item env:`)
+#   - a gh or az call inside a `bash -c` operand, or behind a wrapper other
+#     than `env`, `command`, `exec`, `nohup` and `time` or after a wrapper
+#     option that takes a value (`exec -a <name>`, `env -S`)
+#   - an export inside a subshell or a pipeline, which counts for later
+#     commands, and `export NAME` with no value after a bare `NAME=value`,
+#     which does not
 #
 # TEST HOOK. GUARDRAILS_CROSS_DOMAIN_TRACE=1 writes one stderr line per step a
 # call reaches (`block-cross-domain: trace <step>`).
@@ -164,11 +187,12 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=2
+BCD_FORMAT=3
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
 BCD_HOME=""
+BCD_HOME_FOLD=""
 BCD_RECORDS=()
 BCD_ROOT=()
 BCD_ROOT_DOMAIN=()
@@ -182,10 +206,23 @@ BCD_FOREIGN_MARKER=0
 BCD_IDENTITY=0
 BCD_OWN_MARKERS=$'\n'
 BCD_IDENTITY_DENY=()
+BCD_PATHS=0
+BCD_CONFIG=0
+BCD_CONF_KIND=()
+BCD_CONF_DOMAIN=()
+BCD_CONF_DIR=()
+BCD_CONF_RAW=()
+BCD_CONFIG_DENY=()
+# What the command text set GH_CONFIG_DIR and AZURE_CONFIG_DIR to for later
+# commands: _SET is 1 for set, 0 for removed, empty for untouched.
+BCD_GH_SET=""
+BCD_GH=""
+BCD_AZ_SET=""
+BCD_AZ=""
 
 # The compiler: the map's raw text and HOME in, one line per record out:
-# `marker` records, then this host's `root` records and each owner's two
-# `owner` directories below HOME, longest first
+# `marker`, `gh` and `az` records, then this host's `root` records and each
+# owner's two `owner` directories below HOME, longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
 # rejected map yields no partial set. The reason names keys, never values.
@@ -224,6 +261,7 @@ def domain($d; $os; $home):
       | if absolute($o) then select($o == $os)
         else fail("domains.\($d).roots.\($o) holds a path that is not absolute below a filesystem root") end] as $roots
   | ($roots[] | {kind: "root", d: $d, v: .}), ($markers[] | {kind: "marker", d: $d, v: .}),
+    ($gh[] | {kind: "gh", d: $d, v: .}), ($az[] | {kind: "az", d: $d, v: .}),
     (if $home == "" then empty
      else $owners[] | {kind: "owner", d: $d, v: "\($home)/src/github.com/\(.)"},
        {kind: "owner", d: $d, v: "\($home)/worktrees/github.com/\(.)"} end);
@@ -235,8 +273,8 @@ def compile($os; $home):
   | [optional("messages"; object("messages") | to_entries[] | .key as $k | .value | line("messages.\($k)"))] as $messages
   | .domains | object("domains")
   | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]
-  | map(select(.kind == "marker"))
-    + (map(select(.kind != "marker"))
+  | map(select(.kind != "root" and .kind != "owner"))
+    + (map(select(.kind == "root" or .kind == "owner"))
       | sort_by(.v | gsub("[\\\\/]+"; "/") | sub("/$"; "") | sub("^/(cygdrive|mnt)/"; "/") | length) | reverse)
   | map("\(.kind)\t\(.d)\t\(.v)");
 (try [fromjson] catch null) as $doc
@@ -344,6 +382,27 @@ bcd::fold_to() {
   printf -v "$1" '%s' "$__bcd_t"
 }
 
+# bcd::dir_to <var> <config directory as written>: the form a gh or az config
+# directory is compared in: folded, a leading HOME spelling read as HOME, and on
+# Windows a drive prefix read as `<drive>:`.
+bcd::dir_to() {
+  local __bcd_dt __bcd_p
+  bcd::fold_to __bcd_dt "$2"
+  if [[ -n "$BCD_HOME_FOLD" ]]; then
+    # shellcheck disable=SC2016  # spellings matched as text, never expanded
+    for __bcd_p in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
+      if [[ "$__bcd_dt" == "$__bcd_p" || "$__bcd_dt" == "$__bcd_p"/* ]]; then
+        __bcd_dt=$BCD_HOME_FOLD${__bcd_dt#"$__bcd_p"}
+        break
+      fi
+    done
+  fi
+  if [[ "$BCD_OS" == windows && "$__bcd_dt" =~ ^/(cygdrive/|mnt/)?([a-z])(/.*)?$ ]]; then
+    __bcd_dt=${BASH_REMATCH[2]}:${BASH_REMATCH[3]:-/}
+  fi
+  printf -v "$1" '%s' "$__bcd_dt"
+}
+
 bcd::add_needle() { # <domain> <folded text> <1 for a path, 0 for a marker>
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
@@ -427,11 +486,14 @@ bcd::deny() {
 # shellcheck disable=SC2329  # invoked by hook::bash_parse_segments
 bcd::segment() {
   local __bcd_w __bcd_f
-  for __bcd_w in "$@" ${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"}; do
-    bcd::fold_to __bcd_f "$__bcd_w"
-    bcd::names "$__bcd_f"
-  done
+  if ((BCD_PATHS)); then
+    for __bcd_w in "$@" ${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"}; do
+      bcd::fold_to __bcd_f "$__bcd_w"
+      bcd::names "$__bcd_f"
+    done
+  fi
   ((BCD_IDENTITY)) && bcd::identity "$@"
+  ((BCD_CONFIG)) && bcd::config "$@"
   return 0
 }
 
@@ -466,16 +528,41 @@ bcd::check() {
   BCD_IDENTITY_DENY+=("$1")
 }
 
+# bcd::env_name_to <var> <assigned name, or PowerShell's $env:<name> in any
+# case>: the variable's name.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::env_name_to() {
+  local __bcd_u=$2
+  if [[ "$__bcd_u" == \$* ]]; then
+    __bcd_u=${__bcd_u^^}
+    __bcd_u=${__bcd_u#\$}
+    __bcd_u=${__bcd_u#\{}
+    __bcd_u=${__bcd_u%\}}
+    __bcd_u=${__bcd_u#ENV:}
+  fi
+  printf -v "$1" '%s' "$__bcd_u"
+}
+
+# bcd::ps_assign <callback> <word> <next word> <word after it>: the callback on
+# the name and value of PowerShell's `$env:NAME = value`, in each spacing.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::ps_assign() {
+  if [[ "$2" == *=?* ]]; then
+    "$1" "${2%%=*}" "${2#*=}"
+  elif [[ "$2" == *= ]]; then
+    "$1" "${2%=}" "$3"
+  elif [[ "$3" == = ]]; then
+    "$1" "$2" "$4"
+  elif [[ "$3" == =* ]]; then
+    "$1" "$2" "${3#=}"
+  fi
+  return 0
+}
+
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::identity_var() { # <assigned name, or PowerShell's $env:<name> in any case> <value>
-  local u=$1
-  if [[ "$u" == \$* ]]; then
-    u=${u^^}
-    u=${u#\$}
-    u=${u#\{}
-    u=${u%\}}
-    u=${u#ENV:}
-  fi
+  local u
+  bcd::env_name_to u "$1"
   case "$u" in
   GH_CONFIG_DIR | AZURE_CONFIG_DIR | GIT_AUTHOR_NAME | GIT_AUTHOR_EMAIL | GIT_COMMITTER_NAME | GIT_COMMITTER_EMAIL)
     bcd::check "$u" "$2"
@@ -535,15 +622,7 @@ bcd::identity() {
     env | */env | export | if | then | elif | else | do | while | until | time | '{' | '!') ;;
     -*) ((i > 0)) || break ;;
     \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
-      if [[ "$w1" == *=?* ]]; then
-        bcd::identity_var "${w1%%=*}" "${w1#*=}"
-      elif [[ "$w1" == *= ]]; then
-        bcd::identity_var "${w1%=}" "${w[i + 1]-}"
-      elif [[ "${w[i + 1]-}" == = ]]; then
-        bcd::identity_var "$w1" "${w[i + 2]-}"
-      elif [[ "${w[i + 1]-}" == =* ]]; then
-        bcd::identity_var "$w1" "${w[i + 1]#=}"
-      fi
+      bcd::ps_assign bcd::identity_var "$w1" "${w[i + 1]-}" "${w[i + 2]-}"
       break
       ;;
     [A-Za-z_]*=*) bcd::identity_var "${w1%%=*}" "${w1#*=}" ;;
@@ -604,6 +683,146 @@ bcd::identity_deny() {
   exit 0
 }
 
+# bcd::config_var <assigned name, or PowerShell's $env:<name>> <value> [<1 to
+# set, 0 to remove>]: into the segment's view of the two config variables.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::config_var() {
+  local u
+  bcd::env_name_to u "$1"
+  case "$u" in
+  GH_CONFIG_DIR)
+    cf_gh_set=${3-1}
+    cf_gh=$2
+    ;;
+  AZURE_CONFIG_DIR)
+    cf_az_set=${3-1}
+    cf_az=$2
+    ;;
+  *) ;;
+  esac
+}
+
+# bcd::config_check <gh|az> <variable> <text state> <text value> <hook
+# environment value>: record a deny when the call does not run with the cwd
+# domain's directory, or, from a domain with none, runs with another domain's.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::config_check() {
+  local dir="" cwd_dir="" dir_domain="" i msg
+  case "$3" in
+  1) bcd::dir_to dir "$4" ;;
+  0) ;;
+  *) [[ -z "$5" ]] || bcd::dir_to dir "$5" ;;
+  esac
+  for ((i = 0; i < ${#BCD_CONF_KIND[@]}; i++)); do
+    [[ "${BCD_CONF_KIND[i]}" == "$1" ]] || continue
+    if [[ "${BCD_CONF_DOMAIN[i]}" == "$BCD_CWD_DOMAIN" ]]; then
+      cwd_dir=${BCD_CONF_RAW[i]}
+      [[ "$dir" == "${BCD_CONF_DIR[i]}" ]] && return 0
+    elif [[ -n "$dir" && "$dir" == "${BCD_CONF_DIR[i]}" ]]; then
+      dir_domain=${BCD_CONF_DOMAIN[i]}
+    fi
+  done
+  if [[ -n "$cwd_dir" ]]; then
+    msg="runs $1 without the domain's $2 ($cwd_dir)"
+  elif [[ -n "$dir_domain" ]]; then
+    msg="runs $1 with domain '$dir_domain''s $2, where this domain uses the default"
+  else
+    return 0
+  fi
+  [[ " ${BCD_CONFIG_DENY[*]-} " == *" $msg "* ]] || BCD_CONFIG_DENY+=("$msg")
+}
+
+# bcd::config <words...>: the config directories of one segment's gh or az
+# call, into BCD_CONFIG_DENY. A segment with no command carries what it sets to
+# later segments.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::config() {
+  local -a w=("$@")
+  local n=$# i=0 w1 cmd="" keep=1 exported=0 wrapped=0 tool
+  local cf_gh_set=$BCD_GH_SET cf_gh=$BCD_GH cf_az_set=$BCD_AZ_SET cf_az=$BCD_AZ
+  while ((i < n)); do
+    w1=${w[i]}
+    case "$w1" in
+    if | then | elif | else | do | while | until | '{' | '!') ;;
+    time | command | exec | nohup) wrapped=1 ;;
+    export) exported=1 ;;
+    env | */env) keep=0 ;;
+    unset)
+      exported=1
+      for ((i++; i < n; i++)); do bcd::config_var "${w[i]}" "" 0; done
+      break
+      ;;
+    -i | - | --ignore-environment)
+      ((keep)) && break
+      cf_gh_set=0
+      cf_az_set=0
+      ;;
+    -u | --unset)
+      ((keep)) && break
+      i=$((i + 1))
+      bcd::config_var "${w[i]-}" "" 0
+      ;;
+    --unset=* | -u?*)
+      ((keep)) && break
+      w1=${w1#--unset=}
+      bcd::config_var "${w1#-u}" "" 0
+      ;;
+    -C | --chdir)
+      ((keep)) && break
+      i=$((i + 1))
+      ;;
+    # `command -v` and `-V` look a name up and run nothing.
+    -v | -V)
+      ((wrapped)) && return 0
+      ((keep)) && break
+      ;;
+    -*) ((keep && !wrapped)) && break ;;
+    \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
+      exported=1
+      bcd::ps_assign bcd::config_var "$w1" "${w[i + 1]-}" "${w[i + 2]-}"
+      break
+      ;;
+    [A-Za-z_]*=*) bcd::config_var "${w1%%=*}" "${w1#*=}" ;;
+    *)
+      cmd=$w1
+      break
+      ;;
+    esac
+    i=$((i + 1))
+  done
+  if [[ -z "$cmd" ]]; then
+    ((keep && !wrapped)) || return 0
+    if ((exported == 0)); then
+      # A bare assignment reaches a later command only when the name is exported.
+      [[ "$BCD_GH_SET" == 1 || ( -z "$BCD_GH_SET" && -n "${GH_CONFIG_DIR+x}" ) ]] || cf_gh_set=$BCD_GH_SET cf_gh=$BCD_GH
+      [[ "$BCD_AZ_SET" == 1 || ( -z "$BCD_AZ_SET" && -n "${AZURE_CONFIG_DIR+x}" ) ]] || cf_az_set=$BCD_AZ_SET cf_az=$BCD_AZ
+    fi
+    BCD_GH_SET=$cf_gh_set BCD_GH=$cf_gh BCD_AZ_SET=$cf_az_set BCD_AZ=$cf_az
+    return 0
+  fi
+  [[ "${w[i + 1]-}" == --version ]] && return 0
+  tool=${cmd##*/}
+  tool=${tool,,}
+  tool=${tool%.exe}
+  case "${tool%.cmd}" in
+  gh) bcd::config_check gh GH_CONFIG_DIR "$cf_gh_set" "$cf_gh" "${GH_CONFIG_DIR-}" ;;
+  az) bcd::config_check az AZURE_CONFIG_DIR "$cf_az_set" "$cf_az" "${AZURE_CONFIG_DIR-}" ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# bcd::config_deny: the PreToolUse deny naming each config directory a gh or
+# az call runs without or with, then exit 0.
+bcd::config_deny() {
+  local m list="" reason
+  for m in "${BCD_CONFIG_DENY[@]}"; do list+="${list:+; it }$m"; done
+  hook::json_escape_to reason "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command $list. Set GH_CONFIG_DIR or AZURE_CONFIG_DIR in the command to this domain's directory, or leave it unset where this domain uses the default. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
+  bcd::emit_tel config-deny blocked
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  exit 0
+}
+
 bcd::classify_cwd() {
   local cwd r i best=0
   [[ -n "$BCD_CWD_RAW" ]] || return 0
@@ -618,6 +837,7 @@ bcd::classify_cwd() {
 }
 
 [[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
+[[ -n "$BCD_HOME" ]] && bcd::fold_to BCD_HOME_FOLD "$BCD_HOME"
 bcd::load
 [[ "${BCD_RECORDS[0]-}" == invalid"$BCD_TAB"* ]] && bcd::malformed "${BCD_RECORDS[0]#invalid"$BCD_TAB"}"
 
@@ -632,6 +852,13 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
     bcd::fold_to BCD_VAL "$BCD_VAL"
     bcd::add_needle "$BCD_DOM" "$BCD_VAL" 0
     ;;
+  gh | az)
+    BCD_CONF_KIND+=("$BCD_KIND")
+    BCD_CONF_DOMAIN+=("$BCD_DOM")
+    BCD_CONF_RAW+=("$BCD_VAL")
+    bcd::dir_to BCD_VAL "$BCD_VAL"
+    BCD_CONF_DIR+=("$BCD_VAL")
+    ;;
   *) ;; # a kind a newer guard writes: CACHE is keyed by BCD_FORMAT, so none reaches here
   esac
 done
@@ -641,12 +868,20 @@ bcd::classify_cwd
 bcd::fold_to BCD_SUBJECT "$COMMAND"
 BCD_SUBJECT=${BCD_SUBJECT//[\"\']/}
 bcd::names "$BCD_SUBJECT"
-if [[ "$BCD_NAMED" == " " ]]; then
+[[ "$BCD_NAMED" == " " ]] || BCD_PATHS=1
+if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
+  case " $BCD_SUBJECT " in
+  *[!a-z0-9_-]gh[!a-z0-9_-]* | *[!a-z0-9_-]az[!a-z0-9_-]*) BCD_CONFIG=1 ;;
+  *) ;;
+  esac
+fi
+if ((BCD_PATHS == 0 && BCD_CONFIG == 0)); then
   bcd::trace prefilter-miss
   bcd::emit_tel prefilter-miss
   exit 0
 fi
-bcd::trace prefilter-hit
+((BCD_PATHS)) && bcd::trace prefilter-hit
+((BCD_CONFIG)) && bcd::trace config-hit
 
 # Identity positions are read only from a cwd in a domain, and only when the
 # text names another domain's marker.
@@ -664,11 +899,13 @@ if [[ "$TOOL_NAME" == Bash ]]; then
   BCD_NAMED=" "
   BCD_DENY=()
   hook::bash_parse_segments "$COMMAND" bcd::segment
-elif ((BCD_IDENTITY)); then
+elif ((BCD_IDENTITY || BCD_CONFIG)); then
   bcd::trace identity-parse
-  hook::bash_parse_segments "${COMMAND//\\//}" bcd::identity
+  BCD_PATHS=0
+  hook::bash_parse_segments "${COMMAND//\\//}" bcd::segment
 fi
 ((${#BCD_IDENTITY_DENY[@]})) && bcd::identity_deny
+((${#BCD_CONFIG_DENY[@]})) && bcd::config_deny
 
 if [[ "$BCD_NAMED" == " " ]]; then
   BCD_FORM=not-named
