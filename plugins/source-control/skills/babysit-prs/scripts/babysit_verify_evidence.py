@@ -337,7 +337,8 @@ COUNT_MISSED = _CountMissed()
 # `LISTING_TIMEOUT_SECONDS`, as one read did: what does not fit refuses.
 LISTING_READS = 3
 # How gh reports a request that never got an HTTP response: its own
-# "error connecting to <host>" for a failed lookup, else Go's net/http error.
+# "error connecting to <host>" for a failed lookup, else Go's net/http error,
+# or Go's JSON decoder error for a page body cut short.
 NETWORK_ERRORS = (
     "error connecting to",
     "connection reset by peer",
@@ -345,6 +346,7 @@ NETWORK_ERRORS = (
     "i/o timeout",
     "tls handshake timeout",
     "unexpected eof",
+    "unexpected end of json input",
 )
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"

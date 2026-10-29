@@ -3009,6 +3009,9 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         "check your internet connection or https://githubstatus.com",
         'Get "https://api.github.com/repos/o/r/actions/artifacts": '
         "read tcp 10.0.0.1:443: read: connection reset by peer",
+        # A page body cut short: Go's JSON decoder error, as gh printed it in
+        # pr-merge run 40819274416 (skip step, 2026-10-29T04:59:05Z).
+        "unexpected end of JSON input",
     )
     NOT_TRANSIENT: tuple[str | BaseException, ...] = (
         "gh: Not Found (HTTP 404)",
@@ -3059,6 +3062,14 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         evidence, sleeps = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertIn("HTTP 502", evidence.detail or "")
+        self.assertEqual(fake.listings(), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
+
+    def test_a_persistently_cut_short_page_refuses_after_three_reads(self) -> None:
+        fake = FlakyListing(["unexpected end of JSON input"] * 3)
+        evidence, sleeps = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("unexpected end of JSON input", evidence.detail or "")
         self.assertEqual(fake.listings(), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
 
