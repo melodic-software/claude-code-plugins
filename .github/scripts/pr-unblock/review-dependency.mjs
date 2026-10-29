@@ -19,7 +19,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
+import { countedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
   classify,
@@ -350,6 +350,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const config = readConfig(env.DEPENDABOT_CONFIG, log);
   const result = await select({

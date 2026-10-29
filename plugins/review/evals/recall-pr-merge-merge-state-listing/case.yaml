@@ -1,0 +1,14 @@
+# Recall case: a bug that merged past the review lanes, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#8254 (merged as e21eb44792b07d5599bfab8383d94338e1df6637)
+# base: 7ef5fa76d6d3e10b027242eefecf73688b771cf2
+# bug: .github/workflows/pr-merge.yml:337 at e21eb44792b0; line 43 of the scaffold's excerpt
+#   (the excerpt holds lines 295-345). Adding mergeStateStatus to the 500-PR
+#   `gh pr list --json` request made the listing time out with HTTP 502.
+# source: revert commit 6d6b30018ea4b5b092816eb06bba39ba126bb972 (#8303)
+# confirmed-by: verifier-agent (owner spot-check pending)
+# rebuilt: the prefilter script whole at base and head; pr-merge.yml as its
+#   candidate-listing step; the test file and changelog fragment are left out.
+schema_version: "1.1"
+name: recall-pr-merge-merge-state-listing
+context:
+  scaffold_script: scaffold.sh
