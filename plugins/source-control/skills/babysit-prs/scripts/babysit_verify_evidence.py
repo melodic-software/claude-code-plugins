@@ -337,7 +337,8 @@ COUNT_MISSED = _CountMissed()
 # `LISTING_TIMEOUT_SECONDS`, as one read did: what does not fit refuses.
 LISTING_READS = 3
 # How gh reports a request that never got an HTTP response: its own
-# "error connecting to <host>" for a failed lookup, else Go's net/http error.
+# "error connecting to <host>" for a failed lookup, else Go's net/http error,
+# or Go's JSON decoder error for a page body cut short.
 NETWORK_ERRORS = (
     "error connecting to",
     "connection reset by peer",
@@ -345,7 +346,11 @@ NETWORK_ERRORS = (
     "i/o timeout",
     "tls handshake timeout",
     "unexpected eof",
+    "unexpected end of json input",
 )
+# A whole listing cut short has already paged up to every artifact, so it is
+# read once more at most, not after every wait (`Reader._read_listing`).
+CUT_SHORT = "unexpected end of json input"
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
@@ -1123,28 +1128,12 @@ class Reader:
         server_now: datetime | None = None
         page = 1
         while True:
-            left = deadline - _listing_clock()
-            if left <= 0:
+            read = self._incremental_page(page, deadline)
+            if read is None:
                 return None
-            try:
-                proc, headers = gh_api_with_headers(
-                    [
-                        "api",
-                        f"repos/{self.repo}/actions/artifacts"
-                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
-                    ],
-                    timeout_seconds=left,
-                    env_overrides=self._env(),
-                )
-                body = json_object(json.loads(proc.stdout))
-            except (RuntimeError, ValueError, OSError):
-                return None
+            body, headers = read
             items = body.get("artifacts")
-            if (
-                proc.returncode != 0
-                or not is_json_array(items)
-                or not all(_listed_entry(a) for a in items)
-            ):
+            if not is_json_array(items) or not all(_listed_entry(a) for a in items):
                 return None
             if page == 1:
                 total = body.get("total_count")
@@ -1198,6 +1187,41 @@ class Reader:
         )
         return COUNT_MISSED
 
+    def _incremental_page(
+        self, page: int, deadline: float
+    ) -> tuple[dict[str, Any], dict[str, str]] | None:
+        """One incremental page's body and headers, read again after
+        `LISTING_WAITS` while time is left when the read fails transiently
+        (`_transient`) or its body is cut short; None for any other failure,
+        or once the waits or the time run out."""
+        for wait in (*LISTING_WAITS, None):
+            left = deadline - _listing_clock()
+            if left <= 0:
+                return None
+            try:
+                proc, headers = gh_api_with_headers(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts"
+                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+                    ],
+                    timeout_seconds=left,
+                    env_overrides=self._env(),
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if proc.returncode == 0:
+                try:
+                    return json_object(json.loads(proc.stdout)), headers
+                except ValueError:
+                    pass  # A body cut short: read again.
+            elif not _transient((proc.stderr or "").strip()):
+                return None
+            if wait is None or deadline - _listing_clock() - wait <= 0:
+                return None
+            _listing_sleep(wait)
+        return None
+
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
         if not self.listing_path:
@@ -1213,8 +1237,9 @@ class Reader:
         """The listing payload, read again after a 5xx or a fast network
         error while time is left: every page, read and wait fits in
         `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
-        case. A `deadline` set by an earlier read is kept; this read's is
-        saved as `_read_deadline`."""
+        case. A read cut short (`CUT_SHORT`) is read once more, and that
+        read's failure refuses. A `deadline` set by an earlier read is kept;
+        this read's is saved as `_read_deadline`."""
         args = [
             "api",
             f"repos/{self.repo}/actions/artifacts?per_page=100",
@@ -1232,7 +1257,7 @@ class Reader:
         for wait in LISTING_WAITS:
             try:
                 return self._actions(args, "repository artifacts", timeout)
-            except _Transient:
+            except _Transient as exc:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
@@ -1240,6 +1265,8 @@ class Reader:
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
+                if CUT_SHORT in str(exc).casefold():
+                    break
         return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
