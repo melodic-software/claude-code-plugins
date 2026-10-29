@@ -46,6 +46,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
 
@@ -267,6 +268,12 @@ async function pushEmptyCommit(github, repo, pull, path, tree) {
   return commit.sha;
 }
 
+// The job token's client (ACTIONS_TOKEN). The step's API_BUDGET_TOKEN names the
+// lane token, so this client is pinned to github-token: its readings and its
+// read-floor plan (github-token's limit-cap) are the job token's.
+export const actionsClient = (env, { latch = rateLimitLatch, fetchImpl } = {}) =>
+  createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("github-token", latch), ...(fetchImpl ? { fetchImpl } : {}) });
+
 export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
@@ -284,7 +291,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       throw new Error("LANES_APP_SENDER_ID is not a positive integer");
     }
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    actions ??= actionsClient(env);
 
     // Main's tip, read once, so every compare and blob read in this run sees
     // one commit. A tag named main would make `main` ambiguous, so one must not
