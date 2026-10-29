@@ -625,14 +625,22 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 
 A `pr-unblock` run that stops ends on the route
 [`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json), the one
-routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is for a reason only
-a person settles: a path the lane would itself have to resolve or write that its token may not
-push, or a supply-chain refusal (SAFETY), an intent,
-design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
-CRITICAL one, or a security-review one rated `IMPORTANT` or above or with no rating it reads; a
-security-review `SUGGESTION` is adjudicated like a code-review finding), or any `review-dependency` stop: its failing status would be per head,
-and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
-holds it for a person. Every other reason is a defect the lane's bounded retries (the
+routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is only for the
+owner's three reasons
+([When work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): an intent
+or design question, a person's own thread or hold, a HIGH or CRITICAL security risk (a security
+question, a finding no adjudicator may judge: a CRITICAL one, or a security-review one rated
+`IMPORTANT` or above or with no rating it reads; a security-review `SUGGESTION` is adjudicated like
+a code-review finding; a Dependabot security update the review would close, a risk the dependency
+review raised, or a commit on a Dependabot branch from anyone but Dependabot). A reason the table
+does not list holds too, with no activity to resume. Every other reason routes `fail`. A `fail`
+entry that names `"label": "needs-session"` is a change the lane cannot make: a path its token may
+not push, a fix that weakens a required check after its fresh fixer round, or a dependency update
+the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
+an uncited control, a workflow change beyond a pin swap). It also puts the PR in the
+session-builder queue with that label, which no merge gate reads, so a session builder makes the
+change instead of a person; a person arms it only where the merge gate already asks for one. Every
+other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
 no label, a failing commit status on the head the activity gated (`pr-unblock/conflict` for
 `resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one

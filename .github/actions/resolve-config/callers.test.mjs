@@ -5675,7 +5675,7 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
     [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
     [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
     [{ state: "clean" }, "Skip reason: clean-merge"],
-    [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: awaiting-human"],
+    [{ state: "escalate", escalation: "protected-path-conflict" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "repeat-cap" }, "Skip reason: lane-stopped"],
     [{ state: "escalate", escalation: "unresolved-conflict" }, "Skip reason: lane-stopped"],
   ]) {

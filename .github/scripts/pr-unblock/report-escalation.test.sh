@@ -117,7 +117,7 @@ writes() { grep -cE '^(POST|PATCH)' "$STUB/requests" || true; }
 # comment <body> <login> <type> [id]
 comment() { printf '[{"id":%s,"body":%s,"user":{"login":"%s","type":"%s"}}]' "${4:-1}" "$(jq -Rs . <<<"$1")" "$2" "$3"; }
 # bot_marker <head> [reason]: the lanes App's escalation comment for that head and reason.
-bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-protected-path-conflict}"'`' 'melodic-automation-lanes[bot]' Bot; }
+bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-feedback-question-design}"'`' 'melodic-automation-lanes[bot]' Bot; }
 activity_of() {
   case $1 in
     feedback-*) echo address-feedback ;;
@@ -132,25 +132,25 @@ context_of() {
   if [[ $activity == resolve-conflicts ]]; then echo pr-unblock/conflict; else echo "pr-unblock/$activity"; fi
 }
 
-# The routes: a person only for SAFETY (a path the lane would have to resolve
-# or push, supply-chain trust) or a question only a person answers (intent, design,
-# security, a person's own thread or hold); every other stop is a failing
-# status and no label, workflow-staged included: the merge is not the lane's to
-# push, but nothing in it is a person's decision, so a session merges main by
-# hand. Every review-dependency stop but dependency-invalid holds: a Dependabot
-# head moves only when Dependabot pushes, and a fresh model session on the same
-# head cannot change a cap, a refused or unlanded fix, an unreadable config or
-# truncated listing, or a risk the review itself raised. dependency-invalid is
-# a lane malfunction a fresh session can mend, and dependency-dispatch.mjs
-# retries the head on its lane-stopped verdict check, up to
-# limit-stops-per-head.
-HOLD_REASONS=(protected-path-conflict conflict-patch-protected-path
-  feedback-protected-path feedback-round-cap feedback-uncertain feedback-disputed
+# The routes: a person only for the owner's three reasons (an intent or
+# design question, a HIGH or CRITICAL security or billing risk, a person's own
+# thread or hold) and a severity the lane cannot read. feedback-uncertain and
+# feedback-disputed are the findings no adjudicator judges: CRITICAL, a
+# security-review finding rated IMPORTANT or above or unrated, one of no known
+# lane, or a person's own thread. feedback-round-cap is a person's hold or a
+# thread only a person decides. dependency-fix-refused is a commit of untrusted
+# provenance, a trust hold the owner keeps. Every other stop is a failing
+# status, and SESSION_REASONS, a change the lane cannot make (a protected
+# path, a weakened required check after its fresh fixer round, a dependency
+# update the review could not finish), also put the PR in the session-builder
+# queue with needs-session instead of in front of a person.
+HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
   feedback-question-intent feedback-question-design feedback-question-security
+  dependency-security-close dependency-escalate dependency-fix-refused)
+SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
+  feedback-protected-path ci-fix-protected-path ci-fix-weaken-required
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
-  dependency-files-truncated dependency-control-uncited
-  dependency-security-close dependency-escalate dependency-fix-refused dependency-workflow-unpinned
-  ci-fix-protected-path ci-fix-weaken-required)
+  dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
@@ -158,20 +158,68 @@ FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-confl
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated ci-fix-weaken-retry)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
-  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
+  "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
 check "the routing table holds these for a person" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "hold") | .key' "$ROUTES" | sort)"
-for reason in "${HOLD_REASONS[@]}" "${FAIL_REASONS[@]}"; do
+check "the routing table queues these for a session builder, each a fail route" \
+  "$(printf '%s\n' "${SESSION_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "fail" and .value.label == "needs-session") | .key' "$ROUTES" | sort)"
+check "the routing table names no other label" "" "$(jq -r 'to_entries[] | select(has("label") and .value.label != "needs-session") | .key' "$ROUTES")"
+for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
 done
 
-# Rejected reasons: workflow-files and dependency-workflow-held are retired names, the rest are not in the enum.
-for reason in workflow-files dependency-workflow-held bogus '' 'repeat-cap ' REPEAT-CAP; do
+# Rejected reasons: not a reason name at all.
+for reason in '' 'repeat-cap ' REPEAT-CAP 'bogus;x'; do
   setup '[]' '[]'
   run "$reason"
   check "rejects reason [$reason]: exit" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "rejects reason [$reason]: no gh call" '' "$(cat "$STUB/calls")"
 done
+
+# Fail-safe: a well-formed reason the table does not list (a retired name
+# included) holds for a person, with no activity to dispatch, and posts no
+# commit status.
+for reason in bogus workflow-files dependency-workflow-held; do
+  setup '[]' '[]'
+  run "$reason"
+  check "$reason, unknown: exit 0" 0 "$RC"
+  check "$reason, unknown: writes the label then a comment" \
+    $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+  has "$reason, unknown: label is needs-human" 'labels[]=needs-human' "$STUB/calls"
+  check "$reason, unknown: marker is the first line" "$MARKER" "$(head -n 1 "$STUB/bodies")"
+  has "$reason, unknown: comment names the reason" "- Reason: \`$reason\`" "$STUB/bodies"
+  has "$reason, unknown: comment says the table does not list it" 'its routing table does not list' "$STUB/bodies"
+  check "$reason, unknown: no activity to dispatch" 0 "$(grep -c 'activity=' "$STUB/bodies" || true)"
+  setup '[]' '[]'
+  MODE=status run "$reason"
+  check "$reason, unknown, status mode: exit 0" 0 "$RC"
+  check "$reason, unknown, status mode: no write" 0 "$(writes)"
+done
+
+# Session-builder reasons: the needs-session label, then one lane-stopped
+# comment that names it; never the human-gated label.
+for reason in "${SESSION_REASONS[@]}"; do
+  setup '[]' '[]'
+  run "$reason"
+  want=$(activity_of "$reason")
+  check "$reason, session: exit 0" 0 "$RC"
+  check "$reason, session: the needs-session label, then one comment" \
+    $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+  has "$reason, session: label is needs-session" 'labels[]=needs-session' "$STUB/calls"
+  check "$reason, session: never needs-human" 0 "$(grep -c 'needs-human' "$STUB/bodies" "$STUB/calls" | awk -F: '{s+=$2} END {print s}')"
+  check "$reason, session: marker is the first line" "<!-- pr-unblock:lane-stopped activity=$want -->" "$(head -n 1 "$STUB/bodies")"
+  has "$reason, session: comment names the queue" 'labels it `needs-session` for a session builder' "$STUB/bodies"
+  has "$reason, session: names the failing status" "failing \`$(context_of "$reason")\` status" "$STUB/bodies"
+  has "$reason, session: gives the dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
+  setup '[]' '[]'
+  MODE=status run "$reason"
+  check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+done
+
+# With needs-session already on, the comment goes up and the label is not written again.
+setup '[{"name":"needs-session"}]' '[]'
+run ci-fix-weaken-required
+check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
 # Held reasons: one comment, one label, both on the PR.
 for reason in "${HOLD_REASONS[@]}"; do
@@ -239,7 +287,7 @@ check "fail: another activity's comment is left alone" 'POST repos/o/r/issues/42
 
 # A held reason on a PR that already shows a fail comment still holds.
 setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
-run ci-fix-protected-path
+run feedback-question-security
 check "hold beside a fail comment: label then a new comment" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
 
@@ -299,36 +347,36 @@ check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
 printf '{"config":{"role_labels":{"human-gated":"from-head"}}}' >"$STUB/ws/.work-item-tracker.json"
-run protected-path-conflict
+run feedback-question-design
 check "role label: exit 0" 0 "$RC"
 has "role label: label from config" 'labels[]=status: blocked-human' "$STUB/calls"
 has "role label: comment names it" 'remove the `status: blocked-human` label' "$STUB/bodies"
 check "role label: workspace-root config ignored" 0 "$(grep -c from-head "$STUB/calls" || true)"
 
 setup '[]' '[]' '{"config":{"role_labels":{"autonomous-eligible":"go"}}}'
-run protected-path-conflict
+run feedback-question-design
 has "role label: absent role defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
 
 setup '[]' '[]' '{not json'
-run protected-path-conflict
+run feedback-question-design
 check "role label: unparsable config fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "role label: unparsable config writes nothing" 0 "$(writes)"
 
 for entry in false null 7 '""' '["needs-human"]'; do
   setup '[]' '[]' "{\"config\":{\"role_labels\":{\"human-gated\":$entry}}}"
-  run protected-path-conflict
+  run feedback-question-design
   check "role label: present entry $entry fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
 done
 
 # Idempotency.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A")"
-run protected-path-conflict
+run feedback-question-design
 check "re-run on the same head: exit 0" 0 "$RC"
 check "re-run on the same head: no write" 0 "$(writes)"
 
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_B")"
-run protected-path-conflict
+run feedback-question-design
 check "labeled, marker for another head: comment only" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # Another activity's escalation on the same head is recorded too, so
@@ -339,7 +387,7 @@ check "labeled, same head, another reason: comment only" 'POST repos/o/r/issues/
 has "labeled, same head, another reason: comment names the new reason" 'ci-fix-round-cap' "$STUB/bodies"
 
 setup '[]' "$(bot_marker "$HEAD_A")"
-run protected-path-conflict
+run feedback-question-design
 check "label removed by a human, same head: escalates again" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
@@ -348,13 +396,13 @@ check "label removed by a human, same head: escalates again" \
 LABEL_THEN_3_COMMENTS=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments'
 setup '[]' '[]'
 touch "$STUB/fail_labels"
-run protected-path-conflict
+run feedback-question-design
 check "label write fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "label write fails: no comment posted" 0 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
 
 setup '[]' '[]'
 echo 1 >"$STUB/fail_comments"
-run protected-path-conflict
+run feedback-question-design
 check "comment write fails once: exit 0" 0 "$RC"
 check "comment write fails once: label, then the comment twice" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments' \
@@ -367,7 +415,7 @@ check "comment write fails once: backs off once" 'sleep 5' "$(cat "$STUB/sleeps"
 exhausted() {
   setup '[]' '[]'
   echo 99 >"$STUB/fail_comments"
-  run protected-path-conflict
+  run feedback-question-design
   check "$1: comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "$1: comment write fails every attempt: label on, three comment attempts" \
     "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
@@ -378,27 +426,27 @@ exhausted() {
 }
 
 exhausted "retry after a failed comment"
-run protected-path-conflict
+run feedback-question-design
 check "retry after a failed comment: exit 0" 0 "$RC"
 check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # A label left by a failed comment write is explained by the next run, on a later head too.
 exhausted "label left, later head"
-run protected-path-conflict "$HEAD_B"
+run feedback-question-design "$HEAD_B"
 check "label left, later head: exit 0" 0 "$RC"
 check "label left, later head: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 has "label left, later head: comment carries the later resume key" "resume-key=$HEAD_B" "$STUB/bodies"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
-run protected-path-conflict
+run feedback-question-design
 check "marker written by a user does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" 'other-app[bot]' Bot)"
-run protected-path-conflict
+run feedback-question-design
 check "marker written by another bot does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `protected-path-conflict`' 'other-app[bot]' Bot)"
-LBL='other-app[bot]' run protected-path-conflict
+setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `feedback-question-design`' 'other-app[bot]' Bot)"
+LBL='other-app[bot]' run feedback-question-design
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
 # feedback-not-converging, a cap: no label; the comment names each open
@@ -547,7 +595,7 @@ check "clear: an activity the table does not route fails" 1 "$([[ $RC -ne 0 ]] &
 check "clear: an unknown activity makes no gh call" '' "$(cat "$STUB/calls")"
 
 # Never touches the branch: no git, no contents API, no write outside the PR's issue.
-for reason in protected-path-conflict workflow-staged; do
+for reason in feedback-question-design protected-path-conflict workflow-staged; do
   setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=fix-ci -->'$'\nold' 'melodic-automation-lanes[bot]' Bot 9)"
   run "$reason"
   check "$reason: never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"

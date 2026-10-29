@@ -416,9 +416,11 @@ activities:
     inputs: [issue]
   report-escalation:
     # Ends a stopped run on its reason's route (escalation-routes.json):
-    # hold labels the PR needs-human and posts the reason with a resume key;
-    # fail posts or edits one lane-stopped comment, and report-stop-status a
-    # failing status on the head.
+    # hold (the owner's three reasons, or a reason the table does not list)
+    # labels the PR needs-human and posts the reason with a resume key; fail
+    # posts or edits one lane-stopped comment, and report-stop-status a
+    # failing status on the head; a fail entry naming needs-session also adds
+    # that label, the session-builder queue.
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory

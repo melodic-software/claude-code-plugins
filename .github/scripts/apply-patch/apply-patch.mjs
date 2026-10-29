@@ -163,10 +163,10 @@ export function rungUpEscalation(text) {
   return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
 }
 
-// An escalation only a person settles, and the reason it stops with: a fix
+// An escalation the lane cannot settle, and the reason it stops with: a fix
 // that needs a path the lane token may not push, or one that would weaken a
 // required check after its fresh fixer round (weakenStop; escalation-routes.json
-// holds both).
+// routes both to the session-builder queue).
 const HELD_ESCALATIONS = [
   ["protected-path", "ci-fix-protected-path"],
   ["weaken-required", "ci-fix-weaken-required"],
@@ -179,7 +179,7 @@ export function heldEscalation(text) {
 }
 
 // The first weaken-required stop on a head stops for one fresh fixer round
-// instead of a person: a fail-routed reason, whose lane-stopped check the
+// instead of the session-builder queue: a fail-routed reason, whose lane-stopped check the
 // fix-ci dispatcher retries on the same head with the no-weaken brief
 // (fix-ci-context.mjs). The guard itself stays: the round still may not weaken.
 export const WEAKEN_RETRY = "ci-fix-weaken-retry";
