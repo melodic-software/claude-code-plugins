@@ -360,6 +360,18 @@ new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -l 'app=shop' pods -A"
 assert_equals "ready-listing: kubectl get with a quoted flag value is still a listing" "$(run_check)" \
   "ready-listing | SKILL.md | kubectl get -l 'app=shop' pods -A: $LISTING_DETAIL"
+# A flag's separate value is not a second resource type.
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get pods --request-timeout 5s"
+assert_equals "ready-listing: kubectl get with --request-timeout is still a listing" "$(run_check)" \
+  "ready-listing | SKILL.md | kubectl get pods --request-timeout 5s: $LISTING_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get pods --as admin"
+assert_equals "ready-listing: kubectl get with --as is still a listing" "$(run_check)" \
+  "ready-listing | SKILL.md | kubectl get pods --as admin: $LISTING_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -f shop.yaml"
+assert_equals "ready-listing: kubectl get -f names its objects" "$(run_check)" ""
 
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"

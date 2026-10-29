@@ -298,8 +298,13 @@ ready_commands() {
     }' "$1"
 }
 LISTING_RE='^((docker|podman|nerdctl)[[:space:]]+(ps|container[[:space:]]+(ls|list|ps)|compose[[:space:]]+ps)|docker-compose[[:space:]]+ps|kubectl[[:space:]]+get|systemctl[[:space:]]+list-units)([[:space:]]|$)'
-# A `kubectl get` that names an object (`deploy/shop`, `pod shop-db-0`) exits 1 when the object is
-# missing, so only a get of resource types alone is a listing.
+# A `kubectl get` that names an object (`deploy/shop`, `pod shop-db-0`, `-f shop.yaml`) exits 1 when
+# the object is missing, so only a get of resource types alone is a listing. A flag below takes the
+# next word as its value, so that word is not a resource type.
+KUBECTL_VALUE_FLAGS=' -n -l -o -L -s -v --namespace --selector --output --field-selector --label-columns
+  --sort-by --context --kubeconfig --cluster --user --server --template --chunk-size --request-timeout
+  --as --as-group --as-uid --token --cache-dir --certificate-authority --client-certificate --client-key
+  --tls-server-name --username --password --subresource --profile --profile-output --v '
 kubectl_names_object() { # <last stage>
   local -a words
   local w types=0 skip=0
@@ -310,8 +315,8 @@ kubectl_names_object() { # <last stage>
       continue
     fi
     case "$w" in
-    -n | -l | -o | -L | -s | --namespace | --selector | --output | --field-selector | --label-columns | --sort-by | --context | --kubeconfig | --cluster | --user | --server | --template | --chunk-size) skip=1 ;;
-    -*) ;;
+    -f | -k | --filename | --filename=* | --kustomize | --kustomize=* | --raw | --raw=*) return 0 ;;
+    -*) [[ "$KUBECTL_VALUE_FLAGS" == *[[:space:]]"$w"[[:space:]]* ]] && skip=1 ;;
     */*) return 0 ;;
     *) types=$((types + 1)) ;;
     esac
