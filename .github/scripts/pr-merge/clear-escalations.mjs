@@ -887,22 +887,21 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
       console.log(`stale-review-hold: no removal of ${label} since it went on is recorded`);
       return 1;
     }
-    // Judged as the App saw it: the timeline, review comments and reviews up
-    // to the removal, whose actor ci-status checked is the lanes App.
+    // Judged as the App saw it: the timeline, review comments and reviews
+    // written up to the removal (an edit after it still counts), whose actor
+    // ci-status checked is the lanes App.
     const until = Math.min(...removed);
     const removal = timeline.find((item) => item.event === "unlabeled" && same(item.label?.name, label) && Date.parse(item.created_at) === until);
-    const seen = timeline.filter((item) => !(Date.parse(item.created_at ?? item.submitted_at ?? "") > until));
-    const asOf = (entries) => entries.filter((entry) => !(entry.at > until));
+    const written = (item) => !(Date.parse(item?.created_at ?? item?.submitted_at ?? "") > until);
+    const seen = timeline.filter(written);
     const stop =
       standingStop({ timeline: seen, lifted, since, bot: removal?.actor?.login ?? "", label }) ??
       ((speaker) => (speaker === undefined ? null : spokeReason(speaker, label)))(
         personSince(
-          asOf(
-            reviewEntries({
-              comments: await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`),
-              reviews: await paginate(github, `/repos/${repo}/pulls/${number}/reviews`),
-            }),
-          ),
+          reviewEntries({
+            comments: (await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`)).filter(written),
+            reviews: (await paginate(github, `/repos/${repo}/pulls/${number}/reviews`)).filter(written),
+          }),
           since,
         ),
       );

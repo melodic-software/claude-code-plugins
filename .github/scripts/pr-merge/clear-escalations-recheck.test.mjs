@@ -203,6 +203,15 @@ test("ci-status's recheck fails on a signed-commits hold, another App marker or 
   assert.match(log, /kyle-sexton commented or reviewed after needs-human went on/);
 });
 
+// A reply written before the removal and edited after it still counts
+// (thread PRRT_kwDOTCGFQM6xqzoY).
+test("ci-status's recheck fails on a person's thread reply written before the removal and edited after it", async () => {
+  const reply = { user: PERSON, created_at: "2026-10-18T11:30:00Z", updated_at: "2026-10-18T12:30:00Z", body: "Keep this held." };
+  const { code, log } = await run(world({ threadComments: [reply] }));
+  assert.equal(code, 1, log);
+  assert.match(log, /kyle-sexton commented or reviewed after needs-human went on/);
+});
+
 test("ci-status's recheck ignores a person who spoke only after the removal", async () => {
   const { code, log } = await run(world({ extra: [commented(PERSON, "Thanks.", "2026-10-18T12:30:00Z")] }));
   assert.equal(code, 0, log);
