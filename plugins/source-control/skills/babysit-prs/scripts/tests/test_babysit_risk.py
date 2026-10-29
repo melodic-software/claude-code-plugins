@@ -1973,6 +1973,37 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             )
         )
 
+    def test_a_hash_inside_quotes_or_a_block_scalar_hides_no_secret(self):
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n"
+        for added in (
+            '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: echo 'a #b ${{ secrets.DEPLOY }}'\n",
+            '      - env:\n          K: "a #b ${{ secrets.DEPLOY }}"\n',
+            # A quoted scalar's later lines.
+            '      - run: "echo a\n          #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: >-\n          echo a\n          # ${{ secrets.DEPLOY }}\n",
+            "      - name: y\n        run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            # An anchor or tag before the scalar.
+            "      - run: &s |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: !!str |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            '      - env:\n          K: &k "a\n            #b ${{ secrets.DEPLOY }}"\n',
+            # A flow mapping's value right after a quoted key's `:`.
+            '    env: {"K":"x\n      #b ${{ secrets.DEPLOY }}"}\n',
+            "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        for plain in (
+            "      # ${{ secrets.DEPLOY }}\n      - run: echo a\n",
+            "      - run: echo a # ${{ secrets.DEPLOY }}\n",
+            "      - run: 'echo a' # ${{ secrets.DEPLOY }}\n",
+            # A block scalar ends at its key's indent.
+            "      - run: |\n          echo a\n        env: {} # ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+
     def test_the_generator_puts_a_newly_credentialed_workflow_on_the_floor(self):
         import importlib.util
         import shutil
