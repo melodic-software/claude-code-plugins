@@ -53,9 +53,9 @@ const timeline = [
 const thread = (severity, lane = "claude-security-review", { isResolved = false, path = "plugins/x/z.py", commit = HEAD } = {}) => ({
   isResolved,
   path,
-  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, originalCommit: { oid: commit } }] },
+  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, originalCommit: { oid: commit }, originalLine: 12, originalStartLine: null }] },
 });
-// The held CRITICAL finding, inline at OLD on the file the fix changed, resolved.
+// The held CRITICAL finding, inline at OLD on line 12 of the file the fix changed there, resolved.
 const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });
 const notice = (lane) => ({ annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=0 inline=0 scope=whole` });
 const LANES = {
@@ -86,7 +86,7 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
       return activity;
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
-      return { total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }] };
+      return { total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py", patch: "@@ -12,1 +12,1 @@\n-    run(user_input)\n+    run(quote(user_input))" }] };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/main...${HEAD}`) {
       return { total_commits: 2, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }] };

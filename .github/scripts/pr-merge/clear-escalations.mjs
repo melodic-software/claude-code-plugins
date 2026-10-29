@@ -505,8 +505,9 @@ function pairedWithPrMerge(appComments, since) {
 //   lanes App;
 // - a push since each held head is not a merge, so an `Update branch` alone
 //   lifts nothing, and a critical-security hold's lane left at least one
-//   CRITICAL inline finding at its held head, each in a file changed since: a
-//   finding only the summary carried stays for a person;
+//   CRITICAL inline finding at its held head, each in a file a pushed commit
+//   changed and on lines changed since: a finding only the summary carried,
+//   or one whose lines no push touched, stays for a person;
 // - the head changes neither review caller (merge-holds laneChange), which a
 //   pull_request run takes from the head and so could forge its notices;
 // - both review lanes passed: each caller's newest pull_request run on the
@@ -541,7 +542,7 @@ const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
-        nodes { isResolved path comments(first: 1) { nodes { author { __typename login } body originalCommit { oid } } } }
+        nodes { isResolved path comments(first: 1) { nodes { author { __typename login } body originalCommit { oid } originalLine originalStartLine } } }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -566,8 +567,8 @@ function commentLane(author, body) {
 }
 
 // Each review thread a review lane opened, as { lane, severity, resolved,
-// path, commit } (its root comment's `severity:` values and the commit it was
-// made on); null when the listing does not read or may be cut short.
+// path, commit, lines } (its root comment's `severity:` values, the commit it
+// was made on and the [first, last] lines it names there, or null); null when the listing does not read or may be cut short.
 async function laneThreads({ github, repo, number }) {
   const [owner, name] = repo.split("/");
   const open = [];
@@ -594,6 +595,7 @@ async function laneThreads({ github, repo, number }) {
           resolved: thread.isResolved,
           path: thread.path ?? null,
           commit: root.originalCommit?.oid ?? null,
+          lines: Number.isInteger(root.originalLine) ? [root.originalStartLine ?? root.originalLine, root.originalLine] : null,
         });
       }
     }
@@ -728,11 +730,37 @@ export function holdsSince(timeline, lifted) {
   };
 }
 
-// The commits a compare lists, or null when it does not read whole.
+// A compare as { commits, files }, or null when its commits do not read whole.
 async function compareCommits(github, repo, from, to) {
   const compare = await github("GET", `/repos/${repo}/compare/${from}...${to}`);
   const commits = compare?.commits;
-  return Array.isArray(commits) && commits.length === compare.total_commits && commits.every((commit) => SHA.test(String(commit?.sha))) ? commits : null;
+  return Array.isArray(commits) && commits.length === compare.total_commits && commits.every((commit) => SHA.test(String(commit?.sha)))
+    ? { commits, files: Array.isArray(compare.files) ? compare.files : [] }
+    : null;
+}
+
+// Whether a unified-diff `patch` removes, or inserts beside, an old-side line
+// in [first, last].
+export function patchTouches(patch, [first, last]) {
+  let old = 0;
+  for (const line of String(patch).split("\n")) {
+    const hunk = /^@@ -(\d+)/.exec(line);
+    if (hunk !== null) {
+      old = Number(hunk[1]);
+    } else if (line.startsWith("-")) {
+      if (old >= first && old <= last) {
+        return true;
+      }
+      old += 1;
+    } else if (line.startsWith("+")) {
+      if (old >= first && old - 1 <= last) {
+        return true;
+      }
+    } else if (!line.startsWith("\\")) {
+      old += 1;
+    }
+  }
+  return false;
 }
 
 // Why the pushes from held head `held` to `head` fix nothing a hold could
@@ -740,15 +768,15 @@ async function compareCommits(github, repo, from, to) {
 // reachable from the base branch, so an `Update branch` brings in none), and
 // one of them must not be a merge. A critical-security hold's lane must have
 // left a CRITICAL inline finding at `held`, each in a file one of those
-// commits changed. A listing that does not read whole keeps the hold.
+// commits changed, on lines the diff from `held` changed. A listing that does not read whole keeps the hold.
 async function heldCauseUnchanged({ github, repo, base, head, threads }, held, critical) {
   const since = await compareCommits(github, repo, held, head);
   const own = await compareCommits(github, repo, base, head);
   if (since === null || own === null) {
     return `the commits from ${held} or ${base} to ${head} did not read whole`;
   }
-  const mine = new Set(own.map((commit) => commit.sha));
-  const fixes = since.filter((commit) => mine.has(commit.sha) && Array.isArray(commit.parents) && commit.parents.length === 1);
+  const mine = new Set(own.commits.map((commit) => commit.sha));
+  const fixes = since.commits.filter((commit) => mine.has(commit.sha) && Array.isArray(commit.parents) && commit.parents.length === 1);
   if (fixes.length === 0) {
     return `no commit of the pull request's own but merges moved the head off ${held}`;
   }
@@ -777,6 +805,13 @@ async function heldCauseUnchanged({ github, repo, base, head, threads }, held, c
     const unchanged = findings.find((thread) => !changed.has(thread.path));
     if (unchanged !== undefined) {
       return `${unchanged.path}, which holds a CRITICAL finding at ${held}, is unchanged since then`;
+    }
+    const untouched = findings.find((thread) => {
+      const patch = since.files.find((file) => file?.filename === thread.path)?.patch;
+      return thread.lines === null || typeof patch !== "string" || !patchTouches(patch, thread.lines);
+    });
+    if (untouched !== undefined) {
+      return `the lines of ${untouched.path} that hold a CRITICAL finding at ${held} are unchanged since then`;
     }
   }
   return null;

@@ -63,16 +63,23 @@ const baseTimeline = () => [{ event: "labeled", actor: ACTIONS_BOT, label: { nam
 // Review threads, root comment first. The fixture's one open security finding
 // is a SUGGESTION, so a clear shows the bar is HIGH or CRITICAL, not any finding.
 // A thread carries its file and the commit its root comment was made on.
-const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD) => ({ isResolved, path, comments: { nodes: [{ author, body, originalCommit: { oid: commit } }] } });
-const securityThread = (severity, isResolved = false, path = undefined, commit = undefined) =>
-  thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`, path, commit);
+// A thread carries its file, the commit its root comment was made on and the line it names there.
+const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD, line = 12) => ({
+  isResolved,
+  path,
+  comments: { nodes: [{ author, body, originalCommit: { oid: commit }, originalLine: line, originalStartLine: null }] },
+});
+const securityThread = (severity, isResolved = false, path = undefined, commit = undefined, line = undefined) =>
+  thread(isResolved, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA finding.\n\nclaude-lane: claude-security-review`, path, commit, line);
 const codeThread = thread(false, { __typename: "Bot", login: "github-actions" }, "A code finding.\n\nclaude-lane: claude-review");
 // The held CRITICAL finding: inline at OLD on the file the person's fix changed, now resolved.
 const heldFinding = () => securityThread("severity: CRITICAL", true, "plugins/x/y.py", OLD);
 const baseThreads = () => [securityThread("severity: SUGGESTION"), heldFinding(), codeThread];
+// The person's fix rewrites line 12 of plugins/x/y.py, the held finding's line.
+const FIX_PATCH = "@@ -10,5 +10,5 @@ def f():\n     a = 1\n     b = 2\n-    run(user_input)\n+    run(quote(user_input))\n     c = 3\n     d = 4";
 // The compare from the held head to the head: the person's one fix commit;
 // from main to the head: the pull request's own commits, the held head and the fix.
-const baseHeldCompare = () => ({ total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }] });
+const baseHeldCompare = () => ({ total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py", patch: FIX_PATCH }] });
 const baseOwnCompare = () => ({ total_commits: 2, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }] });
 
 const completeNotice = (lane, scope = "scope=whole") => ({
@@ -272,6 +279,18 @@ test("a critical-security hold stays for a person when its lane left no CRITICAL
 
 test("a critical-security hold stays when no push since the held head changed the held finding's file", async () => {
   await assertKept(world({ fixFiles: [{ filename: "plugins/x/other.py" }] }), `plugins/x/y.py, which holds a CRITICAL finding at ${OLD}, is unchanged since then`);
+});
+
+// Thread PRRT_kwDOTCGFQM6xwRR5: an edit elsewhere in the held file (a comment,
+// whitespace) is no fix of the flagged code.
+test("a critical-security hold stays when no push since the held head changed the held finding's lines", async () => {
+  const elsewhere = "@@ -40,3 +40,3 @@\n x = 1\n-# old note\n+# new note\n y = 2";
+  const files = [{ filename: "plugins/x/y.py", patch: elsewhere }];
+  const why = `the lines of plugins/x/y.py that hold a CRITICAL finding at ${OLD} are unchanged since then`;
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), files } }), why);
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), files: [{ filename: "plugins/x/y.py" }] } }), why);
+  const fileLevel = [securityThread("severity: SUGGESTION"), securityThread("severity: CRITICAL", true, "plugins/x/y.py", OLD, null), codeThread];
+  await assertKept(world({ threads: fileLevel }), why);
 });
 
 test("the hold stays when only merges moved the head off the held head, or the compare does not read whole", async () => {
