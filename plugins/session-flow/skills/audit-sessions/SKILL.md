@@ -200,6 +200,10 @@ and no project prefix is built in. Run Step 1 first, then:
   <the user's --scope (with --state-key, as in Step 2)/--since/--until>
 ```
 
+A single-quoted shell argument cannot hold a `'`, and a git branch name may contain one. When the
+pattern or the branch name contains a `'`, stop before running anything: say which value holds the
+quote and that `ticket` cannot pass it safely. Never escape the quote, drop it or rewrite the value.
+
 A session's key is the pattern's first match in its custom title, generated title or branches, and
 only then its working directory, because a reused worktree's directory can name an older ticket.
 Each row gives the sessions, their output tokens, the span from the first session's start to the
