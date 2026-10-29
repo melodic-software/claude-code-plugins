@@ -12,7 +12,9 @@
       "lanes": [
         { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "review", "workflow": "pr-review-main.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY"] }
+        { "id": "review", "workflow": "pr-review-main.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY"] },
+        { "id": "review-subscription", "workflow": "pr-review-main.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["REVIEWS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-fallback", "workflow": "pr-review-main.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
