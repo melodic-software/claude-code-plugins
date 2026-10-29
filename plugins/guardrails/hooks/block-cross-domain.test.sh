@@ -377,6 +377,8 @@ id_deny "a git config write after another command" 'cd /placeholder && git confi
 id_deny "a redirection appends to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
 id_deny 'a redirection writes $HOME/.gitconfig-work' 'printf x > "$HOME/.gitconfig-work"'
 id_deny "a redirection writes a *.gitconfig file" 'echo x > /placeholder/work.gitconfig'
+id_deny "a redirection writes a .gitconfig outside HOME" 'echo x > /placeholder/dotfiles/.gitconfig'
+id_deny "sed -i rewrites a .gitconfig outside HOME" 'sed -i s/a/b/ dotfiles/.gitconfig' # portability-ok: command text under test, never run
 id_deny "a redirection writes the map's identity file" 'echo x > /placeholder/identity'
 id_deny "tee writes ~/.gitconfig" 'tee -a ~/.gitconfig </dev/null'
 id_deny "cp writes a *.gitconfig file" 'cp /placeholder/x ~/work.gitconfig'

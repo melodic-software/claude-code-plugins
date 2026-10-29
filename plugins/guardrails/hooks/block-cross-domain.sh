@@ -43,8 +43,10 @@
 #     core.hooksPath or an includeIf key, or one that edits the whole file
 #     (`--edit`) or removes or renames the user, core, credential or includeIf
 #     section;
-#   - a shell write to an identity file: `~/.gitconfig*`, any `*.gitconfig`, or
-#     an `identity_files` entry, by redirection (BCD_REDIR_RE reads the forms
+#   - a shell write to an identity file: `~/.gitconfig*`, any `*.gitconfig`
+#     (a file named `.gitconfig` in any directory included, such as the copy a
+#     dotfiles repository links into HOME), or an `identity_files` entry, by
+#     redirection (BCD_REDIR_RE reads the forms
 #     the parse reports no target for), by tee, rm, mv, touch, truncate,
 #     `sed -i`, `perl -i` or dd `of=`, as the destination of cp, install, ln or
 #     rsync (`-t`, else the last operand), or by the PowerShell content and
@@ -428,7 +430,7 @@ bcd::identity_prefilter() {
 }
 
 # bcd::identity_file <path>: 0 when the path is `~/.gitconfig*`, any
-# `*.gitconfig`, or equal to or below an `identity_files` glob (the directory
+# `*.gitconfig` (a bare `.gitconfig` anywhere included), or equal to or below an `identity_files` glob (the directory
 # `x` of a glob `x/*` included). It and the
 # functions below run only from the parse callback, bcd::identity_segment.
 # shellcheck disable=SC2329
