@@ -1107,6 +1107,27 @@ class TestNamedTunnelLease(ShareCase):
         self.assertEqual((code, out["tunnel"]), (0, "named"), err)
         self.assertEqual(tunnel.read(self.d)["connector"], ours)
 
+    def test_a_lone_connector_is_not_taken_as_ours_when_ours_logged_no_id(self):
+        cf = FakeCloudflare(self, connections=[[], [connector("0a0a0a0a-0000-4000-8000-00000000000a")]])
+        # A Connector ID tunnel.CONNECTOR cannot read stands for a cloudflared whose log line changed.
+        environ = env(FAKE_CF_ARGS=str(self.args), FAKE_CF_CONNECTOR="unreadable", SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertIn("logged no Connector ID", out["tunnelFallback"])
+
+    def test_a_named_start_that_ends_on_a_race_keeps_the_quick_link_guests_hold(self):
+        port = free_port()
+        cf = FakeCloudflare(self, connections=[[], [connector("0a0a0a0a-0000-4000-8000-00000000000a")]])
+        # The server's switch check goes to its own guest port, so the named tunnel passes it and the race decides.
+        environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url, SHARED_PROBE_ORIGIN=f"http://127.0.0.1:{port}", SHARED_PROBE_SECONDS="3")
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(port), environ=environ)
+        self.assertEqual((code, first["tunnel"]), (0, "quick"), err)
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
+        self.assertEqual((code, out["tunnel"], out["guestUrl"]), (0, "quick", first["guestUrl"]), err)
+        self.assertIn("as it started here", out["tunnelFallback"])
+        self.assertTrue(tunnel.alive(self.d))
+        self.assertIsNone(tunnel.retired(self.d))
+
     def test_a_crashed_cloudflared_of_this_session_still_listed_is_not_another_machine(self):
         ours = "0b0b0b0b-0000-4000-8000-00000000000b"
         cf = FakeCloudflare(self)

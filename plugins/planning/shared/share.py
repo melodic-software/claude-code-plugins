@@ -286,7 +286,7 @@ def named_config(d, a):
         raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
     if api_file.startswith("${user_config."):  # an unset option can arrive as its unexpanded token: its default, empty
         api_file = ""
-    token_file, api_file = (os.path.expanduser(f) if f.startswith("~") else f for f in (token_file, api_file))
+    token_file, api_file = (os.path.normpath(os.path.expanduser(f)) if f.startswith("~") else f for f in (token_file, api_file))
     why = tunnel.token_file_problem(token_file) or (api_file and tunnel.token_file_problem(api_file, "tunnel API token file", "tunnel_api_token_file"))
     return hostname, token_file, api_file, why or None
 
@@ -426,11 +426,15 @@ def route(hostname, token_file, api_file, port, own=None, before=None):
 def confirm(hostname, token_file, api_file, port, rec, before=None):
     """After this machine started the named tunnel (`rec`): no other connector came up meanwhile and <hostname>'s rule
     still names this port, so of two machines that started together neither keeps serving on the other's route.
-    (why not, certain) or (None, True). A machine that connects or writes the route after this check is not seen
+    (why not, certain) or (None, True). With no Connector ID in its log, any connector listed could be another
+    machine's, so the answer is uncertain. A machine that connects or writes the route after this check is not seen
     (README "The lease")."""
     try:
         token, base = tunnel_api(token_file, api_file)
-        others = others_up(token, base, ours(rec, before), True)
+        mine = ours(rec, before)
+        if not mine and others_up(token, base, mine, False):
+            return "its cloudflared logged no Connector ID, so another machine's connector cannot be told from its own", False
+        others = others_up(token, base, mine, True)
         if others:
             return f"{crowded(len(others))} as it started here", True
         rules = [r for r in remote_config(token, base).get("ingress") or [] if isinstance(r, dict) and str(r.get("hostname") or "").lower() == hostname and not r.get("path")]
@@ -593,9 +597,9 @@ def bring_up(d, a):
             rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url), fields={"apiTokenFile": api_file} if hostname else None)
             if hostname and api_file and not settled and not (own and own.get("pid") == rec["pid"]):
                 fallback = confirm(hostname, token_file, api_file, port, rec, before)[0]
-                if fallback:  # ended at once, never kept as a retired tunnel: it may be serving another machine's route
+                if fallback:
                     hostname = ""
-                    rec = tunnel.ensure(d, port)
+                    rec = tunnel.fall_back(d, port)
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
             rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place

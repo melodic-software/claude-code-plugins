@@ -1566,7 +1566,7 @@ class App:
                     detached.stop(live["pid"], live["marker"], live["processStart"])  # the record stays, so the watch retries
                     raise tunnel.TunnelDown(f"named tunnel {hostname} stopped: {why}")
                 self.log.warning("named tunnel %s: %s; a quick tunnel serves this session instead", hostname, loggable(why))
-                return tunnel.ensure(self.dir, self.guest_port)
+                return tunnel.fall_back(self.dir, self.guest_port)
         return live
 
     def watch_lives(self):

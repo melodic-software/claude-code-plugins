@@ -381,6 +381,23 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None, fields=None)
         return new
 
 
+def fall_back(data_dir, port):
+    """End the running tunnel to `port` at once, never keeping it as retired (a named one may serve another machine's
+    route), and serve a quick tunnel instead: the quick tunnel it retired when that still runs, since open pages hold
+    its link, else a new one."""
+    d = Path(data_dir)
+    with detached.locked(d / LOCK):
+        rec = alive(d, held=True)
+        old = (rec or read(d) or {}).get("retired")
+        if rec:
+            _end(rec)
+        if isinstance(old, dict) and isinstance(old.get("pid"), int) and URL.fullmatch(str(old.get("url"))) and detached.alive(*_identity(old)):
+            back = {k: v for k, v in old.items() if k != "until"} | {"port": port, "startedAt": time.time()}
+            _write(d, back)
+            return back
+    return ensure(d, port)
+
+
 def retired(data_dir):
     """The retired tunnel while its grace time runs and it still runs, else None."""
     old = (read(data_dir) or {}).get("retired")

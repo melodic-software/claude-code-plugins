@@ -124,7 +124,10 @@ any connector with an open connection that is not this session's own cloudflared
 Connector ID cloudflared logs) means another machine runs the tunnel, and a quick tunnel runs here.
 After the named tunnel starts, the list is read again and the route below is read back: another
 connector, or a rule that no longer names this session's port, means a second machine started at
-the same moment, and this session ends its named tunnel at once and runs a quick one.
+the same moment, and this session ends its named tunnel at once and runs a quick one: the quick
+tunnel it was switching from when that still runs, so its guests keep their link. A cloudflared
+whose log named no Connector ID cannot tell its own connector from another's, so any connector
+listed then counts as unclear.
 
 A session that already runs the named tunnel (its record names the hostname and its cloudflared
 runs) keeps it without asking, even when a token file has since become unusable: stderr says so,
