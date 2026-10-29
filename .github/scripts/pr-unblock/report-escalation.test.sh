@@ -132,19 +132,21 @@ context_of() {
   if [[ $activity == resolve-conflicts ]]; then echo pr-unblock/conflict; else echo "pr-unblock/$activity"; fi
 }
 
-# The routes: a person only for SAFETY (a path the lane token may not push,
-# supply-chain trust) or a question only a person answers (intent, design,
+# The routes: a person only for SAFETY (a path the lane would have to resolve
+# or push, supply-chain trust) or a question only a person answers (intent, design,
 # security, a person's own thread or hold), and every review-dependency stop,
 # whose failing status would be per head while the merge marker comes from the
-# lane's own re-run; every other stop is a failing status and no label.
-HOLD_REASONS=(protected-path-conflict workflow-staged conflict-patch-protected-path
+# lane's own re-run; every other stop is a failing status and no label,
+# workflow-staged included: the merge is not the lane's to push, but nothing
+# in it is a person's decision, so a session merges main by hand.
+HOLD_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-disputed
   feedback-question-intent feedback-question-design feedback-question-security
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited
   dependency-security-close dependency-escalate dependency-fix-refused dependency-workflow-unpinned
   ci-fix-protected-path ci-fix-weaken-required)
-FAIL_REASONS=(unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
+FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated)
@@ -291,24 +293,24 @@ check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'
 printf '{"config":{"role_labels":{"human-gated":"from-head"}}}' >"$STUB/ws/.work-item-tracker.json"
-run workflow-staged
+run protected-path-conflict
 check "role label: exit 0" 0 "$RC"
 has "role label: label from config" 'labels[]=status: blocked-human' "$STUB/calls"
 has "role label: comment names it" 'remove the `status: blocked-human` label' "$STUB/bodies"
 check "role label: workspace-root config ignored" 0 "$(grep -c from-head "$STUB/calls" || true)"
 
 setup '[]' '[]' '{"config":{"role_labels":{"autonomous-eligible":"go"}}}'
-run workflow-staged
+run protected-path-conflict
 has "role label: absent role defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
 
 setup '[]' '[]' '{not json'
-run workflow-staged
+run protected-path-conflict
 check "role label: unparsable config fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "role label: unparsable config writes nothing" 0 "$(writes)"
 
 for entry in false null 7 '""' '["needs-human"]'; do
   setup '[]' '[]' "{\"config\":{\"role_labels\":{\"human-gated\":$entry}}}"
-  run workflow-staged
+  run protected-path-conflict
   check "role label: present entry $entry fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
   check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
 done
@@ -539,7 +541,7 @@ check "clear: an activity the table does not route fails" 1 "$([[ $RC -ne 0 ]] &
 check "clear: an unknown activity makes no gh call" '' "$(cat "$STUB/calls")"
 
 # Never touches the branch: no git, no contents API, no write outside the PR's issue.
-for reason in workflow-staged ci-fix-escalated; do
+for reason in protected-path-conflict workflow-staged; do
   setup '[]' "$(comment '<!-- pr-unblock:lane-stopped activity=fix-ci -->'$'\nold' 'melodic-automation-lanes[bot]' Bot 9)"
   run "$reason"
   check "$reason: never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"

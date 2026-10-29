@@ -583,7 +583,8 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 A `pr-unblock` run that stops ends on the route
 [`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json), the one
 routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is for a reason only
-a person settles: a path the lane token may not push or a supply-chain refusal (SAFETY), an intent,
+a person settles: a path the lane would itself have to resolve or write that its token may not
+push, or a supply-chain refusal (SAFETY), an intent,
 design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
 security-review or CRITICAL one), or any `review-dependency` stop: its failing status would be per head,
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
@@ -593,6 +594,9 @@ no label, a failing commit status on the head the activity gated (`pr-unblock/co
 `resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
+`workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
+`.github/workflows/` changes together with the base's, which the lane token cannot push, and
+nothing in it is a person's decision, so a session merges main by hand.
 A select job's stop (a cap, or a conflict no model can resolve) is final for its head. A stop
 after a model turn (the push, reply or verdict job's) is retried on the same head by the
 activity's dispatcher, under the cap it already keeps: `limit-stops-per-head` for
@@ -629,7 +633,7 @@ head:
 
 | Reason | Cleared when |
 |---|---|
-| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
+| `workflow-staged` (a label set before it routed `fail`) | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`, `ci-fix-escalated` | a trusted move took the head off the resume key, and at the new head no check other than `ci-status` (which the label itself fails) fails, runs or was cancelled, the latest run of each ended `success`, `neutral` or `skipped`, and one passed |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
