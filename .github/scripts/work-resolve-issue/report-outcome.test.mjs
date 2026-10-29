@@ -3350,7 +3350,6 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
 // A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
 // does not cover what scanLeak flags, so a missing scan holds like a finding.
@@ -3389,17 +3388,36 @@ test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
 });
 
-test("mustHold: a reuse holds on any scan word but clean and on a failed check; runner checks that did not report hold nothing", () => {
+// A failed runner check is not a reason for a person: the PR opens, its
+// Verification section names the failure, and its own CI stays red until fixed.
+test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
+  const plan = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } });
+  assert.equal(plan.hold, false);
+  assert.ok(!plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  assert.ok(plan.body.includes(`${FRAGMENTS}: failed (exit 1)`), plan.body);
+  assert.ok(plan.body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), plan.body);
+});
+
+test("a reuse PR whose runner check failed still holds on a leak scan that is not clean", () => {
+  const failed = [{ check: FRAGMENTS, exit: 1 }];
+  for (const checks of [{ ...CLEAN_CHECKS, results: failed, scan: "found" }, { ...CLEAN_CHECKS, results: failed, scan: "failed" }, { tip: TIP, results: failed }]) {
+    const plan = reusePlan({ ...CLEAN_REUSE, checks });
+    assert.equal(plan.hold, true, JSON.stringify(checks));
+    assert.ok(plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  }
+});
+
+test("mustHold: a reuse holds on any scan word but clean; a failed runner check and runner checks that did not report hold nothing", () => {
   const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
   assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS }), false, "clean reuse");
   assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), true, "scan missing");
   assert.equal(mustHold({ ...facts, checks: null }), true, "checks and scan missing");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "failed" } }), true, "scan failed");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
-  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "a failed check");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [] } }), false, "reuse, clean scan, no runner check reported");
   assert.equal(mustHold({ ...facts, reused: false, checks: null }), false, "no reuse, runner checks missing");
-  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "no reuse, a failed check");
+  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "no reuse, a failed check");
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
@@ -3425,8 +3443,8 @@ test("readChecks carries a reused branch's scan word, reads an unknown one as fa
 
 // main on a reuse with no outcome of its own: the runner's checks for the
 // reused branch at TIP, with `scan` (null: none), and the issue's labels and events.
-async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
-  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit: 0 }], ...(scan === null ? {} : { scan }) });
+async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
+  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit }], ...(scan === null ? {} : { scan }) });
   return withAsyncDir({ "runner-checks": checks, "resolved.json": RESOLVED, "trusted.json": TRUSTED_LIST }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
@@ -3446,6 +3464,15 @@ async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: 
 test("main opens a clean reuse PR with no hold line, and holds it on a leak scan that is not clean", async () => {
   assert.ok(!holds((await runReuse()).body));
   for (const scan of ["found", "failed", null]) assert.ok(holds((await runReuse({ scan })).body), String(scan));
+});
+
+test("main opens a reuse PR whose runner check failed with no hold line or hold label, and still holds it on a leak scan that is not clean", async () => {
+  const holdLabeled = (calls) => calls.some((c) => c.method === "POST" && c.path.endsWith("/labels") && c.body?.labels?.includes(HUMAN_MERGE_HOLD));
+  const failing = await runReuse({ exit: 1 });
+  assert.ok(!holds(failing.body), failing.body);
+  assert.ok(failing.body.includes(`${FRAGMENTS}: failed (exit 1)`), failing.body);
+  assert.ok(!holdLabeled(failing.calls));
+  for (const scan of ["found", null]) assert.ok(holds((await runReuse({ exit: 1, scan })).body), String(scan));
 });
 
 test("main holds a reuse PR on a denied path or a failed compare, and opens a clean one unheld", async () => {

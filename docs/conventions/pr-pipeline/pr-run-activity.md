@@ -2211,9 +2211,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
-  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
-  them on the head. The summary never decides the hold or reaches a status:
+  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  reported (missing or another tip): the Verification section lists each result, and `ci-status`
+  reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none
