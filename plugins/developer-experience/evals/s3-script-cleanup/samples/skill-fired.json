@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "scripts/README.md"}},
+        {"tool": "Skill", "input": {"skill": "audit-tools"}}
+      ],
+      "why": "bare name, after a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "developer-experience:build-cli"}}
+      ],
+      "why": "the sibling skill"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "docs/conventions/developer-experience.md"}}
+      ],
+      "why": "read the conventions file, no Skill call"
+    }
+  ]
+}
