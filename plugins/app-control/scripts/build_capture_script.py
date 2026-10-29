@@ -15,9 +15,13 @@ with no <file>, the recorder's stdout is the capture. The recorder carries no el
 is a path in a new directory the elevated user makes, and the script copies that file to the
 capture path through its own redirect, as the user running it, then removes the directory.
 
-The script is written with mode 0700 to a new file at --write. Stdout carries one line per process
-(pid, uid, start time, live command line with NULs as spaces and control characters escaped) and
-then the script, for the person to read before the yes.
+The script is written to a new file at --write: mode 0700 without --elevate, to be run from that
+file; mode 0600 with --elevate, as a record nothing runs. Stdout carries one comment line per
+process (pid, uid, start time, live command line with NULs as spaces and control characters
+escaped) and then the script, for the person to read before the yes. Stdout is itself the script:
+an elevated run feeds that printed text to sh on stdin, never the file, which a process of the same
+uid could rewrite between the display and the run. The script body is one group read whole before
+any of it runs, with stdin /dev/null, so nothing it runs can read the rest of the script.
 
 The script rechecks every process, runs the recorder once, and rechecks again; a difference after
 the recorder deletes the capture. Script exit 3: a process no longer matches. A recorder exit of 3
@@ -37,7 +41,6 @@ import sys
 PID = re.compile(r"[1-9][0-9]*")
 INT = re.compile(r"[0-9]+")
 SHA = re.compile(r"[0-9a-fA-F]{64}")
-CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 EMPTY_SHA = hashlib.sha256(b"").hexdigest()
 ELEVATION = {"sudo", "doas", "su", "pkexec", "run0", "runas"}
 PLACEHOLDER = re.compile(r"@(CAPTURE|EMPTY|CHECKS|RUN|HANDBACK)@")
@@ -46,7 +49,9 @@ TEMPLATE = r"""#!/bin/sh
 # Built by app-control's build_capture_script.py. Rechecks each process below against the uid,
 # start time and command line sha256 read when this script was built, runs the recorder once, then
 # rechecks; on a difference after the recorder it deletes the capture. Exit 3: a process no longer
-# matches. A recorder exit of 3 becomes 4.
+# matches. A recorder exit of 3 becomes 4. One group, so the shell reads all of it before it runs
+# any of it, and nothing it runs reads the script's own stdin.
+{
 set -u
 capture=@CAPTURE@
 after=0
@@ -110,6 +115,7 @@ status=$?
 recheck
 [ "$status" -ne 3 ] || status=4
 exit "$status"
+} </dev/null
 """
 
 
@@ -197,6 +203,12 @@ def display(cmdline):
     )
 
 
+def unprintable(text):
+    """True when text holds a character that would not print as itself: a control character, a
+    line or paragraph separator, or a bidi override that could make the shown script misread."""
+    return not all(c.isprintable() for c in text)
+
+
 def describe(label, proc):
     return (
         f"{label}: uid {proc['uid']}, start time {proc['start']}, sha256 {proc['sha256']}, "
@@ -228,14 +240,16 @@ def parse(argv):
         raise Usage("give --pid, --uid, --start-time and --sha256, or --attach-pid")
     if not recorder:
         raise Usage("no recorder command after --")
-    if any(CONTROL.search(a) for a in recorder):
-        raise Usage("a recorder argument holds a control character")
+    if any(unprintable(a) for a in recorder):
+        raise Usage("a recorder argument holds an unprintable character")
     if os.path.basename(recorder[0]) in ELEVATION:
         raise Usage(f"the recorder starts with {recorder[0]}; drop it and pass --elevate")
     if not any("<pid>" in a for a in recorder):
         raise Usage("the recorder names no <pid>")
-    if not os.path.isabs(args.capture) or CONTROL.search(args.capture):
-        raise Usage("--capture must be an absolute path with no control character")
+    if not os.path.isabs(args.capture) or unprintable(args.capture):
+        raise Usage("--capture must be an absolute path with no unprintable character")
+    if unprintable(args.write):
+        raise Usage("--write must be a path with no unprintable character")
     return args, recorder
 
 
@@ -325,10 +339,10 @@ def build(bound, recorder, capture, elevate):
     return PLACEHOLDER.sub(lambda m: values[m[1]], TEMPLATE)
 
 
-def write(path, text):
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
+def write(path, text, mode):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        os.fchmod(f.fileno(), 0o700)
+        os.fchmod(f.fileno(), mode)
         f.write(text)
 
 
@@ -349,13 +363,18 @@ def main(argv):
         return 3
     text = build(bound, recorder, args.capture, args.elevate)
     try:
-        write(args.write, text)
+        write(args.write, text, 0o600 if args.elevate else 0o700)
     except OSError as e:
         print(f"usage: cannot write a new script at {args.write}: {e.strerror}", file=sys.stderr)
         return 2
+    # Comment lines, so the whole of stdout is the script an elevated run feeds to sh. display()
+    # escapes every line break, so a command line cannot end the comment.
     for label, proc in bound:
-        print(describe(label, proc))
-    print(f"script {args.write}:")
+        print(f"# {describe(label, proc)}")
+    if args.elevate:
+        print(f"# record of this script, never run: {args.write}")
+    else:
+        print(f"# script {args.write}:")
     sys.stdout.write(text)
     return 0
 
