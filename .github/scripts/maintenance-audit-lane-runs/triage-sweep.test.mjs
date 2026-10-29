@@ -433,11 +433,15 @@ const handBack = (user, at) => ({ id: 6, user, body: "<!-- work-unblock handed t
 const triaged = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
 const LANES = { login: "melodic-automation-lanes[bot]", id: APP };
 
+// The issue lane's intake route (a split-required skip, owner Q93) sends an
+// issue back the same way, so its comment starts a new cycle too.
+const intakeBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake run=9 -->\nThe work-resolve-issue lane stopped on this issue (`split-required`).", created_at: at });
+
 test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
-  for (const filed of [null, HANDED]) {
+  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack]]) {
     const gh = fakeGitHub({
       issues: [issue(1)],
-      comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), handBack(LANES, "2026-10-18T08:00:00Z")] },
+      comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), back(LANES, "2026-10-18T08:00:00Z")] },
       runs: triaged,
     });
     const result = await sweep(gh);

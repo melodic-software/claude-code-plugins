@@ -1,32 +1,39 @@
-// Expected values come from the owner's direction of 2026-10-27: a person
-// only for an intent, design, security or cost reason; every retry has a
-// hard end.
+// Expected values come from the owner's direction of 2026-10-27, restated
+// 2026-10-29: a person only for an intent, design, security or cost reason;
+// every retry has a hard end.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { runCode, STOP_ROUTES, stopRoute } from "./stop-routes.mjs";
+import { HOLD_CLASSES, runCode, STOP_ROUTES, stopRetries, stopRoute } from "./stop-routes.mjs";
 
 test("a reason the table does not list holds", () => {
   assert.equal(stopRoute("no-such-reason"), "hold");
 });
 
-test("only intent, design, security and cost reasons, and reasons the lane cannot tell from them, hold", () => {
-  const holds = Object.keys(STOP_ROUTES).filter((reason) => STOP_ROUTES[reason].route === "hold").sort();
-  assert.deepEqual(holds, [
-    "collect-refused",
-    "cost-risk",
-    "design-change",
-    "intent-change",
-    "issue-edited",
-    "patch-invalid",
-    "probe-first",
-    "pushback",
-    "research-first",
-    "scan-refused-output",
-    "security-risk",
-    "split-required",
-    "stopped",
-  ]);
+// stop-routes.mjs's header: a person only for an intent, design, security or
+// cost reason, so every hold row names which one.
+test("every hold row's class is intent-change, design-change, security-risk or cost-risk", () => {
+  const classes = ["intent-change", "design-change", "security-risk", "cost-risk"];
+  assert.deepEqual([...HOLD_CLASSES].sort(), [...classes].sort());
+  for (const [reason, row] of Object.entries(STOP_ROUTES)) {
+    if (row.route === "hold") {
+      assert.ok(classes.includes(row.class), `${reason} holds with class ${row.class}`);
+    }
+  }
+});
+
+// These stops name no owner reason, so none goes to a person.
+test("a stop with no code, a done or delivered issue, a wait on a pull request and a split go to no person", () => {
+  assert.equal(stopRoute("stopped"), "retry");
+  assert.equal(stopRetries("stopped", 2), 1);
+  assert.equal(stopRetries("outcome-unread", 2), 2);
+  assert.equal(stopRoute("already-done"), "close");
+  assert.equal(stopRoute("report-delivered"), "close");
+  assert.equal(stopRoute("blocked-by-pr"), "wait");
+  assert.equal(stopRoute("split-required"), "intake");
+  for (const code of ["already-done", "report-delivered", "blocked-by-pr"]) {
+    assert.equal(runCode(`${code}: why`), code);
+  }
 });
 
 test("a spent cap never retries again", () => {

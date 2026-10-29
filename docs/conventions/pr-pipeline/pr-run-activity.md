@@ -2000,8 +2000,10 @@ listing and re-fires the issue on main's files, once per version of the two file
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
-`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+`dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
+issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
+and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
+files its sub-issues (owner Q93). What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -2127,16 +2129,27 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
-  `patch-protected-path`), and a reason with no code, like a reason the table does not list,
-  holds. `hold` labels the issue with the human-gated role label, removes `agent-ready` and
-  comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
+  `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
+  code retries once (its row's `retries`) and then fails; a reason the table does not list holds.
+  Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
+  `cost-risk`, the owner's only reasons for a person. `hold` labels the issue with the human-gated
+  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
   `agent-ready`, asking no decision; `retry` keeps
   `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock
   sweep restarts the issue and the next run resumes its branch, while the retry markers since a
   listed human last added `agent-ready` are fewer than `limits.stop-retries`; past that, the stop
-  takes the `retry-spent` row's route. `fail` removes `agent-ready`, adds no label and comments
+  takes the `retry-spent` row's route. `wait` (`blocked-by-pr`) keeps `agent-ready` with
+  `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
+  issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
+  apart from its retries; a pull request that is not open, or none named, retries instead.
+  `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
+  which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
+  comments, removes `agent-ready` and closes the issue as completed: `already-done` only once the
+  cited merged pull request or commit is on the default branch, and `report-delivered` only on a
+  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
+  report; either retries otherwise. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker

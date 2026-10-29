@@ -24,9 +24,15 @@
 //   hold hands the issue to a person as pushback does; host-run adds the
 //   host-run label and removes agent-ready; attended adds the attended label
 //   and removes agent-ready; retry keeps agent-ready, so
-//   work-unblock restarts it, up to limits.stop-retries; fail removes
-//   agent-ready and adds no label. A route other than hold carries no
-//   escalation marker.
+//   work-unblock restarts it, up to limits.stop-retries; wait keeps
+//   agent-ready and names the open pull request the run waits on, so
+//   work-unblock restarts it once that pull request merges or closes (a
+//   pull request that is not open retries instead); intake removes
+//   agent-ready and status: ready, so the triage sweep sends the issue back
+//   through intake; close closes the issue as completed (an already-done
+//   stop only once its cited commit or pull request is on the default
+//   branch, else it retries); fail removes agent-ready and adds no label. A
+//   route other than hold carries no escalation marker.
 //
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //             When a listed human's newest comment, posted since the lane's
@@ -66,9 +72,11 @@
 //             (patch-apply-failed), stops like stopped, naming the reason;
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
-//             (DIMENSION_SKIP): comments the next step with an
-//             outcome=<reason> marker, adds the human-gated label, removes
-//             agent-ready. No outcome file is read.
+//             (DIMENSION_SKIP): takes the reason's route; a hold comments
+//             the next step with an outcome=<reason> marker, adds the
+//             human-gated label and removes agent-ready, and split-required
+//             goes back through intake, whose split files its sub-issues.
+//             No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -125,9 +133,11 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
-import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
+// The work class of an issue that asks for a report and no change.
+const READ_ONLY_CLASS = "work-class: read-only";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
@@ -202,7 +212,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 // marker follows on the next line.
 export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
-const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
@@ -221,7 +231,7 @@ export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
 // sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
-// {outcome, resets, run, onResumed} from a comment body that opens with the lane's
+// {outcome, resets, run, onResumed, pr?} from a comment body that opens with the lane's
 // marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
 // unreadable; onResumed is true for `branch=resumed`.
 export function parseOutcomeMarker(body) {
@@ -230,7 +240,7 @@ export function parseOutcomeMarker(body) {
     return null;
   }
   const resets = ISO.test(match[2] ?? "") ? Date.parse(match[2]) : Number.NaN;
-  return { outcome: match[1], resets: Number.isFinite(resets) ? resets : null, run: match[4] ?? "", onResumed: match[5] === "resumed" };
+  return { outcome: match[1], resets: Number.isFinite(resets) ? resets : null, run: match[5] ?? "", onResumed: match[6] === "resumed", ...(match[4] && { pr: match[4] }) };
 }
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
@@ -462,27 +472,44 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 }
 
 // The comment and labels of a stop whose route is not hold, which carries no
-// escalation marker: retry keeps agent-ready (work-unblock restarts it and the
-// next run resumes the branch), host-run and attended add their label, fail
-// adds none; all three remove agent-ready.
-const ROUTE_OUTCOME = { retry: "retry", "host-run": "host-run", attended: "attended", fail: "failed" };
+// escalation marker: retry and wait keep agent-ready (work-unblock restarts it
+// and the next run resumes the branch), host-run and attended add their
+// label, intake removes the status labels admission reads, close and fail add
+// none; all but retry and wait remove agent-ready.
+const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
 const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false }) {
+const KEPT = new Set(["retry", "wait"]);
+const ROUTE_REMOVES = { intake: ["agent-ready", "status: ready", "admission-deferred"] };
+const ROUTE_TEXT = {
+  "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
+  attended: `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`,
+  intake:
+    "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
+  close: "It closes the issue as completed.",
+  fail: "It removed `agent-ready` and added no label.",
+};
+// The pull request a blocked-by-pr reason names: its first `#<n>` (or the
+// full-width `＃<n>`) other than the issue itself, or "".
+export const waitedPull = (reason, issueNumber) =>
+  [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "" }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
-    `<!-- work-resolve-issue outcome=${exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
+    `<!-- work-resolve-issue outcome=${exit}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     `The work-resolve-issue lane stopped on this issue (\`${stop}\`): ${stopWhy(shown)}.`,
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
-      : route === "host-run"
-        ? `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`
-        : route === "attended"
-          ? `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`
-          : "It removed `agent-ready` and added no label.",
+      : route === "wait"
+        ? `It keeps \`agent-ready\`, and work-unblock starts it again once #${pr} merges or closes (wait ${retries + 1} of ${cap}).`
+        : ROUTE_TEXT[route],
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
     lines.push("", "In the run's words:", "", quoted(words));
+  }
+  // A closed issue's result is the run's report, which its summary holds.
+  if (route === "close" && outcome.reason && outcome.summary) {
+    lines.push("", "The run's report:", "", quoted(outcome.summary));
   }
   if (outcome.notDone.length) {
     lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
@@ -508,28 +535,32 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     runId,
     comment: lines.join("\n"),
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
-    removeLabels: route === "retry" ? [] : ["agent-ready"],
+    removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
+    ...(pr && { pr }),
   };
 }
 
-// A stop routed by stop-routes.json; `args` are handBack's. A retry past
-// limits.stop-retries (`retries`, counted since a listed human last added
-// agent-ready) takes retry-spent's route instead.
-function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS } = {}) {
-  const spent = stopRoute(stop) === "retry" && retries >= limits["stop-retries"];
+// A stop routed by stop-routes.json, or by `route` in its place; `args` are
+// handBack's. A retry or wait past limits.stop-retries, or the row's own
+// `retries` when fewer (`retries`, counted since a listed human last added
+// agent-ready), takes retry-spent's route instead.
+function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop) } = {}) {
+  const cap = stopRetries(stop, limits["stop-retries"]);
+  const spent = KEPT.has(given) && retries >= cap;
   const shown = spent ? "retry-spent" : stop;
-  const route = stopRoute(shown);
+  const route = spent ? stopRoute(shown) : given;
+  const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
       ? handBack(args)
-      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap: limits["stop-retries"] });
+      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr });
   return { ...plan, stop, stopArgs: args };
 }
 
-// A retry plan with the retries already made counted in: past the cap it
-// becomes retry-spent's route. Any other plan is returned as it is.
+// A retry or wait plan with the restarts already made counted in: past the
+// cap it becomes retry-spent's route. Any other plan is returned as it is.
 export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
-  plan.action === "retry" ? routeStop(plan.stop, plan.stopArgs, { retries, limits }) : plan;
+  KEPT.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action }) : plan;
 
 // apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
@@ -543,7 +574,7 @@ export const PATCH_REASONS = {
 // The step that must come before the lane can run an issue its dimensions
 // skipped, as triage's apply-outcome rule names it.
 export const DIMENSION_STEPS = {
-  "split-required": "Its Size is too large for one run: split it into smaller issues with `/work-items:decompose`.",
+  "split-required": "Its Size is too large for one run: intake splits it into sub-issues (owner Q93).",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
   "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
 };
@@ -988,7 +1019,10 @@ export function decide({
     });
   }
   if (outcome.exit !== "done") {
-    return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked });
+    // A delivered report closes only a read-only issue the run committed
+    // nothing for; any other one retries.
+    const route = stop === "report-delivered" && !(issueLabels.includes(READ_ONLY_CLASS) && !branch) ? "retry" : undefined;
+    return routeStop(stop, { outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed, unmarked }, route ? { route } : {});
   }
   // The outcome file is model output, so its own report never clears this.
   const failed = checkFailures(checks);
@@ -1093,7 +1127,7 @@ function humanLabelFrom(path) {
 
 // The outcomes after which the next run continues the marked run's branch.
 // work-unblock's `failed` names the limit or funding stop's run it ends.
-export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "host-run", "attended", "failed"]);
+export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "wait", "host-run", "attended", "failed"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -1543,28 +1577,70 @@ async function applyHandBack(github, repo, plan) {
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
 }
 
-// A stop plan's edits. A retry first counts the retries since a listed human
-// last added agent-ready: past limits.stop-retries it takes retry-spent's
-// route; otherwise it posts its comment once per run (a rerun of this report
-// finds its own marker) and keeps agent-ready.
+// Whether `pr` is a pull request in this repository that is still open; a
+// read that fails counts as not open, so the stop retries instead of waiting.
+const openPull = (github, repo, pr) =>
+  pr ? github("GET", `${repo}/pulls/${pr}`).then((pull) => pull?.state === "open" && pull.merged_at == null, () => false) : Promise.resolve(false);
+
+// Whether the commit or pull request an already-done reason cites is on the
+// default branch: a merged pull request (`#<n>`), or a commit SHA the default
+// branch contains (the compare from it is ahead or identical). A read that
+// fails, or a reason that cites neither, proves nothing.
+export async function doneEvidence(github, repo, reason, issueNumber) {
+  const pr = waitedPull(reason, issueNumber);
+  if (pr && (await github("GET", `${repo}/pulls/${pr}`).then((pull) => Boolean(pull?.merged_at), () => false))) {
+    return true;
+  }
+  // A SHA holds a letter, so a run id or other number is never read as one.
+  const sha = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).find((word) => /[a-f]/.test(word));
+  if (!sha) {
+    return false;
+  }
+  return github("GET", repo)
+    .then(({ default_branch: base }) => github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`))
+    .then((comparison) => comparison?.status === "ahead" || comparison?.status === "identical", () => false);
+}
+
+// A stop plan's edits. A wait on a pull request that is not open, and an
+// already-done close whose evidence is not on the default branch, retry
+// instead. A retry or wait first counts its own restarts since a listed human
+// last added agent-ready: past its cap it takes retry-spent's route;
+// otherwise it posts its comment once per run (a rerun of this report finds
+// its own marker) and keeps agent-ready. A close comments, removes
+// agent-ready, then closes the issue as completed.
 async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
-  if (plan.action === "retry") {
+  if (plan.action === "wait" && !(await openPull(github, repo, plan.pr))) {
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry" });
+  }
+  if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry" });
+  }
+  if (KEPT.has(plan.action)) {
+    const outcome = plan.exit;
     const comments = await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`);
     const events = await paginate(github, `${repo}/issues/${plan.issueNumber}/events`);
-    plan = capRetries(plan, countRestarts({ comments, events, bot, humans, runId, outcome: "retry" }), limits);
-    if (plan.action === "retry") {
+    plan = capRetries(plan, countRestarts({ comments, events, bot, humans, runId, outcome }), limits);
+    if (KEPT.has(plan.action)) {
       const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-        return marker?.outcome === "retry" && runId !== "" && marker.run === runId;
+        return marker?.outcome === plan.exit && runId !== "" && marker.run === runId;
       });
       if (!posted) {
         await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
       }
-      console.log(`report-outcome: issue #${plan.issueNumber} stopped (${plan.stop}); it keeps agent-ready and work-unblock retries it`);
+      console.log(
+        plan.action === "wait"
+          ? `report-outcome: issue #${plan.issueNumber} waits on #${plan.pr} (${plan.stop}); it keeps agent-ready and work-unblock restarts it once #${plan.pr} merges or closes`
+          : `report-outcome: issue #${plan.issueNumber} stopped (${plan.stop}); it keeps agent-ready and work-unblock retries it`,
+      );
       return;
     }
   }
   await applyHandBack(github, repo, plan);
+  if (plan.action === "close") {
+    await github("PATCH", `${repo}/issues/${plan.issueNumber}`, { state: "closed", state_reason: "completed" }, { safeToResend: true });
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop})`);
+  }
 }
 
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep } = {}) {

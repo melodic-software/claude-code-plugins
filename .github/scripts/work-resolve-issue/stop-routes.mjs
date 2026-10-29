@@ -4,7 +4,8 @@
 // report-outcome runs from a copy of this directory alone.
 //   hold      hands the issue to a person: the human-gated label and the
 //             escalation marker. Only an intent, design, security or cost
-//             reason routes here.
+//             reason routes here: each hold row's `class` (HOLD_CLASSES)
+//             says which.
 //   host-run  adds the host-run label, the host queue's one signal, and
 //             removes agent-ready, so an unattended agent run on a host builds it.
 //   attended  adds the attended label and removes agent-ready: the work needs
@@ -12,17 +13,31 @@
 //             a listed human removes the label. It asks the owner for no
 //             decision, which stays needs-human's.
 //   retry     keeps agent-ready, so work-unblock starts it again, up to
-//             limits.stop-retries; past that it takes retry-spent's route.
+//             limits.stop-retries, or the row's `retries` when fewer; past
+//             that it takes retry-spent's route.
+//   wait      keeps agent-ready with the open pull request the run names in
+//             its marker, so work-unblock starts it again once that pull
+//             request merges or closes, up to limits.stop-retries waits;
+//             past that it takes retry-spent's route.
+//   intake    removes agent-ready, status: ready and admission-deferred, so
+//             the triage sweep sends the issue back through intake, whose
+//             admission and refinement decide it as the owner settled.
+//   close     closes the issue as completed with the run's words.
 //   fail      removes agent-ready and adds no label: the comment's outcome
 //             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
-const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "fail"]);
+const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "close", "fail"]);
+// The owner's reasons for a person (owner direction 2026-10-27).
+export const HOLD_CLASSES = new Set(["intent-change", "design-change", "security-risk", "cost-risk"]);
 
 export const STOP_ROUTES = Object.freeze(JSON.parse(readFileSync(new URL("./stop-routes.json", import.meta.url), "utf8")));
 for (const [reason, row] of Object.entries(STOP_ROUTES)) {
   if (!ROUTE_NAMES.has(row?.route) || typeof row.why !== "string" || row.why === "") {
     throw new Error(`stop-routes.json: ${reason} needs a route (${[...ROUTE_NAMES].join(", ")}) and a why`);
+  }
+  if (row.retries !== undefined && !(row.route === "retry" && Number.isSafeInteger(row.retries) && row.retries >= 0)) {
+    throw new Error(`stop-routes.json: ${reason}'s retries needs the retry route and a whole number`);
   }
 }
 // A spent cap that routed to retry would retry without end.
@@ -39,6 +54,8 @@ export const ATTENDED_LABEL = "attended";
 
 // A reason's route; a reason the table does not list holds.
 export const stopRoute = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].route : "hold");
+// The most retries a reason's row allows, within limits.stop-retries.
+export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].retries : undefined) ?? cap);
 export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");
 
 // The codes a run may open its `stopped` reason with, longest first.

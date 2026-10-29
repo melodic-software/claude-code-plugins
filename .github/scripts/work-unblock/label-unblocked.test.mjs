@@ -1060,9 +1060,10 @@ const limitedNote = (resets, at, user = LANES_BOT) => ({
 const ready = (n, labels = []) => issue(n, { labels: ["agent-ready", "work-class: read-only", ...labels] });
 const added = (at, actor = LANES_BOT) => ({ event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const restarted = (n) => [`DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`, labeled(n)];
-function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events } = {}) {
+function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events, pulls } = {}) {
   return world({
     openReady: [ready(30, labels)],
+    pulls,
     comments: { 30: comments ?? [note(), limitedNote(resets, at)] },
     events: { 30: events ?? [added("2026-10-16T05:00:00Z")] },
   });
@@ -1328,6 +1329,39 @@ test("retry stops past limits.stop-retries, or any with it at 0, restart nothing
     assert.equal(await sweep({ github }, withLimits(limits)), 0);
     assert.deepEqual(writes(calls), [], JSON.stringify(limits));
   }
+});
+
+// A stop that waits on an open pull request (blocked-by-pr) keeps agent-ready with a wait marker naming it, and the
+// sweep restarts it once that pull request merges or closes, never a person.
+const waitNote = (at, run = 7, pr = 15) => ({
+  id: 35,
+  body: `<!-- work-resolve-issue outcome=wait pr=${pr} run=${run} -->\nThe work-resolve-issue lane stopped on this issue (\`blocked-by-pr\`).`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a stop that waits on a pull request waits while it is open and restarts once it merges or closes", async () => {
+  const open = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: { number: 15, state: "open", merged_at: null } } });
+  assert.equal(await sweep({ github: open.github }), 0);
+  assert.deepEqual(writes(open.calls), []);
+  for (const pull of [
+    { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" },
+    { number: 15, state: "closed", merged_at: null },
+  ]) {
+    const { github, calls } = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: pull } });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), restarted(30), JSON.stringify(pull));
+  }
+});
+
+test("waits are counted apart from retries, and past limits.stop-retries restart nothing", async () => {
+  const merged = { 15: { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" } };
+  const mixed = stopped({ comments: [note(), retryNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: mixed.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(mixed.calls), restarted(30));
+  const spent = stopped({ comments: [note(), waitNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: spent.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(spent.calls), []);
 });
 
 test("the App's remove-and-re-add after a retry stop is a restart, not a stop", async () => {

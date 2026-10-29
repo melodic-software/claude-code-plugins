@@ -57,8 +57,10 @@ export const FILING = "?";
 export const HANDED = "handed";
 const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?|handed) -->/;
 // work-unblock's comment when it hands an issue back to triage after its lane
-// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker).
-const HAND_BACK = /^<!-- work-unblock handed triage #[1-9][0-9]* -->/;
+// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
+// and the issue lane's when a stop's intake route sends it back
+// (report-outcome.mjs, outcome=intake).
+const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-resolve-issue outcome=intake[ >])/;
 // The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";

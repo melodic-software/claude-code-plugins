@@ -122,7 +122,13 @@ dispatch, PR or babysit step. It works in place:
    external state, such as DNS, a cloud resource or a credential, that only the owner, present,
    can take), `intent-change` (a finding changes
    what the issue asks for), `design-change` (it changes the primary design), `security-risk` or
-   `cost-risk` (a HIGH or CRITICAL risk). A reason with none goes to a person. `title` is a Conventional
+   `cost-risk` (a HIGH or CRITICAL risk), `blocked-by-pr` (the work waits on an open pull request:
+   name it as `#<n>`, and the lane runs the issue again once it merges or closes),
+   `already-done` (the work is already on the default branch: cite the commit SHA or merged pull
+   request `#<n>`, and the lane closes the issue once it confirms that), or `report-delivered` (a
+   `work-class: read-only` issue whose report is the whole result and needs no commit: put the
+   report in `summary`, and the lane posts it and closes the issue). Only the first four reach a
+   person; a reason with no code is run once more, then stops. `title` is a Conventional
    Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
    work, one string per part, at most 20: with any entry the PR links the issue without closing it
    and lists them, and empty or malformed (a blank entry, a non-string, more than 20), the PR

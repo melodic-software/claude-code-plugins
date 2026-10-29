@@ -35,6 +35,7 @@ import {
   HOLD_LINE,
   trustedLabeler,
   unmarkedAnswer,
+  waitedPull,
 } from "./report-outcome.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -735,11 +736,11 @@ test("a run that stopped with patch-protected-path goes to host-run naming the r
   assert.doesNotMatch(stoppedWith("Tests failed; not a patch-protected-path stop.").comment, /stopped early/);
 });
 
-// A stopped issue goes to a person, so it carries the hold alone: agent-ready
-// beside needs-human leaves it in both queues.
-test("stopped removes agent-ready and names the branch that holds partial work", () => {
+// A stop held for a person carries the hold alone: agent-ready beside
+// needs-human leaves it in both queues.
+test("a held stop removes agent-ready and names the branch that holds partial work", () => {
   const plan = decide({
-    outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" },
+    outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: BRANCH,
@@ -843,7 +844,6 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 // A run its issue dimensions skipped took no model turn, so it left no
 // outcome: report-outcome hands the issue to a person with the next step.
 for (const [reason, step] of [
-  ["split-required", "/work-items:decompose"],
   ["research-first", "research"],
   ["probe-first", "probe"],
 ]) {
@@ -867,6 +867,28 @@ for (const [reason, step] of [
     });
   });
 }
+
+// Owner Q93: intake splits a Size Large issue, so a split-required skip goes
+// back through intake with no person: agent-ready and the status labels
+// admission reads come off, and nothing adds needs-human.
+test("main on a split-required dimension skip sends the issue back through intake, to no person", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+    assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=intake run=123 -->\n"), comment);
+    assert.ok(!comment.includes("work-items:escalation") && !comment.includes("needs-human"), comment);
+    assert.match(comment, /triage sweep sends it back through intake/);
+    assert.match(comment, /owner Q93/);
+  });
+});
 
 test("main refuses a dimension skip it does not know and writes nothing", async () => {
   await withDir({}, async (dir) => {
@@ -978,7 +1000,7 @@ test("with no readable run attempt no refusal marker is read", async () => {
 });
 
 test("a readable outcome wins over a scan refusal marker", async () => {
-  const comment = await scanRefusedComment({ outcome: { exit: "stopped", reason: "The issue names no file." }, marker: "patch", labels: ["needs-human"] });
+  const comment = await scanRefusedComment({ outcome: { exit: "stopped", reason: "design-change: The issue names no file." }, marker: "patch", labels: ["needs-human"] });
   assert.ok(comment.includes("The issue names no file."), comment);
   assert.doesNotMatch(comment, /262144|scan job refused/i);
 });
@@ -1366,7 +1388,7 @@ test("a resumed done with no new commit is retried unless the runner's checks pa
 test("main on a resumed stop with no commit of its own names no branch", async () => {
   await withDir(
     {
-      "work-outcome.json": JSON.stringify({ exit: "stopped", reason: "Blocked." }),
+      "work-outcome.json": JSON.stringify({ exit: "stopped", reason: "design-change: Blocked." }),
       "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
     },
     async (dir) => {
@@ -1461,7 +1483,7 @@ test("a limit stop's stated reset is held between one hour and seven days out", 
 // overrides an outcome the skill wrote.
 test("a stop the skill reported goes to a person even with a limit record", () => {
   const plan = decide({
-    outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" },
+    outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -1664,7 +1686,7 @@ test("a run at its turn cap that committed nothing names no branch", () => {
 // skill wrote never overrides it.
 test("a forged turn-cap class beside a readable outcome keeps that outcome", () => {
   assert.equal(capped({ outcome: done }).action, "open-pr");
-  const stoppedPlan = capped({ outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" } });
+  const stoppedPlan = capped({ outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "" } });
   assert.ok(stoppedPlan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=555 -->"), stoppedPlan.comment);
 });
 
@@ -2403,7 +2425,7 @@ test("--find-prior fails on a comparison with no whole-number ahead_by", async (
 // issue-<N>-<run>-* to its report.
 test("hand-back markers carry run= and read back with it", () => {
   for (const outcome of [
-    { exit: "stopped", reason: "Tests failed.", title: "", summary: "" },
+    { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" },
     { exit: "pushback", reason: "Which file?", title: "", summary: "" },
   ]) {
     const plan = decide({ outcome, issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
@@ -2756,7 +2778,7 @@ test("a funding stop wins over a turn-cap or limit record, so it counts as neith
 });
 
 test("a stop the skill reported goes to a person even with a funding record", () => {
-  const plan = decideFunding({ outcome: { exit: "stopped", reason: "Blocked.", title: "", summary: "" }, funding: { regain: null } });
+  const plan = decideFunding({ outcome: { exit: "stopped", reason: "design-change: Blocked.", title: "", summary: "" }, funding: { regain: null } });
   assert.equal(plan.action, "hand-back");
 });
 
@@ -2974,7 +2996,7 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
   const plain = { issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" };
   const handBacks = [
     decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
-    decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-invalid" }),
   ];
   for (const plan of handBacks) {
@@ -2986,6 +3008,9 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
     capped({ limits: { "turn-cap-restarts": 0 } }),
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-protected-path" }),
     decide({ ...plain, outcome: readOutcome("/nonexistent/work-outcome.json") }),
+    decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "stopped", reason: "blocked-by-pr: #5 adds the helper", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "stopped", reason: "already-done: on main at abc1234", title: "", summary: "" } }),
     decideFunding({ funding: { regain: null } }),
     decideFunding({ limit: { resets: Date.parse("2026-10-17T18:00:00Z") }, now: Date.parse("2026-10-17T12:00:00Z") }),
   ];
@@ -3151,14 +3176,116 @@ test("route fail: a retry past limits.stop-retries removes agent-ready and adds 
     assert.match(spent.comment, /limits\.stop-retries/);
     assert.ok(!spent.comment.includes("work-items:escalation"), spent.comment);
   }
-  const hold = stoppedPlan("Unclear.");
+  const hold = stoppedPlan("design-change: Unclear.");
   assert.equal(capRetries(hold, 9, { "stop-retries": 0 }), hold, "a plan that is not a retry is left as it is");
 });
 
-test("a stop with no code still goes to a person, since the lane cannot tell it from an intent finding", () => {
+// Owner direction 2026-10-29: a stop with no code names no intent, design,
+// security or cost finding, so it retries once and then fails, never a person.
+test("a stop with no code retries once, then fails, and never goes to a person", () => {
   const plan = stoppedPlan("I could not finish this.");
   assert.equal(plan.stop, "stopped");
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.action, "retry");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.match(plan.comment, /retry 1 of 1/);
+  const spent = capRetries(plan, 1, { "stop-retries": 2 });
+  assert.equal(spent.action, "fail");
+  assert.deepEqual(spent.addLabels, []);
+  assert.deepEqual(spent.removeLabels, ["agent-ready"]);
+  assert.ok(!spent.comment.includes("work-items:escalation"), spent.comment);
+  assert.equal(capRetries(plan, 0, { "stop-retries": 0 }).action, "fail", "the lane-wide cap still bounds it");
+});
+
+// A run that waits on an unmerged pull request names no owner reason, so it
+// keeps agent-ready instead of going to a person.
+test("route wait: a blocked-by-pr code keeps agent-ready and names the pull request in its marker", () => {
+  const plan = stoppedPlan("blocked-by-pr: #10743 adds the binding this needs; see also #77");
+  assert.equal(plan.action, "wait");
+  assert.equal(plan.pr, "10743");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=wait pr=10743 run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /once #10743 merges or closes/);
+  assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: "wait", resets: null, run: "555", onResumed: false, pr: "10743" });
+  assert.ok(RESUMABLE.has("wait"), "the next run continues the branch");
+  assert.equal(capRetries(plan, 2, { "stop-retries": 2 }).action, "fail", "waits are bounded too");
+  assert.equal(waitedPull("blocked-by-pr: waits on ＃12", 77), "12");
+  assert.equal(waitedPull("blocked-by-pr: nothing named", 77), "");
+});
+
+test("route close: already-done and report-delivered close the issue as completed, to no person", () => {
+  for (const reason of ["already-done: both items are on main at abb359be", "report-delivered: the report is below"]) {
+    const plan = stoppedPlan(reason, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
+    assert.equal(plan.action, "close", reason);
+    assert.deepEqual(plan.addLabels, []);
+    assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=closed run=555 -->\n"), plan.comment);
+    assert.match(plan.comment, /closes the issue as completed/);
+    assert.ok(plan.comment.includes(reason), plan.comment);
+  }
+  // A report closes only a read-only issue the run committed nothing for.
+  assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
+  assert.equal(stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready"], branch: "" }).action, "retry");
+});
+
+// main against a fake API for the routes whose effect needs a read first.
+const stopRun = async ({ reason, summary = "", routes }) => {
+  let result;
+  await withAsyncDir({ "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ...routes,
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["PATCH", /\/issues\/77$/, 200, {}],
+    ]);
+    result = { code: await main({ env: env(dir), fetch }), calls };
+  });
+  return result;
+};
+
+test("main waits on an open pull request, and retries when the named one is not open", async () => {
+  const open = await stopRun({ reason: "blocked-by-pr: #5 adds the helper", routes: [["GET", /\/pulls\/5$/, 200, { state: "open", merged_at: null }]] });
+  assert.equal(open.code, 0);
+  assert.ok(!open.calls.some((c) => c.method === "DELETE" || c.method === "PATCH"));
+  assert.match(open.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=wait pr=5 run=123 -->/);
+  const merged = await stopRun({ reason: "blocked-by-pr: #5 adds the helper", routes: [["GET", /\/pulls\/5$/, 200, { state: "closed", merged_at: "2026-10-29T14:07:27Z" }]] });
+  assert.equal(merged.code, 0);
+  assert.match(merged.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
+  assert.ok(!merged.calls.some((c) => c.method === "DELETE"));
+});
+
+test("main closes an already-done issue only when its cited commit is on the default branch", async () => {
+  const done = await stopRun({
+    reason: "already-done: both items are on main at abb359be",
+    routes: [
+      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }],
+    ],
+  });
+  assert.equal(done.code, 0);
+  assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
+  assert.ok(done.calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+  const unproven = await stopRun({
+    reason: "already-done: both items are on main at abb359be",
+    routes: [
+      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "diverged" }],
+    ],
+  });
+  assert.ok(!unproven.calls.some((c) => c.method === "PATCH"), "no proof, no close");
+  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
+});
+
+test("main posts a delivered report and closes the issue", async () => {
+  const run = await stopRun({ reason: "report-delivered: the audit found three stale rows", summary: "Rows 4, 9 and 12 name retired lanes.", routes: [] });
+  assert.equal(run.code, 0);
+  assert.match(run.calls.find((c) => c.method === "POST").body.body, /three stale rows/);
+  assert.match(run.calls.find((c) => c.method === "POST").body.body, /The run's report:\n\n> Rows 4, 9 and 12 name retired lanes\./);
+  assert.deepEqual(run.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
 });
 
 test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {
