@@ -391,7 +391,7 @@ The owner set the order on 2026-10-25: decide #9853, close #5609, then drop
 `disable-model-invocation`. #9853's resume notice landed and #5609 closed, so `SKILL.md` now sets
 `false`. The flip is the owner's call, not a pass of the D3 test above. The manual deletion lane and
 the elevated script still have no deterministic stop, and the confirmation gate is unchanged.
-#9853's notice covers both load paths: a typed `/disk-hygiene:clean` writes the resume marker
+The #9853 notice covers both load paths: a typed `/disk-hygiene:clean` writes the resume marker
 through the `UserPromptExpansion` row, and a `clean` loaded through the Skill tool writes it through
 the `PreToolUse` `Skill` row in `plugins/disk-hygiene/hooks/hooks.json`. A model-invoked run still
 gets no `disk-hygiene guard values` note, which only the typed expansion carries.
