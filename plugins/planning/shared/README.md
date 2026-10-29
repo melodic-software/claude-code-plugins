@@ -112,7 +112,7 @@ nonce>`, waiting up to 5 seconds:
 
 | Answer | Means | Then |
 |---|---|---|
-| HTTP 530 whose page reads "Error 1033" (no cloudflared connected) | free | the named tunnel starts here |
+| HTTP 530 whose page reads "Error 1033", or "error code: 1033" as plain text (no cloudflared connected) | free | the named tunnel starts here |
 | HTTP 404 `{"error": "not-found"}` | another interview session serves the link | a quick tunnel |
 | any other HTTP status, such as 502 (a cloudflared runs elsewhere with no server behind it) | held | a quick tunnel |
 | no answer: a DNS failure, a refused connection, a timeout or a TLS failure | unknown, counted as held | a quick tunnel |
