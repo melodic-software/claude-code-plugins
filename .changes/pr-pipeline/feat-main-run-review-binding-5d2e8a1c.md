@@ -16,3 +16,5 @@ bump: minor
 - The main-run review reads its diff in parts one Read returns whole, and writes a verdict only when every part was read whole.
 - Without PyYAML, a mapping-form `issues:` trigger under `on:` holds as `privileged-trigger-review`.
 - `**/.claude/hooks/**` is a `gate` floor path outside the author lift: a hook that settings already registers changes what lanes run.
+- `**/.claude/*.sh`, `**/.claude/skills/**`, `**/.claude/agents/**`, `**/.claude/commands/**` and the instruction-exception register and untrusted-content conventions are `gate` floor paths outside the author lift too.
+- The pull-request merge gate reads every `pr-review-main: <lane>` check run on a head (`filter=all`), so a newer clean run hides no recorded CRITICAL.

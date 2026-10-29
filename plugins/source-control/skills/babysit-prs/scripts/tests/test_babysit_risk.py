@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 40, "enforcement": 41},
+            {"trust": 18, "gate": 46, "enforcement": 41},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -2227,6 +2227,14 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             # A hook script settings registers (owner session decision Q2).
             ".claude/hooks/block-push.sh",
             "plugins/x/.claude/hooks/a.mjs",
+            # A hook outside hooks/, skills, agents, commands, and the
+            # review's own criteria.
+            ".claude/cloud-bootstrap.sh",
+            ".claude/skills/control-claude-code-plugins/SKILL.md",
+            ".claude/agents/x.md",
+            ".claude/commands/x.md",
+            "docs/conventions/instruction-exception-register/README.md",
+            "docs/conventions/untrusted-content/README.md",
             "docs/standards/README.md",
         )
         for path in paths:

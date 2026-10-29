@@ -956,8 +956,11 @@ the rules that only tighten in
     `pr-require-checks.yml` (an `enforcement` path), is off the gate: the main-run review binds it,
     and a gained write scope, trigger, secret or model leg holds by its patch. Also what changes
     what agents may do unattended or what later reviews judge against: `**/.claude/settings*.json`
-    (hooks, permission allows), `**/.claude/hooks/**` (a hook settings already registers runs in
-    every later lane), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
+    (hooks, permission allows), `**/.claude/hooks/**` and `**/.claude/*.sh` (a hook settings already
+    registers runs in every later lane), `**/.claude/skills/**`, `**/.claude/agents/**` and
+    `**/.claude/commands/**` (whose frontmatter can widen tools),
+    `docs/conventions/instruction-exception-register/**` and `docs/conventions/untrusted-content/**`
+    (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull

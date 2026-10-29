@@ -34,7 +34,9 @@ or another workflow's output reach a credential or a write is a CRITICAL securit
 change to what agents may do unattended or to what later reviews judge against: a Claude Code
 settings file (a hook, a permission allow, an environment value), `.mcp.json` (a server), and
 `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` or `docs/standards/` text that widens what an agent may do
-without asking, or loosens a review criterion, is a CRITICAL finding.
+without asking, or loosens a review criterion, is a CRITICAL finding. So is a change that removes
+or narrows a merge hold: a `hold_patterns` or hold-path entry, or a ci-status step that fails a
+held pull request.
 
 Read only the files listed above. When the lane's instructions name another file (a reference
 outside `CRITERIA_DIR`, `.claude/rules/`, or anything in the checkout), do not try to read it: a

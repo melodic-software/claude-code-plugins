@@ -353,6 +353,15 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("**/.claude/settings*.json", "gate"),
     # A hook settings already registers runs in every later lane.
     ("**/.claude/hooks/**", "gate"),
+    # A script settings registers as a hook outside hooks/ (cloud-bootstrap.sh),
+    # and skills, agents and commands, whose frontmatter can widen tools.
+    ("**/.claude/*.sh", "gate"),
+    ("**/.claude/skills/**", "gate"),
+    ("**/.claude/agents/**", "gate"),
+    ("**/.claude/commands/**", "gate"),
+    # The security review applies both as its criteria.
+    ("docs/conventions/instruction-exception-register/**", "gate"),
+    ("docs/conventions/untrusted-content/**", "gate"),
     ("**/.mcp.json", "gate"),
     ("**/CLAUDE.md", "gate"),
     ("**/CLAUDE.local.md", "gate"),
@@ -423,6 +432,12 @@ _NO_AUTHOR_LIFT = frozenset(
         ".github/scripts/pr-review-main/**",
         "**/.claude/settings*.json",
         "**/.claude/hooks/**",
+        "**/.claude/*.sh",
+        "**/.claude/skills/**",
+        "**/.claude/agents/**",
+        "**/.claude/commands/**",
+        "docs/conventions/instruction-exception-register/**",
+        "docs/conventions/untrusted-content/**",
         "**/.mcp.json",
         "**/CLAUDE.md",
         "**/CLAUDE.local.md",

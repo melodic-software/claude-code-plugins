@@ -1291,7 +1291,11 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
     def collect(self, by_sha: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
         def fake(args: list[str], env: Any = None) -> Any:
             sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
-            return [{"check_runs": by_sha.get(sha, [])}]
+            runs = by_sha.get(sha, [])
+            if "filter=all" not in args[1]:
+                # The API's default, `filter=latest`: the newest run per name.
+                runs = list({run["name"]: run for run in runs}.values())
+            return [{"check_runs": runs}]
 
         with mock.patch.object(gh, "gh_json", side_effect=fake):
             return gh.collect_main_review_critical(
@@ -1317,6 +1321,18 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
             }
         )
         self.assertEqual(found, {"claude-review": 1, "claude-security-review": 2})
+
+    def test_a_newer_clean_run_of_the_same_name_hides_no_critical(self) -> None:
+        # A re-run, or a forged record, posts a clean run after the CRITICAL.
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "findings=2 critical=2"),
+                    self.check("claude-security-review", "findings=0 critical=0"),
+                ]
+            }
+        )
+        self.assertEqual(found["claude-security-review"], 2)
 
     def test_a_title_that_does_not_read_counts_one(self) -> None:
         found = self.collect(

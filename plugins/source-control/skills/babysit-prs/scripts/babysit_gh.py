@@ -2485,7 +2485,9 @@ def collect_main_review_critical(
     """Per lane, the most CRITICAL findings any check run named `names[lane]`
     records on one of `shas` (every head of the pull request). The checks API
     has no delete, so a count recorded once stays readable after its verdict
-    artifact expires or is deleted. A check run of that name whose title does
+    artifact expires or is deleted; `filter=all` reads every run of the name,
+    since the default returns only the latest, which a re-run or a forged
+    clean record would replace. A check run of that name whose title does
     not read counts one CRITICAL, so a doubtful record holds rather than
     clears. A failed read raises `RuntimeError`."""
     found = dict.fromkeys(names, 0)
@@ -2495,7 +2497,7 @@ def collect_main_review_critical(
         for lane, name in names.items():
             runs = fetch_paginated_api(
                 f"repos/{repo}/commits/{sha}/check-runs"
-                f"?check_name={quote(name, safe='')}&per_page=100",
+                f"?check_name={quote(name, safe='')}&filter=all&per_page=100",
                 f"{name} on {sha[:12]}",
                 items_key="check_runs",
                 env_overrides=env_overrides,
