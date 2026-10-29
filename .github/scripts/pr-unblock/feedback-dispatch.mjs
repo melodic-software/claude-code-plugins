@@ -76,8 +76,9 @@
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
 // which the record names. With no such head, and no stale stop, it sends the
-// first idle adopted owner PR whose reviewed head has no round yet
-// (sweepIdleOwner), since that PR's own review completion found it active.
+// first idle adopted owner PR whose reviewed head has no round yet, or whose
+// round's stop no thread holds any more (sweepIdleOwner), since that PR's own
+// review completion found it active.
 // A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
@@ -528,20 +529,35 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
   return idle;
 }
 
+// Hours after an owner PR turns idle during which the tick still sends a head
+// with no round (judgment: four of pr-unblock-dispatch.yml's half-hourly ticks,
+// so a late or dropped tick, or a transient skip, does not lose the PR).
+export const IDLE_OWNER_WINDOW_HOURS = 2;
+
 // An owner PR's review completes while the person's session is still on it,
 // so its review-run dispatch skips the idle test; once idle, the tick sends
-// it. A PR still active by the listing's last update spends no read, and a
-// head that already has a round spends two check-run reads, unless that round's reply
-// released it, as sweepOne decides for a lanes App PR. dispatchFeedback
-// decides the rest (both markers on the head, a thread the lane works).
+// it. A PR still active by the listing's last update spends no read; an idle
+// one spends one check-run read. A head with no round is decided by
+// dispatchFeedback (both markers on the head, a thread the lane works, about
+// six reads) only within IDLE_OWNER_WINDOW_HOURS of turning idle, so each
+// update buys at most that window's ticks of those reads; a new thread, marker
+// or fix request moves the update time and opens the window again. A head
+// with a round spends a reply check-run read, and a status read unless that
+// round's reply released it (sweepOne, as for a lanes App PR); a failing stop
+// with no thread left is then cleared as sweepStale clears one on a lanes App
+// PR, with no window, since resolving a thread may not move the update time.
 async function sweepIdleOwner(context) {
   const { api, pull, rest, settings } = context;
   const since = (rest.now ?? Date.now()) - (rest.adoption?.idleHours ?? 0) * 3_600_000;
-  if (!(Date.parse(pull.updated_at ?? "") <= since)) {
+  const updated = Date.parse(pull.updated_at ?? "");
+  if (!(updated <= since)) {
     return null;
   }
   const rounds = await api.listCheckRuns({ sha: pull.head.sha, checkName: settings.checkName, appId: settings.appId });
-  return rounds.length === 0 ? dispatchAtHead(context) : sweepOne(context);
+  if (rounds.length > 0) {
+    return (await sweepOne(context)) ?? sweepStale(context);
+  }
+  return updated > since - IDLE_OWNER_WINDOW_HOURS * 3_600_000 ? dispatchAtHead(context) : null;
 }
 
 // Each open lanes App PR into the base, and each adopted owner PR
@@ -589,13 +605,21 @@ export function newestStatus(statuses, context) {
 // the activity then finds nothing to fix (address-feedback.mjs `resolved`),
 // and report-stop-status clears the status. Once per stop: a pr-unblock run
 // for the PR created after the failing status holds the head. The upstream is
-// the head's newest completed review run, as for any other dispatch.
-async function sweepStale({ api, pull, repository, log, settings, rest }) {
+// the head's newest completed review run, as for any other dispatch. An
+// adopted owner PR (sweepIdleOwner) keeps its Hold: line and idle gates.
+async function sweepStale({ api, pull, repository, appSenderId, log, settings, rest }) {
   const head = pull.head.sha;
   const number = pull.number;
   const status = newestStatus(await api.listStatuses(head), `pr-unblock/${settings.activity}`);
   if (status?.state !== "failure" && status?.state !== "error") {
     return null;
+  }
+  if (pull.user?.id !== appSenderId) {
+    const why = await ownerSkip({ api, pull, adoption: rest.adoption, now: rest.now ?? Date.now() });
+    if (why) {
+      log(`skip: #${number}: ${why}`);
+      return null;
+    }
   }
   const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
   if (held.length > 0) {

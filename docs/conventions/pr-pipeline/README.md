@@ -257,7 +257,11 @@ serves an adopted owner PR, posting its replies as the lanes App:
   pushes onto a branch a session is still working on. A review usually finishes while the session
   is active, so that dispatch skips; each scheduled tick's sweep then sends one idle owner PR whose
   reviewed head has no `pr-unblock / address-feedback` check run (`sweepIdleOwner`), deciding it
-  as for its newest completed review run.
+  as for its newest completed review run. It decides such a head only within
+  `IDLE_OWNER_WINDOW_HOURS` of the PR turning idle, so a head with nothing for the lane is not
+  re-read every tick; any new update opens the window again. A head whose round stopped with a
+  failing `pr-unblock/address-feedback` status, and no thread left, is dispatched to clear it, as
+  for a lanes App PR, under the same `Hold:` and idle gates.
 - What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
   listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
   security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.

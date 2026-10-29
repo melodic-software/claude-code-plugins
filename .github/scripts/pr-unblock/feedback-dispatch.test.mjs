@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -1999,8 +1999,8 @@ test("the sweep dispatches an idle owner PR whose reviewed head the lane has not
   const active = sweepApi(ownerPull({ updated_at: "2026-10-28T11:00:00Z" }));
   assert.equal(await sweep(active), null);
   assert.deepEqual(active.calls.commits, []);
-  // A head the lane already answered costs two check-run reads a tick: no
-  // review run, status, commit or thread read.
+  // A head the lane already answered costs two check-run reads and a status
+  // read a tick: no review run, commit or thread read.
   const answered = sweepApi(ownerPull());
   const done = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-28T09:00:00Z", output: { title: "Answered" } };
   const reads = [];
@@ -2012,11 +2012,90 @@ test("the sweep dispatches an idle owner PR whose reviewed head the lane has not
     };
   }
   assert.equal(await sweep(answered), null);
-  assert.deepEqual(reads, ["listCheckRuns:pr-unblock / address-feedback", "listCheckRuns:pr-unblock / publish-feedback"]);
+  assert.deepEqual(reads, ["listCheckRuns:pr-unblock / address-feedback", "listCheckRuns:pr-unblock / publish-feedback", "listStatuses"]);
   // An untrusted person's PR is never listed.
   const stranger = sweepApi(ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }));
   assert.equal(await sweep(stranger), null);
   assert.deepEqual(stranger.calls.dispatch, []);
+});
+
+const ownerSweepApi = (pulls) => {
+  const api = ownerApi({ pulls });
+  Object.assign(api, {
+    listOpenPulls: async () => pulls,
+    listStatuses: async () => [],
+    listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T08:30:00Z" })] : []),
+  });
+  return api;
+};
+const ownerSweep = (api) =>
+  sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    adoption: ADOPTION,
+    now: NOW_MS,
+    log: () => {},
+  });
+
+test("the sweep decides an idle owner head with no round only within the idle window, so a skip is not re-read every tick", async () => {
+  // Idle since 09:00 + 2 h = 11:00: inside the window, the full decision runs.
+  const fresh = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:00:00Z" }));
+  fresh.listReviewThreads = async () => [thread([KYLE])];
+  assert.equal(await ownerSweep(fresh), null);
+  assert.deepEqual(fresh.calls.commits, [HEAD]);
+  // Idle since 07:00 + 2 h = 09:00, more than IDLE_OWNER_WINDOW_HOURS ago: the
+  // same skip costs one check-run read, no review run, PR, commit or thread read.
+  const reads = [];
+  const settled = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T07:00:00Z" }));
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = settled[name];
+    settled[name] = async (...args) => {
+      reads.push(name);
+      return inner(...args);
+    };
+  }
+  assert.equal(await ownerSweep(settled), null);
+  assert.deepEqual(reads, ["listCheckRuns"]);
+  assert.equal(IDLE_OWNER_WINDOW_HOURS, 2);
+  // A new update opens the window again.
+  const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
+  assert.equal((await ownerSweep(reopened))?.number, 42);
+});
+
+test("the sweep clears an idle owner PR's failing stop once no thread is left, past the idle window, under its gates", async () => {
+  const stopped = (pullOverrides = {}, committedAt = "2026-10-28T08:00:00Z") => {
+    const api = ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }) }, committedAt);
+    const round = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "failure", started_at: "2026-10-28T06:00:00Z", output: { title: "Escalated" } };
+    Object.assign(api, {
+      listOpenPulls: async () => ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }),
+      listCheckRuns: async ({ checkName }) => (checkName === "pr-unblock / address-feedback" ? [round] : []),
+      listStatuses: async () => [{ ...STOP, created_at: "2026-10-28T06:30:00Z" }],
+      listReviewThreads: async () => [{ isResolved: true, comments: { nodes: [] } }],
+      listWorkflowRuns: async () => [],
+      listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T05:30:00Z" })] : []),
+    });
+    return api;
+  };
+  const api = stopped();
+  const result = await ownerSweep(api);
+  assert.equal(result?.number, 42);
+  assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
+  // A Hold: line or a recent head commit still keeps the lane off.
+  for (const [label, held] of [
+    ["a Hold: line", stopped({ body: "Hold: mine" })],
+    ["a recent head commit", stopped({}, "2026-10-28T11:30:00Z")],
+  ]) {
+    assert.equal(await ownerSweep(held), null, label);
+    assert.deepEqual(held.calls.dispatch, [], label);
+  }
+  // An open thread leaves the stop to the person.
+  const open = stopped();
+  open.listReviewThreads = async () => [{ isResolved: false, comments: { nodes: [] } }];
+  assert.equal(await ownerSweep(open), null);
 });
 
 test("ownerAdoption reads the base adoption section and the trusted list's people; an unreadable base adopts no owner", async () => {
