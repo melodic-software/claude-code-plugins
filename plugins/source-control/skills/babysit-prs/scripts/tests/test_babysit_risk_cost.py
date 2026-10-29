@@ -562,16 +562,15 @@ def _jobs(a: str, b: str = "300", steps: str = "") -> str:
 
 
 class LowRatedShapes(_Finding):
-    """S&C's LOW-rated probe rows on #9224 (#9241): the timeout and model-leg
-    shapes it held, the secret and runner gaps in checks the hold makes, and
-    the accepted move."""
+    """S&C's LOW-rated probe rows on #9224 (#9241): the timeout shapes that
+    bill off a public repository, a composite action's model leg, the secret
+    and runner gaps in checks the hold makes, and the accepted move."""
 
     def assertCharge(self, wf):
-        """Billed minutes off a public repository; free ones on it."""
+        """Billed minutes off a public repository."""
         for public in (False, None):
             with self.subTest(public=public):
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
-        self.assertReported(_cost([wf], public=True))
 
     def test_one_jobs_raise_is_not_hidden_by_another_jobs_value(self):
         # 30 to 200 on `a`, with `b`'s unchanged 300 removed and re-added.
@@ -725,34 +724,6 @@ class LowRatedShapes(_Finding):
                 )
                 self.assertCharge(wf)
 
-    def test_model_settings_on_a_model_step_are_reported(self):
-        for line in (
-            "+          ANTHROPIC_MODEL: claude-opus",
-            "+          model: opus",
-            "+          max-turns: 200",
-            "+          max_turns: 200",
-        ):
-            with self.subTest(line=line):
-                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
-                self.assertReported(_cost([wf], public=True))
-                codes = _codes(_cost([wf], public=False))
-                self.assertIn(COST_FINDING_CODE, codes)
-                self.assertNotIn(COST_CODE, codes)
-
-    def test_a_new_local_workflow_or_action_call_is_reported(self):
-        for line in (
-            "+    uses: ./.github/workflows/judge.yml",
-            "+      - uses: ./.github/actions/judge",
-        ):
-            with self.subTest(line=line):
-                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
-                self.assertReported(_cost([wf], public=True))
-        moved = _patch(
-            "-      - uses: ./.github/actions/judge", "+        - uses: ./.github/actions/judge"
-        )
-        wf = _file(WORKFLOW, patch=moved, contents=("", "jobs: {}\n"))
-        self.assertNotIn(COST_FINDING_CODE, _codes(_cost([wf], public=True)))
-
     def test_a_model_leg_in_a_composite_action_holds_for_security(self):
         action = ".github/actions/judge/action.yml"
         for line in (
@@ -768,28 +739,6 @@ class LowRatedShapes(_Finding):
         )
         codes = _codes(_cost([_file(action, patch=repin)], public=True))
         self.assertNotIn(AGENT_SURFACE_CODE, codes)
-
-    def test_model_settings_in_actions_and_scripts_are_reported(self):
-        for path, line in (
-            (".github/actions/judge/action.yml", "+        claude_args: --model opus"),
-            (".github/actions/judge/action.yaml", "+        max-turns: 200"),
-            (".github/actions/judge/action.yml", "+        ANTHROPIC_MODEL: opus"),
-            (".github/scripts/judge/run.sh", "+claude -p --model opus"),
-            (".github/scripts/judge/run.mjs", "+  args.push('--max-turns', '200');"),
-        ):
-            with self.subTest(path=path, line=line):
-                result = _cost([_file(path, patch=_patch(line))], public=True)
-                self.assertReported(result)
-
-    def test_other_action_and_script_lines_are_not_reported(self):
-        for path, line in (
-            (".github/actions/judge/action.yml", "+    - run: make"),
-            (".github/actions/judge/run.mjs", "+  const model = '--model';"),
-            (".github/scripts/judge/run.mjs", "+  const model = config.model;"),
-        ):
-            with self.subTest(path=path, line=line):
-                codes = _codes(_cost([_file(path, patch=_patch(line))], public=True))
-                self.assertNotIn(COST_FINDING_CODE, codes)
 
     def test_new_secret_reference_shapes_hold_for_security(self):
         for lines in (

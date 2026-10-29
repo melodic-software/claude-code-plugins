@@ -1015,10 +1015,10 @@ the rules that only tighten in
     when it removes none (storage past the free quota);
   - a workflow or pipeline file with no patch.
 
-  A raised timeout is a `timeout-minutes` or `leg-timeout-minutes`. In a workflow whose head text
-  uses one of the model actions below, or could not be read, it is one the patch adds above every
-  one it removes once equal values cancel, so a value removed and re-added on another job hides
-  nothing, or one set to an expression. In a workflow whose head text uses a model action or a
+  Off a public repository, a raised timeout is a `timeout-minutes` or `leg-timeout-minutes`. In a
+  workflow whose head text uses one of the model actions below, or could not be read, it is one
+  the patch adds above every one it removes once equal values cancel, so a value removed and
+  re-added on another job hides nothing, or one set to an expression. In a workflow whose head text uses a model action or a
   local `uses: ./` workflow or action, it is also, head text against base text at each job's key
   path (a step's timeouts compared among its job's steps), block or flow style, one raised, set
   to an expression, set where none was above GitHub's
@@ -1027,13 +1027,11 @@ the rules that only tighten in
 
   Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
   `cost-finding`, which never holds:
-  - a workflow patch that adds a `--model` or `--max-turns` flag, an `ANTHROPIC_*MODEL`
-    variable, a `model:` or `max-turns:` input, a new local `uses: ./` call (which may start a
-    model leg), or on a public repository a `cron:` key;
-  - a composite action's `.github/actions/**/action.yml` patch that adds one of those model
-    settings, a `.github/scripts/**` patch that adds a `--model` or `--max-turns` flag, and
-    either file with no patch;
-  - on a public repository, a raised timeout and a raised artifact `retention-days`;
+  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
+    `cron:` key;
+  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
+    every one it removes, in a workflow whose head text uses one of those actions or could not be
+    read, and a raised artifact `retention-days`;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
     comment-only, or a `description:` or `title:` value, or that only edits trailing comments
     on the same lines in place. Flow style, quoted keys and new list items count.

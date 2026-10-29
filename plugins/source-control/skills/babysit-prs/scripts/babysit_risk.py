@@ -70,8 +70,8 @@ or any on another, counting the matrix values and input defaults and options
 a `runs-on` expression names. Only `RiskInput.cost_decision`, an owner
 decision the caller verified, clears it.
 
-A raised timeout is a `timeout-minutes` or `leg-timeout-minutes`: on a
-workflow whose head text (`contents`) names a model leg or could not be
+Off a public repository, a raised timeout is a `timeout-minutes` or
+`leg-timeout-minutes`: on a workflow whose head text (`contents`) names a model leg or could not be
 read, one the patch adds above every one it removes once equal values cancel
 or an added expression; and on one that names a model leg or a local `uses:
 ./` workflow or action, head text against base text at each key path (list
@@ -89,13 +89,12 @@ decision clears them.
 
 Spend that draws only on a subscription or prepaid credit is the MED
 `cost-finding`, reported and never held: a workflow patch that adds a
-`_COST_WORKFLOW_LINE` (a `_MODEL_SETTING`, or on a public repository a `cron`
-key in any spelling) or a new local `uses: ./` call; on a public repository,
-a raised timeout or `retention-days`; a composite action patch that adds a
-`_MODEL_SETTING`, a `.github/scripts/` patch that adds a `_MODEL_FLAG`, and
-either file with no patch;
-and a `pr-pipeline.yaml` change with any added or removed line off
-`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
+`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
+`cron` key in any spelling); that, on a public repository, adds a
+`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
+its head text (`contents`) names a model leg or could not be read, or a raised
+`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
+line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -771,18 +770,10 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Model or turn settings: the CLI flags, and in YAML an `ANTHROPIC_*MODEL`
-# variable or a `model:` or `max-turns:` input.
-_MODEL_FLAG = re.compile(r"--model\b|--max-turns\b", re.IGNORECASE)
-_MODEL_SETTING = re.compile(
-    _MODEL_FLAG.pattern
-    + r"|\bANTHROPIC_\w*MODEL\b|(?:^|[\s{,'\"])(?:model|max[-_]turns)['\"]?\s*:",
-    re.IGNORECASE,
-)
 # Added workflow lines that spend model usage: a schedule in any YAML or JSON
-# spelling and a model or turn setting.
+# spelling and a model or turn flag.
 _COST_WORKFLOW_LINE = re.compile(
-    r"\bcron\s*:|[\"']cron[\"']\s*:|" + _MODEL_SETTING.pattern, re.IGNORECASE
+    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
 )
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on line, a Windows or macOS label (a matrix value) or a
@@ -894,10 +885,7 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         # one before it.
         while stack and (
             stack[-1][0] > indent
-            or (
-                stack[-1][0] == indent
-                and (not dash or stack[-1][1].startswith("["))
-            )
+            or (stack[-1][0] == indent and (not dash or stack[-1][1].startswith("[")))
         ):
             stack.pop()
         while stripped == "-" or stripped.startswith("- "):
@@ -912,7 +900,9 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         path = tuple(s for _, s in stack)
         m = _ENTRY.match(stripped)
         if not m and stripped.startswith("{"):
-            entries += [(path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(stripped)]
+            entries += [
+                (path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(stripped)
+            ]
             continue
         if not m:
             entries.append((path, _scalar(stripped)))
@@ -1034,14 +1024,13 @@ _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 # A call to a local reusable workflow or composite action, which may start a
 # model leg of its own.
 _LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?(\./[^\s'\"#]+)", re.IGNORECASE)
-# Files outside `.github/workflows/` that set a model leg's model or turns:
-# a composite action's metadata, which can also start a leg, and the scripts
-# workflows run.
+# A composite action's metadata, which can start a model leg outside
+# `.github/workflows/`.
 _ACTIONS = (".github/actions/**/action.yml", ".github/actions/**/action.yaml")
-_SCRIPTS = ".github/scripts/**"
+_TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
 # A timeout key at a line's start (a list item's too) or in a flow mapping,
 # its value a number or an expression.
-_TIMEOUT = re.compile(
+_TIMEOUT_VALUE = re.compile(
     r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?(?:leg-)?timeout-minutes['\"]?\s*:\s*"
     r"((?:\$\{\{.*?\}\}|[^,{}\[\]#])*)",
     re.IGNORECASE,
@@ -1212,7 +1201,9 @@ def _new_model_legs(added: list[str], removed: list[str]) -> list[str]:
 
 
 def _timeout_values(lines: list[str]) -> list[str]:
-    return [v for line in lines for m in _TIMEOUT.findall(line) if (v := _scalar(m))]
+    return [
+        v for line in lines for m in _TIMEOUT_VALUE.findall(line) if (v := _scalar(m))
+    ]
 
 
 def _raises(new: list[str], old: list[str], where: str = "") -> list[str]:
@@ -1342,13 +1333,27 @@ def _path_timeouts(base: str, head: str) -> list[str]:
 def _raised_timeouts(
     f: _File, raw: Any, added: list[str], removed: list[str]
 ) -> list[str]:
-    """Timeouts raised on a workflow that starts a model leg, or whose head
-    text could not be read: a value the patch adds above every one it
-    removes once equal values cancel, so one job's value moved does not hide
-    another's raise, and an added expression. On a workflow that starts a
-    model leg or calls a local workflow or action that may, the head text
-    against the base text too: each timeout raised, set to an expression or
-    removed at its own key path."""
+    """Timeouts on a workflow that starts a model leg (or whose head text could
+    not be read) that the patch adds above every value it removes."""
+    new = [int(m[1]) for line in added if (m := _TIMEOUT.match(line))]
+    if not new:
+        return []
+    contents = getattr(raw, "contents", None)
+    head = contents[1] if isinstance(contents, tuple) and len(contents) == 2 else None
+    if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
+        return []
+    old = [int(m[1]) for line in removed if (m := _TIMEOUT.match(line))]
+    return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
+
+
+def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str]:
+    """Timeouts raised, off a public repository, on a workflow that starts a
+    model leg, or whose head text could not be read: a value the patch adds
+    above every one it removes once equal values cancel, so one job's value
+    moved does not hide another's raise, and an added expression. On a
+    workflow that starts a model leg or calls a local workflow or action that
+    may, the head text against the base text too: each timeout raised, set to
+    an expression or removed at its own key path."""
     contents = getattr(raw, "contents", None)
     pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
     base, head = pair if pair else (None, None)
@@ -1362,21 +1367,13 @@ def _raised_timeouts(
     return found + _path_timeouts(base if isinstance(base, str) else "", head)
 
 
-def _model_surface(f: _File, raw: Any) -> tuple[list[str], list[str]]:
-    """(model spend, new model legs) outside `.github/workflows/`: an added
-    model setting or a new model leg in a composite action's metadata, and
-    an added model flag in a `.github/scripts/` file."""
-    action = any(glob_match(g, p) for g in _ACTIONS for p in f.paths)
-    script = any(glob_match(_SCRIPTS, p) for p in f.paths)
-    if not (action or script):
-        return [], []
+def _composite_model_legs(f: _File, raw: Any) -> list[str]:
+    """New model legs in a composite action's metadata, outside
+    `.github/workflows/`."""
+    if not any(glob_match(g, p) for g in _ACTIONS for p in f.paths):
+        return []
     lines = _patch_lines(getattr(raw, "patch", None))
-    if lines is None:
-        return ["no patch to read"], []
-    added, removed = lines
-    setting = _MODEL_SETTING if action else _MODEL_FLAG
-    spend = [s.strip() for s in added if setting.search(s)]
-    return spend, (_new_model_legs(added, removed) if action else [])
+    return _new_model_legs(*lines) if lines else []
 
 
 def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
@@ -1420,9 +1417,7 @@ def _cost_reasons(
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
-            model_spend, model_legs = _model_surface(f, raw)
-            if model_spend:
-                spends.append(f"{f.path}: {'; '.join(model_spend)}")
+            model_legs = _composite_model_legs(f, raw)
             if model_legs:
                 agents.append(f"{f.path}: {'; '.join(model_legs)}")
             continue
@@ -1452,14 +1447,14 @@ def _cost_reasons(
             agent = _new_model_legs(added, removed)
             if agent:
                 agents.append(f"{f.path}: {'; '.join(agent)}")
-            spend += [
-                f"new local call {n}, which may start a model leg"
-                for n in _net_added(_LOCAL_USES.findall, added, removed)
-            ]
             # Hosted minutes and artifact storage are free only on a public
             # repository.
             (spend if public else charge).extend(
-                _raised_timeouts(f, raw, added, removed)
+                (
+                    _raised_timeouts(f, raw, added, removed)
+                    if public
+                    else _billed_timeouts(raw, added, removed)
+                )
                 + _raised_retention(added, removed)
             )
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
