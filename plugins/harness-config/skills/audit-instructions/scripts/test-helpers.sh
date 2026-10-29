@@ -10,7 +10,7 @@
 # (label, haystack, needle) for the substring assertions.
 #
 # Duplicated per plugin by design, not drift; see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
