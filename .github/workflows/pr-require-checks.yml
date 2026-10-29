@@ -4476,9 +4476,31 @@ jobs:
             | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
           # The decided head stands only while the head branch's push history
           # shows a run of every lane on each head pushed since it before the
-          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          # decision (the base's unranHead). The activity API keeps a branch
+          # name's history across deletions, so a reused name fills any one
+          # page: it is read to its end along the Link header's rel="next"
+          # cursor, as merge-holds.mjs reads it, for at most 20 pages.
           if [ -n "$decided" ]; then
-            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+            # Each page goes to a file: the whole history is too long for one argument.
+            next="repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" pages=0
+            : >"$RUNNER_TEMP/cost-hold-pages.json"
+            while [ -n "$next" ]; do
+              [ "$pages" -lt 20 ] || keep "the head branch's push history runs past 20 pages"
+              page=$(read_api "$next" -i) || keep "the head branch's push history is unreadable"
+              pages=$((pages + 1))
+              next=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page" |
+                sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p')
+              size=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
+                tee -a "$RUNNER_TEMP/cost-hold-pages.json" | jq -e 'if type == "array" then length else error("not a list") end') ||
+                keep "the head branch's push history is unreadable"
+              # Only a short page ends the history.
+              if [ "$size" -lt 100 ]; then
+                next=''
+              elif [ -z "$next" ]; then
+                keep "the head branch's push history has a full page with no next link"
+              fi
+            done
+            jq -cs 'add' "$RUNNER_TEMP/cost-hold-pages.json" >"$RUNNER_TEMP/cost-hold-activity.json" ||
               keep "the head branch's push history is unreadable"
             printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
