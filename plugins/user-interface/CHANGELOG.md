@@ -3,6 +3,41 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.9.0] - 2026-10-29
+
+### Added
+
+- `/user-interface:design` offers to install a better route for a concern: the highest-ranked row
+  that is not installed, not `deferred`, and fits this platform and the account rules. It offers a
+  `paid` row only when no free row covers the concern. It gives the row's `pointer` URL as the
+  source of the install and sign-in steps, says when the team file supplied the row, and installs
+  at local scope only after the user says yes to the exact command; otherwise it continues with the
+  best route already present. Three eval cases cover the offer, a decline and an accept.
+
+## [0.8.10] - 2026-10-29
+
+### Changed
+
+- The config reader now refuses a plain YAML value holding a colon and a space (such as `label: needs: triage`) and a plain key holding whitespace, `$` or `.` (such as `$schema: x` or `a.b: c`), naming the line. One such line now makes the whole file invalid, where the value used to be read as text or the key reported on its own. Quote the value or key to keep it.
+
+## [0.8.9] - 2026-10-29
+
+### Fixed
+
+- `/user-interface:design`: web mockups now have one route. The Claude Design gotcha no longer sends every mockup to the `Artifact` tool: it covers the design-system route, and mockups follow the `mockups-variants` rows, `/prototype:explore-directions` first and the `Artifact` tool only when no higher row passes routing, for example when that skill is not installed. The handoff to `/prototype:explore-directions` passes on the tokens, components and screens Step 2 found, so detection runs once.
+
+## [0.8.8] - 2026-10-28
+
+### Fixed
+
+- `/user-interface:design` reads an `account_tools_enabled` value that arrives as its unexpanded `${user_config.account_tools_enabled}` token as the key's default `true`, so account-bound tools stay enabled instead of being read as off.
+
 ## [0.8.7] - 2026-10-28
 
 ### Fixed

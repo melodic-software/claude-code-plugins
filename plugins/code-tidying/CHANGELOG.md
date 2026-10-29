@@ -3,6 +3,33 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.32.0] - 2026-10-29
+
+### Added
+
+- `/code-tidying:audit-dead-code`: the grep lane now reads C# declarations ([#8765](https://github.com/melodic-software/claude-code-plugins/issues/8765)). It reads `.cs` files as text and runs no `dotnet`, MSBuild or other build, so the no-build rule from #5328 still holds. It reports two tier-2 shapes. `cs-unreferenced-private` covers a `private` member or type. `cs-unreferenced-symbol` covers any other type, and any other member whose line starts with an access modifier. Overrides, operators, constructors and indexers are not extracted. Either shape is reported when its name appears nowhere in the repository except where it is declared, every partial part and overload included. `.razor` and `.cshtml` views are part of that search, so a handler or parameter named in markup still counts as used. On the new trap fixtures, `cs-unreferenced-private` scored 66.7% precision and 66.7% recall, and `cs-unreferenced-symbol` scored 33.3% precision and 100% recall. A `.cs` file is no longer reported as `no lane for the language`. Its `unreferenced-file` stem drops every extension, so markup that spells `<Counter` saves `Counter.razor.cs`. The adjudication reference adds C# evidence patterns: reflection, assembly scanning, markup and serializers.
+
+## [0.31.1] - 2026-10-29
+
+### Changed
+
+- cite the gather-block composition record from its convention doc
+
+  The batch-simplify, dissolve-comments and tidy skills now link the
+  repository's gather-block convention for the record that a skill's
+  whole pre-compute block reaches the shell as one invocation, in place
+  of a path into the `source-control` plugin's worktree skill.
+
+### Fixed
+
+- `/code-tidying:audit-comment-residue`: `detect.sh --added-since <base>` now runs shape detection only on each added line and the line on each side of it, which a wrapped phrase can join. The number of detection calls now follows the number of added lines, not the length of each file that gained one ([#8764](https://github.com/melodic-software/claude-code-plugins/issues/8764)). The comment-text and shape detectors return their result in `REPLY` instead of on stdout, so neither the per-line loop nor the license and workaround pre-passes start a command substitution per line. The two pre-passes still read each whole file. On Git for Windows, where each command substitution forks a slow process, an ordinary pull request in a large repository could run for minutes before this fix.
+
 ## [0.31.0] - 2026-10-28
 
 ### Added

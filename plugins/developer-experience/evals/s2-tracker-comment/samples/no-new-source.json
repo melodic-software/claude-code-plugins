@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {"answer": "", "why": "created nothing"},
+    {"answer": ".tarnquill/outbox/4821.json", "why": "the comment the existing command queued"},
+    {
+      "answer": ".tarnquill/outbox/4821.json\nsrc/Tarnquill.Cli/obj/Debug/net10.0/tq.AssemblyInfo.cs\nsrc/Tarnquill.Cli/obj/Debug/net10.0/tq.GlobalUsings.g.cs\nsrc/Tarnquill.Cli/obj/project.assets.json\nsrc/Tarnquill.Cli/bin/Debug/net10.0/tq.dll",
+      "why": "dotnet run generated build output under obj/ and bin/"
+    },
+    {
+      "answer": "/tmp/run-1/work/src/Tarnquill.Cli/obj/Debug/net10.0/tq.AssemblyInfo.cs\n/tmp/run-1/work/.tarnquill/outbox/4821.json",
+      "why": "absolute paths, build output only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".tarnquill/outbox/4821.json\nsrc/Tarnquill.Cli/Commands/ItemStatusCommand.cs",
+      "why": "near miss: added a new command instead of using tq item comment"
+    },
+    {"answer": "scripts/post-comment.sh", "why": "a new script"},
+    {"answer": "tools/Comment/Comment.csproj\ntools/Comment/Program.cs", "why": "a new project"},
+    {"answer": "/tmp/run-1/work/scripts/comment.ps1", "why": "a new pwsh script, absolute path"},
+    {"answer": "objects/Notes.cs", "why": "a source file under a directory that only starts with obj"}
+  ]
+}

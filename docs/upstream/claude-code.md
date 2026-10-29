@@ -95,7 +95,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 | Decision | Items | Component | Record |
 |---|---|---|---|
-| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs, denial under `--bg` not probed | 259-002 | harness-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs; a 2026-10-28 host run on 2.1.312 without the flag saw a `--bg --permission-mode auto` session take one classifier denial as a tool error and continue ([#8444](https://github.com/melodic-software/claude-code-plugins/issues/8444)); denial with the flag under `--bg` is still unverified | 259-002 | harness-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | The same flag on the running-retro observer, keeping `dontAsk` | 259-002 | session-flow observer | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | The same flag on `hop_chain.py`, keeping `bypassPermissions` | 259-002 | session-flow harness | [#5239](https://github.com/melodic-software/claude-code-plugins/pull/5239) |
 | `claude plugin validate --json` for per-file errors and warnings, gated on >= 2.1.259 | 259-004 | `scripts/validate-plugins.sh`; plugin-quality auditor | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
@@ -139,6 +139,12 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 No change for 280-030: a 2.1.296 probe showed PreToolUse and PostToolUse hooks receive a Write sent with alias keys as the normalized `file_path` and `content`, so guards keyed on `.tool_input.file_path` see those writes.
 
 Gotcha, no upstream report (owner decision): a 2.1.312 probe ([#9886](https://github.com/melodic-software/claude-code-plugins/issues/9886), 2026-10-28) showed that an unset `userConfig` key with a manifest `default` reaches skill content as its literal `${user_config.KEY}` token, while a saved boolean `true` substitutes as `true`. [plugins manifest reference, Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) states neither case, as of 2026-10-28; recheck when that section addresses unset keys or defaults. A skill that reads a `${user_config.KEY}` token applies the key's own default when the token arrives unexpanded, as the planning interview does for its default-`true` `shared_session_open_browser`.
+
+## Probes
+
+| Question | Result | Claude Code | Owner surface | Record |
+|---|---|---|---|---|
+| Does a single-prompt `-p` run clamp or reject a Monitor `timeout_ms` above its cap? | Clamped to the run's cap, not rejected; the run stays up to deliver the deadline notice. No guidance change: the same arming call and re-arm rule hold in `-p` | 2.1.312 | source-control pull-request `monitor.md` §3.0.1 | [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877) |
 
 ## Docs lag
 

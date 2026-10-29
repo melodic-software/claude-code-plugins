@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.28.3] - 2026-10-28
+
+### Changed
+
+- The `remotes:` entry `install.mjs plan --scope remote` writes into a consumer's `lefthook.yml` now sets `refetch_frequency: 1h` instead of `24h`, so a hook fix merged to `main` reaches each clone's commits and pushes within an hour. A consumer that already committed the entry keeps `24h` until it edits the line.
+
 ## [0.28.2] - 2026-10-28
 
 ### Changed

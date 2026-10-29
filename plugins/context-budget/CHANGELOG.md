@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.13.6] - 2026-10-29
+
+### Fixed
+
+- README Hook section: the note on why the settings checkpoint row carries no `if` filter now names the cause the Claude Code 2.1.285 probe on Windows found. In a hook `if`, an `Edit(...)` rule does not match a Write tool call at any path tested, while `Write(...)` and `Edit(...)` rules each match absolute paths outside cwd for their own tool. The note no longer blames the skip on an absolute path outside the working directory. The row stays unconditioned (#3680).
+
 ## [0.13.5] - 2026-10-27
 
 ### Changed

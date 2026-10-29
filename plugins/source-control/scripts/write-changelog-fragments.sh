@@ -9,7 +9,8 @@
 #
 # The message on stdin is a commit message (subject, blank line, body) or a pull
 # request title. Touched plugins are the plugins/<name>/ paths (and the
-# docs/conventions/<name>/ paths of a listed convention) in the index
+# docs/contracts/<name>/ or docs/conventions/<name>/ paths of a listed
+# convention) in the index
 # (git diff --cached), or with --base the paths changed on the branch
 # (git diff <ref>...HEAD).
 #
@@ -98,16 +99,16 @@ done < <(tr -d '\r' <"$list")
 declare -A seen=()
 plugins=()
 while IFS= read -r path; do
-  # A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md is a
-  # convention in fragment mode.
+  # A listed name with no plugin and a docs/contracts/<name>/CHANGELOG.md or
+  # docs/conventions/<name>/CHANGELOG.md is a convention in fragment mode.
   case "$path" in
   plugins/*/*)
     name="${path#plugins/}" name="${name%%/*}"
     [[ -f "plugins/$name/.claude-plugin/plugin.json" ]] || continue
     ;;
-  docs/conventions/*/*)
-    name="${path#docs/conventions/}" name="${name%%/*}"
-    [[ ! -f "plugins/$name/.claude-plugin/plugin.json" && -f "docs/conventions/$name/CHANGELOG.md" ]] || continue
+  docs/contracts/*/* | docs/conventions/*/*)
+    name="${path#docs/*/}" name="${name%%/*}" home="${path%%/"$name"/*}"
+    [[ ! -f "plugins/$name/.claude-plugin/plugin.json" && -f "$home/$name/CHANGELOG.md" ]] || continue
     ;;
   *) continue ;;
   esac

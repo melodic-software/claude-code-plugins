@@ -98,12 +98,13 @@ git -C "$R" checkout -q a.ps1
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true)"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" powershell-format Stop powershell-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: with the option off a Stop costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo "powershell-format end-of-turn: $PASS passed, $FAIL failed"

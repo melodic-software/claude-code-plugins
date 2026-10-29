@@ -186,10 +186,16 @@ is "$(key bash_needs)" '{"0":"visualcheck"}'
 check "a check-visual-parity suite gets the visual-compare packages" $?
 rm -rf "$repo/plugins/testing"
 
-mk plugins/planning/shared/tests/ui.test.sh
-plan -- plugins/planning/shared/tests/ui.test.sh
-is "$(key bash_needs)" '{"0":"browser"}'
-check "the shared-page UI suite gets Chromium on whatever leg it lands" $?
+for part in a b c; do
+  mk "plugins/planning/shared/tests/ui-$part.test.sh"
+  plan -- "plugins/planning/shared/tests/ui-$part.test.sh"
+  is "$(key bash_needs)" '{"0":"browser"}'
+  check "the shared-page UI suite's part $part gets Chromium on whatever leg it lands" $?
+done
+mk plugins/planning/shared/tests/ui-require-browser.test.sh
+plan -- plugins/planning/shared/tests/ui-require-browser.test.sh
+is "$(key bash_needs)" '{"0":""}'
+check "the UI runner's own suite, which runs stubs, gets no Chromium" $?
 mk plugins/planning/shared/tests/align.test.sh
 plan -- plugins/planning/shared/tests/align.test.sh
 is "$(key bash_needs)" '{"0":"browser"}'
@@ -330,6 +336,12 @@ check "a change to the inert list runs every Windows step" $?
 plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
 check "an unmapped data file runs no corpus and is counted" $?
+
+mk plugins/a/unread.css "p {}"
+plan -- plugins/a/unread.css plugins/z/data.cfg
+rm "$repo/plugins/a/unread.css"
+is "$(key unmapped)" 2 && is "$(key bash)" false && is "$(key windows_steps)" "[]"
+check "an unmapped file on each side of the inert list counts once each" $?
 
 plan -- plugins/z/z.sh
 is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false

@@ -838,6 +838,183 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(False, named, module)
 
+    # #5901 slice 5: Bun's runtime chunk exports `import.meta.require` for
+    # other modules to load files with, and lodash tests `w.require` before
+    # calling it. The shapes are 2.1.310's; the runtime chunk is /b.js.
+    RUNTIME = (
+        "var Ce,x,$r,Ua,S,vn,ovi;"
+        "var Fe=import.meta.require;export{Ce,x,$r,Ua,S,vn,ovi,Fe};"
+    )
+    SPREAD = 'import{pY}from"/a.js";var c=[...pY];'
+
+    def test_an_exported_require_alias_called_with_literals_is_a_named_loader(
+        self,
+    ) -> None:
+        """Each importer's call of the alias with a literal specifier loads
+        that file: read only by name it keeps the literal, handed to other
+        code it reads partial."""
+        for importer, changed in (
+            ('import{Fe}from"/b.js";var t=Fe("/e.js"),u=Fe("/a.js").q;', False),
+            ('import{Fe as r}from"/b.js";var{q}=r("/a.js");', False),
+            (
+                'import{Fe}from"/b.js";'
+                'Object.values(Fe("/a.js")).forEach((v)=>v.push("B"));',
+                True,
+            ),
+        ):
+            with self.subTest(importer=importer):
+                self.assert_across_modules(changed, self.RUNTIME, importer, self.SPREAD)
+
+    def test_an_exported_require_alias_called_with_a_non_literal_stays_partial(
+        self,
+    ) -> None:
+        """Any other use of the alias may load any file: a call with no
+        literal, an alias, an escape or a re-export, in an importer or in
+        the runtime chunk itself. Under a direct `eval` no use is resolved,
+        so the import itself counts."""
+        for modules in (
+            (self.RUNTIME, 'import{Fe}from"/b.js";var n=Fe(s);'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";var r=Fe;'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";g(Fe);'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";Fe.call(0,"/a.js");'),
+            (self.RUNTIME, 'import{Fe}from"/b.js";export{Fe as G};'),
+            (self.RUNTIME, 'export{Fe as G}from"/b.js";'),
+            (self.RUNTIME + "Fe(s);",),
+        ):
+            with self.subTest(modules=modules):
+                self.assert_across_modules(True, *modules, self.SPREAD)
+        evals = 'import{Fe}from"/b.js";Fe("/a.js");function z(){eval("")}'
+        reader = type(self).reader
+        assert reader is not None
+        self.assertEqual(reader.loads(evals, 0, len(evals), ("Fe",)), ["*"])
+
+    def test_a_namespace_load_of_the_alias_module_stays_partial(self) -> None:
+        """A whole load of the runtime chunk hands the alias out unseen
+        (`R.Fe(s)`), so it stays a load the parser cannot name; so it does
+        with no module table, where the chunk's file is unknown."""
+        for module in (
+            'import*as R from"/b.js";R.Fe(s);',
+            'var R=import.meta.require("/b.js");R.Fe(s);',
+            'var{Fe:r}=await import("/b.js");r(s);',
+            'import{Fe}from"/b.js";Fe("/b.js").Fe(s);',
+            'export*from"/b.js";',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.RUNTIME, module, self.SPREAD)
+        self.assert_across_modules(
+            True,
+            self.RUNTIME,
+            'import{Fe}from"/b.js";var u=Fe("/a.js").q;',
+            self.SPREAD,
+            table=False,
+        )
+
+    # #5901 slice 7: the runtime chunk's helpers define on objects they are
+    # given. Each quoted shape is 2.1.310's, the rest Bun's runtime source;
+    # the chunk is /b.js.
+    HELPERS = (
+        "var k=Object.create;"
+        "var{getPrototypeOf:l,defineProperty:f,getOwnPropertyNames:m}=Object;"
+        "var h=Object.prototype.hasOwnProperty;function n(a){return this[a]}"
+        "var Ce=(a,b,c)=>{c=a!=null?k(l(a)):{};"
+        'let e=b||!a||!a.__esModule?f(c,"default",{value:a,enumerable:!0}):c;'
+        "for(let g of m(a))if(!h.call(e,g))f(e,g,{get:n.bind(a,g),enumerable:!0});"
+        "return e};var q=(a)=>a;function r(a,b){this[a]=q.bind(null,b)}"
+        "var $r=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})},"
+        "ovi=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})};"
+        "export{Ce,$r,ovi};"
+    )
+    INCLUDES = 'import{pY}from"/a.js";pY.includes("x");'
+    PATCH = '{includes:()=>function(){this.push("B");return!0}}'
+
+    def test_the_bun_runtime_helpers_on_fresh_objects_stay_partial_on_computed_reads(
+        self,
+    ) -> None:
+        """`Ce` and `$r` define only on fresh objects here, but the verbatim
+        chunk's getters read by a computed key: `this[a]` in `n`, `b[c]` in
+        `$r` and in `ovi`. Each key may spell `require`, so each read is a
+        load the parser cannot name, and the list reads partial."""
+        importer = 'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
+        self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+        h = self.HELPERS
+        reads = [
+            h.index("this[a]", h.index("function n(")),
+            h.index("b[c]", h.index("var $r=")),
+            h.index("b[c]", h.index("ovi=")),
+        ]
+        found = type(self).reader.sinks(h, 0, len(h), ["includes"])
+        self.assertEqual(
+            sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
+        )
+
+    def test_a_named_import_passing_a_fresh_object_clears_a_helper(self) -> None:
+        """A helper with no computed read, defining by a computed key on its
+        parameter, clears when its one importer imports it by name and
+        passes a fresh `var X={}` (#9990): a named import is no whole load."""
+        helper = (
+            "var{defineProperty:f}=Object;"
+            "var $r=(a,b)=>{for(var c in b)f(a,c,{value:1})};export{$r};"
+        )
+        self.assert_across_modules(
+            False, helper, 'import{$r}from"/b.js";var X={};$r(X,{q:1});', self.INCLUDES
+        )
+
+    def test_a_runtime_helper_on_a_builtin_prototype_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";$r(Array.prototype,{self.PATCH});',
+            self.INCLUDES,
+        )
+
+    def test_a_runtime_helper_on_a_parameter_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";function g(o){{$r(o,{self.PATCH})}}g(Array.prototype);',
+            self.INCLUDES,
+        )
+
+    def test_an_escaped_runtime_helper_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True, self.HELPERS, 'import{$r}from"/b.js";var e=$r;s(e);', self.INCLUDES
+        )
+
+    def test_a_namespace_load_of_the_runtime_module_stays_partial(self) -> None:
+        """A whole load of the chunk hands `$r` out unseen."""
+        for importer in (
+            f'import*as R from"/b.js";R.$r(Array.prototype,{self.PATCH});',
+            f'var R=import.meta.require("/b.js");R.$r(Array.prototype,{self.PATCH});',
+        ):
+            with self.subTest(importer=importer):
+                self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+
+    def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
+        """A `.require` read that is only tested never hands the loader on:
+        a `&&` operand other than the last, an `if`, loop or `?:` test, a
+        `!` operand."""
+        for module in (
+            'var e=w&&w.require&&w.require("util").types;',
+            "if(w.require)f();for(;w.require;)break;",
+            "var t=w.require?1:0,u=!w.require;do{}while(w.require);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, self.SPREAD, module)
+
+    def test_a_require_read_that_returns_the_loader_stays_partial(self) -> None:
+        """The last `&&` operand, any `||` or `??` operand and a `?:` branch
+        are what the whole expression may evaluate to: the loader."""
+        for module in (
+            "var r=w.require||0;r(s);",
+            "var r=w&&w.require;r(s);",
+            "var r=w.require??0;r(s);",
+            "var r=c?w.require:0;r(s);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, self.SPREAD, module)
+
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,

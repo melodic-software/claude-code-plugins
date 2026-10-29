@@ -31,6 +31,7 @@
               "codeowners",
               "gitmodules",
               "settings",
+              "lane-grants",
               "symlink",
               "gitlink",
               "rename-into-refused",
@@ -38,7 +39,7 @@
               "skill-md"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path github-workflows, codeowners, gitmodules or settings matches, or that holds a backslash. Optional, refused only where a row names them, in any case and through any .. segment: skills: a path under a skills/ directory at any depth; skill-md: a SKILL.md at any depth."
+          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; lane-grants: .github/actions/resolve-config/lane-grants.json and .github/standards/trusted-actors/trusted-actors.json, in any case and through any .. segment; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path github-workflows, codeowners, gitmodules, settings or lane-grants matches, or that holds a backslash. Optional, refused only where a row names them, in any case and through any .. segment: skills: a path under a skills/ directory at any depth; skill-md: a SKILL.md at any depth."
         },
         "allow": {
           "type": "array",
@@ -90,6 +91,10 @@
               "description": "The trailer line that names the activity, with {lane} and {activity} filled in."
             }
           }
+        },
+        "thread-trailer": {
+          "const": true,
+          "description": "kept-threads rows: after the trailer, apply-patch adds a Lane-Thread: <thread id> line for each kept thread a VALID reply in the model job's scanned replies names, which publish-feedback.mjs requires before it credits the commit to that thread; with no replies read, nothing is committed."
         },
         "reads-report": {
           "enum": [null, "ci-escalations"],

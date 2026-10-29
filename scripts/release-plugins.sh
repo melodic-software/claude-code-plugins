@@ -14,8 +14,8 @@
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
 # A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
-# its version is the newest heading of docs/conventions/<name>/CHANGELOG.md at
-# HEAD, and step 3 does not apply.
+# its version is the newest heading of docs/contracts/<name>/CHANGELOG.md or
+# docs/conventions/<name>/CHANGELOG.md at HEAD, and step 3 does not apply.
 # Prints one line per plugin. Every new changelog and manifest is produced in a
 # temporary directory first, and the tree changes only once all of them exist.
 # A changelog that already carries the version about to be written (a run cut

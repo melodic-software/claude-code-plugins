@@ -11,8 +11,8 @@ description: >
   newest status a `save-state` run saved to the Actions cache) applies; with
   none the check fails open. Set `admission-open` to `false` only when new
   admissions pause (queued work at or over the queued cap on or after
-  `wip.pause-from`, or a search answered `incomplete_results: true`, whatever
-  `wip.pause-from` says).
+  `wip.pause-from`, or, whatever `wip.pause-from` says, a search answered
+  `incomplete_results: true` or the base config could not be read).
   Run it from the default branch checkout, before any slot or lane token.
 
 inputs:
@@ -32,7 +32,8 @@ inputs:
       `full` (the default) makes every read. `pause` makes only the two
       searches `capped` depends on (the open lane PRs and the merged count),
       for a job that reads no other output; `admission-open` is then `true`
-      and the status's `admission_basis` is `not-read`.
+      and the status's `admission_basis` is `not-read`, unless a search
+      answered incomplete or the base config could not be read.
     required: false
     default: full
   github-token:
@@ -45,7 +46,7 @@ outputs:
     description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`, or on a failed read whose last known state paused); otherwise `false`."
     value: ${{ steps.check.outputs.capped }}
   admission-open:
-    description: "`false` only while new admissions pause (queued work at or over the queued cap on or after `wip.pause-from`, or a search answered `incomplete_results: true`, whatever `wip.pause-from` says); a failed queued read without that flag leaves `true`. Runs never pause on it."
+    description: "`false` only while new admissions pause (queued work at or over the queued cap on or after `wip.pause-from`, or, whatever `wip.pause-from` says, a search answered `incomplete_results: true` or the base config could not be read, `admission_basis` `config-unreadable`); a failed queued read without that flag leaves `true`. Runs never pause on it."
     value: ${{ steps.check.outputs.admission-open }}
   wip:
     description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
@@ -54,11 +55,13 @@ outputs:
 runs:
   using: composite
   steps:
+    # setup-pinned-node's script, the sibling action in the same checkout: no
+    # GitHub API call, unlike actions/setup-node on a tool-cache miss.
     - name: Set up Node
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-      with:
-        node-version-file: ${{ inputs.base-path }}/.node-version
-        package-manager-cache: false
+      shell: bash
+      env:
+        VERSION_FILE: ${{ inputs.base-path }}/.node-version
+      run: bash "$GITHUB_ACTION_PATH/../setup-pinned-node/install-node.sh" "$VERSION_FILE"
 
     # The last known state: the newest status a run saved; none on the first
     # run. A cache restore spends no REST quota, so it holds when the
@@ -72,7 +75,7 @@ runs:
         restore-keys: check-wip-cap-state-
 
     # The cap comes through resolve-config, which needs its dependencies; an
-    # install that fails leaves the default cap.
+    # install that fails leaves the default run caps and closes admissions.
     - name: Count the open lane PRs
       id: check
       shell: bash
@@ -83,7 +86,7 @@ runs:
         WIP_READS: ${{ inputs.reads }}
       run: |
         npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
-          echo "::warning::resolve-config's dependencies did not install; the default WIP config applies"
+          echo "::warning title=check-wip-cap::resolve-config's dependencies did not install; the default run caps apply and admissions close"
         node "$GITHUB_ACTION_PATH/check-wip-cap.mjs"
 
     # Only a read that succeeded saves; a failed one keeps the last state.

@@ -332,6 +332,7 @@ const LIMITS = {
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
+  "readmit-per-run": 20,
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
@@ -375,7 +376,7 @@ test("limits: api passes through as set, and an unknown pool or field, or a shar
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "stop-retries": -1 }, { "stop-retries": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "readmit-per-run": 0 }, { "readmit-per-run": 101 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "stop-retries": -1 }, { "stop-retries": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });
@@ -1842,6 +1843,14 @@ for (const [name, why, message] of [
     );
   });
 }
+
+test("patch rules: a row that does not refuse lane-grants is rejected, so no lane patch can change the central grants (ADR 0085 Decision 6)", () => {
+  const refuse = PATCH_RULES.default.refuse.filter((name) => name !== "lane-grants");
+  assert.throws(
+    () => checkPatchRules({ ...PATCH_RULES, default: { ...PATCH_RULES.default, refuse } }, PATCH_RULES_SCHEMA),
+    (error) => error instanceof Rejection && error.code === "patch-rules" && /row `default` does not refuse lane-grants$/.test(error.message),
+  );
+});
 
 test("patch rules: a missing registry or schema is rejected", () => {
   assertRejected(() => checkPatchRules(undefined, PATCH_RULES_SCHEMA), "patch-rules");

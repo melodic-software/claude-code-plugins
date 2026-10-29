@@ -152,6 +152,21 @@ test("an incomplete search answer closes new admissions with pause-from unset, f
   }
 });
 
+// A broken dependency or config file leaves the default limits, so the caps
+// are unknown: admissions close whatever pause-from says, as on an incomplete
+// search, and the run pause is unchanged.
+test("an unreadable base config closes new admissions with pause-from unset, future or past", async () => {
+  const reads = await read({ open: [pr()], merged: 24, admitted: 0, queued: [] });
+  for (const pauseFrom of ["", "2026-10-19", "2026-10-01"]) {
+    const closed = wipStatus(reads, { limits: LIMITS, wip: { ...WIP, "pause-from": pauseFrom }, now: NOW, configError: true });
+    assert.equal(closed.admission_open, false, pauseFrom);
+    assert.equal(closed.admission_room, 0, pauseFrom);
+    assert.equal(closed.admission_reason, "config-unreadable", pauseFrom);
+    assert.equal(closed.admission_basis, "config-unreadable", pauseFrom);
+    assert.equal(closed.paused, status(reads, { "pause-from": pauseFrom }).paused, pauseFrom);
+  }
+});
+
 test("a search answer with no incomplete_results field is a failed read, not an incomplete one", async () => {
   const reads = await read({ open: [pr()], merged: 48, queued: null });
   assert.equal(reads.searchIncomplete, false);
@@ -742,6 +757,21 @@ test("over a cap with an unreadable base config the warning names the config, no
   );
   const unsetWarning = unset.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
   assert.ok(unsetWarning?.includes("the lane keeps running (pause-from is not set)"), unset.logs.join("\n"));
+});
+
+test("main closes new admissions and warns when the base config cannot be read, and keeps the last known pause", async () => {
+  const result = await runMain({ open: [pr()], merged: 24, admitted: 0, queued: [] });
+  assert.equal(result.admissionOpen, "false");
+  assert.equal(result.wip.admission_reason, "config-unreadable");
+  assert.equal(result.wip.admission_basis, "config-unreadable");
+  const warning = result.logs.find((line) => line.includes("admission_basis config-unreadable"));
+  assert.ok(warning?.startsWith("::warning title=check-wip-cap::"), result.logs.join("\n"));
+  assert.ok(warning.includes("no new admissions are made this run"), warning);
+  assert.ok(result.logs.some((line) => line.startsWith("::notice title=admission paused::admission paused: reason=config-unreadable")), result.logs.join("\n"));
+  const kept = await runMain({ open: [pr()], merged: 24 }, { WIP_STATE: stateFile({ paused: true, pause_reason: "wip" }) });
+  assert.equal(kept.capped, "true");
+  assert.equal(kept.wip.pause_basis, "last-state");
+  assert.equal(kept.admissionOpen, "false");
 });
 
 test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {

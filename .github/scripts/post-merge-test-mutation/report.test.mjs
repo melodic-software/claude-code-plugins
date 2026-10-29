@@ -4,7 +4,9 @@
 // the trigger's path filter equals the config's mutate globs.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import process from "node:process";
 import { test } from "node:test";
 
 import { commentBody, MARKER, main, mergedPulls, parseResult, render, scores, violations } from "./report.mjs";
@@ -159,9 +161,38 @@ test("main fails a run that left no valid result or an edited checkout", async (
   assert.match(edited.summary, /differs from the pushed head/);
   const invalid = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: "{}" });
   assert.equal(invalid.code, 1);
-  const unrestored = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([], { outcome: "restore-failed" })) });
-  assert.equal(unrestored.code, 1);
-  assert.ok(unrestored.lines.some((line) => line.startsWith("::error::")));
+});
+
+// The workflow's check of the tree decides a restore; the model's restore-failed
+// outcome alone does not fail the run.
+test("a restore-failed result fails the run only when the workflow's check did not find the tree restored", async () => {
+  const output = JSON.stringify(result([mutant(), mutant({ line: 4, state: "not-run" })], { outcome: "restore-failed" }));
+  const restored = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: output });
+  assert.equal(restored.code, 0);
+  assert.ok(restored.lines.some((line) => line.startsWith("::warning::")));
+  assert.match(restored.summary, /Outcome: restore-failed/);
+  assert.match(restored.summary, /Killed 1, survived 0, timeout 0, no coverage 0, invalid 0, not run 1\./);
+  for (const RESTORED of ["false", ""]) {
+    const out = await run({ AUDIT_RESULT: "success", RESTORED, STRUCTURED_OUTPUT: output });
+    assert.equal(out.code, 1, `RESTORED=${JSON.stringify(RESTORED)}`);
+    assert.ok(out.lines.some((line) => line.startsWith("::error::")));
+  }
+});
+
+test("a usage or capacity limit stop passes with a notice, and any other class still fails", async () => {
+  for (const STOP_CLASS of ["rate-limit", "overloaded"]) {
+    const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STOP_CLASS, STRUCTURED_OUTPUT: "" }, [merged(42)]);
+    assert.equal(out.code, 0, STOP_CLASS);
+    assert.ok(out.lines.some((line) => line.startsWith("::notice::") && line.includes(STOP_CLASS)));
+    assert.match(out.summary, new RegExp(`Outcome: stopped on class ${STOP_CLASS}`));
+    assert.equal(out.comment, null, "a stop posts no comment");
+  }
+  for (const STOP_CLASS of ["max-turns", "other", "auth"]) {
+    const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STOP_CLASS, STRUCTURED_OUTPUT: "" });
+    assert.equal(out.code, 1, STOP_CLASS);
+  }
+  const edited = await run({ AUDIT_RESULT: "success", RESTORED: "false", STOP_CLASS: "rate-limit", STRUCTURED_OUTPUT: "" });
+  assert.equal(edited.code, 1, "a limit stop never covers an edited checkout");
 });
 
 // The two workflows, read as text: each job is the block under its two-space id.
@@ -234,6 +265,36 @@ test("the model's git reads stay in the checkout and its edits stay out of home 
   assert.match(audit, /--disallowedTools '\$denied'/);
 });
 
+// Under the env scrub Bash runs sandboxed with .git write-denied, so a git
+// command that writes (restore, checkout, add, stash, commit) fails there.
+test("the model's Bash allows git reads only", () => {
+  const { audit } = jobsOf(LANE);
+  const allowed = [...audit.matchAll(/\n {10}allowed="([^\n]*)"/g)].map((m) => m[1]).join(",");
+  const git = [...allowed.matchAll(/Bash\(git ([a-z-]+)/g)].map((m) => m[1]);
+  assert.ok(git.length > 0);
+  assert.deepEqual(git.filter((verb) => !["status", "diff", "branch", "rev-parse"].includes(verb)), []);
+});
+
+// The audit job's stop step, run as the runner runs it.
+function stopStep(failureClass) {
+  const { audit } = jobsOf(LANE);
+  const step = audit.split(/\n(?= {6}- name: )/).find((block) => block.includes("- name: Fail the audit unless a limit stopped it"));
+  const body = step.split("\n        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+  const dir = tempDir("mutation-stop-");
+  const output = join(dir, "output");
+  const res = spawnSync("bash", ["-e", "-c", body], { env: { PATH: process.env.PATH, FAILURE_CLASS: failureClass, GITHUB_OUTPUT: output }, encoding: "utf8" });
+  return { code: res.status, output: existsSync(output) ? readFileSync(output, "utf8") : "" };
+}
+
+test("the stop step passes a usage or capacity limit and fails every other class", () => {
+  for (const failureClass of ["rate-limit", "overloaded"]) {
+    assert.deepEqual(stopStep(failureClass), { code: 0, output: `class=${failureClass}\n` });
+  }
+  for (const failureClass of ["auth", "max-turns", "timeout", "no-execution", "other", ""]) {
+    assert.deepEqual(stopStep(failureClass), { code: 1, output: "" }, failureClass);
+  }
+});
+
 test("the model edits only checkout files a mutant can land in", () => {
   const { audit } = jobsOf(LANE);
   const allowed = [...audit.matchAll(/\n {10}allowed="([^\n]*)"/g)].map((m) => m[1]).join(",").split(",");
@@ -282,21 +343,45 @@ test("main writes the comment body and the pull output for exactly one merged pu
 });
 
 test("main comments on the merged pull request when another closed unmerged on the head", async () => {
-  const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([])) }, [merged(42), merged(43, { merged_at: null })]);
+  const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) }, [merged(42), merged(43, { merged_at: null })]);
   assert.equal(out.output, "pull=42\n");
   assert.notEqual(out.comment, null);
 });
 
-test("main writes a no-result comment too, without the violation text", async () => {
+// Each outcome class, on one merged pull request: comment only for a survivor or an uncovered mutant.
+const OUTCOMES = [
+  ["a survivor", result([mutant({ state: "survived" })]), true, null],
+  ["an uncovered mutant", result([mutant({ state: "no-coverage" })]), true, null],
+  ["a survivor beside a refusal", result([mutant({ state: "survived" })], { outcome: "refused" }), true, /refused/],
+  ["all killed", result([mutant(), mutant({ line: 4, state: "timeout" })]), false, null],
+  ["a scope-empty result", result([], { outcome: "scope-empty" }), false, null],
+  ["a refusal", result([mutant({ state: "not-run" })], { outcome: "refused" }), false, /refused/],
+  ["a reported result with every mutant not run", result([mutant({ state: "not-run" })]), false, /every mutant is not-run/],
+  ["a reported result with some killed, some not run", result([mutant(), mutant({ line: 4, state: "not-run" })]), false, null],
+];
+for (const [label, output, comments, warning] of OUTCOMES) {
+  test(`main ${comments ? "comments" : "stays quiet"} for ${label}${warning ? " and warns" : ""}`, async () => {
+    const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(output) }, [merged(42)]);
+    assert.equal(out.code, 0);
+    assert.ok(out.summary.includes("Post-merge mutation testing"), "the summary is written for every outcome");
+    assert.equal(out.comment !== null, comments);
+    assert.equal(out.output, comments ? "pull=42\n" : null);
+    const warned = out.lines.filter((line) => line.startsWith("::warning::"));
+    if (warning) assert.ok(warned.some((line) => warning.test(line)), `warning ${warning}`);
+    else assert.equal(warned.length, 0);
+  });
+}
+
+test("main writes no comment for a run with no valid result, and fails it", async () => {
   const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: "{}" }, [merged(42)]);
   assert.equal(out.code, 1);
-  assert.equal(out.output, "pull=42\n");
-  assert.match(out.comment, /- Outcome: no result\. The run's summary says why\./);
-  assert.doesNotMatch(out.comment, /\$\.outcome/);
+  assert.equal(out.comment, null);
+  assert.equal(out.output, null);
+  assert.match(out.summary, /Outcome: no result/);
 });
 
 test("main writes no comment and no pull output for no, several or an unread merged pull request", async () => {
-  const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([])) };
+  const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) };
   for (const [label, pulls, notice] of [
     ["a direct push", [], /0 pull requests merged the head/],
     ["a direct push with a pull request closed unmerged on the head", [merged(3, { merged_at: null })], /0 pull requests merged the head/],
@@ -315,8 +400,7 @@ test("a key the model adds is never echoed, so it cannot reach the summary or a 
   const out = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify({ ...result([]), [key]: 1 }) }, [merged(42)]);
   assert.equal(out.code, 1);
   assert.ok(!out.summary.includes(key));
-  assert.ok(!out.comment.includes(key));
-  assert.ok(!out.comment.includes("@someone"));
+  assert.equal(out.comment, null);
 });
 
 test("the comment body carries only validated fields: enums, integers, pattern-checked paths and SHAs", () => {

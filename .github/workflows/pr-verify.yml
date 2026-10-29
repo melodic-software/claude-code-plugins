@@ -1,7 +1,9 @@
 name: pr-verify
 
 # The verifier: a model that did not write the pull request judges each head
-# that passes pr-require-checks against its linked issue, and the run uploads
+# that passes pr-require-checks, or fails it only on holds an approving review
+# of the head lifts (resolve-pr.mjs heldOnly, so the person approves a judged
+# head), against its linked issue, and the run uploads
 # its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
 # FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
 # accept the -<ref-digest> before that (write-verdict.mjs headRefDigest).
@@ -9,8 +11,8 @@ name: pr-verify
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
 # The verdict is not a check run. ci-status reads a pass by exact name only in
-# the merge queue, for a lanes App pull request, since a red ci-status on a
-# pull request event would stop this workflow from running
+# the merge queue, for a lanes App pull request, since a ci-status on a pull
+# request event red for anything but such a hold stops this workflow from running
 # (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
 # No pull request code runs here. The diff, the trusted PR text and the linked
@@ -71,7 +73,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -93,10 +95,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -146,7 +147,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -349,6 +352,17 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
       # script, never interpolated into a command.
@@ -417,7 +431,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && ((needs.check-intent.outputs.handoff == 'true'
       && needs.check-intent.outputs.key-leg-clean == 'true')
@@ -441,10 +455,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -495,7 +508,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -703,6 +718,17 @@ jobs:
           # Why this job ran, for the run's one lane record.
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
       # script, never interpolated into a command.
@@ -773,7 +799,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.conclusion == 'success'
+      && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.check-intent-subscription.outputs.handoff == 'true'
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
@@ -792,10 +818,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -846,7 +871,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -1033,6 +1060,17 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           # Why this job ran, for the run's one lane record.
           fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
 
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the

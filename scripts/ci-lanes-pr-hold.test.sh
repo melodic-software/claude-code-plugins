@@ -104,8 +104,8 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
 # of merge-holds.mjs prints the working tree's module, or answers 404 when
 # STUB_NO_MODULE is set. A discussion read fails its first STUB_FAILS calls,
-# then prints each row of STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON
-# arrays) as one line, as `--jq '.[] | @json'` does. A contents read of
+# then prints STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON arrays) as the
+# API's page. A contents read of
 # pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
 # set. A files read answers STUB_FILES (a JSON array of [path,
 # renamed-from or null, status] arrays, status renamed with a renamed-from
@@ -123,7 +123,7 @@ mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-rows() { jq -c '.[]' <<<"${1:-[]}"; }
+rows() { printf '%s\n' "${1:-[]}"; }
 discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
@@ -250,10 +250,12 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
 # The base commit's config, as the base_config checkout holds it: this tree's
-# pr-pipeline.yaml and trusted-actor list. STUB_BASE_CONFIG replaces its path.
-mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+# pr-pipeline.yaml, trusted-actor list and merge-holds.mjs, whose switchHold
+# judges the kill switch. STUB_BASE_CONFIG replaces its path.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/base-config/.github/scripts/pr-merge"
 cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
 cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
+cp "$MODULE" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -261,7 +263,7 @@ WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
-  rm -f "$TMP_ROOT/verify-listing.json"
+  rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-reads"
   # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
   # STUB_CARRIED replaces the carried file (all-empty sections are cold too).
   if [[ -n "${STUB_COLD:-}" ]]; then
@@ -312,6 +314,23 @@ for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
   STUB_PULL="$(pull 'Closes #1')"
   unset KILL REPO_KILL
 done
+# The switch holds before the base-branch exit, so one into another branch fails too.
+STUB_PULL="$(STUB_BASE_REF=release pull 'Closes #1')"
+KILL=true expect "with the kill switch on, a lanes App pull request into another branch fails" 1 0 \
+  "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
+EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE KILL=true \
+  expect "with the kill switch on, a queued lanes App pull request fails" 1 0 "::error::#7: the lanes kill switch is on"
+# The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
+# judge it fails closed before any further read.
+STUB_PULL="$(pull 'Closes #1')"
+held_module="$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
+for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
+  'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
+  if [[ -z "$stub" ]]; then rm -f "$held_module"; else printf '%s\n' "$stub" >"$held_module"; fi
+  expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
+    "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #7; re-run this run."
+done
+cp "$MODULE" "$held_module"
 # shellcheck disable=SC2016 # a literal workflow expression, not shell
 if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
   grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then
@@ -473,7 +492,9 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml; do
+  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml \
+  .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
+  .github/scripts/pr-review-main/write-verdict.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done
@@ -490,11 +511,16 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/publish-feedback.mjs .github/scripts/pr-unblock/request-budget.mjs \
   .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/apply-patch/apply-patch.mjs \
   .github/scripts/apply-patch/predicates.mjs .github/scripts/apply-patch/protected-paths.mjs \
-  .github/scripts/apply-patch/retry-fetch.mjs .github/workflows/pr-require-checks.yml \
-  .github/workflows/pr-merge.yml .github/scripts/pr-unblock/fix-ci-context.mjs \
+  .github/scripts/apply-patch/retry-fetch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
+done
+# ci-status's own workflow, and a job-token dispatcher of a gated workflow, are
+# gate paths: ci-status holds them for a person.
+for path in .github/workflows/pr-require-checks.yml .github/workflows/intake-reenter.yml; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
@@ -629,6 +655,11 @@ if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
 else
   fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
 fi
+if [[ ! -e "$TMP_ROOT/pr-reads" ]]; then
+  ok "after the disarm the step drops every kept read, so a later read of the pull is live"
+else
+  fail "the step kept reads after its disarm: '$(ls "$TMP_ROOT/pr-reads")'"
+fi
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 export STUB_DISARM_FAILS=1
 expect "a disarm that fails only warns, so a token that cannot disarm never holds a push red" 0 3 "::warning::could not turn off native auto-merge on #7 after a push to its head"
@@ -693,21 +724,21 @@ STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, hea
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
-# plus the read floor left: 1520 x 1 + 0.1 x min(limit, 1000) = 1620 here.
+# plus the read floor left: 1546 x 1 + 0.1 x min(limit, 1000) = 1646 here.
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 1620)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 1646)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 1619)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1619 requests left, under the 1620 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 1645)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 1645 requests left, under the 1646 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 # Every entry the queue builds at once goes cold together on a missing cache,
-# so the need scales with max_entries_to_build: 1520 x 5 + 100 = 7700.
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7700)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7699)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 7699 requests left, under the 7700 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3139)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3140 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 7700)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+# so the need scales with max_entries_to_build: 1546 x 5 + 100 = 7830.
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7830)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7829)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 7829 requests left, under the 7830 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3191)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3192 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 7830)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
 STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"

@@ -22,7 +22,8 @@
 //             the outcome file says.
 //   Every stop below takes its route from stop-routes.json (stop-routes.mjs):
 //   hold hands the issue to a person as pushback does; host-run adds the
-//   host-run label and removes agent-ready; retry keeps agent-ready, so
+//   host-run label and removes agent-ready; attended adds the attended label
+//   and removes agent-ready; retry keeps agent-ready, so
 //   work-unblock restarts it, up to limits.stop-retries; fail removes
 //   agent-ready and adds no label. A route other than hold carries no
 //   escalation marker.
@@ -124,9 +125,13 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
-import { HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
+// The label a held PR carries from its opening. The hold line is body text the
+// lanes App can edit; ci-status fails while this label is on and unless a
+// listed person's own removal took it off (merge-holds.mjs HUMAN_MERGE_HOLD).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
@@ -462,9 +467,10 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 
 // The comment and labels of a stop whose route is not hold, which carries no
 // escalation marker: retry keeps agent-ready (work-unblock restarts it and the
-// next run resumes the branch), host-run adds the host-run label, fail adds
-// none; both remove agent-ready.
-const ROUTE_OUTCOME = { retry: "retry", "host-run": "host-run", fail: "failed" };
+// next run resumes the branch), host-run and attended add their label, fail
+// adds none; all three remove agent-ready.
+const ROUTE_OUTCOME = { retry: "retry", "host-run": "host-run", attended: "attended", fail: "failed" };
+const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
 function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
@@ -473,8 +479,10 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "host-run"
-        ? `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: a maintainer session on a host builds it, and it waits on no decision from a person.`
-        : "It removed `agent-ready` and added no label.",
+        ? `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`
+        : route === "attended"
+          ? `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`
+          : "It removed `agent-ready` and added no label.",
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
@@ -491,6 +499,8 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   }
   if (route === "host-run") {
     lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and add \`agent-ready\` again.`);
+  } else if (route === "attended") {
+    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and adds \`agent-ready\` again.`);
   } else if (route === "fail") {
     lines.push("", "To run it again, add `agent-ready`.");
   }
@@ -501,7 +511,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     issueNumber,
     runId,
     comment: lines.join("\n"),
-    addLabels: route === "host-run" ? [HOST_RUN_LABEL] : [],
+    addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     removeLabels: route === "retry" ? [] : ["agent-ready"],
   };
 }
@@ -704,8 +714,12 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, runner checks missing or not all
-// passed, and on a reused branch a leak scan that is missing or not clean.
+// changed path the merge lane refuses, a runner check that failed, and on a
+// reused branch a leak scan that is missing or not clean. Runner checks that
+// did not report hold nothing: ci-status reruns them on the head. The scan is
+// not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
+// or .gitleaksignore the branch can add, its password rule misses short or
+// symbol-bearing values scanLeak flags, and it reads only the commits' patches.
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
@@ -714,9 +728,8 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    !checks ||
-    checkFailures(checks).length > 0 ||
-    (reused && checks.scan !== "clean")
+    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
+    (reused && checks?.scan !== "clean")
   );
 }
 
@@ -817,13 +830,15 @@ export function reusePlan({
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
     "",
-    hold ? `Left out: ${leftOut}; a person reviews the diff before merging.` : `Left out: ${leftOut}.`,
+    hold
+      ? `Left out: ${leftOut}; a person reviews the diff before merging.`
+      : `Left out: ${leftOut}; ci-status, pr-verify and the security review lane check the head before it merges.`,
     "",
     "## Related",
     "",
     `#${issueNumber}`,
   ].join("\n");
-  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch };
+  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch, hold };
 }
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
@@ -1051,6 +1066,7 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
+    hold,
   };
 }
 
@@ -1082,7 +1098,7 @@ function humanLabelFrom(path) {
 
 // The outcomes after which the next run continues the marked run's branch.
 // work-unblock's `failed` names the limit or funding stop's run it ends.
-export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "host-run", "failed"]);
+export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "host-run", "attended", "failed"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -1115,6 +1131,17 @@ export function readBranch(dir, issueNumber, key = "branch") {
     return "";
   }
 }
+
+// The first of the issue's open closing PRs (closingPulls) in this repository
+// that the lanes App or a listed human opened: anyone can write `Closes #N`, so
+// an outsider's PR would let anyone stop the lane.
+export const trustedCloser = (closing, { repo, bot, humans }) =>
+  closing.find(
+    ({ author, repository }) =>
+      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
+      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
+        (author?.__typename === "User" && humans.has(author.databaseId))),
+  );
 
 // Whether an earlier run already did the issue's work, from facts read before
 // the resolve-issue mint:
@@ -1163,12 +1190,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   if (open) {
     return { action: "stop", reason: `the lanes App's PR from ${open.name} is open` };
   }
-  const trusted = closing.find(
-    ({ author, repository }) =>
-      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
-      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
-        (author?.__typename === "User" && humans.has(author.databaseId))),
-  );
+  const trusted = trustedCloser(closing, { repo, bot, humans });
   if (trusted) {
     return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
   }
@@ -1502,7 +1524,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
   }
 }
 
-// A hand-back, host-run or fail plan's edits. The label first, so a failed
+// A hand-back, host-run, attended or fail plan's edits. The label first, so a failed
 // comment still leaves the issue on its route. A fail plan adds none: its
 // comment's marker is the route, so it is posted before agent-ready goes, and
 // a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
@@ -1780,29 +1802,22 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           (candidate) => candidate.user?.login === bot,
         );
       let pull = await findOpen();
-      if (!pull) {
-        const fields = { title: plan.title, body: plan.body, head: plan.branch, base: base || (await github("GET", repo)).default_branch, draft: false };
-        try {
-          pull = await github("POST", `${repo}/pulls`, fields);
-        } catch (error) {
-          // A create that failed on the network may have opened the PR, so
-          // it is read back first, and created once more only when absent.
-          if (!networkError(error)) {
-            throw error;
-          }
-          pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
-        }
-      }
-      // A plan with a tip opens only at it: a PR whose head moved off the
-      // checked tip is closed, and the issue goes to a person. Closing a
-      // closed PR changes nothing, so the close is resent.
-      if (plan.tip && pull.head?.sha !== plan.tip) {
-        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
-        console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
-        plan = routeStop("pr-head-moved", {
-          outcome: stopped(
-            `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`,
-          ),
+      // A PR that closes the issue may have opened, or gained its closing
+      // keyword, while the model ran, after the earlier-work check
+      // (--find-prior) read none, so the closers are read again just before
+      // the open. A failed read throws, like this script's other reads, and
+      // opens no PR.
+      const closer = pull
+        ? undefined
+        : trustedCloser(await closingPulls(github, { owner, name: env.GITHUB_REPOSITORY.split("/")[1], number: issueNumber }), {
+            repo: env.GITHUB_REPOSITORY,
+            bot,
+            humans: listedHumans(),
+          });
+      if (closer) {
+        console.log(`report-outcome: open PR #${closer.number} already closes issue #${issueNumber}, so no PR opens from ${plan.branch}`);
+        plan = routeStop("closed-by-open-pr", {
+          outcome: stopped(`Open PR #${closer.number} already closes this issue, so no second PR opened from \`${plan.branch}\`.`),
           issueNumber,
           branch: plan.branch,
           humanLabel,
@@ -1810,8 +1825,56 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
         });
       } else {
-        console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-        return 0;
+        if (!pull) {
+          const fields = { title: plan.title, body: plan.body, head: plan.branch, base: base || (await github("GET", repo)).default_branch, draft: false };
+          try {
+            pull = await github("POST", `${repo}/pulls`, fields);
+          } catch (error) {
+            // A create that failed on the network may have opened the PR, so
+            // it is read back first, and created once more only when absent.
+            if (!networkError(error)) {
+              throw error;
+            }
+            pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
+          }
+        }
+        // A held PR carries the hold label from its opening; one the label
+        // cannot reach is closed rather than left held by body text alone.
+        const labeled =
+          !plan.hold ||
+          (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HUMAN_MERGE_HOLD] }, { safeToResend: true }).then(
+            () => true,
+            (error) => {
+              console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${HUMAN_MERGE_HOLD}: ${String(error?.message ?? error)}`);
+              return false;
+            },
+          ));
+        // A plan with a tip opens only at it: a PR whose head moved off the
+        // checked tip is closed, and the issue goes to a person. Closing a
+        // closed PR changes nothing, so the close is resent.
+        const moved = Boolean(plan.tip) && pull.head?.sha !== plan.tip;
+        if (labeled && !moved) {
+          console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+          return 0;
+        }
+        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
+        console.log(
+          moved
+            ? `report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`
+            : `report-outcome: closed PR #${pull.number}: it holds for a person and could not be labeled ${HUMAN_MERGE_HOLD}`,
+        );
+        plan = routeStop(moved ? "pr-head-moved" : "hold-label-failed", {
+          outcome: stopped(
+            moved
+              ? `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`
+              : `The PR from \`${plan.branch}\` holds for a person, and the \`${HUMAN_MERGE_HOLD}\` label could not be added, so it was closed.`,
+          ),
+          issueNumber,
+          branch: plan.branch,
+          humanLabel,
+          runUrl,
+          runId,
+        });
       }
     }
     await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits });

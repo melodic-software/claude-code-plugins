@@ -497,8 +497,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
     assert.equal(job.concurrency["cancel-in-progress"], false);
   }
 
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "success" }), true);
-  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
+  const selects = (result, stopped) =>
+    evaluate(select.if, { "needs.apply-verdict.result": result, "needs.apply-verdict.outputs.stopped": stopped });
+  assert.equal(selects("success", ""), true);
+  assert.equal(selects("failure", ""), false);
+  assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
   assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
   // The subscription leg runs only after the key leg handed off or found no key.
@@ -578,10 +581,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
   assert.equal(step(apply, "apply").run, 'node ".base/$SCRIPT" --apply');
   // Select and apply read the admission rules and web hosts the split uses
-  // from the default branch, and the model must return the split field.
+  // from the default branch, and the model must return the split and
+  // external fields (the attended classes come from the base config too).
   assert.equal(step(select, "select").env.BASE_PATH, ".base");
   assert.equal(step(apply, "apply").env.BASE_PATH, ".base");
-  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split"\]/);
+  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split","external"\]/);
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
@@ -2268,9 +2272,11 @@ test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-
 const PATCH_LANES = [
   ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }, "apply-patch"],
   ["pr-refine.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
-  // apply-feedback-patch stays out of report-escalation: every refusal leaves
-  // no fix commit, and publish-feedback escalates feedback-not-landed
-  // (publish-feedback.test.mjs).
+  // report-escalation takes no escalation from apply-feedback-patch: every
+  // refusal leaves no fix commit, and publish-feedback escalates
+  // feedback-not-landed (publish-feedback.test.mjs). It reads only its
+  // pushed-commit, the one head its gate accepts after the select job's
+  // (PUSHED_COMMIT_READERS).
   [
     "pr-unblock.yml",
     "address-feedback",
@@ -2338,6 +2344,8 @@ const APPLY_GATE = {
 // address-feedback's empty patch is a round whose every reply needs no fix,
 // and review-dependency's one whose verdict needs none.
 // resolve-conflicts's empty patch leaves the conflicts unresolved.
+// The push jobs whose pushed-commit report-escalation passes its gate.
+const PUSHED_COMMIT_READERS = new Set(["apply-feedback-patch"]);
 const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false, "resolve-conflicts": true };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
 // The read runner output each push job reads per input: the scan job's alone,
@@ -2512,8 +2520,14 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
       assert.ok(escalation.needs.includes(applyId));
     } else {
       for (const id of [firstId, subId, fallbackId, applyId]) {
+        const reads = [...JSON.stringify(escalation).matchAll(new RegExp(`needs\\.${id}\\.([\\w.-]+)`, "g"))].map((m) => m[1]);
+        if (id === applyId && PUSHED_COMMIT_READERS.has(applyId)) {
+          assert.ok(escalation.needs.includes(id), `report-escalation needs ${id} for its pushed commit`);
+          assert.deepEqual([...new Set(reads)], ["outputs.pushed-commit"], `report-escalation reads only ${id}'s pushed-commit`);
+          continue;
+        }
         assert.ok(!escalation.needs.includes(id), `report-escalation does not need ${id}`);
-        assert.doesNotMatch(JSON.stringify(escalation), new RegExp(`needs\\.${id}\\.`), `report-escalation reads no ${id} output`);
+        assert.deepEqual(reads, [], `report-escalation reads no ${id} output`);
       }
     }
   });
@@ -4704,7 +4718,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 // anything else a model call reports; the subscription call starts on
 // address-feedback-handoff's read and reads none.
 const MODEL_CALL_READS = {
-  "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "apply-feedback-patch": ["feedback-attempt", "feedback-sha256", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
   // The scanned replies' attempt, SHA-256 and INCORRECT flag, never a run job output.
   "adjudicate-feedback": ["feedback-attempt", "feedback-disputed", "feedback-sha256"],
@@ -4988,6 +5002,11 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(apply["patch-threads-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   assert.equal(apply["patch-threads-sha256"], "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
   assert.equal(apply["patch-fix-requested"], "${{ needs.address-feedback-select.outputs.fix-requested }}");
+  // The push names the threads the same leg's scanned replies fix, the replies the reply job reads.
+  assert.equal(apply["patch-replies-attempt"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}");
+  assert.equal(apply["patch-replies-sha256"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}");
+  assert.equal(apply["patch-replies-attempt"], jobs["publish-feedback"].with["review-replies-attempt"]);
+  assert.equal(apply["patch-replies-sha256"], jobs["publish-feedback"].with["review-replies-sha256"]);
   // The adjudicator stages the select job's threads at the select job's head.
   const prepare = jobs["adjudicate-feedback"].steps.find((step) => step.id === "prepare").env;
   assert.equal(prepare.HEAD_SHA, SELECT_HEAD);
@@ -5001,6 +5020,12 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
     evaluate(publish["expected-upstream-head"], { "inputs.dispatcher-run-id": dispatcher, "needs.address-feedback-select.outputs.head-sha": "e".repeat(40) });
   assert.equal(upstream("39000000001"), "e".repeat(40));
   assert.equal(upstream(""), "", "a human dispatch passes none");
+  // The reply job's gate accepts only the commit the push job pushed after that head.
+  const pushed = (dispatcher, commit) =>
+    evaluate(publish["pushed-commit"], { "inputs.dispatcher-run-id": dispatcher, "needs.apply-feedback-patch.outputs.pushed-commit": commit });
+  assert.equal(pushed("39000000001", "f".repeat(40)), "f".repeat(40));
+  assert.equal(pushed("39000000001", ""), "", "no push passes none");
+  assert.equal(pushed("", "f".repeat(40)), "", "a human dispatch passes none");
   // The read runner's feedback-attempt and scan-* outputs come from its scan job alone.
   const read = workflow("pr-run-activity-read.yml");
   assert.equal(read.on.workflow_call.outputs["feedback-attempt"].value, "${{ jobs.scan.outputs.feedback-attempt }}");
@@ -5012,7 +5037,8 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   // report-escalation takes the select job's escalation and head, never a model call's.
   const escalation = jobs["report-escalation"];
   assert.ok(escalation.needs.includes("address-feedback-select"));
-  assert.ok(!escalation.needs.includes("address-feedback") && !escalation.needs.includes("apply-feedback-patch"));
+  assert.ok(!escalation.needs.includes("address-feedback"));
+  assert.ok(escalation.needs.includes("apply-feedback-patch"), "for its pushed commit alone");
   const head = (dispatcher) =>
     evaluate(escalation.with["expected-upstream-head"], {
       "inputs.activity": "address-feedback",
@@ -5021,6 +5047,27 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
     });
   assert.equal(head("39000000001"), "e".repeat(40));
   assert.equal(head(""), "");
+  const pushedHead = (activity, dispatcher) =>
+    evaluate(escalation.with["pushed-commit"], {
+      "inputs.activity": activity,
+      "inputs.dispatcher-run-id": dispatcher,
+      "needs.apply-feedback-patch.outputs.pushed-commit": "f".repeat(40),
+    });
+  assert.equal(pushedHead("address-feedback", "39000000001"), "f".repeat(40));
+  assert.equal(pushedHead("address-feedback", ""), "", "a human dispatch passes none");
+  assert.equal(pushedHead("fix-ci", "39000000001"), "", "another activity passes none");
+});
+
+test("pr-run-activity-write.yml: pushed-commit leaves only from the base script step and reaches only the trigger gate", () => {
+  const write = workflow("pr-run-activity-write.yml");
+  assert.equal(write.on.workflow_call.outputs["pushed-commit"].value, "${{ jobs.run.outputs.pushed-commit }}");
+  assert.equal(write.jobs.run.outputs["pushed-commit"], "${{ steps.act-script.outputs.commit }}");
+  const steps = write.jobs.run.steps;
+  const gate = steps.find((step) => step.id === "gate");
+  assert.equal(gate.with["pushed-commit"], "${{ inputs.pushed-commit }}");
+  assert.equal(gate.with["expected-upstream-head"], "${{ inputs.expected-upstream-head }}");
+  const readers = steps.filter((step) => JSON.stringify(step).includes("inputs.pushed-commit")).map((step) => step.id);
+  assert.deepEqual(readers, ["gate"], "the broker request does not send it until the broker takes it");
 });
 
 test("pr-unblock.yml: the select job runs only base code with a read-only token and uploads the context only on proceed", () => {
@@ -5291,6 +5338,41 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   assert.deepEqual(runCheck(digest), { status: 0, output: `file=${file}\n` });
   assert.deepEqual(runCheck("0".repeat(64)), { status: 1, output: "" });
   assert.deepEqual(runCheck(""), { status: 1, output: "" });
+});
+
+test("pr-run-activity-write.yml: apply-patch under the review-threads row reads the scanned replies, checked against their SHA-256 before the mint", (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const download = steps[at("Download the scanned replies for the patch")];
+  const check = steps[at("Check the scanned replies for the patch")];
+  // The name the read runner's scan job uploads under (feedback-upload).
+  assert.equal(download.with.name, "feedback-replies-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-replies-attempt }}");
+  assert.ok(at("Check the scanned replies for the patch") < at("Request the lane token"));
+  const context = (prepare) => ({ "steps.config.outputs.applies": "true", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": prepare });
+  for (const step of [download, check]) {
+    assert.equal(evaluate(step.if, context("review-threads")), true);
+    assert.equal(evaluate(step.if, context("ci-context")), false);
+    assert.equal(evaluate(step.if, context("")), false);
+  }
+  assert.equal(steps.find((s) => s.id === "act-script").env.PATCH_REPLIES_FILE, "${{ steps.patch-replies.outputs.file }}");
+  const dir = tempDir("patch-replies-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "replies.jsonl");
+  const runCheck = (text, sha) => {
+    writeFileSync(file, text);
+    const out = join(dir, "out");
+    writeFileSync(out, "");
+    const result = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: out, REPLIES_FILE: file, REPLIES_SHA256: sha } });
+    return { status: result.status, output: readFileSync(out, "utf8") };
+  };
+  const text = '{"thread":"PRRT_a"}\n';
+  const digest = createHash("sha256").update(text).digest("hex");
+  assert.deepEqual(runCheck(text, digest), { status: 0, output: `file=${file}\n` });
+  assert.deepEqual(runCheck(text, "0".repeat(64)), { status: 1, output: "" });
+  assert.deepEqual(runCheck(text, ""), { status: 1, output: "" });
+  // Over replies.jsonl's 49152-byte cap.
+  const big = "x".repeat(49153);
+  assert.deepEqual(runCheck(big, createHash("sha256").update(big).digest("hex")), { status: 1, output: "" });
 });
 
 // S&C 7.2 finding 2, carried into review-dependency: no patch applies
@@ -6770,4 +6852,142 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
   // and one each in ten other workflows.
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
+});
+
+// --- lane transcripts: every model leg keeps its transcript, sealed ---
+
+// The read runner's model job uploads nothing (the test above). The write
+// runner's skill job holds id-token: write while the skill can rewrite any
+// file a later step would run, so no step runs staged code after it there.
+// The mutation audit's mutants run as the runner user and can rewrite code a
+// later step in that job runs, so an upload there would run tampered code
+// holding the runtime token; the token scan there runs with an empty env and
+// absolute paths for the same reason.
+const TRANSCRIPT_EXEMPT = new Set([
+  "pr-run-activity-read.yml#run",
+  "pr-run-activity-write.yml#run",
+  "post-merge-test-mutation.yml#audit",
+]);
+const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
+const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
+
+test("every model leg is followed by a sealed transcript upload of its own execution file, under a job id unique in its workflow", () => {
+  let legs = 0;
+  for (const file of workflowFiles()) {
+    const ids = new Map();
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const uploads = steps.filter(isTranscriptUpload);
+      if (TRANSCRIPT_EXEMPT.has(`${file}#${jobId}`)) {
+        assert.deepEqual(uploads, [], `${file}#${jobId}: exempt, so it uploads no transcript`);
+        continue;
+      }
+      for (const [at, step] of steps.entries()) {
+        if (!isLauncher(step)) continue;
+        legs++;
+        const output = new RegExp(`steps\\.${step.id}\\.outputs\\.execution[-_]file`);
+        const upload = steps.slice(at + 1).find((s) => isTranscriptUpload(s) && output.test(s.with?.["execution-file"] ?? ""));
+        assert.ok(upload, `${file}#${jobId} ${step.id}: no transcript upload reads its execution file`);
+        assert.equal(upload.with["public-key"], "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}", `${file}#${jobId} ${step.id}`);
+        assert.match(String(upload.if), /^always\(\)/, `${file}#${jobId} ${step.id}: runs after a failed leg`);
+        assert.equal(upload["continue-on-error"], true, `${file}#${jobId} ${step.id}: never changes the lane's outcome`);
+      }
+      for (const upload of uploads) {
+        const key = upload.with["job-id"].replaceAll("${{ github.job }}", jobId);
+        assert.ok(!ids.has(key), `${file}: job-id ${key} is in ${ids.get(key)} and ${jobId}`);
+        ids.set(key, jobId);
+        if (job.strategy?.matrix) assert.match(key, /matrix\./, `${file}#${jobId}: a matrix job's job-id names its matrix value`);
+      }
+    }
+  }
+  assert.ok(legs >= 13, `only ${legs} model legs found`);
+});
+
+// request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
+// token, so nothing after it may run on success() alone: every later step is
+// gated, a step that reads the token runs only when it is set, and a job that
+// needs the stopped job's success and reads none of its outputs also needs its
+// skip output empty (an output only a token step sets already stops it). A
+// reusable workflow's caller job stands for its job, so the same holds for
+// the caller's dependents, through the skip output the workflow exposes.
+test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
+  const callers = [];
+  const dependents = (name, jobs, id, skip) => {
+    for (const [otherId, other] of Object.entries(jobs)) {
+      const needs = [other.needs ?? []].flat();
+      const cond = String(other.if ?? "");
+      if (!needs.includes(id) || !cond.includes(`needs.${id}.result == 'success'`)) continue;
+      if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
+      assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
+      assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+    }
+  };
+  const names = readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f));
+  for (const name of names) {
+    const parsed = workflow(name);
+    const { jobs } = parsed;
+    for (const [id, job] of Object.entries(jobs ?? {})) {
+      const steps = job.steps ?? [];
+      // A literal true, or an expression that may render it.
+      const at = steps.findIndex((step) => step.with?.["kill-switch-ok"] === true || String(step.with?.["kill-switch-ok"] ?? "").includes("${{"));
+      if (at === -1) continue;
+      callers.push(`${name}:${id}`);
+      const tokenId = steps[at].id;
+      assert.ok(tokenId, `${name}:${id}: the token step has an id`);
+      const tokenRef = `steps.${tokenId}.outputs.token`;
+      for (const step of steps.slice(at + 1)) {
+        const where = `${name}:${id}: "${step.name}"`;
+        assert.equal(typeof step.if, "string", `${where} has an if:, so it never runs on success() alone`);
+        if (JSON.stringify({ env: step.env, with: step.with, run: step.run }).includes(tokenRef)) {
+          assert.ok(step.if.includes(`${tokenRef} != ''`), `${where} reads the token only when it is set`);
+        }
+      }
+      const [skip] = Object.entries(job.outputs ?? {}).find(([, value]) => value.includes(`steps.${tokenId}.outputs.skip-reason`)) ?? [];
+      dependents(name, jobs, id, skip);
+      const called = parsed.on?.workflow_call;
+      if (!called) continue;
+      const [callSkip] = Object.entries(called.outputs ?? {}).find(([, output]) => String(output.value).includes(`jobs.${id}.outputs.${skip}`)) ?? [];
+      for (const caller of names) {
+        const callerJobs = workflow(caller).jobs ?? {};
+        for (const [callerId, callerJob] of Object.entries(callerJobs)) {
+          if (String(callerJob.uses ?? "").split(" ")[0] !== `./.github/workflows/${name}`) continue;
+          callers.push(`${caller}:${callerId} -> ${name}`);
+          dependents(caller, callerJobs, callerId, callSkip);
+        }
+      }
+    }
+  }
+  assert.deepEqual(callers.sort(), [
+    "intake-triage.yml:apply-refinement",
+    "intake-triage.yml:apply-verdict",
+    "pr-merge.yml:enable-auto-merge",
+    "pr-merge.yml:merge",
+    "pr-refine.yml:apply-docs-patch -> pr-run-activity-write.yml",
+    "pr-run-activity-write.yml:run",
+    "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
+    "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
+    "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:apply-issue-patch -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-outcome -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
+  ].sort());
+});
+
+// work-unblock re-fires an issue from the failed mint step, and no
+// dispatcher re-fires report-escalation, so only a pull request run of any
+// other activity ends a kill-switch refusal green; those two stay red.
+test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only, never for report-escalation", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-token");
+  const value = step.with["kill-switch-ok"];
+  const at = (issue, activity) => evaluate(value, { "inputs.issue-number": issue, "inputs.activity": activity });
+  assert.equal(at("", "publish-feedback"), true, "a pull request run skips");
+  assert.equal(at("7", "apply-issue-patch"), false, "an issue run stays red");
+  assert.equal(at("", "report-escalation"), false, "an escalation stays red");
+  const { jobs } = workflow("pr-unblock.yml");
+  assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
 });

@@ -66,7 +66,11 @@ because under the launcher's subprocess env scrub the CLI starts in the default 
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
-unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
+unattended runs. A host run on 2026-10-28 (Claude Code 2.1.312,
+[probe record](plugins/session-flow/skills/continue-in-background/reference/denial-probe.md))
+launched `claude --bg --permission-mode auto` without that flag: one classifier denial came back
+to the session as a tool error and it went on to its next step. What a `--bg` lane does with the
+flag is still unverified. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push
 credentials. On a long run, keep the task list in a file and tick it as you go, so the work
 survives a compaction: read the file, not the scrollback. End with four headings: Needs you (only what the
@@ -79,6 +83,10 @@ your recommendation and report it; do not ask for approval.
 ## Org architecture
 
 Org architecture (cross-repo decisions, glossary, why each trust link exists): private repo `melodic-software/architecture`; repo map: `gh api orgs/melodic-software/properties/values` (system and role per repo). Read it before cross-repo or infrastructure changes: `gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/architecture/contents/<path>`; on Claude Code on the web, attach it at session start; in CI, check it out with a read-only App token. If you need it and cannot read it, say so instead of guessing its contents; tasks that don't need it continue.
+
+## Driving this repository's skills
+
+To run a skill here and record evidence, use `/app-control:drive claude-code-plugins <plugin>/<skill>`; its control skill is `.claude/skills/control-claude-code-plugins/`.
 
 ## Team standards
 

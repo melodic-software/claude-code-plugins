@@ -1,0 +1,59 @@
+# The part of each ui_*.js beside this file: one "<suite> <part>" per line, and ui-<part>.test.sh runs the
+# part through ui-run.sh, which fails when a ui_*.js is in no part or in two. A part is one letter. The parts
+# are balanced on their estimated wall from ui-timings.txt at 6 jobs: each of the three slowest suites leads its
+# own part, the SERIAL suites (ui_snappy, ui_telemetry) share part c with no suite over 100 s, and the suites
+# ui-timings.txt does not list are spread across the three, most in part a, whose ui_presence outlasts the rest
+# of its part. Keep each part's scripts/suite-seconds.txt
+# entry at or under 245 s: half the 490 s a test-bash leg has for its suites after setup, under its 540 s cap.
+ui_presence.js a
+ui_chat.js a
+ui_inputs.js a
+ui_lists.js a
+ui_inbox.js a
+ui_uploads.js a
+ui_moderation.js a
+ui_merge.js a
+ui_report.js a
+ui_clientlog.js a
+ui_advance.js a
+ui_claude_proposals.js a
+ui_myreports.js a
+ui_proto_live.js a
+ui_reflinks.js a
+ui_speech.js a
+ui_welcome.js a
+ui_avatars.js a
+ui_move.js a
+ui_layout.js b
+ui_composer.js b
+ui_formats.js b
+ui_contrast.js b
+ui_keyboard.js b
+ui_chat_history.js b
+ui_kbreadout.js b
+ui_general.js b
+ui_reactions.js b
+ui_phone.js b
+ui_askbox.js b
+ui_gifs.js b
+ui_per_device.js b
+ui_proto_versions.js b
+ui_reopen.js b
+ui_surfaces.js b
+ui_presence_dots.js c
+ui_acceptance.js c
+ui_attach_paste.js c
+ui_question_layout.js c
+ui_inbox_page.js c
+ui_journey.js c
+ui_connect.js c
+ui_proto.js c
+ui_discussion.js c
+ui_run_all.js c
+ui_personal_link.js c
+ui_snappy.js c
+ui_telemetry.js c
+ui_pictures_display.js c
+ui_rail_header.js c
+ui_review.js c
+ui_took_part.js c

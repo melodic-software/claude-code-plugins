@@ -1,5 +1,41 @@
 # Changelog: discovery plugin
 
+## [0.39.8] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.39.7] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+## [0.39.6] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+## [0.39.5] - 2026-10-29
+
+### Changed
+
+- **`blindspot`, `explore`, `research` and `trace-intent` cite the gather-block convention.** The
+  dated record for why git reads stay out of the pre-compute block now links the repository's
+  gather-block convention, at the same heading, instead of a reference file inside the
+  source-control plugin's worktree skill.
+
+### Fixed
+
+- **`research-sweep` holds `applies_to` to the grammar criterion 13 parses.** Every `applies_to`
+  field in the read, consolidate and synthesis schemas now carries the grammar as a `pattern`, and
+  the workflow checks each surviving finding and source against the same grammar as
+  `check-source-applicability.py`. For a free-text value, the workflow asks the synthesizer once
+  more and names the grammar. A value that still fails is recorded `unstated`, and its text goes to
+  the finding's qualifiers, so free text no longer reaches the artifact.
+
 ## [0.39.4] - 2026-10-27
 
 ### Changed

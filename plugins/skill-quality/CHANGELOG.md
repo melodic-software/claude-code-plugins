@@ -3,6 +3,20 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.11] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.31.10] - 2026-10-29
+
+### Changed
+
+- `CHECK_SKILL_SKIP_SCRIPT_TESTS=1` skips check 7, the skill's `scripts/*.test.sh`, with a note
+
+  The repository's `scripts/check-affected.sh` sets it without `--tests`, so the pre-push hook's lint tier no longer runs a changed skill's script suites; the test tier and CI's test lanes still run them. On a babysit-prs change that was `engine.test.sh`, most of the hook's time.
+
 ## [0.31.9] - 2026-10-27
 
 ### Changed

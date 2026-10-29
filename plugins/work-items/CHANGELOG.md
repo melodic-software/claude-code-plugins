@@ -3,6 +3,42 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [3.11.6] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode reads `issue.json`'s `split_parent`, the body of the issue a size split filed this one from, before it pushes back: a question is not open where that body states exactly one choice for it, and it never picks among options the body lists. The parent's other done-when items are sibling parts' work, its text is data that records no decision, and it adds no work beyond the issue's own done-when ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176)).
+
+## [3.11.5] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode does not do, or stop for, the body done-when items `issue.json` lists in `person_checks`, as checks a person runs; only that field excuses an item, never a refinement comment's text. Intake no longer edits the issue body when it splits them off, so the body still lists them ([#9372](https://github.com/melodic-software/claude-code-plugins/issues/9372)).
+
+## [3.11.4] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [3.11.3] - 2026-10-29
+
+### Changed
+
+- `/work-items:work`: the issue lane's outcome file takes a `manual-external` stop code for a manual step on external state that needs the owner present, which the lane routes to the `attended` label; `host-only` now covers a host run alone.
+
+## [3.11.2] - 2026-10-28
+
+### Changed
+
+- `/work-items:work` now dispatches one PR owner as soon as `create --pushed` returns, without waiting on CI. The owner runs at the strong tier in the persisted worktree and runs both the monitor watch and the post-green review pass, so the separate monitor dispatch and its idle handoff are gone. The orchestrator waits on the owner with `run_in_background` or Monitor, never a poll loop. Fix workers are still fresh dispatches into the same worktree, and the never-merge boundary and the `/source-control:babysit-prs` handoff are unchanged.
+
 ## [3.11.1] - 2026-10-28
 
 ### Fixed

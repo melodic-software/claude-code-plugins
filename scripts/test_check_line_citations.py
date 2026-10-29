@@ -75,6 +75,9 @@ class Fires(unittest.TestCase):
     def test_later_item_of_a_list_past_end(self):
         self.assert_fires("See `src/ten.py:2-3,9-40`.\n")
 
+    def test_eval_file_outside_samples(self):
+        self.assert_fires("`src/ten.py:99`\n", "plugins/x/evals/cases/one.md")
+
     def test_path_relative_to_citing_file(self):
         self.assert_fires("See `../ten.py:99`.\n", "src/docs/guide.md")
 
@@ -126,6 +129,12 @@ class StaysQuiet(unittest.TestCase):
         self.assert_quiet("- Fixed `src/ten.py:99`.\n", "plugins/x/CHANGELOG.md")
         self.assert_quiet("Cut `src/ten.py:99`.\n", "docs/upstream/x.md")
         self.assert_quiet("- Fixed `src/ten.py:99`.\n", ".changes/testing/x.md")
+
+    def test_recorded_eval_sample(self):
+        self.assert_quiet(
+            "| Load | `src/ten.py:1-40` |\n",
+            "plugins/x/evals/labels/T4/samples/run1.md",
+        )
 
     def test_line_inside_the_longer_of_two_candidates(self):
         # `ten.py` resolves at the root (2 lines) and beside the citing file (10).

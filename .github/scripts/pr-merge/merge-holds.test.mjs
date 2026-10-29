@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, COMMENT_EDITED_QUERY, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, evidenceHold, laneChange, linkHold, main, pathHold, sameNetChange, unranHead } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "owner/repo";
@@ -100,12 +100,21 @@ function world({
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
   const github = async (method, path, body) => {
-    if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") {
-      reads.push("activity");
-      if (fail === "activity") {
+    // The activity API pages by the `after` cursor its Link header names,
+    // 100 entries a page; it ignores `page`.
+    const moves = /^\/repos\/owner\/repo\/activity\?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100(?:&after=c([0-9]+))?$/.exec(path);
+    if (moves) {
+      const page = Number(moves[1] ?? 1);
+      reads.push(page === 1 ? "activity" : `activity ${page}`);
+      if (fail === (page === 1 ? "activity" : `activity ${page}`)) {
         throw new Error("activity failed");
       }
-      return activity;
+      if (!Array.isArray(activity)) {
+        return activity;
+      }
+      const rows = activity.slice((page - 1) * 100, page * 100);
+      const link = activity.length > page * 100 ? `<https://api.github.com/repositories/1/activity?per_page=100&after=c${page + 1}>; rel="next"` : null;
+      return Object.defineProperty(rows, Symbol.for("github.link"), { value: link });
     }
     // The base branch resolves to TIP; a merged parent against it, of
     // which MAIN is in the base.
@@ -401,8 +410,6 @@ const FLOOR_FILES = [
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
-  ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-merge.yml",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
@@ -748,15 +755,72 @@ test("a head pushed between the decided head and the decision with no run of eve
   // gap before the decision still keeps the hold.
   const back = history(push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T12:30:00Z"));
   assert.equal((await carried([], back, { head: OLD })).link, null);
-  // A history that shows no push of the decided head before the decision, a
-  // full page that may not reach it, or a read that fails keeps the hold.
+  // A history that shows no push of the decided head before the decision, or
+  // a read that fails, keeps the hold.
   assert.equal((await carried(both, [push(NEW, "2026-10-22T11:10:00Z")])).link, null);
   assert.equal((await carried(both, [push(OLD, "2026-10-22T12:30:00Z")])).link, null);
-  const full = newestFirst([...Array.from({ length: 99 }, (_, i) => push(NEW, new Date(Date.parse("2026-10-22T12:10:00Z") + i * 1000).toISOString())), push(OLD, "2026-10-22T10:25:00Z")]);
-  assert.equal((await carried(both, full)).link, null);
-  assert.equal((await carried(both, full.slice(1))).link, LINK);
   assert.equal((await carried(both, history(), { fail: "activity" })).link, null);
   assert.equal((await carried(both, { message: "Not Found" })).link, null);
+});
+
+// A branch name recreated for each sync (chore/standards-sync, #10990) keeps
+// its whole history in the activity API, so the decided head's push can sit
+// past the first page of 100.
+test("the head branch's push history is read past its first page", async () => {
+  const NEW = "1111111111111111111111111111111111111111";
+  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
+  const carried = (activity, options = {}) => decide(undefined, { runs: [laneRun(OLD)], compares: same, activity, ...options });
+  // 149 pushes after the decision, then the decided head: 150 entries.
+  const after = Array.from({ length: 149 }, (_, i) => push(NEW, new Date(Date.parse("2026-10-22T12:10:00Z") + i * 1000).toISOString()));
+  const long = newestFirst([...after, push(OLD, "2026-10-22T10:25:00Z")]);
+  const kept = await carried(long);
+  assert.equal(kept.link, LINK);
+  assert.deepEqual(kept.reads.filter((read) => read.startsWith("activity")), ["activity", "activity 2"]);
+  // A push with no lane run between the decided head and the decision, as
+  // entry 119, on the second page, keeps the hold.
+  const gap = newestFirst([...after.slice(0, 118), push(NEW, "2026-10-22T11:10:00Z"), push(OLD, "2026-10-22T10:25:00Z")]);
+  assert.equal(gap[118].timestamp, "2026-10-22T11:10:00Z");
+  assert.equal((await carried(gap)).link, null);
+  // A read that fails on the second page keeps the hold.
+  assert.equal((await carried(long, { fail: "activity 2" })).link, null);
+});
+
+test("branchActivity follows the Link cursor, and fails closed on a bad page or cursor", async () => {
+  const LINKED = Symbol.for("github.link");
+  const page = (rows, next) => Object.defineProperty(rows, LINKED, { value: next === undefined ? null : `<https://api.github.com/repositories/1/activity?after=${next}>; rel="next", <https://api.github.com/x?before=z>; rel="prev"` });
+  const reader = (answers) => {
+    const paths = [];
+    const read = async (_method, path) => {
+      paths.push(path);
+      const answer = answers[paths.length - 1];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    };
+    return { read, paths };
+  };
+  // A full page of 100 entries, ids from `from`.
+  const full = (from = 0) => Array.from({ length: 100 }, (_, i) => ({ id: from + i }));
+  const first = "/repos/o/r/activity?ref=refs%2Fheads%2Fchore%2Fstandards-sync&direction=desc&per_page=100";
+  // The cursor is passed on as the link spells it; a short page ends the read.
+  const two = reader([page(full(), "Y3Vy%2Bc29y"), page([{ id: 100 }])]);
+  assert.deepEqual(await holdsModule.branchActivity(two.read, "o/r", "chore/standards-sync"), [...full(), { id: 100 }]);
+  assert.deepEqual(two.paths, [first, `${first}&after=Y3Vy%2Bc29y`]);
+  // A full page with no next link may not be the end.
+  await assert.rejects(holdsModule.branchActivity(reader([page(full())]).read, "o/r", "b"), /full page with no next link/);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(100))]).read, "o/r", "b"), /full page with no next link/);
+  // A later page that is no list is unreadable, as unranHead names it.
+  assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), { message: "Not Found" }]).read, "o/r", "b"), null);
+  assert.equal(await holdsModule.branchActivity(reader([page(full(), "a"), null]).read, "o/r", "b"), null);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), new Error("502")]).read, "o/r", "b"), /502/);
+  // A next link with no cursor, or one repeating a cursor, would loop.
+  await assert.rejects(holdsModule.branchActivity(reader([Object.defineProperty(full(), LINKED, { value: '<https://api.github.com/x>; rel="next"' })]).read, "o/r", "b"), /no new page/);
+  await assert.rejects(holdsModule.branchActivity(reader([page(full(), "a"), page(full(), "a")]).read, "o/r", "b"), /no new page/);
+  // Twenty pages are read; a twenty-first is refused.
+  const twenty = reader(Array.from({ length: 20 }, (_, i) => (i < 19 ? page(full(i * 100), `c${i}`) : page([{ id: 1900 }]))));
+  assert.equal((await holdsModule.branchActivity(twenty.read, "o/r", "b")).length, 1901);
+  const more = reader(Array.from({ length: 21 }, (_, i) => page(full(i * 100), `c${i}`)));
+  await assert.rejects(holdsModule.branchActivity(more.read, "o/r", "b"), /runs past 20 pages/);
+  assert.equal(more.paths.length, 20);
 });
 
 test("unranHead names the first head pushed after the decided head with no run of every lane", () => {
@@ -962,6 +1026,20 @@ const BASE_DOC = { filename: "docs/base.md", status: "modified", patch: "@@ -1 +
 const brought = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MAIN }, { sha: HEAD }], total_commits: 2, ...extra });
 const baseRange = (files = [BASE_DOC], extra = {}) => ({ status: "ahead", behind_by: 0, files, commits: [{ sha: MB_HEAD }], total_commits: 1, ...extra });
 const ranges = (merges = brought(), based = baseRange()) => ({ [`${OLD}...${HEAD}`]: merges, [`${MB_OLD}...${MB_HEAD}`]: based });
+// The owner's decision Q10 of 2026-10-28: an approval of OLD carries to HEAD
+// when the diff OLD...HEAD touches no hold path, whatever the commits since
+// are. Each case below fails the base-merge carry, but what OLD...HEAD
+// brought (its `across`: docs/base.md alone) touches no hold path and no
+// file a hold path loads, so the approval carries.
+const UNGATED_CARRIES = new Set([
+  "a base that changed a file the merges did not bring",
+  "a crafted merge whose second parent the base does not hold",
+  "a history longer than the compare lists",
+  "a merge after which the base holds one of the approved head's files",
+  "a merge of a branch other than the base",
+  "a merge whose parents are not commit objects",
+  "a non-merge commit after the approval",
+]);
 // A recursive tree answer: each entry [path, mode].
 const treeOf = (entries, extra = {}) => ({ truncated: false, tree: entries.map(([path, mode = "100644"]) => ({ path, mode, type: "blob", sha: "b".repeat(40) })), ...extra });
 const FILES_AT = [["docs/base.md"], [".github/actions/collect-base-activity/collect-base-activity.test.mjs"], [".github/actions/resolve-config/live-config.test.mjs"], ["scripts/helper.sh"], ["scripts/lib.mjs"]];
@@ -1087,6 +1165,11 @@ test("a label removal lifts no hold path", async () => {
   })) {
     const world = liftWorld(options);
     const run = await lifting(world);
+    if (UNGATED_CARRIES.has(name)) {
+      assert.equal(run.code, 0, `${name}: ${run.out}`);
+      assert.match(run.out, /which lifts its hold path/, name);
+      continue;
+    }
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
     assert.ok(!world.reads.some((path) => /\/(events|activity)\?/.test(path) || path.includes("/contents/.work-item")), `${name}: ${world.reads.join(" ")}`);
@@ -1132,6 +1215,11 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
     "a merge that also edits a file": { timeline: [STALE], compares: { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELD_PATCH, { ...HELPER, patch: "+evil" }]) }, across: ranges(brought([BASE_DOC, { ...HELPER, patch: "+evil" }])) },
   })) {
     const run = await lifting(liftWorld({ reviews: [DISMISSED_OLD], ...options }));
+    if (UNGATED_CARRIES.has(name)) {
+      assert.equal(run.code, 0, `${name}: ${run.out}`);
+      assert.match(run.out, /which lifts its hold path/, name);
+      continue;
+    }
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
   }
@@ -1193,6 +1281,11 @@ test("a merge that adds anything beyond the base's changes, or a range not read 
     "a dismissal with a message": { ...REPLAY, reviews: [DISMISSED_OLD], timeline: [stale({ dismissal_message: "stale" })] },
   })) {
     const run = await lifting(liftWorld(options));
+    if (UNGATED_CARRIES.has(name)) {
+      assert.equal(run.code, 0, `${name}: ${run.out}`);
+      assert.match(run.out, /which lifts its hold path/, name);
+      continue;
+    }
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
   }
@@ -1228,12 +1321,13 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
       compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
     },
     // A crafted merge commit (itself a merge of base commits) as the second parent.
-    "a merge whose second parent the base does not hold": {
+    "a crafted merge whose second parent the base does not hold": {
       compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: MAIN }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }, { sha: OTHER }] }], total_commits: 3 } },
     },
     "a merge whose parents are not commit objects": { compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [OLD, MAIN] }], total_commits: 2 } } },
     "a force push that rewrites the approved head": {
       compares: { [OLD]: atOld(), [HEAD]: { files: [HELD_PATCH], commits: [{ sha: "6".repeat(40), parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: "6".repeat(40) }, { sha: MAIN }] }], total_commits: 2 } },
+      across: ranges(brought([BASE_DOC], { status: "diverged", behind_by: 1 })),
     },
     "a history longer than the compare lists": { compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), total_commits: 251 } } },
     "a head in a fork": { fork: true },
@@ -1252,6 +1346,11 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
   };
   for (const [name, options] of Object.entries(cases)) {
     const run = await lifting(liftWorld(options));
+    if (UNGATED_CARRIES.has(name)) {
+      assert.equal(run.code, 0, `${name}: ${run.out}`);
+      assert.match(run.out, /which lifts its hold path/, name);
+      continue;
+    }
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
   }
@@ -1290,6 +1389,11 @@ test("the exact carry reads file modes from the trees, and a non-default base ca
     "an unreadable repository": { defaultBranch: null },
   })) {
     const run = await lifting(liftWorld(options));
+    if (UNGATED_CARRIES.has(name)) {
+      assert.equal(run.code, 0, `${name}: ${run.out}`);
+      assert.match(run.out, /which lifts its hold path/, name);
+      continue;
+    }
     assert.equal(run.code, 1, `${name}: ${run.out}`);
     assert.match(run.out, HOLD_REASON, name);
   }
@@ -1362,4 +1466,124 @@ test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly
   assert.deepEqual([...autoDismissed([STALE, { event: "reviewed" }, null])], [["41", HEAD]]);
   assert.deepEqual([...autoDismissed([STALE, stale({ dismissal_message: "x" })])], []);
   assert.deepEqual([...autoDismissed("not a list")], []);
+});
+
+// The owner's decision Q10 of 2026-10-28, verbatim in #10759: "go w/
+// recommendations". An approval of H0 stays valid at H1 when the diff H0...H1
+// touches no hold-path file; a push that touches one needs a new approval,
+// a test-only or comment-only edit included. The peer review of #10737 adds
+// the files hold paths load (REVIEW_FLOOR, CARRY_REFUSES).
+const H0 = "a".repeat(40);
+const H1 = "b".repeat(40);
+const pushed = (files, extra = {}) => ({ status: "ahead", behind_by: 0, files: files.map((filename) => ({ filename, status: "modified", patch: "+x" })), commits: [{ sha: H1 }], total_commits: 1, ...extra });
+const carriesQ10 = (merges, holdPaths = [], dismissal = null) => approvalCarry(null, null, H0, [], merges, null, dismissal, null, holdPaths);
+
+test("Q10: an approval carries over a push that touches no hold path", () => {
+  assert.equal(carriesQ10(pushed(["docs/a.md", "plugins/work-items/README.md"])), true);
+  assert.equal(carriesQ10(pushed(["docs/a.md"]), [], H1), true, "a stale dismissal by the push it checks");
+  // No hold paths read: this path does not run, and the base-merge path alone decides.
+  assert.equal(approvalCarry(null, null, H0, [], pushed(["docs/a.md"]), null, null, null), false);
+});
+
+test("Q10: a push that touches any hold path, a configured one or a file a hold path loads refuses", () => {
+  for (const [name, files, holdPaths] of [
+    ["a gated file", [".github/scripts/pr-merge/merge-holds.mjs"], []],
+    ["a test-only edit to a gated file's directory", [".github/scripts/pr-merge/merge-holds.test.mjs"], []],
+    ["a comment-only edit to a gated file", ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py"], []],
+    ["a rename off a gated file", ["docs/moved.md"], []],
+    ["a configured hold path", ["docs/conventions/held.md"], ["docs/conventions/**"]],
+    ["a helper a gated file imports", ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py"], []],
+    ["a script ci-status runs", ["scripts/check-stale-base-overlap.sh"], []],
+    ["an action a hold-path workflow uses", [".github/actions/report-check-run/report-check-run.mjs"], []],
+    ["a workflow", [".github/workflows/pr-review-hosted.yml"], []],
+  ]) {
+    const merges = pushed(files);
+    if (name === "a rename off a gated file") merges.files[0].previous_filename = ".github/actions/request-lane-token/action.yml";
+    assert.equal(carriesQ10(merges, holdPaths), false, name);
+    assert.equal(ungatedSince(merges, holdPaths), false, name);
+  }
+  assert.ok(CARRY_REFUSES.includes("scripts/**"));
+});
+
+test("Q10: a compare not read whole, not ahead, or with a dismissal the push did not make refuses", () => {
+  const many = Array.from({ length: 300 }, (_, i) => `docs/${i}.md`);
+  for (const [name, merges, dismissal] of [
+    ["an unreadable compare", null, null],
+    ["300 files listed", pushed(many), null],
+    ["a commit list cut short", pushed(["docs/a.md"], { total_commits: 251 }), null],
+    ["a diverged head", pushed(["docs/a.md"], { status: "diverged", behind_by: 1 }), null],
+    ["a file with no name", { ...pushed([]), files: [{ status: "modified" }] }, null],
+    ["a stale dismissal by another commit", pushed(["docs/a.md"]), "c".repeat(40)],
+  ]) {
+    assert.equal(carriesQ10(merges, [], dismissal), false, name);
+  }
+  assert.equal(carriesQ10(pushed(["docs/a.md"]), null), false, "unread hold paths");
+});
+
+// The queue holds select-tests checks before the lanes (#10747). Expected
+// reasons are ci-status's own error texts for the same holds: its hold-label
+// step's three label errors, its pr-unblock step's error and its lanes App
+// step's kill-switch error, which reconcile.test.mjs keys on.
+const QUEUED = "fedcba9876543210fedcba9876543210fedcba98";
+const queuedPull = (over = {}) => ({ number: 7, head: { sha: QUEUED }, labels: [], user: { id: 42, type: "User" }, ...over });
+const ON = { appId: "99", disabled: "false", repoDisabled: "false" };
+
+test("queueHolds: a pull request with no hold label, stop or switch passes", () => {
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [], tracker: null, lanes: ON }), []);
+});
+
+test("queueHolds: each hold label holds with ci-status's text", () => {
+  for (const [label, want] of [
+    ["do-not-merge", "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."],
+    ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
+    ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
+    ["human-merge-hold", "#7 carries 'human-merge-hold': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge."],
+  ]) {
+    assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }), statuses: [] }), [want], label);
+  }
+  assert.equal(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "do-not-merge" }, { name: "needs-human" }] }), statuses: [] }).length, 2);
+});
+
+test("queueHolds: the human-gated label is the tracker's, trimmed, else needs-human", () => {
+  const tracker = { config: { role_labels: { "human-gated": "  hitl " } } };
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "needs-human" }] }), statuses: [], tracker }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "hitl" }] }), statuses: [], tracker }), [
+    "#7 carries 'hitl'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.",
+  ]);
+  for (const blank of [{ config: { role_labels: { "human-gated": " " } } }, { config: {} }, [], "x", null]) {
+    assert.equal(holdsModule.humanGatedLabel(blank), "needs-human", JSON.stringify(blank));
+  }
+});
+
+test("queueHolds: a pr-unblock stop on the head holds; a newer success or another account's status does not", () => {
+  const lane = { login: "github-actions[bot]" };
+  const failure = { context: "pr-unblock/fix-ci", state: "failure", creator: lane, description: "The lane stopped" };
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [failure] }), [
+    `'pr-unblock/fix-ci' is failure on ${QUEUED}: The lane stopped. The lane that stopped clears it by running again on this head, or a new head carries none.`,
+  ]);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, state: "success" }, failure] }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, creator: { login: "someone" } }] }), []);
+});
+
+test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {
+  const app = { user: { id: 99, type: "Bot" } };
+  const text =
+    "#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.";
+  for (const [name, lanes] of [
+    ["on", { ...ON, disabled: "true" }],
+    ["repo on", { ...ON, repoDisabled: "1" }],
+    ["unset", { appId: "99" }],
+  ]) {
+    assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes }), [text], name);
+  }
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes: ON }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [], lanes: { appId: "99", disabled: "true" } }), [], "a person's");
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ user: { id: 99, type: "User" } }), statuses: [], lanes: { appId: "99" } }), [], "a User with the id");
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes: { appId: "", disabled: "true" } }), [], "no app id");
+});
+
+test("queueHolds: a pull request, label list or status list that does not read throws", () => {
+  assert.throws(() => holdsModule.queueHolds({ pull: { number: 7, head: {} }, statuses: [] }), /does not read/);
+  assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }), statuses: [] }), /labels are not a list/);
+  assert.throws(() => holdsModule.queueHolds({ pull: queuedPull(), statuses: {} }), /not a list/);
 });

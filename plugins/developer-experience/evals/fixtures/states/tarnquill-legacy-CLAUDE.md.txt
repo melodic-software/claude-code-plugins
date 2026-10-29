@@ -1,0 +1,4 @@
+# tarnquill project notes
+
+- The paging library is shared with the reporting service; keep `Paging` free of I/O.
+- Release builds come from `main` only.

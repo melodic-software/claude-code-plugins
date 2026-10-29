@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Note: `docs/conventions/education.yaml` sets `explain_starting_rung: expert`, which is not a valid value (plain or peer), so that layer is dropped.\n\nThink of a kitchen where the cook plates food faster than the waiter can carry it. Plates pile up until the waiter calls back to slow down. That call back is backpressure: the part that receives work tells the part that sends it to ease off.\n\nWhat it's actually doing: a message queue holds messages until a consumer takes them, and when the consumer falls behind, the queue makes the sender wait or refuse new messages instead of growing forever.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "file, key and value named as invalid"
+    },
+    {
+      "answer": "The repository sets explain_starting_rung to expert, which is unknown, so I ignored it.\n\nexplain_starting_rung: plain (default)",
+      "why": "repository wording"
+    },
+    {
+      "answer": "In `docs/conventions/education.yaml`, explain_starting_rung is `expert`, which isn't one of plain or peer, so that layer is dropped.\n\nexplain_starting_rung: plain (default)",
+      "why": "isn't-one-of wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Think of a kitchen where the cook plates food faster than the waiter can carry it. That call to slow down is backpressure.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "drops the value silently"
+    },
+    {
+      "answer": "Backpressure is a flow-control signal that slows producers when a consumer falls behind.\n\nexplain_starting_rung: expert (repository: docs/conventions/education.yaml)",
+      "why": "adopts the invalid value"
+    }
+  ]
+}

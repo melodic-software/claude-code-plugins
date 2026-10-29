@@ -247,8 +247,8 @@ if [[ "$n_marker" == 1 && "$cmd_lines" == 1 ]]; then
 else
   bad "documented wake command: marker x${n_marker:-0}, command lines $cmd_lines"
 fi
-add_out=$(bash "$here/round.sh" --dir "$d" add --id Q1 --short Store --title "Which store keeps the answers?" \
-  --rec "JSON files in the data dir." --commit none --alt "a:SQLite" --alt "b:One file per answer" 2>&1)
+printf '%s' '{"id": "Q1", "short": "Store", "title": "Which store keeps the answers?", "recommendation": "JSON files in the data dir.", "commits": [], "alternatives": [{"key": "a", "text": "SQLite"}, {"key": "b", "text": "One file per answer"}]}' >"$tmp/q1.json"
+add_out=$(bash "$here/round.sh" --dir "$d" add --file "$tmp/q1.json" 2>&1)
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
   -H 'Content-Type: application/json' --data '{"kind": "accept", "id": "Q1"}' \
   "http://127.0.0.1:$PORT/api/answer")

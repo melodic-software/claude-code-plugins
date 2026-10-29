@@ -34,7 +34,7 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 Arguments: `$ARGUMENTS`. `time_units` user layer for [`problem-framing.md`](../../context/problem-framing.md) "Time units": `${user_config.time_units}` (unexpanded means unset).
 
-Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `tunnel_hostname`: `${user_config.tunnel_hostname}`; `tunnel_token_file`: `${user_config.tunnel_token_file}` (empty means no named tunnel: a quick tunnel).
+Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `tunnel_hostname`: `${user_config.tunnel_hostname}`; `tunnel_token_file`: `${user_config.tunnel_token_file}`; `tunnel_api_token_file`: `${user_config.tunnel_api_token_file}` (an empty hostname means no named tunnel: a quick tunnel).
 
 ## Purpose
 

@@ -20,11 +20,15 @@
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
-//           record the reply job checks the replies against (runRecord). On a PR carrying the
+//           record the reply job checks the replies against, with the
+//           reviewed heads the threads were kept on (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none, unless a lane escalation put
-//           the label on and no review lane holds the PR (gate-source.mjs).
+//           the label on and no review lane holds the PR (gate-source.mjs),
+//           and on an adopted owner PR only as prHold lets fix-ci work it.
+//           On an adopted owner PR a body line starting `Hold:` skips
+//           awaiting-human.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -36,7 +40,7 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, laneHold, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
+import { commentItems, gateSource, laneHold, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 import { retryRung, stopSkip } from "./escalation-routes.mjs";
@@ -49,9 +53,18 @@ export const DEFAULT_MAX_ROUNDS = 2;
 // PR still drawing findings after it is not converging, and more rounds only
 // spend usage).
 export const FRESH_FIXER_ROUNDS = 1;
+// The fresh fixer round's brief, the thread file's `retry.brief`: fixed text,
+// never anything a head, a finding or a model wrote. The read runner adds it
+// to the skill's preamble (collect-base-activity).
+export const FRESH_ROUND_BRIEF =
+  "The lane's capped review rounds left these findings open, and this run is their one fresh fixer round before the lane stops. " +
+  "Fix each finding in the code it names. Never weaken, skip or delete a test, assertion or check to close a finding. " +
+  "A security finding rated IMPORTANT or above that this round leaves open goes to a person.";
 // How the round marker and the neutral checks show the count.
 export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
+// The activity select decides, as escalation-routes.json names it.
+const ACTIVITY = "address-feedback";
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =
@@ -99,22 +112,98 @@ const lastLine = (body) =>
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
+// The security-review lane's ratings, lowest first (security-review SKILL.md,
+// "Reporting": one `severity: <rating>` line per inline comment), and the
+// lowest one a person decides: this repository counts IMPORTANT as HIGH.
+export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
+export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
+// Any line shaped like a rating, wherever it sits; the lane's own line is
+// unindented, outside a fence, and the comment's first line or the last one
+// above its `claude-lane:` footer (blank lines skipped).
+const SEVERITY_SHAPED = /^[ \t>]*severity:/i;
+const SEVERITY_LINE = /^severity:[ \t]*([A-Za-z]+)[ \t]*$/i;
+const FENCE = /^[ \t]*(```|~~~)/;
+// A lane comment's one rating, upper-cased, or null (unrated, so a person
+// decides) unless the body holds exactly one rating-shaped line and it is the
+// lane's own: unindented, outside any fenced block, and the first non-blank
+// line or the last non-blank line above the lane footer. A rating quoted from
+// the pull request (fenced, indented, `>`-quoted or mid-body) never supplies
+// it, and any second rating-shaped line voids it.
+export function severityOf(body) {
+  const lines = String(body ?? "")
+    .split("\n")
+    .map((line) => line.replace(/\r$/, ""));
+  const content = [];
+  let fence = null;
+  for (const line of lines) {
+    const open = FENCE.exec(line)?.[1];
+    if (fence === null && open) {
+      fence = open;
+      content.push({ line, fenced: true });
+      continue;
+    }
+    if (fence !== null) {
+      if (open === fence) {
+        fence = null;
+      }
+      content.push({ line, fenced: true });
+      continue;
+    }
+    content.push({ line, fenced: false });
+  }
+  const shaped = content.filter(({ line }) => SEVERITY_SHAPED.test(line));
+  if (shaped.length !== 1 || shaped[0].fenced) {
+    return null;
+  }
+  const nonBlank = content.filter(({ line }) => line.trim() !== "");
+  const footer = nonBlank.length > 0 && laneOf(nonBlank.at(-1).line) !== null;
+  const positions = [nonBlank[0], footer ? nonBlank.at(-2) : undefined];
+  const match = positions.includes(shaped[0]) ? SEVERITY_LINE.exec(shaped[0].line) : null;
+  const rating = match?.[1].toUpperCase();
+  return SECURITY_SEVERITIES.includes(rating) ? rating : null;
+}
+// Whether a security-review lane comment is one a person decides: rated at or
+// above `floor` (SECURITY_PERSON_SEVERITY unless given), or with no rating it
+// can read (fail closed).
+export const securityNeedsPerson = (body, floor = SECURITY_PERSON_SEVERITY) => {
+  const severity = severityOf(body);
+  return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(floor);
+};
+
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
+const isDirected = (thread) => thread.comments.some((comment) => comment.direction === true);
 
 // Past the round cap, the threads only a person may still decide: a security
-// lane finding, a verifier note a trusted person directed, and a finding
-// whose lane no footer pr-review-cli appended names: only on a
+// lane finding rated at or above `floor` or unrated (securityNeedsPerson), a
+// verifier note or listed review bot's finding a trusted person directed, a
+// listed bot's finding on a head the security-review lane held as CRITICAL
+// (keepThreads' `security` state; the bot's own badge decides nothing), and a
+// finding whose lane no footer pr-review-cli appended names: only on a
 // github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
-// never model text. The code lane's finding and an undirected verifier note
-// go to a fresh fixer: a round cap is a lane bound, and pr-verify's FAIL
-// already holds the merge and judges the next head afresh.
-export const needsPerson = (thread, rootAuthorId) =>
-  isVerifierNote(thread)
-    ? thread.comments.some((comment) => comment.direction === true)
-    : rootAuthorId !== MARKER_AUTHOR_ID ||
-      thread.comments[0]?.author !== "reviewer" ||
-      laneOf(thread.comments[0].body) !== "claude-review";
+// never model text. A listed bot is matched on its account id (keepThreads'
+// `listed`, from pr-pipeline.yaml review-threads.reviewer-ids). The code
+// lane's finding, a listed bot's other findings, a security lane finding
+// rated below `floor` and an undirected verifier note go to a fresh fixer: a
+// round cap is a lane bound, and pr-verify's FAIL already holds the merge and
+// judges the next head afresh.
+export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERITY) => {
+  if (isVerifierNote(thread)) {
+    return isDirected(thread);
+  }
+  const root = thread.comments[0];
+  if (root?.author !== "reviewer") {
+    return true;
+  }
+  if (root.listed === true) {
+    return root.security === "held" || isDirected(thread);
+  }
+  if (rootAuthorId !== MARKER_AUTHOR_ID) {
+    return true;
+  }
+  const lane = laneOf(root.body);
+  return lane === "claude-security-review" ? securityNeedsPerson(root.body, floor) : lane !== "claude-review";
+};
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -536,6 +625,7 @@ export async function select({
   trustedHumans,
   humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
+  adoption = NO_ADOPTION,
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -545,25 +635,44 @@ export async function select({
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
+  // An owner PR whose body gained a `Hold:` line after dispatch is held, as
+  // feedback-dispatch.mjs ownerSkip holds it at dispatch.
+  const owner = ownerAuthored(pull, adoption);
+  if (owner && HOLD_LINE.test(String(pull.body ?? ""))) {
+    return { decision: "skip", skipReason: "awaiting-human", threads: [] };
+  }
   // The human-gated label holds the PR except for threads a trusted person
   // with write access asked the lane to fix, unless a lane escalation put it
-  // on and no review lane holds the PR (gate-source.mjs). The label stays on.
+  // on and no review lane holds the PR (gate-source.mjs). On an owner PR the
+  // lane escalation lets the round work only as it lets fix-ci work there
+  // (prHold): not after address-feedback's own escalation, nor once a person
+  // spoke after the label went on. The label stays on.
   const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-  const escalated =
+  const timeline = async () => [...commentItems(issueComments), ...(await api.listLabelEvents(pr))];
+  const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
+  const gated =
     labeled &&
-    gateSource({
-      timeline: [...commentItems(issueComments), ...(await api.listLabelEvents(pr))],
-      label: humanGatedLabel,
-      head: headSha,
-      isLanesApp: (user) => user?.id === appId && user?.type === "Bot",
-    }).source === "lane-escalation";
-  const gated = labeled && !escalated;
+    (owner
+      ? (
+          await prHold({
+            labels: pull.labels.map((label) => label.name),
+            holdLabels: [],
+            gateLabel: humanGatedLabel,
+            head: headSha,
+            activity: ACTIVITY,
+            appId,
+            readTimeline: timeline,
+            readReviews: async () => ({ comments: reviewComments, reviews }),
+          })
+        ).held
+      : gateSource({ timeline: await timeline(), label: humanGatedLabel, head: headSha, isLanesApp }).source !== "lane-escalation");
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const heads = reviewedHeads(issueComments);
   const kept = keepThreads({
     threads,
     reviewComments,
     reviews,
-    heads: reviewedHeads(issueComments),
+    heads,
     security: securitySignals(issueComments),
     reviewerId,
     reviewerIds,
@@ -574,14 +683,27 @@ export async function select({
   });
   // An unresolved thread the lane does not take (a reviewer it does not
   // trust, a review on an older head, a reply it already gave) would block
-  // the merge with no stop on record, so it ends in a failing status.
-  // With no hold and no unresolved thread left, every thread stop is gone
-  // on this head: `resolved` lets report-stop-status clear its status.
+  // the merge with no stop on record, so it ends in a failing status. A
+  // pr-verify FAIL's note from an older head is not one: a pass at this head
+  // resolves it (the pass-only round in main), and a failing status here
+  // would fail ci-status, which pr-verify waits on, so no pass could come.
+  // The note still holds the merge, which needs every thread resolved.
+  // With no hold and no other unresolved thread left, every thread stop is
+  // gone on this head: `resolved` lets report-stop-status clear its status.
   if (kept.length === 0) {
     if (gated) {
       return { decision: "skip", skipReason: "awaiting-human", threads: kept };
     }
-    return threads.some((thread) => thread.isResolved === false)
+    const stale = new Set(staleVerifyNotes(threads, headSha));
+    const untaken = threads.some((thread) => thread.isResolved === false && !stale.has(thread.id));
+    // On an adopted owner PR (ownerAuthored), a thread the lane does not take
+    // is the owner's (one they wrote, answered, or a lane answer the lanes App
+    // cannot resolve there), and so no stop: it still holds the merge until it
+    // is resolved. Any other person's PR still escalates.
+    if (untaken && owner) {
+      return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
       : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }
@@ -599,6 +721,7 @@ export async function select({
   // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
   const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
+  let retry;
   if (rounds >= maxRounds) {
     // Past the cap, a trusted person with write access who asked for a fix
     // after the newest round grants one more round, for the threads they
@@ -617,22 +740,32 @@ export async function select({
       }),
     );
     if (worked.length === 0) {
-      // Otherwise a thread only a person decides (needsPerson) still goes to
-      // one; every other finding goes to a fresh fixer: one more round, a
-      // new session like every round, reading only the thread file and the
-      // PR head. Once that round has run, no automatic round ever runs
-      // again, and the head fails: feedback-verifier-open when only verifier
-      // notes are left, feedback-not-converging otherwise. A PR a person
-      // gated also goes to a person: only a fresh fix request lifts their
-      // hold.
-      if (gated || kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
+      // Otherwise a PR a person gated goes to a person: only a fresh fix
+      // request lifts their hold. So does a thread only a person decides
+      // (needsPerson) short of a security finding rated IMPORTANT: that one
+      // is a code fix first. Every other finding goes to a fresh fixer: one
+      // more round with FRESH_ROUND_BRIEF, a new session like every round,
+      // reading only the thread file and the PR head. Once that round has
+      // run, no automatic round ever runs again: an IMPORTANT security
+      // finding it was given (opened by its end, `since`; an unreadable time
+      // counts as given) and left open goes to a person, and otherwise the
+      // head fails: feedback-verifier-open when only verifier notes are left,
+      // feedback-not-converging otherwise.
+      const rootOf = (thread) => rows.get(thread.root_comment_id);
+      const spent = rounds >= bound;
+      const given = (thread) => !(Date.parse(rootOf(thread)?.created_at ?? "") > since);
+      const holds = (thread) =>
+        needsPerson(thread, rootOf(thread)?.user?.id, SECURITY_SEVERITIES.at(-1)) ||
+        (spent && given(thread) && needsPerson(thread, rootOf(thread)?.user?.id));
+      if (gated || kept.some(holds)) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }
-      if (rounds >= bound) {
+      if (spent) {
         const escalationReason = kept.every(isVerifierNote) ? "feedback-verifier-open" : "feedback-not-converging";
         return { decision: "escalate", escalationReason, rounds, maxRounds: bound, threads: kept };
       }
       worked = kept;
+      retry = { brief: FRESH_ROUND_BRIEF };
     }
   }
   for (const thread of worked) {
@@ -649,17 +782,21 @@ export async function select({
     maxRounds: bound,
     // True drops the human-gated label from the write runner's holds: every
     // kept thread carries a write-access fix request, or a lane escalation
-    // put the label on.
+    // that lets this activity work put the label on.
     fixRequested: labeled,
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
+    reviewedHeads: [...heads].sort(),
   };
 }
 
-// run.json, as its bytes: the gated head and the kept threads with the comment
-// ids the model is shown, a pure function of the thread file. publish-feedback.mjs
-// checks the model's replies against it.
-export function runRecord(file) {
+// run.json, as its bytes: the gated head, the kept threads with the comment
+// ids the model is shown, and the reviewed heads they were kept on, a pure
+// function of the thread file and those heads. publish-feedback.mjs checks the
+// model's replies against it and re-reads the threads against those heads: a
+// review lane edits its one marker in place, so after the fix push it may name
+// only the fix head.
+export function runRecord(file, reviewedHeads) {
   const run = {
     version: 1,
     head_sha: file.head_sha,
@@ -671,12 +808,15 @@ export function runRecord(file) {
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
+    ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
   };
   return `${JSON.stringify(run)}\n`;
 }
 
-// The kept threads of a PR as they are now: the reply job's re-read.
-export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans }) {
+// The kept threads of a PR as they are now: the reply job's re-read, judged
+// against `heads` (the select job's reviewed heads) when given, else the
+// markers as they are now.
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -687,7 +827,7 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
   };
 }
 
@@ -705,6 +845,9 @@ const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!)
   }
 }`;
 
+const QUEUE_ENTRY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $pr) { id mergeQueueEntry { id } } }
+}`;
 const RESOLVE_MUTATION = `mutation($id: ID!) {
   resolveReviewThread(input: { threadId: $id }) { thread { isResolved } }
 }`;
@@ -728,6 +871,14 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
     }
   }
 }`;
+
+// The fetch a main run from the full base checkout hands createGitHubApi: each
+// attempt's rate-limit reading goes to the job-end api-calls notice
+// (rate-guard.mjs countRequests), and nothing else changes. It loads here, at
+// run time: publish-feedback.mjs and apply-dependency-verdict.mjs import this
+// module from a copy of this directory alone, which cannot reach .github/actions.
+export const countedFetch = async (fetchImpl = globalThis.fetch) =>
+  (await import("../../actions/log-api-budget/rate-guard.mjs")).countRequests(fetchImpl);
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
@@ -798,6 +949,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    // A commit's statuses, newest first (fix-ci-context.mjs weakenStopped).
+    listCommitStatuses: (sha) => paginate(`commits/${sha}/statuses`),
     // The repository activity for one ref, newest first (contents read).
     listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
     async listCheckRuns(sha, name) {
@@ -894,8 +1047,25 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async resolveThread(id) {
       return (await graphql(RESOLVE_MUTATION, { id })).resolveReviewThread.thread.isResolved;
     },
+    // The pull request's node id, and whether it sits in the merge queue.
+    async readQueueEntry(pr) {
+      const pull = (await graphql(QUEUE_ENTRY_QUERY, { owner, name, pr })).repository.pullRequest;
+      return { id: pull.id, queued: pull.mergeQueueEntry !== null };
+    },
+    async dequeuePull(id) {
+      await graphql("mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }", { id });
+    },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
+    },
+    async updateIssueComment(id, body) {
+      await request(`${repo}/issues/comments/${id}`, "PATCH", { body }, true);
+    },
+    async addLabels(pr, labels) {
+      await request(`${repo}/issues/${pr}/labels`, "POST", { labels }, true);
+    },
+    async removeLabel(pr, label) {
+      await request(`${repo}/issues/${pr}/labels/${encodeURIComponent(label)}`, "DELETE");
     },
     // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
@@ -983,6 +1153,39 @@ export function trustedHumansFrom(trustedActorsPath) {
   );
 }
 
+// No owner is adopted unless the base config's `adoption` section sets
+// idle-hours (pr-pipeline.yaml).
+export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
+
+// An owner PR: one a person on the base's trusted-actors list opened (by id,
+// kind human), under an `adoption` section. Its rounds post as the lanes App
+// like a lanes App PR's, so a lane answer is told apart from the person's.
+export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
+  adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
+
+// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too. On an owner PR it holds the
+// lane off: feedback-dispatch.mjs ownerSkip, select, fix-ci-dispatch.mjs.
+export const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
+
+// The owners whose PRs a round serves: the base trusted-actors list's people,
+// under the base config's `adoption` section. An unreadable section adopts no
+// owner, and lanes App PRs proceed.
+export async function ownerAdoption(env, log = () => {}) {
+  try {
+    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
+    if (idleHours === undefined) {
+      return NO_ADOPTION;
+    }
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+  } catch (error) {
+    log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
+    return NO_ADOPTION;
+  }
+}
+
 // The reviewer bot's id comes from the base's trusted-actors list, by login.
 export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
   const actor = readActors(trustedActorsPath).find((row) => row.login === login && row.kind === "bot");
@@ -1013,13 +1216,33 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
+  const selectThreads = async () => {
+    need(env, ["TRUSTED_ACTORS"]);
+    return select({
+      api: client,
+      pr,
+      headSha: env.HEAD_SHA,
+      repository: env.GITHUB_REPOSITORY,
+      appId,
+      reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+      reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
+      trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
+      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
+      maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
+      adoption: await ownerAdoption(env, log),
+    });
+  };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
     // A pass-only round (pr-feedback-dispatch.yml after a pr-verify pass):
     // only the stale fail-note threads, for the reply job to resolve; no
     // thread for a model, so the round's model jobs and its neutral checks
-    // stay off. Nothing to resolve writes no output at all.
+    // stay off. With nothing to resolve (as on a rerun after the notes were
+    // resolved by hand), the full select runs for `stop-resolved` alone, so
+    // report-stop-status can clear a stop an earlier attempt left; no
+    // `proceed` or `resolve-only`, so no model or reply job starts.
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     if (!SHA.test(env.VERIFY_PASS_HEAD)) {
       throw new Error("VERIFY_PASS_HEAD is not a commit id");
@@ -1038,26 +1261,17 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(file, null, 2)}\n`);
       writeFileSync(env.RUN_FILE, runRecord(file));
       output("resolve-only", "true");
+    } else {
+      output("stop-resolved", String((await selectThreads()).resolved === true));
     }
     return 0;
   }
   if (command === "select") {
-    need(env, ["THREAD_FILE", "RUN_FILE", "TRUSTED_ACTORS"]);
-    const result = await select({
-      api: client,
-      pr,
-      headSha: env.HEAD_SHA,
-      repository: env.GITHUB_REPOSITORY,
-      appId,
-      reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
-      reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
-      trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
-      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
-      maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
-    });
+    need(env, ["THREAD_FILE", "RUN_FILE"]);
+    const result = await selectThreads();
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
-      writeFileSync(env.RUN_FILE, runRecord(result.file));
+      writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only

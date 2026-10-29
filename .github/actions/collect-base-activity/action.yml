@@ -329,12 +329,11 @@ runs:
           case "$1" in
             ai-slop:audit)
               scripts=$lane/plugins/ai-slop/skills/audit/scripts
-              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
+              # digest-guard.sh is the fix flow's concurrent-edit guard; from
+              # this staged copy it writes only under $lane/scratch.
+              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh digest-guard.sh; do
                 allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
               done
-              # The fix flow's concurrent-edit guard digests each file into
-              # a state file under the scratch directory.
-              allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
               # The user-scope target reads the runner's own config.
               denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
               ;;
@@ -480,8 +479,9 @@ runs:
             [[ $SCHEMA_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the verdict schema directory has a name a rule cannot carry"
             mkdir -p "$STAGE/dependency" "$SCHEMA_DIR"
             cp "$DEPENDENCY_DIR/dependency.json" "$STAGE/dependency/dependency.json"
-            # The verdict job validates the same shape (apply-dependency-verdict.mjs).
-            printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}' \
+            # The verdict job validates the same shape (apply-dependency-verdict.mjs);
+            # each item's `not` pattern is its UNPLAIN_PATTERN.
+            printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500,"not":{"pattern":"[\\u0000-\\u001f\\u007f]|```|~~~|<!--|-->|(^|[^A-Za-z0-9`/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)"}}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300,"not":{"pattern":"[\\u0000-\\u001f\\u007f]|```|~~~|<!--|-->|(^|[^A-Za-z0-9`/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)"}}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}' \
               >"$SCHEMA_DIR/verdict.schema.json"
             tools+=(Edit Write Agent)
             allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
@@ -624,6 +624,11 @@ runs:
                 denied+=("Edit(./.lane/feedback/$file)" "Write(./.lane/feedback/$file)" "NotebookEdit(./.lane/feedback/$file)")
               done
               preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
+              # The fresh fixer round past the round cap: the select job's
+              # fixed brief (address-feedback.mjs FRESH_ROUND_BRIEF), never
+              # text a head, a finding or a model wrote.
+              retry=$(jq -r '.retry.brief // empty' "$FEEDBACK_DIR/threads.json")
+              [ -z "$retry" ] || preamble="$preamble $retry"
             fi
             # tidy: an issue lane's skill tidies its own change before its
             # last check run, with the entry skill and its passes and no other

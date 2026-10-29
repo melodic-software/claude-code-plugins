@@ -247,14 +247,17 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // The narrow floor every hold path check adds to the configured globs, each
 // glob with its class (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26
 // option B): `trust`, what mints and scopes lane tokens and judges triggers
-// (request-lane-token, check-trusted-trigger, check-kill-switch), code owners
-// and submodules; `gate`, the merge gate's own code (every pr-merge script,
-// babysit_merge*, babysit_risk.py and babysit_review_evidence.py, which
-// compute the review's clear condition, the rate guard, and
-// scripts/sync-hold-floor.py, which writes this list) and
-// the config the token broker loads (resolve-config, effect-grants.json
-// included, and the pipeline config); `enforcement`, the pr-merge and
-// ci-status workflows, the other modules the
+// (request-lane-token, resolve-config with the rule files the token broker
+// loads, the pipeline config, check-trusted-trigger, check-kill-switch), code
+// owners, submodules, and the code that computes the author lift and the hold
+// tables (babysit_merge*, babysit_risk.py and babysit_review_evidence.py,
+// which compute the review's clear condition, this module, and
+// scripts/sync-hold-floor.py, which writes this list); `gate`, the rest of the
+// merge gate's own code (the other pr-merge scripts and the rate guard), and
+// the review's own surface, which never takes the author lift: every workflow
+// holding a secret or a lane token or granting `actions: write`, the review
+// workflows and ci-status among them, the main-run review's scripts, and the
+// agent settings and instruction files; `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
 // and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
@@ -268,18 +271,18 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/check-trusted-trigger/**", "trust"],
   ["**/CODEOWNERS", "trust"],
   ["**/.gitmodules", "trust"],
-  [".github/actions/resolve-config/**", "gate"],
+  [".github/actions/resolve-config/**", "trust"],
   [".github/actions/check-kill-switch/**", "trust"],
   [".github/actions/request-lane-token/**", "trust"],
   [".github/actions/log-api-budget/rate-guard.mjs", "gate"],
   [".github/actions/log-api-budget/rate-limits.json", "gate"],
-  [".github/scripts/pr-merge/merge-holds.mjs", "gate"],
-  [".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"],
-  [".github/scripts/pr-merge/superseded.mjs", "gate"],
-  [".github/scripts/pr-merge/clear-escalations.mjs", "gate"],
+  [".github/scripts/pr-merge/merge-holds.mjs", "trust"],
+  [".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"],
+  [".github/scripts/pr-merge/superseded.mjs", "trust"],
+  [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
   [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
-  [".github/scripts/pr-merge/gate-check.mjs", "gate"],
-  [".github/scripts/pr-merge/head-ref-map.mjs", "gate"],
+  [".github/scripts/pr-merge/gate-check.mjs", "trust"],
+  [".github/scripts/pr-merge/head-ref-map.mjs", "trust"],
   [".github/scripts/pr-merge/lane-records.mjs", "gate"],
   [".github/scripts/pr-merge/last-report.mjs", "gate"],
   [".github/scripts/pr-merge/rate-stop.bash", "gate"],
@@ -290,28 +293,27 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
-  ["scripts/sync-hold-floor.py", "gate"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"],
+  [".github/actions/report-check-run/posting-run.mjs", "gate"],
+  ["scripts/sync-hold-floor.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"],
-  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
-  [".github/workflows/pr-require-checks.yml", "enforcement"],
-  [".github/workflows/pr-merge.yml", "enforcement"],
-  ["docs/conventions/pr-pipeline.yaml", "gate"],
+  ["docs/conventions/pr-pipeline.yaml", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.json", "enforcement"],
@@ -332,12 +334,46 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"],
   [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
   [".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"],
+  [".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"],
   [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
   [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
-  [".github/workflows/pr-unblock.yml", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
+  [".github/scripts/pr-review-main/**", "gate"],
+  ["**/.claude/**", "gate"],
+  ["**/.claude-lane/**", "gate"],
+  ["docs/conventions/instruction-exception-register/**", "gate"],
+  ["docs/conventions/untrusted-content/**", "gate"],
+  ["**/.mcp.json", "gate"],
+  ["**/CLAUDE.md", "gate"],
+  ["**/CLAUDE.local.md", "gate"],
+  ["**/AGENTS.md", "gate"],
+  ["REVIEW.md", "gate"],
+  ["docs/standards/**", "gate"],
+  [".github/workflows/dependabot-fragments.yml", "gate"],
+  [".github/workflows/eval-browser-dispatch.yml", "gate"],
+  [".github/workflows/intake-reenter.yml", "gate"],
+  [".github/workflows/intake-triage.yml", "gate"],
+  [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/post-merge-demotion-alert.yml", "gate"],
+  [".github/workflows/post-merge-test-mutation.yml", "gate"],
+  [".github/workflows/pr-feedback-dispatch.yml", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
+  [".github/workflows/pr-refine.yml", "gate"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-review-hosted.yml", "gate"],
+  [".github/workflows/pr-review-main.yml", "gate"],
+  [".github/workflows/pr-review-security-hosted.yml", "gate"],
+  [".github/workflows/pr-run-activity-read.yml", "gate"],
+  [".github/workflows/pr-run-activity-write.yml", "gate"],
+  [".github/workflows/pr-unblock-dispatch.yml", "gate"],
+  [".github/workflows/pr-unblock.yml", "gate"],
+  [".github/workflows/pr-verify.yml", "gate"],
+  [".github/workflows/release-publish-plugins.yml", "gate"],
+  [".github/workflows/work-resolve-issue.yml", "gate"],
+  [".github/workflows/work-unblock.yml", "gate"],
   // END hold-floor HOLD_PATH_CLASSES
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
@@ -609,19 +645,16 @@ export function decidedHead(notices, at) {
 
 // Why the head branch's push history shows a lane run missing before a
 // decision made at `at`, else null (babysit_merge_policy.unran_head, and
-// ci-status's cost-hold step). `activity` is one page of the repository
-// activity API for the branch, newest first, which deleting a run leaves;
-// `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-// `at`. Every head the branch moved to after its last push of `decided`
-// before `at` needs a run of every lane: with one deleted, an older notice
-// would become the decided head (#10437). No push of `decided` before `at`
-// or a full page, which may not reach it, keeps the hold too.
+// ci-status's cost-hold step). `activity` is the repository activity API for
+// the branch read to its end (branchActivity), newest first, which deleting a
+// run leaves; `ran` lists, per REVIEW_LANES entry, the heads of its runs
+// started before `at`. Every head the branch moved to after its last push of
+// `decided` before `at` needs a run of every lane: with one deleted, an older
+// notice would become the decided head (#10437). No push of `decided` before
+// `at` keeps the hold too.
 export function unranHead(activity, ran, decided, at) {
   if (!Array.isArray(activity)) {
     return "the branch's push history is unreadable";
-  }
-  if (activity.length >= 100) {
-    return "the branch's push history fills a page";
   }
   if (!Array.isArray(ran) || ran.length !== REVIEW_LANES.length || !ran.every(Array.isArray)) {
     return "the lane runs do not cover every review lane";
@@ -712,8 +745,47 @@ async function noticedHead(read, repo, branch, base, at) {
   if (decided === null) {
     return null;
   }
-  const activity = await read("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
-  return unranHead(activity, ran, decided, at) === null ? decided : null;
+  return unranHead(await branchActivity(read, repo, branch), ran, decided, at) === null ? decided : null;
+}
+
+// The Link header a reader (fetchGitHub, check-trusted-trigger's
+// createGitHub) keeps on a list answer, under a registered symbol so this
+// file imports no repository file.
+export const LINK = Symbol.for("github.link");
+export const ACTIVITY_PAGES = 20;
+
+// The head `branch`'s activity in `repo`, newest first, read to its end: the
+// API keeps a branch name's history across deletions, so a name recreated
+// for each sync fills any one page. It ignores `page`, so each next page is
+// the `after` cursor of the answer's Link rel="next"; only a short page ends
+// it. A page that is no list gives null (unranHead's unreadable); a full page
+// with no next link, a next link with no new cursor, or more than
+// ACTIVITY_PAGES pages throws, as a failed read does.
+export async function branchActivity(read, repo, branch) {
+  const path = `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`;
+  const rows = [];
+  const cursors = new Set();
+  for (let after = null; cursors.size < ACTIVITY_PAGES; ) {
+    const page = await read("GET", after === null ? path : `${path}&after=${after}`);
+    if (!Array.isArray(page)) {
+      return null;
+    }
+    rows.push(...page);
+    if (page.length < 100) {
+      return rows;
+    }
+    const next = /<([^>]*)>;\s*rel="next"/.exec(String(page[LINK] ?? ""));
+    if (!next) {
+      throw new Error("the branch's push history has a full page with no next link");
+    }
+    // The cursor as the link spells it, encoded: decoding would read a `+` as a space.
+    after = /[?&]after=([^&#]+)/.exec(next[1])?.[1];
+    if (!after || cursors.has(after)) {
+      throw new Error("the branch's push history names no new page");
+    }
+    cursors.add(after);
+  }
+  throw new Error(`the branch's push history runs past ${ACTIVITY_PAGES} pages`);
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.
@@ -836,17 +908,52 @@ function sameModes(merges, trees) {
 }
 
 // Whether an approval of `from` carries to the head `now` was read at
-// (babysit_merge_policy.approval_carry): every commit since is a merge of the
-// base (baseMergesOnly), and the net change is the same (sameNetChange) or
-// the merges brought exactly the base's changes (exactBaseCarry over
-// `merges`, `based` and `trees`, null when not read). An approval GitHub
-// dismissed as stale (autoDismissed) passes its `dismissal` commit, which
-// must be one of the commits pushed since `from`, so the push the carry
-// checks dismissed it.
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null) {
-  if (!baseMergesOnly(then, now, from, new Set(inBase))) return false;
-  if (dismissal !== null && !newCommits(then, now).some((c) => c?.sha === dismissal)) return false;
-  return sameNetChange(then, now) || exactBaseCarry(merges, based, trees);
+// (babysit_merge_policy.approval_carry), by either of two paths:
+// - every commit since is a merge of the base (baseMergesOnly), and the net
+//   change is the same (sameNetChange) or the merges brought exactly the
+//   base's changes (exactBaseCarry over `merges`, `based` and `trees`, null
+//   when not read);
+// - the owner's decision Q10 of 2026-10-28: `merges`, the compare from...H',
+//   touches no hold path (ungatedSince, with `holdPaths` the configured
+//   globs; undefined, as a caller that read none passes, skips this path).
+// An approval GitHub dismissed as stale (autoDismissed) passes its
+// `dismissal` commit, which must be one of the commits pushed since `from`,
+// so the push the carry checks dismissed it.
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined) {
+  const pushed = (commits) => dismissal === null || (commits ?? []).some((c) => c?.sha === dismissal);
+  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now) || exactBaseCarry(merges, based, trees));
+  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths) && pushed(listedCommits(merges)));
+}
+
+// The code a hold-path file loads that is no hold path itself: every file of
+// each local action a hold-path workflow uses, every tracked script it names
+// by path in any directory (from the head checkout or `.base/`, the lint and
+// test scripts ci-status runs included), and the JS and Python those import
+// (test_merge_holds_sync.py derives that closure and fails on a member these
+// globs and HOLD_PATH_CLASSES miss; a shell script's own `source` is not
+// walked).
+// Holding them for a person would hold most pull requests, so a push that
+// touches one only stops an approval carrying (ungatedSince); the review
+// lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
+// The trusted-actor list and the pipeline config are read too: a widening the
+// approver never saw is lifted by the same approval (actorsHold).
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", ".github/recurring-schedule.json", "plugins/evals/skills/validate/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**"]);
+
+// Whether the compare from...H' `merges` touches no hold path and no file a
+// hold path loads, old paths of renames included: pathHold with `holdPaths`
+// and HOLD_PATH_FLOOR, REVIEW_FLOOR's enforcement globs (the floored code the
+// gate holds for a security review, which a person's approval never
+// covered) and CARRY_REFUSES. H' must be ahead of `from` with nothing behind,
+// its commit list read whole, and fewer than the compare API's 300 files
+// listed, each named. Any edit to such a file, a test or a comment included,
+// needs a new approval.
+export function ungatedSince(merges, holdPaths) {
+  const files = merges?.files;
+  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
+  if (!files.every((f) => typeof f?.filename === "string")) return false;
+  const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
+  const loaded = [...REVIEW_FLOOR, ...CARRY_REFUSES];
+  return Array.isArray(holdPaths) && pathHold(paths, holdPaths) === null && !paths.some((path) => loaded.some((glob) => matchesHoldPath(path, glob)));
 }
 
 // The reviews GitHub dismissed as stale, from the pull request's issue
@@ -938,7 +1045,7 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
 // the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
 // read restores no dismissed approval): the caller keeps the exact-head
 // approvals it read (pathLifters).
-export async function liftersOf(github, repo, number, head, humans) {
+export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined) {
   try {
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
     const base = pull?.base?.ref;
@@ -981,7 +1088,16 @@ export async function liftersOf(github, repo, number, head, humans) {
         [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
         trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) lifters.add(login);
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) {
+        lifters.add(login);
+        continue;
+      }
+      // Q10's path reads from...H' when the base-merge path did not; a read
+      // that fails carries nothing by it.
+      if (holdPaths !== undefined && merges === null) {
+        merges = await compare(`${sha}...${head}`).catch(() => null);
+      }
+      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {
@@ -1133,6 +1249,9 @@ const fetchGitHub = (env) => async (method, path, body) => {
   const json = response.ok ? await response.json() : null;
   if (json === null || json.errors?.length) {
     throw new Error(`${method} ${path} failed with status ${response.status}`);
+  }
+  if (Array.isArray(json)) {
+    Object.defineProperty(json, LINK, { value: response.headers.get("link") });
   }
   return json;
 };
@@ -1307,6 +1426,116 @@ export function changeOf(line) {
   return { path: line.filename, previous: typeof previous === "string" && previous ? previous : null, status: typeof line.status === "string" ? line.status : null };
 }
 
+// A HEAD A PR-UNBLOCK LANE STOPPED: each `pr-unblock/*` context whose newest
+// status by github-actions[bot] is `failure` or `error`, as
+// { context, state, description }. `statuses` are a commit's REST statuses,
+// newest first as GitHub lists them, so a later `success` on the head
+// supersedes a failure, and another account's status neither holds nor
+// clears. ci-status's pr-unblock step and enable-auto-merge both judge a head
+// by this; a list that is not an array throws.
+export function unblockStops(statuses) {
+  if (!Array.isArray(statuses)) {
+    throw new Error("the head's statuses are not a list");
+  }
+  const seen = new Set();
+  const stops = [];
+  for (const status of statuses) {
+    const context = status?.context;
+    if (typeof context !== "string" || !context.startsWith("pr-unblock/") || status?.creator?.login !== "github-actions[bot]" || seen.has(context)) {
+      continue;
+    }
+    seen.add(context);
+    if (status.state === "failure" || status.state === "error") {
+      stops.push({ context, state: status.state, description: String(status.description ?? "").replaceAll(/[\t\r\n]/g, " ") });
+    }
+  }
+  return stops;
+}
+
+// Every REST status of `head`, 100 a page, newest first. A page that is not a
+// list, or more than 10 pages, throws.
+export async function readStatuses(github, repo, head) {
+  const statuses = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const rows = await github("GET", `/repos/${repo}/commits/${head}/statuses?per_page=100&page=${page}`);
+    if (!Array.isArray(rows)) {
+      throw new Error("the head's statuses did not read");
+    }
+    statuses.push(...rows);
+    if (rows.length < 100) {
+      return statuses;
+    }
+  }
+  throw new Error("more than 1000 statuses on the head");
+}
+
+// The tracker config's human-gated role label (.work-item-tracker.json
+// config.role_labels["human-gated"], trimmed), `needs-human` when it names
+// none, as ci-status reads it.
+export function humanGatedLabel(tracker) {
+  const label = tracker?.config?.role_labels?.["human-gated"];
+  return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
+}
+
+// The label report-outcome puts on a lanes App pull request that holds for a
+// person (report-outcome.mjs HUMAN_MERGE_HOLD). Only a listed person's own
+// removal lifts it (ci-status's `Fail a human-merge hold` step).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
+
+// The hold labels on pull request `number`: `do-not-merge`, the tracker's
+// human-gated label, `pr-verify-failed` and HUMAN_MERGE_HOLD, one reason each. `labels` are
+// names or label objects; a list that is not an array throws.
+export function labelHolds(labels, tracker, number) {
+  if (!Array.isArray(labels)) {
+    throw new Error("the labels are not a list");
+  }
+  const names = new Set(labels.map((label) => (typeof label === "string" ? label : label?.name)));
+  const gated = humanGatedLabel(tracker);
+  return [
+    names.has("do-not-merge") && `#${number} carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.`,
+    names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
+    names.has("pr-verify-failed") &&
+      `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+    names.has(HUMAN_MERGE_HOLD) &&
+      `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
+  ].filter(Boolean);
+}
+
+// The lanes kill switch on a lanes App pull request: while CLAUDE_LANES_DISABLED
+// or CLAUDE_LANES_REPO_DISABLED is anything but the exact value `false`, a pull
+// request whose author is the Bot of numeric id `appId` holds. Any other
+// author, or an `appId` that is not a numeric id, holds nothing here.
+export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
+  const id = Number(appId);
+  if (!/^[1-9][0-9]*$/.test(String(appId)) || pull?.user?.type !== "Bot" || pull?.user?.id !== id) {
+    return null;
+  }
+  if (disabled === "false" && repoDisabled === "false") {
+    return null;
+  }
+  return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
+}
+
+// THE HOLDS THAT COST NO LANE WORK, for a queued pull request: its hold labels,
+// its head's pr-unblock stops and the lanes kill switch, from the pull request
+// as the pulls API returns it, its head's statuses newest first, the tracker
+// config (or null) and the kill switch's { appId, disabled, repoDisabled }.
+// select-tests runs this before the lanes; ci-status keeps judging each hold.
+export function queueHolds({ pull, statuses, tracker = null, lanes = {} } = {}) {
+  const head = pull?.head?.sha;
+  if (!Number.isInteger(pull?.number) || typeof head !== "string") {
+    throw new Error("the pull request does not read");
+  }
+  return [
+    ...labelHolds(pull.labels, tracker, pull.number),
+    ...unblockStops(statuses).map(
+      ({ context, state, description }) =>
+        `'${context}' is ${state} on ${head}: ${description}. The lane that stopped clears it by running again on this head, or a new head carries none.`,
+    ),
+    switchHold(pull, lanes),
+  ].filter(Boolean);
+}
+
 // Whether a person wrote the body of pull request `number` (personWrote); a
 // read that fails counts as a person.
 async function bodyByPerson(github, repo, number) {
@@ -1363,7 +1592,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const held = pathHold(files, holdPaths);
     let lifted = { lifters: [] };
     if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
-      lifted = await liftersOf(github, repo, Number(number), head, humans);
+      lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
     const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);

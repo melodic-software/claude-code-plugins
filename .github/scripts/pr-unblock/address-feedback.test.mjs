@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -45,7 +45,8 @@ function fakeApi(overrides = {}) {
   return {
     posted,
     permissionReads,
-    getPull: async () => ({ number: 42, labels: (overrides.labels ?? []).map((name) => ({ name })) }),
+    // The lanes App opened the PR unless the case names another opener.
+    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })), body: overrides.body ?? "" }),
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -98,6 +99,21 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
       },
     ],
   });
+});
+
+// Each review lane edits its one marker in place, so the reply job reads the
+// heads the threads were kept on from run.json, not from the markers then.
+test("select returns every lane's marker-confirmed head, sorted, for run.json; the thread file does not carry them", async () => {
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    { id: 2, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", OLD_HEAD) },
+    { id: 3, user: { id: STRANGER }, body: marker("claude-review", "c".repeat(40)) },
+  ];
+  const result = await run(fakeApi({ issueComments }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.reviewedHeads, [HEAD, OLD_HEAD]);
+  assert.equal(Object.hasOwn(result.file, "reviewed_heads"), false);
+  assert.equal(JSON.parse(runRecord(result.file, result.reviewedHeads)).reviewed_heads.join(), `${HEAD},${OLD_HEAD}`);
 });
 
 // A finding on a doc whose fix lives in a script the PR also changes: the
@@ -561,6 +577,45 @@ test("a verifier note on a marker-confirmed head is kept as the verifier's findi
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "verifier", body: VERIFY_NOTE }]);
 });
 
+// A verifier note opened on `commit`, its root as the threads listing reads it
+// (staleVerifyNotes), its review submitted on that commit.
+const failNote = (id, commentId, commit) => ({
+  thread: thread(id, [commentId], { root: { nodes: [{ author: { databaseId: ACTIONS_BOT }, body: VERIFY_NOTE, originalCommit: { oid: commit } }] } }),
+  comment: comment(commentId, ACTIONS_BOT, { body: VERIFY_NOTE, pull_request_review_id: commentId }),
+  review: { id: commentId, user: { id: ACTIONS_BOT }, commit_id: commit },
+});
+const withNotes = (notes, extra = {}) =>
+  fakeApi({
+    ...extra,
+    threads: [...notes.map((note) => note.thread), ...(extra.threads ?? [])],
+    reviewComments: [...notes.map((note) => note.comment), ...(extra.reviewComments ?? [])],
+    reviews: [...notes.map((note) => note.review), ...(extra.reviews ?? [])],
+  });
+
+// Notes from an older head wait for a pass at this head, whose round resolves
+// them; until then they hold no failing status, or ci-status, which pr-verify
+// waits on, would never pass and no pass could come.
+test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
+  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+});
+
+test("stale verifier notes beside an untaken reviewer thread still escalate", async () => {
+  const result = await run(
+    withNotes([failNote("PRRT_n1", 200, OLD_HEAD)], {
+      threads: [thread("PRRT_1", [100])],
+      reviewComments: [comment(100, REVIEWER)],
+      reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }],
+    }),
+  );
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
+test("an untaken verifier note on this head still escalates", async () => {
+  const result = await run(withNotes([failNote("PRRT_n1", 200, HEAD)], { issueComments: [] }));
+  assert.deepEqual([result.escalationReason, result.resolved], ["feedback-untaken-threads", undefined]);
+});
+
 test("a github-actions[bot] thread without the note marker, or in another account's review, is not kept", async () => {
   const unmarked = fakeApi({
     reviewComments: [comment(100, ACTIONS_BOT)],
@@ -769,8 +824,8 @@ for (const [label, overrides] of [
 // Past the cap of 3 with `rounds` round markers: one finding per lane, each a
 // github-actions[bot] comment ending in its lane's footer, or a verifier note.
 const CODE_FINDING = "The loop skips the last item.\n\nclaude-lane: claude-review";
-function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false, requestAt = at(20), labels } = {}) {
-  const reviewComments = roots.map((body, i) => comment(100 + i, ACTIONS_BOT, { body, created_at: at(0) }));
+function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false, requestAt = at(20), labels, rootAt = at(0) } = {}) {
+  const reviewComments = roots.map((body, i) => comment(100 + i, ACTIONS_BOT, { body, created_at: rootAt }));
   const threads = roots.map((_, i) => thread(`PRRT_${i + 1}`, [100 + i]));
   if (fixRequest) {
     reviewComments.push(comment(199, HUMAN, { body: REQUEST, created_at: requestAt }));
@@ -805,20 +860,67 @@ test("at the cap, the code lane's findings go to a fresh fixer: every thread run
   assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
 });
 
+// The owner's rule: a person decides only an intent or design question or a
+// real HIGH or CRITICAL security risk code cannot resolve. An IMPORTANT
+// security finding is a code fix first: it gets the fresh fixer's round, and
+// holds for a person only when that round was given it and left it open.
 for (const [label, roots] of [
-  ["a security lane finding", [LANE_FINDING]],
-  ["a security lane finding beside a code lane one", [CODE_FINDING, LANE_FINDING]],
-  ["a security lane finding beside a verifier note", [VERIFY_NOTE, LANE_FINDING]],
+  ["an IMPORTANT security lane finding", [LANE_FINDING]],
+  ["an IMPORTANT security lane finding beside a code lane one", [CODE_FINDING, LANE_FINDING]],
+  ["an IMPORTANT security lane finding beside a verifier note", [VERIFY_NOTE, LANE_FINDING]],
 ]) {
-  for (const rounds of [3, 4, 9]) {
-    test(`after ${rounds} rounds at a cap of 3, ${label} still escalates feedback-round-cap`, async () => {
+  test(`at a cap of 3, ${label} gets the fresh fixer's round with its brief, not a person`, async () => {
+    const result = await capped({ rounds: 3, roots });
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.escalationReason, undefined);
+    assert.deepEqual(result.file.threads.map((row) => row.id), roots.map((_, i) => `PRRT_${i + 1}`));
+    assert.match(result.file.retry.brief, /never weaken/i);
+  });
+  for (const rounds of [4, 9]) {
+    test(`after ${rounds} rounds at a cap of 3, ${label} the fresh fixer's round left open escalates feedback-round-cap`, async () => {
       const result = await capped({ rounds, roots });
       assert.equal(result.decision, "escalate");
       assert.equal(result.escalationReason, "feedback-round-cap");
+      assert.equal(escalationRoute(result.escalationReason), "hold");
       assert.equal(result.file, undefined);
     });
   }
 }
+
+test("after the fresh fixer's round, an IMPORTANT security finding opened after that round fails the head instead of holding: no round was given it", async () => {
+  const result = await capped({ rounds: 4, roots: [CODE_FINDING, LANE_FINDING], rootAt: at(20) });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "feedback-not-converging");
+  assert.equal(escalationRoute(result.escalationReason), "fail");
+});
+
+test("only the fresh fixer's round carries the brief: a round below the cap or one a fix request grants has none", async () => {
+  assert.equal((await capped({ rounds: 2 })).file.retry, undefined);
+  assert.equal((await capped({ rounds: 4, roots: [CODE_FINDING], fixRequest: true })).file.retry, undefined);
+  assert.notEqual((await capped({ rounds: 3 })).file.retry, undefined);
+});
+
+// A SUGGESTION goes to the fresh fixer as a code lane finding does; a CRITICAL
+// one, or one with no rating the lane can read, holds for a person at once.
+const SUGGESTION_FINDING = LANE_FINDING.replace("severity: IMPORTANT", "severity: SUGGESTION");
+test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fresh fixer; a CRITICAL or unrated one escalates feedback-round-cap", async () => {
+  for (const body of [SUGGESTION_FINDING, LANE_FINDING]) {
+    const fresh = await capped({ roots: [body, CODE_FINDING] });
+    assert.equal(fresh.decision, "proceed", body.split("\n")[0]);
+    assert.equal(fresh.escalationReason, undefined);
+    assert.deepEqual(fresh.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
+  }
+  const fencedOnly = "**x**\n\n```\nseverity: SUGGESTION\n```\n\nclaude-lane: claude-security-review";
+  const midBody = "**x**\n\nquoted:\nseverity: SUGGESTION\nmore text\n\nclaude-lane: claude-security-review";
+  for (const body of [LANE_FINDING.replace("IMPORTANT", "CRITICAL"), LANE_FINDING.replace("severity: IMPORTANT\n", ""), LANE_FINDING.replace("IMPORTANT", "HIGHISH"), fencedOnly, midBody]) {
+    for (const rounds of [3, 4]) {
+      const result = await capped({ rounds, roots: [CODE_FINDING, body] });
+      assert.equal(result.decision, "escalate", body.split("\n")[0]);
+      assert.equal(result.escalationReason, "feedback-round-cap");
+      assert.equal(result.file, undefined);
+    }
+  }
+});
 
 test("at the cap, the reviewer bot's own finding ending in the code lane's footer still escalates: its footer is model text", async () => {
   const api = fakeApi({
@@ -945,7 +1047,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   // run.json's bytes, in the shape the write runner's collect step wrote.
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
@@ -1011,8 +1113,8 @@ test("run.json carries each kept thread's named_paths and no comment body", () =
     ],
   };
   assert.equal(
-    runRecord(file),
-    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}]}\n`,
+    runRecord(file, [HEAD]),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}],"reviewed_heads":["${HEAD}"]}\n`,
   );
 });
 
@@ -1396,11 +1498,44 @@ test("after a Codex finding, a trusted person's reply follows the reviewer bot's
   assert.equal(requested.fixRequested, true);
 });
 
-test("past the round cap a Codex finding goes to a person, as the reviewer bot's own does", async () => {
-  const checks = { [HEAD]: [], c1: [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success" }], c2: [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success" }] };
-  const result = await codexRun(fakeApi({ ...botThread(), checks }), { maxRounds: 2 });
-  assert.equal(result.decision, "escalate");
-  assert.equal(result.escalationReason, "feedback-round-cap");
+// `n` earlier model-job rounds, each finished at 2026-10-17T20:10Z.
+const modelRounds = (n) => ({
+  [HEAD]: [],
+  ...Object.fromEntries(Array.from({ length: n }, (_, i) => [`c${i + 1}`, [{ name: "pr-unblock / address-feedback", app: { slug: "github-actions" }, conclusion: "success", completed_at: at(10) }]])),
+});
+
+test("at the round cap a Codex finding is a bot finding: it gets the fresh fixer's round, not a person", async () => {
+  const result = await codexRun(fakeApi({ ...botThread(), checks: modelRounds(2) }), { maxRounds: 2 });
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.escalationReason, undefined);
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"]);
+  assert.match(result.file.retry.brief, /never weaken/i);
+  // Once that round ran, a Codex finding still open fails the head.
+  const spent = await codexRun(fakeApi({ ...botThread(), checks: modelRounds(3) }), { maxRounds: 2 });
+  assert.deepEqual([spent.decision, spent.escalationReason], ["escalate", "feedback-not-converging"]);
+});
+
+test("at the round cap a Codex finding still goes to a person when the security-review lane held its head, or a person directed it", async () => {
+  const held = codexAt(lanesMarked(securityMarked(), securityHold(HEAD)));
+  const heldResult = await codexRun({ ...held, listPullCommits: async () => Object.keys(modelRounds(2)).map((sha) => ({ sha })), listCheckRuns: async (sha) => modelRounds(2)[sha] ?? [] }, { maxRounds: 2 });
+  assert.deepEqual([heldResult.decision, heldResult.escalationReason], ["escalate", "feedback-round-cap"]);
+  // A write-access fix request older than the newest round directed it.
+  const directed = await codexRun(fakeApi({ ...botThread({ replies: [[101, HUMAN, REQUEST]] }), checks: modelRounds(2) }), { maxRounds: 2 });
+  assert.deepEqual([directed.decision, directed.escalationReason], ["escalate", "feedback-round-cap"]);
+});
+
+test("needsPerson: a listed review bot's undirected finding is a bot finding; a person's thread, a directed one, or one the security lane held is a person's", () => {
+  const codex = { comments: [{ id: 100, author: "reviewer", listed: true, security: "pending", body: "finding 100" }] };
+  assert.equal(needsPerson(codex, CODEX), false);
+  assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "clear" }] }, CODEX), false);
+  // A thread a person opened.
+  assert.equal(needsPerson({ comments: [{ id: 100, author: "trusted-human", body: "Please rename this." }] }, HUMAN), true);
+  // A person's directive reply on the bot's thread.
+  assert.equal(needsPerson({ comments: [...codex.comments, { id: 101, author: "trusted-human", direction: true, body: REQUEST }] }, CODEX), true);
+  // The security-review lane's critical-security hold on the bot's head.
+  assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "held" }] }, CODEX), true);
+  // The reviewer bot's own unlisted finding, whose lane no footer proves.
+  assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body: "finding 100" }] }, REVIEWER), true);
 });
 
 test("reviewerIdsFrom reads one id per line, an unset value as none, and throws on anything else", async () => {
@@ -1489,17 +1624,50 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   assert.equal(readFileSync(join(dir, "pass.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "pass.json"), "utf8")).threads, []);
 
-  // None stale, or the PR moved past the passing head: nothing to do, and no
-  // output, so neither a model job nor a neutral check runs.
-  await main(["select"], env("none"), { api: api([note("PRRT_now", HEAD)]), log: () => {} });
-  assert.equal(out("none"), "");
-  assert.equal(existsSync(join(dir, "none.run.json")), false);
+  // The PR moved past the passing head: nothing to do, and no output, so
+  // neither a model job nor a neutral check runs.
   await main(["select"], env("moved", { VERIFY_PASS_HEAD: "c".repeat(40) }), { api: api([note("PRRT_old")]), log: () => {} });
   assert.equal(out("moved"), "");
 
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+});
+
+// A rerun of a pass-only round after its stale notes were resolved by hand
+// found none and wrote no output, so report-stop-status skipped and
+// the round's own failing status stayed on the head. Now it writes only
+// stop-resolved: no proceed or resolve-only, and no run record.
+async function passOnlyWithoutStale(t, api) {
+  const dir = tempDir("address-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(dir, "t.json"),
+    RUN_FILE: join(dir, "r.json"),
+    TRUSTED_ACTORS: actors,
+    VERIFY_PASS_HEAD: HEAD,
+    DISPATCHER_RUN_ID: "5000",
+  };
+  await main(["select"], env, { api, log: () => {} });
+  assert.equal(existsSync(env.RUN_FILE), false);
+  return existsSync(env.GITHUB_OUTPUT) ? readFileSync(env.GITHUB_OUTPUT, "utf8") : "";
+}
+
+test("a pass-only round with no stale note and no open thread clears its stop", async (t) => {
+  assert.equal(await passOnlyWithoutStale(t, fakeApi({ threads: [thread("PRRT_1", [100], { isResolved: true })] })), "stop-resolved=true\n");
+});
+
+test("a pass-only round with no stale note keeps its stop for an open thread the lane does not take", async (t) => {
+  const untaken = fakeApi({ reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] });
+  assert.equal(await passOnlyWithoutStale(t, untaken), "stop-resolved=false\n");
 });
 
 test("scanRefusal reads a patch and an output marker together as output, in either order", () => {
@@ -1513,4 +1681,74 @@ test("scanRefusal reads a patch and an output marker together as output, in eith
       rmSync(dir, { recursive: true, force: true });
     }
   }
+});
+
+// On an adopted owner PR, an unresolved thread the lane does not take is the
+// owner's: one they wrote or answered, or a lane answer the lanes App cannot
+// resolve there. It is no stop, and it does not read as resolved. Any other
+// person's PR, or an owner's with no adoption section, still escalates.
+test("on an adopted owner PR an untaken thread skips with no stop; elsewhere it still escalates", async () => {
+  const threads = { reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)], threads: [thread("PRRT_1", [100, 101])] };
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api, set = adoption) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption: set });
+  const owner = await adopted(fakeApi({ ...threads, opener: HUMAN }));
+  assert.equal(owner.decision, "skip");
+  assert.equal(owner.skipReason, "not-applicable");
+  assert.notEqual(owner.resolved, true);
+  assert.deepEqual(owner.threads, []);
+  assert.equal((await adopted(fakeApi(threads))).escalationReason, "feedback-untaken-threads", "a lanes App PR");
+  assert.equal((await adopted(fakeApi({ ...threads, opener: STRANGER }))).escalationReason, "feedback-untaken-threads", "a stranger's PR");
+  assert.equal((await run(fakeApi({ ...threads, opener: HUMAN }))).escalationReason, "feedback-untaken-threads", "an owner PR with no adoption section");
+});
+
+// A `Hold:` body line an owner adds after dispatch holds the round as
+// feedback-dispatch.mjs ownerSkip holds it at dispatch; a lanes App PR's own
+// `Hold: a human merges this` holds only its merge.
+test("on an adopted owner PR a Hold: body line added after dispatch skips awaiting-human before any thread is kept", async () => {
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
+  const held = await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\r\n  HOLD: still on this" }));
+  assert.deepEqual(held, { decision: "skip", skipReason: "awaiting-human", threads: [] });
+  assert.equal((await adopted(fakeApi({ opener: HUMAN, body: "Closes #1\n\nNo hold here." }))).decision, "proceed", "an owner PR with no Hold: line");
+  assert.equal((await adopted(fakeApi({ body: "Closes #1\n\nHold: a human merges this" }))).decision, "proceed", "a lanes App PR's Hold: line");
+});
+
+// On an adopted owner PR a lane escalation's needs-human lets the round work
+// only as it lets fix-ci work there (gate-source.mjs prHold): another lane's
+// escalation with no person speaking since the label does; address-feedback's
+// own escalation, or a person's review comment since it, holds the PR, and
+// then only a write-access fix request is kept. A lanes App PR reads the
+// escalation through gateSource alone, as before. Every author is typed as the
+// REST API returns it, so a bot is no person speaking.
+test("on an adopted owner PR a lane escalation's needs-human lets the round work only as fix-ci's prHold does", async () => {
+  const adoption = { ownerIds: new Set([HUMAN]), idleHours: 4 };
+  const adopted = (api) => select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), adoption });
+  const escalation = (reason) => ({ ...LANE_ESCALATION, body: `${LANE_ESCALATION.body}\n\n- Reason: \`${reason}\`` });
+  const bot = { id: REVIEWER, login: LOGINS[REVIEWER], type: "Bot" };
+  const gate = (reason, extra = []) => ({
+    labels: ["needs-human"],
+    issueComments: [{ ...reviewedHead, user: { id: ACTIONS_BOT, type: "Bot" } }, escalation(reason)],
+    labelEvents: APP_LABELED,
+    reviewComments: [comment(100, REVIEWER, { user: bot, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T09:00:00Z" }), ...extra],
+    reviews: [{ id: 10, user: bot, commit_id: HEAD, submitted_at: "2026-10-18T09:00:00Z" }],
+  });
+  const other = await adopted(fakeApi({ ...gate("ci-fix-round-cap"), opener: HUMAN }));
+  assert.equal(other.decision, "proceed", "another lane's escalation, no person since");
+  assert.equal(other.fixRequested, true);
+  const own = await adopted(fakeApi({ ...gate("feedback-round-cap"), opener: HUMAN }));
+  assert.deepEqual([own.decision, own.skipReason], ["skip", "awaiting-human"], "address-feedback's own escalation");
+  const spoke = comment(101, HUMAN, { created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" });
+  const person = await adopted(fakeApi({ ...gate("ci-fix-round-cap", [spoke]), opener: HUMAN }));
+  assert.deepEqual([person.decision, person.skipReason], ["skip", "awaiting-human"], "a person's review comment since the label");
+  const asked = await adopted(fakeApi({ ...gate("feedback-round-cap"), ...escalated({ replies: [[102, HUMAN, REQUEST]] }), opener: HUMAN }));
+  assert.equal(asked.decision, "proceed", "a write-access fix request on a held owner PR");
+  assert.deepEqual(asked.file.threads.map((thread) => thread.root_comment_id), [100]);
+  const appPr = await adopted(fakeApi(gate("feedback-round-cap", [spoke])));
+  assert.equal(appPr.decision, "proceed", "a lanes App PR under its own escalation");
+});
+
+test("on an owner PR a thread a person opened is never kept", async () => {
+  const result = await run(fakeApi({ opener: HUMAN, reviewComments: [comment(100, HUMAN)], threads: [thread("PRRT_1", [100])] }));
+  assert.deepEqual(result.threads, []);
+  assert.notEqual(result.decision, "proceed");
 });

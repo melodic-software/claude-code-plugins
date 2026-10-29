@@ -138,6 +138,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "run_attempt": 1,
         "created_at": RUN_STARTED,
         "run_started_at": RUN_STARTED,
+        "updated_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
     }
@@ -162,8 +163,8 @@ def record(number: int = PR, sha: str = HEAD, **overrides: Any) -> dict[str, Any
 
 
 def judged(run_id: int, at: Any, **overrides: Any) -> dict[str, Any]:
-    """A run created, and its one attempt started, at `at`."""
-    return run(run_id, created_at=at, run_started_at=at, **overrides)
+    """A run created, and its one attempt started and completed, at `at`."""
+    return run(run_id, created_at=at, run_started_at=at, updated_at=at, **overrides)
 
 
 def named(sha: str, verdict: str, number: int = PR) -> str:
@@ -258,6 +259,9 @@ class FakeGitHub:
         # Ids each whole listing leaves out in turn, as one that pages while
         # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
+        # The pull request's RELINK_QUERY answer (its `pullRequest`), or
+        # "error" for a failed read; None answers as the closing read does.
+        self.relink: Any = None
 
     def listed(self) -> list[dict[str, Any]]:
         """The artifacts a whole listing returns now, newest id first as
@@ -291,6 +295,12 @@ class FakeGitHub:
         if args[:2] == ["api", "graphql"]:
             if "graphql" in self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            if any("userContentEdits" in a for a in args) and self.relink is not None:
+                if self.relink == "error":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "gh: boom (HTTP 502)"
+                    )
+                return ok({"data": {"repository": {"pullRequest": self.relink}}})
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
                 if n not in self.refs:
@@ -1003,6 +1013,196 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_the_fail_must_still_precede_the_pass(self) -> None:
         fake = self.same_change("refs", "closes")
         fake.runs[2] = judged(2, "2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+# Times between the FAIL's creation (OLDER_START) and the pass's start
+# (RUN_STARTED), while the pass ran, its completion, and after it.
+RELINK_AT = "2026-10-14T12:00:00Z"
+PASS_RUNNING = "2026-10-15T00:05:00Z"
+PASS_DONE = "2026-10-15T00:10:00Z"
+AFTER_PASS = "2026-10-15T12:00:00Z"
+
+
+def relink_answer(
+    edits: list[tuple[str, Any]] = (),
+    events: list[tuple[str, Any]] = (),
+    *,
+    edits_total: int | None = None,
+    events_filtered: int | None = None,
+) -> dict[str, Any]:
+    """The pull request's RELINK_QUERY answer: body edits (newest first, then
+    the original text, stamped before the FAIL, by the lanes App that opened
+    the pull request) and issue connect or disconnect events, as a live read
+    of an edited pull request answered, with identifying details changed."""
+    nodes = [{"editedAt": at, "editor": who} for at, who in edits]
+    nodes.append({"editedAt": "2026-10-10T00:00:00Z", "editor": LANES_ACTOR})
+    timeline = [{"createdAt": at, "actor": who} for at, who in events]
+    return {
+        "userContentEdits": {
+            "totalCount": len(nodes) if edits_total is None else edits_total,
+            "nodes": nodes,
+        },
+        "timelineItems": {
+            "filteredCount": len(timeline)
+            if events_filtered is None
+            else events_filtered,
+            "nodes": timeline,
+        },
+    }
+
+
+class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
+    """A FAIL at a head stops refusing once the pull request's linked issues
+    changed there and it passed again, when every body edit and issue connect
+    or disconnect from the FAIL's creation to the pass's start was a trusted
+    person's; any other actor, a read that fails or the same linked issues
+    keep it. It still counts toward the FAIL cap, and a merge-only head
+    carries it forward unless it was superseded at its own head."""
+
+    @staticmethod
+    def relinked(sha: str = HEAD) -> FakeGitHub:
+        """A FAIL at `sha` (run 2, created OLDER_START) that recorded no
+        linked issue, the pull request's title and body being its spec, and a
+        pass there (run 1, RUN_STARTED) that records issue 7, which the pull
+        request closes now; a person connected it and edited the body."""
+        fake = FakeGitHub(
+            [artifact(named(sha, "pass"), 1), artifact(named(sha, "fail"), 2)],
+            {1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
+            {
+                named(sha, "pass"): record(sha=sha),
+                named(sha, "fail"): record(sha=sha, verdict="fail", linked_issues=[]),
+            },
+        )
+        fake.relink = relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, HUMAN)])
+        return fake
+
+    def test_a_relink_by_people_only_lets_the_pass_decide(self) -> None:
+        self.assertIsNone(read(self.relinked()).refusal)
+        # The pass still decides: an untrusted spec refuses as it would alone.
+        fake = self.relinked()
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        fake.records[named(HEAD, "pass")] = record(linked_issues=[bot])
+        self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
+
+    def test_the_lanes_app_or_an_unnamed_actor_in_the_window_keeps_the_fail(
+        self,
+    ) -> None:
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            (
+                "App edit",
+                relink_answer([(RELINK_AT, LANES_ACTOR)], [(RELINK_AT, HUMAN)]),
+            ),
+            (
+                "App connect",
+                relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, LANES_ACTOR)]),
+            ),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            ("outsider connect", relink_answer([], [(RELINK_AT, outsider)])),
+            ("at the FAIL's creation", relink_answer([(OLDER_START, LANES_ACTOR)])),
+            ("at the pass's start", relink_answer([], [(RUN_STARTED, LANES_ACTOR)])),
+            # The pass's run reads the linked issues after it starts.
+            ("while the pass ran", relink_answer([], [(PASS_RUNNING, LANES_ACTOR)])),
+            ("at the pass's completion", relink_answer([], [(PASS_DONE, LANES_ACTOR)])),
+        ):
+            with self.subTest(label):
+                fake = self.relinked()
+                fake.relink = answer
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_the_apps_acts_outside_the_window_do_not_count(self) -> None:
+        # Its original text before the FAIL, and an edit after the pass began.
+        fake = self.relinked()
+        fake.relink = relink_answer([(AFTER_PASS, LANES_ACTOR), (RELINK_AT, HUMAN)])
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_relink_that_cannot_be_read_keeps_the_fail(self) -> None:
+        for label, answer in (
+            ("failed read", "error"),
+            ("no pull request", {}),
+            ("edits cut short", relink_answer([(RELINK_AT, HUMAN)], edits_total=101)),
+            (
+                "events cut short",
+                relink_answer([], [(RELINK_AT, HUMAN)], events_filtered=2),
+            ),
+            ("timeless event", relink_answer([], [(None, HUMAN)])),
+            # Only the original text, before the FAIL: the link changed some
+            # way the read cannot see (an issue deleted or moved).
+            ("nothing in the window", relink_answer()),
+            ("a pass run with no completion time", relink_answer([(RELINK_AT, HUMAN)])),
+        ):
+            with self.subTest(label):
+                fake = self.relinked()
+                fake.relink = answer
+                if label == "a pass run with no completion time":
+                    fake.runs[1] = run(1, updated_at=None)
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_fail_or_pass_record_that_cannot_be_read_keeps_the_fail(self) -> None:
+        for name in (named(HEAD, "fail"), named(HEAD, "pass")):
+            with self.subTest(name):
+                fake = self.relinked()
+                fake.records[name]["linked_issues"] = None
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_the_same_linked_issues_keep_the_fail(self) -> None:
+        fake = self.relinked()
+        fake.records[named(HEAD, "fail")]["linked_issues"] = [TRUSTED_ISSUE]
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_created_before_the_fail_keeps_it(self) -> None:
+        fake = self.relinked()
+        fake.runs[2] = judged(2, AFTER_PASS)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_another_prs_fail_at_the_head_keeps_it(self) -> None:
+        fake = self.relinked()
+        name = named(HEAD, "fail", 99)
+        fake.artifacts.append(artifact(name, 3))
+        fake.runs[3] = judged(3, OLDER_START)
+        fake.records[name] = record(99, verdict="fail", linked_issues=[])
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_superseded_fail_still_counts_toward_the_cap(self) -> None:
+        fake = self.relinked()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+            refusal = reader.evidence(PR, HEAD, pull()).refusal
+        self.assertEqual(refusal, "verify:repeated-fail")
+
+    def merge_only(self, *, superseded: bool) -> FakeGitHub:
+        """The relinked FAIL and pass at EARLIER, and a head that only merged
+        main since (the same change), with a pass of its own (run 3) that
+        records issue 7; the FAIL superseded at EARLIER or not."""
+        fake = self.relinked(EARLIER)
+        fake.diffs[EARLIER] = fake.diffs[HEAD]
+        fake.artifacts.append(artifact(named(HEAD, "pass"), 3))
+        fake.runs[3] = judged(3, AFTER_PASS)
+        fake.records[named(HEAD, "pass")] = record()
+        if not superseded:
+            fake.relink = relink_answer([], [(RELINK_AT, LANES_ACTOR)])
+        return fake
+
+    def test_a_merge_only_head_follows_the_failed_heads_verdict(self) -> None:
+        evidence = read(self.merge_only(superseded=True))
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+        self.assertEqual(
+            read(self.merge_only(superseded=False)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_merge_only_head_with_no_pass_at_the_failed_head_carries_it(
+        self,
+    ) -> None:
+        fake = self.merge_only(superseded=True)
+        fake.artifacts = [
+            a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
+        ]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
@@ -2809,6 +3009,9 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         "check your internet connection or https://githubstatus.com",
         'Get "https://api.github.com/repos/o/r/actions/artifacts": '
         "read tcp 10.0.0.1:443: read: connection reset by peer",
+        # A page body cut short: Go's JSON decoder error, as gh printed it in
+        # pr-merge run 40819274416 (skip step, 2026-10-29T04:59:05Z).
+        "unexpected end of JSON input",
     )
     NOT_TRANSIENT: tuple[str | BaseException, ...] = (
         "gh: Not Found (HTTP 404)",
@@ -2861,6 +3064,16 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertIn("HTTP 502", evidence.detail or "")
         self.assertEqual(fake.listings(), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
+
+    def test_a_whole_listing_cut_short_is_read_once_more_at_most(self) -> None:
+        # Each cut-short read may have paged every artifact: two whole reads,
+        # never three, then the refusal.
+        fake = FlakyListing(["unexpected end of JSON input"] * 3)
+        evidence, sleeps = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("unexpected end of JSON input", evidence.detail or "")
+        self.assertEqual(fake.listings(), 2)
+        self.assertEqual(sleeps, [2.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
         """Three 502s, the clock reading `clock` in turn, a 60s listing timeout."""
@@ -2988,6 +3201,9 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
+        sleep = mock.patch.object(ve, "_listing_sleep")
+        self.sleep = sleep.start()
+        self.addCleanup(sleep.stop)
         # The base: a pass at the head (run 1) and three older artifacts,
         # read 10 minutes ago.
         self.base_at = LISTED_AT - timedelta(minutes=10)
@@ -3100,11 +3316,10 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(reader.listing_mode, "full")
-        # The incremental first page, read `INCREMENTAL_READS` times, then
-        # the whole listing's own check.
-        self.assertEqual(
-            (fake.pages(), fake.full_listings()), (ve.INCREMENTAL_READS + 1, 1)
-        )
+        # The incremental first page, read three times with a 15 s and a 30 s
+        # wait between, then the whole listing's own check.
+        self.assertEqual((fake.pages(), fake.full_listings()), (3 + 1, 1))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
         # A 429, a rate-limit 403 or a timeout on the first incremental page
@@ -3146,6 +3361,62 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
                 # The failed page, then the whole listing and its top-up, two
                 # pages down to 900; no second read on the carried base.
                 self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
+                self.sleep.assert_not_called()
+
+    def cut_short(
+        self, times: int, failure: Any
+    ) -> tuple[ve.Reader, ve.Evidence, FakeGitHub]:
+        """The first incremental page fails with `failure` `times` times."""
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        left = [times]
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            if left[0] and args[1].endswith("&page=1"):
+                left[0] -= 1
+                fake.calls.append(args)
+                return failure, {}
+            return fake(args, **kwargs), {"date": DATE}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            return reader, reader.evidence(PR, HEAD, pull()), fake
+
+    def test_a_cut_short_page_is_read_again_without_a_full_listing(self) -> None:
+        # As gh printed it in pr-merge run 40819274416, and a body cut short
+        # that gh still exits 0 on.
+        failures = {
+            "gh error": subprocess.CompletedProcess(
+                [], 1, "", "unexpected end of JSON input"
+            ),
+            "short body": subprocess.CompletedProcess(
+                [], 0, '{"total_count": 5, "art', ""
+            ),
+            "502": subprocess.CompletedProcess([], 1, "", "gh: Bad Gateway (HTTP 502)"),
+        }
+        for label, failure in failures.items():
+            with self.subTest(label):
+                self.saved.unlink(missing_ok=True)
+                self.sleep.reset_mock()
+                reader, evidence, fake = self.cut_short(1, failure)
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertEqual(reader.listing_mode, "incremental")
+                # The failed page, then pages 1 and 2 down to 900.
+                self.assertEqual((fake.pages(), fake.full_listings()), (3, 0))
+                self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0])
+
+    def test_a_page_cut_short_every_time_lists_every_page(self) -> None:
+        failure = subprocess.CompletedProcess([], 1, "", "unexpected end of JSON input")
+        # The first page fails all three reads, so the whole listing follows
+        # and its top-up reads the pages.
+        reader, evidence, fake = self.cut_short(3, failure)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0, 4.0])
 
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
         # The first read's live count is one more than its pages hold, as
@@ -3165,6 +3436,78 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual((fake.pages(), fake.full_listings()), (4, 0))
+
+    def misses_then_reads(self, misses: int) -> tuple[FakeGitHub, str]:
+        """GitHub's live count one more than the pages hold on the first
+        `misses` incremental reads, then right; the judge's stderr."""
+        self.write_carry(self.base)
+        fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+        rest, off = fake.rest, [len(self.base) + 2] * misses
+
+        def reads_off(args: list[str], *rest_args: Any) -> Any:
+            first = any(a.endswith("&page=1") for a in args)
+            if first:
+                fake.live_total = off.pop() if off else None
+            return rest(args, *rest_args)
+
+        fake.rest = reads_off  # type: ignore[method-assign]
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        return fake, stderr.getvalue()
+
+    def test_a_miss_that_outlasts_one_read_is_read_again_after_a_wait(self) -> None:
+        # Two misses, then the third read holds the count: three reads of two
+        # pages, a 15 s and a 30 s wait between them, and no whole listing.
+        fake, _ = self.misses_then_reads(2)
+        self.assertEqual((fake.pages(), fake.full_listings()), (6, 0))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def test_each_miss_prints_its_counts_on_stderr(self) -> None:
+        # Read 1: pages (1100, 1000) and (900, 800), 900 created before the
+        # overlap, so 4 fresh and the base's 700 kept: 5 listed against a
+        # live count of 6, the base read 10 min before GitHub's Date (12:00:05).
+        _, stderr = self.misses_then_reads(1)
+        lines = [
+            line
+            for line in stderr.splitlines()
+            if line.startswith("babysit-listing-miss ")
+        ]
+        self.assertEqual(len(lines), 1, stderr)
+        self.assertEqual(
+            json.loads(lines[0].removeprefix("babysit-listing-miss ")),
+            {
+                "stage": "incremental",
+                "listed": 5,
+                "total_count": 6,
+                "fresh": 4,
+                "kept": 1,
+                "pages": 2,
+                "base_age_seconds": 605,
+            },
+        )
+
+    def test_a_read_that_holds_the_count_prints_no_miss(self) -> None:
+        _, stderr = self.misses_then_reads(0)
+        self.assertNotIn("babysit-listing-miss", stderr)
+        self.sleep.assert_not_called()
+
+    def test_no_wait_runs_past_the_reads_timeout(self) -> None:
+        # The reads' deadline is 0 + 300 s. After the first miss (clock 3 s)
+        # the 15 s wait fits; after the second (clock 271 s) 29 s are left,
+        # short of the 30 s wait, so a whole listing follows at once.
+        clock = iter([0.0, 1.0, 2.0, 3.0, 260.0, 261.0, 271.0])
+        with mock.patch.object(
+            ve, "_listing_clock", side_effect=lambda: next(clock, 300.0)
+        ):
+            self.write_carry(self.base)
+            fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
+            fake.live_total = len(self.base) + 2
+            reader, _ = self.judge(fake)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+        self.assertEqual(reader.listing_mode, "full")
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
         for delta in (-1, 1):
@@ -3417,21 +3760,24 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
 class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     """ci-status holds a cold reader unless GITHUB_TOKEN's pool has one cold
     read's worst case per queue entry (pr-require-checks.yml). That figure
-    must cover the reader's listing caps, so raising `LISTING_READS` or
-    `LISTING_WAITS` without it fails here. The other terms are the figures
-    the workflow comment derives: 793 per-FAIL reads (860 measured
-    2026-10-25 less its 67-page listing), an incremental try of at most 13
-    pages, 77 pages a whole listing and a top-up of at most 7."""
+    must cover the reader's listing caps, so raising `INCREMENTAL_READS`,
+    `LISTING_READS` or `LISTING_WAITS` without it fails here. The other terms
+    are the figures the workflow comment derives: 793 per-FAIL reads (860
+    measured 2026-10-25 less its 67-page listing), at most 13 pages an
+    incremental read, 77 pages a whole listing and a top-up of at most 7."""
 
     def test_the_workflow_constant_is_the_capped_worst_case(self) -> None:
         workflow = (
             pathlib.Path(__file__).resolve().parents[6]
             / ".github/workflows/pr-require-checks.yml"
         ).read_text(encoding="utf-8")
-        found = re.findall(r'printf "%d\\n", (\d+) \* entries', workflow)
+        found = re.findall(r"^ *cold_cost=(\d+)$", workflow, re.MULTILINE)
         self.assertEqual(len(found), 1, found)
+        self.assertEqual(
+            len(re.findall(r'printf "%d\\n", cost \* entries', workflow)), 1
+        )
         attempts = 1 + len(ve.LISTING_WAITS)
-        worst = 793 + 13 + ve.LISTING_READS * (attempts * 77 + 7)
+        worst = 793 + ve.INCREMENTAL_READS * 13 + ve.LISTING_READS * (attempts * 77 + 7)
         self.assertEqual(int(found[0]), worst)
 
 

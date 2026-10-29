@@ -177,7 +177,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@20a822d73b6e2d7e21d48e609a01b427e0e161e7 # v0.66.1
     with:
       lane: security
       publish: comments
@@ -231,6 +231,7 @@ jobs:
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
+        .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
@@ -250,8 +251,6 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_util.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py
-        .github/workflows/pr-require-checks.yml
-        .github/workflows/pr-merge.yml
         docs/conventions/pr-pipeline.yaml
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
@@ -273,12 +272,46 @@ jobs:
         .github/scripts/apply-patch/retry-fetch.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
+        .github/scripts/pr-unblock/verify-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
-        .github/workflows/pr-unblock.yml
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        .github/scripts/pr-review-main/**
+        **/.claude/**
+        **/.claude-lane/**
+        docs/conventions/instruction-exception-register/**
+        docs/conventions/untrusted-content/**
+        **/.mcp.json
+        **/CLAUDE.md
+        **/CLAUDE.local.md
+        **/AGENTS.md
+        REVIEW.md
+        docs/standards/**
+        .github/workflows/dependabot-fragments.yml
+        .github/workflows/eval-browser-dispatch.yml
+        .github/workflows/intake-reenter.yml
+        .github/workflows/intake-triage.yml
+        .github/workflows/maintenance-audit-lane-runs.yml
+        .github/workflows/maintenance-reconcile-lost-runs.yml
+        .github/workflows/post-merge-demotion-alert.yml
+        .github/workflows/post-merge-test-mutation.yml
+        .github/workflows/pr-feedback-dispatch.yml
+        .github/workflows/pr-merge.yml
+        .github/workflows/pr-refine.yml
+        .github/workflows/pr-require-checks.yml
+        .github/workflows/pr-review-hosted.yml
+        .github/workflows/pr-review-main.yml
+        .github/workflows/pr-review-security-hosted.yml
+        .github/workflows/pr-run-activity-read.yml
+        .github/workflows/pr-run-activity-write.yml
+        .github/workflows/pr-unblock-dispatch.yml
+        .github/workflows/pr-unblock.yml
+        .github/workflows/pr-verify.yml
+        .github/workflows/release-publish-plugins.yml
+        .github/workflows/work-resolve-issue.yml
+        .github/workflows/work-unblock.yml
         plugins/review/skills/security-review/**
         plugins/review/evals/security-review-*/**
       # END hold-floor hold-paths

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "1. /app-control:map refresh cart/total --unattended",
+      "why": "flag after the id"
+    },
+    {
+      "answer": "Skill(skill: \"app-control:map\", args: \"refresh cart/total --unattended\")",
+      "why": "Skill tool call shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. /app-control:map refresh cart/total",
+      "why": "no unattended flag"
+    },
+    {
+      "answer": "/app-control:map refresh --unattended",
+      "why": "no feature id"
+    }
+  ]
+}

@@ -3,6 +3,48 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.5] - 2026-10-29
+
+### Fixed
+
+- A control skill's Ready command must now fail when the instance is unfit. The contract's new "The Ready command" section and `/app-control:map`'s Generate step require each check in Ready to exit non-zero when it fails, so a listing such as `docker ps` ends in `grep -q` on the expected row instead of passing with no rows. Map's proof runs Ready once more with the app stopped and records that it exits non-zero, read from the new `ready.exit` field of `/app-control:drive`'s report. `/app-control:map check` reports a `ready-listing` finding for a Ready command whose last stage is a bare listing, and create fixes each one before its proof.
+
+## [0.17.4] - 2026-10-29
+
+### Fixed
+
+- `/app-control:map refresh`: a pass now switches to the upkeep branch, creating it from the default branch or merging the default branch into it, before the source wave and the live pass, so its corrections describe the tree the upkeep pull request ships. The dirty-tree checks and their blocked outcomes, and a legacy conversion's dirty-map check and attended ask, run before that switch, a refused merge is aborted, and a ticket-branch pass still stays on its branch. Every pass, blocked early or not, switches back to where it started, and a clean pass records its skip state only after that return.
+
+## [0.17.3] - 2026-10-29
+
+### Fixed
+
+- **The `map-refreshes-each-control-skill` eval case passes a correct refresh plan.** Its judge failed every correct reply: the criteria asked the reply to commit and switch, while the prompt forbids both, so the judge failed a plan for not running; and they required each upkeep branch cut from `main`, where the refresh rules cut it from the fetched default-branch tip. The criteria now judge the plan, accept the fetched tip and the documented fallback when no pull-request tool is available, and still fail a shared branch or pull request, a second branch cut from or merging the first, a missing return to `main`, or asking which skill. The scaffold now adds the `origin` remote the pass fetches from, and the prompt states it.
+
+## [0.17.2] - 2026-10-28
+
+### Fixed
+
+- **The `map-refreshes-each-control-skill` and `map-reports-legacy-upkeep-branch` eval cases state a clean working tree in the prompt.** A stray file in the eval workspace, such as a `.gitconfig`, no longer counts as an untracked change that blocks the refresh, and each scaffold keeps `.gitconfig` out of `git status`. Each case's description now also says a run needs `--scaffold`. Without that flag the workspace stays empty and both cases score near zero.
+
+## [0.17.1] - 2026-10-28
+
+### Fixed
+
+- `/app-control:map refresh` started on a ticket branch commits its doc-drift corrections on that branch and opens no upkeep pull request, so the ticket's pull request carries them and they merge, or are dropped, with the code they describe. Before, the corrections went to an upkeep pull request cut from the default branch, which could merge ahead of the ticket or without it. A pass started on the default branch keeps the upkeep branch and its one pull request. On a ticket branch, a legacy-map conversion still rides the upkeep pull request and a flat-to-folder conversion is blocked until it runs from the default branch; a detached HEAD off the default branch's tip commits nothing.
+
+## [0.17.0] - 2026-10-28
+
+### Added
+
+- The control-skill contract has a size budget: 16,000 characters for the hub and 4,000 for each feature file, counted the way `/skill-quality:check listing-budget` counts. `/app-control:map check` reports a file over its budget with the new `size-budget` rule, and `/app-control:map create` reports any it wrote as a warning that stops nothing.
+
+## [0.16.1] - 2026-10-28
+
+### Fixed
+
+- `/app-control:map refresh` switches back to the branch it started on after every pass, not only between control skills in a multi-skill pass. A one-feature refresh called from `/testing:run-e2e` or `/verification:confirm` on a ticket branch no longer leaves the caller on `control-skill-upkeep/*`. From a detached HEAD, such as a CI checkout, it returns to the starting commit.
+
 ## [0.16.0] - 2026-10-27
 
 ### Added

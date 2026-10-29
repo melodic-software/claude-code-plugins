@@ -652,7 +652,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         sha = "a" * 40
         answers = {
             "repos/owner/repo": {"default_branch": "main"},
-            "repos/owner/repo/commits/main": {"sha": sha},
+            "repos/owner/repo/git/ref/heads/main": {"object": {"sha": sha}},
             f"repos/owner/repo/contents?ref={sha}": [],
         }
         calls: list[list[str]] = []
@@ -788,7 +788,9 @@ class Unattended(unittest.TestCase):
         # The repository's default branch as `repository_default_branch` reads it.
         self.repo_default: str | None = "main"
         # Each branch's tip as `base_tip` resolves it; one absent here fails.
-        self.tips: dict[str, str] = {"main": "e" * 40, "trunk": "f" * 40}
+        # The default branch head is `main`'s tip (`main_head`): the base, so
+        # the in-flight cap is `self.config`'s.
+        self.tips: dict[str, str] = {"main": BASE, "trunk": "f" * 40}
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -840,9 +842,6 @@ class Unattended(unittest.TestCase):
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
-        # The default branch head the in-flight cap is read at: the base, so
-        # the cap is `self.config`'s.
-        self.main_head = BASE
         # Reads of the pipeline config at `main_head` when it is not the
         # base, in order (the merge config's, the in-flight cap's, the room
         # check's): a config, or an exception to raise. Empty reads
@@ -860,6 +859,15 @@ class Unattended(unittest.TestCase):
             if len(self.dependabot_reads) > 1
             else self.dependabot_reads[0]
         )
+
+    @property
+    def main_head(self) -> str:
+        """The default branch head, read through `base_tip` like any tip."""
+        return self.tips.get("main", "")
+
+    @main_head.setter
+    def main_head(self, sha: str) -> None:
+        self.tips["main"] = sha
 
     def _base_tip(self, owner: str, name: str, base: str) -> str:
         if base not in self.tips:
@@ -910,8 +918,8 @@ class Unattended(unittest.TestCase):
         return read
 
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
-        if endpoint == "repos/owner/repo/commits/main":
-            return 200, {"sha": self.main_head}
+        if endpoint == "repos/owner/repo/git/ref/heads/main":
+            return 200, {"object": {"sha": self.main_head}}
         # A test's own patch of `policy._get` answers the rest; the real reader
         # would reach GitHub, so a read nothing answers raises instead.
         if self._outer_get is _REAL_GET:
@@ -1223,6 +1231,39 @@ class LaneMode(Unattended):
         ):
             _, out = self.lane()
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_trusted_persons_gate_path_clears_on_a_clean_security_review(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the gate path leaves `high-path:` for
+        # `review-path:`, which BOUND's clean security review clears; the
+        # lanes App's own pull request keeps the person's hold.
+        gate = ".github/scripts/pr-merge/who.mjs"
+        self.config = dataclasses.replace(
+            self.config, adoption_idle_hours=24, denied_paths=()
+        )
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        person = {"login": "owner", "id": PERSON_ID, "type": "User"}
+        for user, lanes, score in (
+            (person, BOUND, "LOW"),
+            (person, UNBOUND, "HIGH"),
+            ({"login": IDENTITY, "id": PERSON_ID, "type": "Bot"}, BOUND, "HIGH"),
+        ):
+            self.pr_user, self.lanes = user, lanes
+            with (
+                self.subTest(user=user["type"], lanes=lanes[1].bound),
+                mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
+            ):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                codes = [r["code"] for r in risk["reasons"]]
+                self.assertEqual(
+                    f"high-path:{gate}" in codes, user["type"] == "Bot", codes
+                )
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
@@ -3362,7 +3403,14 @@ class CostHold(Unattended):
             with self.subTest(held=held):
                 policy._TEXT_AT.clear()
                 self.addCleanup(policy._TEXT_AT.clear)
-                with mock.patch.object(policy, "_file_at", return_value=text):
+                # Base text first, then head: the patch's 30 -> 45 at its key.
+                sides = iter(
+                    f"jobs:\n  a:\n    timeout-minutes: {m}\n    steps:\n{text}"
+                    for m in ("30", "45")
+                )
+                with mock.patch.object(
+                    policy, "_file_at", side_effect=lambda *_: next(sides, None)
+                ):
                     read, out = self.run_with_decision(None)
                 codes = [r["code"] for r in out["risk"]["reasons"]]
                 self.assertEqual("cost-review-required" in codes, held)
@@ -3674,13 +3722,18 @@ class ReasonsComment(Unattended):
 
     def test_an_unresolved_default_branch_tip_is_no_lift(self) -> None:
         # The list is never read by the branch's name, which a tag of the
-        # same name could answer.
+        # same name could answer. The run's own default branch head read
+        # resolved; only the lift's later tip read does not.
         self.escalated_earlier()
+        head = self.main_head
         del self.tips["main"]
         self.timeline = [
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
-        _, out = self.run_main()
+        with mock.patch.object(
+            policy, "_default_branch_head", return_value=("main", head)
+        ):
+            _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(self.trusted_refs, [])
         self.assertEqual(
@@ -4416,6 +4469,7 @@ class AttachEdits(unittest.TestCase):
         edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
         other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
         editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
         reply = {
             "data": {
                 "nodes": [
@@ -4423,6 +4477,7 @@ class AttachEdits(unittest.TestCase):
                         "id": "IC_b",
                         "lastEditedAt": "2026-10-22T03:00:00Z",
                         "editor": editor,
+                        "userContentEdits": history,
                     }
                 ]
             }
@@ -4431,7 +4486,12 @@ class AttachEdits(unittest.TestCase):
             merge._attach_edits([same, edited, other], "#1")
         self.assertEqual(same["edit"], {"lastEditedAt": None})
         self.assertEqual(
-            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
         )
         self.assertNotIn("edit", other)
         args = read.call_args.args[0]
@@ -5521,7 +5581,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
-        stack.enter_context(mock.patch.object(policy, "base_tip", return_value="e" * 40))
+        stack.enter_context(
+            mock.patch.object(policy, "base_tip", return_value="e" * 40)
+        )
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:

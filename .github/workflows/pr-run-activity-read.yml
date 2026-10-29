@@ -1092,7 +1092,12 @@ jobs:
           RESUME_TIP: ${{ steps.issue-prior.outputs.resume-tip }}
           RESUME_CAUSE: ${{ steps.issue-prior.outputs.resume-cause }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-        run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
+          CONFIG_PATH: ${{ inputs.config-path }}
+        run: |
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
+          export ISSUE_LANE_WEB_HOSTS
+          node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -2905,8 +2910,11 @@ jobs:
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
           LABEL_NAME: ${{ github.event.label.name }}
           LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
+          CONFIG_PATH: ${{ inputs.config-path }}
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
+          export ISSUE_LANE_WEB_HOSTS
           if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || ! [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] ||
             ! [[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]; then
             echo "::error::the summary pass needs this issue's lane branch and a base commit"
@@ -3051,6 +3059,17 @@ jobs:
             Read(//proc/**)
           json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
           leg-timeout-minutes: "10"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file) != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || 'token' }}
 
       # The summary file: issue, branch and tip are runner values from before
       # the model ran; output is the launcher's structured output, model

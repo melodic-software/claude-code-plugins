@@ -1,0 +1,12 @@
+"""Seed data/accounts.jsonl from the legacy CSV export."""
+
+import csv
+import json
+
+from bfk.legacy import normalize_row
+
+with open("data/legacy_seed.csv", newline="", encoding="utf-8") as src, open(
+    "data/accounts.jsonl", "w", encoding="utf-8"
+) as dst:
+    for row in csv.DictReader(src):
+        dst.write(json.dumps(normalize_row(row)) + "\n")
