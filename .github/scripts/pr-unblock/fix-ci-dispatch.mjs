@@ -56,7 +56,7 @@ import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { KILL_SWITCH_STOP, killSwitchStop, LANE_STOP, laneStop } from "./limit-stop.mjs";
+import { KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -154,6 +154,13 @@ const fromRest = (run) => ({
   conclusion: run.conclusion ? String(run.conclusion).toUpperCase() : null,
   title: run.output?.title ?? null,
   completedAt: run.completed_at ?? null,
+});
+
+// A rollup check run in the REST shape limit-stop.mjs reads.
+const asRest = (run) => ({
+  status: String(run.status ?? "").toLowerCase(),
+  conclusion: run.conclusion ? String(run.conclusion).toLowerCase() : null,
+  output: { title: run.title ?? null },
 });
 
 // The head's fix-ci runs (REST) in the rollup's shape, one per run attempt:
@@ -420,9 +427,10 @@ export function skipReason(
   if (runs.length === 0) {
     return "";
   }
-  // The rollup cannot tie a stopped push job to its fix-ci run, so a head
-  // whose rollup holds one is decided on its REST runs (withStops).
-  if (node.fixCiRuns === undefined && checks.some((run) => run.name === stopCheckName && run.conclusion === "NEUTRAL" && [LANE_STOP, KILL_SWITCH_STOP].includes(run.title))) {
+  // The rollup's newest push job check names no run attempt: when it is a
+  // lane or kill-switch stop, which turns the fix-ci run before it into a
+  // failed or paused one (withStops), the REST read decides the head.
+  if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && releasesHead(asRest(run)))) {
     return "";
   }
   // A held skip (a held PR stopped above) or a kill-switch stop counts toward

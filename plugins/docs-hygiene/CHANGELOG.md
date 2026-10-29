@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.11] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
 ## [2.0.10] - 2026-10-29
 
 ### Changed
