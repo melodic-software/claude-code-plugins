@@ -5353,8 +5353,9 @@ def handoff_apply_report(
 
 
 # The Windows Recycle Bin backend, through ctypes so the engine stays
-# stdlib-only. GUIDs and vtable slots come from shobjidl_core.h and unknwn.h,
-# flag values from IFileOperation::SetOperationFlags and TRANSFER_SOURCE_FLAGS,
+# stdlib-only. GUIDs and vtable slots come from shobjidl_core.h and the IUnknown
+# declaration, flag values from IFileOperation::SetOperationFlags (each
+# `_OPFLAG_` constant keeps its SDK flag's suffix) and TRANSFER_SOURCE_FLAGS,
 # and SHQUERYRBINFO's layout from shellapi.h, which packs it to one byte on
 # 32-bit Windows only; the backend refuses 32-bit Python.
 _IID_UNKNOWN = "00000000-0000-0000-c000-000000000046"
@@ -5367,22 +5368,22 @@ _E_NOINTERFACE = ctypes.c_int32(0x80004002).value
 _E_ABORT = ctypes.c_int32(0x80004004).value
 _COINIT_APARTMENTTHREADED = 0x2
 _CLSCTX_INPROC_SERVER = 0x1
-_FOF_SILENT = 0x0004
-_FOF_NOCONFIRMATION = 0x0010
-_FOF_ALLOWUNDO = 0x0040
-_FOF_NOERRORUI = 0x0400
-_FOFX_RECYCLEONDELETE = 0x00080000
-_FOFX_EARLYFAILURE = 0x00100000
+_OPFLAG_SILENT = 0x0004
+_OPFLAG_NOCONFIRMATION = 0x0010
+_OPFLAG_ALLOWUNDO = 0x0040
+_OPFLAG_NOERRORUI = 0x0400
+_OPFLAG_RECYCLEONDELETE = 0x00080000
+_OPFLAG_EARLYFAILURE = 0x00100000
 # No dialog an agent's process could wait on, a stop at the first error, and a
 # request for the Recycle Bin. These flags only ask: the progress sink is what
 # refuses a permanent delete.
 _RECYCLE_OPERATION_FLAGS = (
-    _FOF_SILENT
-    | _FOF_NOCONFIRMATION
-    | _FOF_NOERRORUI
-    | _FOFX_EARLYFAILURE
-    | _FOF_ALLOWUNDO
-    | _FOFX_RECYCLEONDELETE
+    _OPFLAG_SILENT
+    | _OPFLAG_NOCONFIRMATION
+    | _OPFLAG_NOERRORUI
+    | _OPFLAG_EARLYFAILURE
+    | _OPFLAG_ALLOWUNDO
+    | _OPFLAG_RECYCLEONDELETE
 )
 _TSF_DELETE_RECYCLE_IF_POSSIBLE = 0x80
 _COM_RELEASE = 2

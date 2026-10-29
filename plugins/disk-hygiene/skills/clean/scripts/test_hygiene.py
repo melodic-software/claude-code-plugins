@@ -10055,14 +10055,14 @@ class GuardTests(unittest.TestCase):
             self.assertIn(f"\n- {path}\n", reason)
         self.assertNotIn("version-control", reason)
 
-    def test_handoff_apply_ask_reason_falls_back_when_the_command_is_unreadable(
+    def test_handoff_ask_reason_falls_back_when_the_command_is_unreadable(
         self,
     ) -> None:
         for command in ("", "handoff-apply --tier low", "x --snapshot s --tier low"):
             with self.subTest(command=command):
                 self.assertEqual(
                     guard._HANDOFF_APPLY_ASK_GENERIC_REASON,
-                    guard._handoff_apply_ask_reason(command),
+                    guard._handoff_ask_reason(command),
                 )
 
     # Here because this class is the only one the Windows lane runs: it drives

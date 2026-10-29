@@ -3142,7 +3142,7 @@ _HANDOFF_APPLY_ASK_GENERIC_REASON = (
 )
 
 
-def _handoff_apply_ask_reason(command: str) -> str:
+def _handoff_ask_reason(command: str) -> str:
     """Tier, count, and every path a handoff-apply command names.
 
     Text only, like ``_apply_ask_reason``: an unreadable command returns the
@@ -3186,7 +3186,7 @@ def _handoff_apply_ask_reason(command: str) -> str:
 # The ask reason each mutating subcommand shows, given the command.
 _MUTATION_PROMPTS = {
     "apply": _apply_ask_reason,
-    "handoff-apply": _handoff_apply_ask_reason,
+    "handoff-apply": _handoff_ask_reason,
 }
 
 
