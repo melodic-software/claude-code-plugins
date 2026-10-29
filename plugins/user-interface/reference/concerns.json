@@ -326,6 +326,44 @@
         "order": 12,
         "procedure": null
       }
+    },
+    {
+      "id": "marketing-pages",
+      "title": "Marketing pages",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "landing page",
+        "marketing page",
+        "marketing site",
+        "homepage",
+        "hero section",
+        "pricing page",
+        "blog page",
+        "changelog page",
+        "documentation site",
+        "call to action",
+        "open graph image",
+        "RSS feed"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/marketing-pages.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/show-and-hide.md"
+      ],
+      "routing_concerns": [
+        "visual-direction"
+      ],
+      "audit": {
+        "order": 16,
+        "procedure": null
+      }
     }
   ]
 }
