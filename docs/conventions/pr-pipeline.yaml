@@ -945,6 +945,12 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # true: report each decision and write nothing.
   report-only: false
+  # true: post-merge-dispatch starts a full run of main inside its 30-minute
+  # cap when an unverified lane merge has no started full run covering it,
+  # one run for the whole batch, so the lane's in-flight room frees after one
+  # verify instead of waiting out the cap. false: the cap holds for every
+  # merge. Absent is true.
+  full-run-cap-bypass: true
   # native: the lanes App's pull requests merge through GitHub's auto-merge
   # (the enable-auto-merge activity arms them, ci-status gates them), and the
   # gate below neither lists, scores nor enqueues them. gate: the gate also
