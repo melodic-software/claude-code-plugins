@@ -1101,7 +1101,13 @@ the rules that only tighten in
   lane uploads `verdict.json` as
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled
-  `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head; it posts nothing else.
+  `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head. A designed stop (a
+  binary file, a patch over the size cap or a line over 1800 bytes) leaves the leg green with no
+  verdict, and the record job posts it on the head as the same check run titled
+  `verdict=none reason=<too-large|binary|long-line>`, so each stop is a countable record; it
+  posts nothing else. A stop counts no CRITICAL finding and never binds a lane: with no verdict
+  the lanes stay unbound as `main-review-stop:<reason>`, a lane's reason. A forged stop only
+  renames that reason.
   The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
   file, event `workflow_run`, on the default branch of this repository with a head the branch
   holds, and the verdict names that lane, pull request and tree. As with pr-verify's FAIL, a
