@@ -1,6 +1,6 @@
 # harness-config
 
-A Claude Code plugin bundling six configuration-health skills (plus a `setup` skill) for one
+A Claude Code plugin bundling nine configuration-health skills (plus a `setup` skill) for one
 cohesive capability: keeping a repo's Claude Code configuration healthy. Each skill answers a
 different question about the same surface:
 
