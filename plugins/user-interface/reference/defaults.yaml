@@ -12,6 +12,9 @@ css:
   important: avoid
   layer: null
   token_fallback: ask
+  # The widest gap in px (parent border plus padding) at which a nested radius is still derived from its parent's.
+  concentric_radius:
+    max_gap_px: 24
 # Animation taste defaults: each curve is four cubic Bezier control points [x1, y1, x2, y2];
 # durations are the upper end of each role's range in milliseconds; the gesture threshold is
 # px/ms for a small element's swipe to dismiss. Project tokens beat every layer.

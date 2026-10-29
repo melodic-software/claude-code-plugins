@@ -232,7 +232,7 @@ happening. Progress shows how much is done.
 ### Card: `card`
 
 A contained surface grouping related content. The inner radius should be smaller than the outer,
-calculated from the padding. Making the full surface a link makes text selection impossible.
+calculated from the parent's border width and padding, floored at zero. Making the full surface a link makes text selection impossible.
 
 **Versus:** a separator divides with a line; a card groups with a contained surface.
 

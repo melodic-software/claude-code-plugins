@@ -21,6 +21,7 @@ const CONTRACT = {
     important: "avoid",
     layer: null,
     token_fallback: "ask",
+    concentric_radius: { max_gap_px: 24 },
   },
   animation: {
     easing: {
@@ -75,4 +76,17 @@ test("the primitives default takes a library key and keeps base-ui otherwise", (
   assert.deepEqual(primitivesWith("react-aria"), { primitives: "react-aria", error_keys: [] });
   assert.deepEqual(primitivesWith("Base UI"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
   assert.deepEqual(primitivesWith("shadcn"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
+});
+
+// Expected values: the key's contract, an integer of at least 0 with default 24 (the gap past
+// which nested surfaces read as independent).
+test("the nested-radius gap limit takes an integer of at least 0 and keeps 24 otherwise", () => {
+  const gapWith = (raw) => {
+    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { css_concentric_radius_max_gap_px: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return { gap: values.css.concentric_radius.max_gap_px, error_keys: layers[1].error_keys };
+  };
+  assert.deepEqual(gapWith("30"), { gap: 30, error_keys: [] });
+  assert.deepEqual(gapWith("0"), { gap: 0, error_keys: [] });
+  assert.deepEqual(gapWith("-1"), { gap: 24, error_keys: ["css.concentric_radius.max_gap_px"] });
+  assert.deepEqual(gapWith("1.5"), { gap: 24, error_keys: ["css.concentric_radius.max_gap_px"] });
 });

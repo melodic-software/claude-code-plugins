@@ -252,6 +252,44 @@
         "order": 11,
         "procedure": null
       }
+    },
+    {
+      "id": "shape-and-depth",
+      "title": "Shape and depth",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "border radius",
+        "rounded corners",
+        "nested radius",
+        "concentric radius",
+        "box-shadow",
+        "elevation",
+        "depth",
+        "card looks flat",
+        "border looks harsh",
+        "hairline border",
+        "gradient banding",
+        "image outline"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/shape-and-depth.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/spacing-and-shape.md",
+        "skills/write-css/reference/motion.md",
+        "skills/write-css/reference/scroll-and-viewport.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 7,
+        "procedure": null
+      }
     }
   ]
 }

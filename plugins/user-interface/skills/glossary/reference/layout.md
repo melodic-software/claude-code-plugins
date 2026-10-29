@@ -8,10 +8,12 @@ between it and the term most often confused with it.
 ### Border radius: `border-radius`
 
 The rounding on a corner. An inner element inside a rounded container needs a smaller radius,
-calculated as outer radius minus padding. Matching both creates a visible gap.
+calculated as outer radius minus the parent's border width minus the padding, floored at zero; at
+zero the inner corner goes square and the two curves no longer share a center. Matching both
+creates a visible gap.
 
-**Versus:** nested radius is the outer-minus-padding rule for an inner element; border radius is the
-rounding itself.
+**Versus:** nested radius is the outer-minus-border-minus-padding rule for an inner element; border
+radius is the rounding itself.
 
 ### Negative space: `negative-space`
 
