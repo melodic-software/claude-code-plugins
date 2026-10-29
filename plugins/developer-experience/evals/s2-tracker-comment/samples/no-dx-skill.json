@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call at all"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "make tq ARGS=\"item comment 4821 --body 'Paging fix is merged; verifying on staging tomorrow.'\""}}],
+      "why": "used the existing command through make"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:setup"}}],
+      "why": "another developer-experience skill is outside this check"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "work-items:track"}}],
+      "why": "another plugin's skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:build-cli"}}],
+      "why": "build-cli fired on a task that uses an existing command"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}],
+      "why": "audit-tools fired"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "build-cli", "args": "item status"}}],
+      "why": "bare skill name"
+    }
+  ]
+}
