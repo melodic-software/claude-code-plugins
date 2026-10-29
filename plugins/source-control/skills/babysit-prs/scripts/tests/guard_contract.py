@@ -1343,6 +1343,15 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("markPullRequestReadyForReview",),
     ),
     Mechanism(
+        id="whole-review.toggles-draft",
+        claim=(
+            "babysit_whole_review.py toggle performs GitHub writes: it converts a "
+            "pull request to a draft and marks it ready again through GraphQL."
+        ),
+        entry_point=WHOLE_REVIEW_CLI,
+        must_contain=("convertPullRequestToDraft", "markPullRequestReadyForReview"),
+    ),
+    Mechanism(
         id="review.posts-a-comment",
         claim=(
             "request_review.py --apply performs a GitHub write: it POSTs an issue comment "
@@ -1645,15 +1654,21 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         wrapper=None,
         mutation=MUTATING,
         mutates_what="a pull request's draft state",
-        gate="pr-merge.yml runs `recover` with the lane token, live mode only",
+        gate=(
+            "pr-merge.yml's merge job runs `recover`, and enable-auto-merge.mjs "
+            "runs `recover`, `request` and `toggle`, with the lane token, live "
+            "mode only"
+        ),
         claim=(
             "`recover` reads each listed draft's comments and newest "
             "conversion to draft, and marks ready a draft whose newest "
             "reasons comment (`<!-- babysit-merge-risk -->`) by the lane "
             "identity records a whole-review request, when the lane identity "
-            "also made that conversion within ten minutes after a record."
+            "also made that conversion within ten minutes after a record. "
+            "`request` writes nothing; `toggle` converts the pull request to "
+            "a draft and marks it ready again."
         ),
-        backed_by=("whole-review.marks-ready",),
+        backed_by=("whole-review.marks-ready", "whole-review.toggles-draft"),
     ),
     EntryPoint(
         path=SKIP_CLI,

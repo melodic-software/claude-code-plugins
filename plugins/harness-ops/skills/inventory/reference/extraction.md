@@ -461,20 +461,35 @@ member write of a trusted name, a write whose computed key may be one, a trusted
 string or `Symbol.x` argument to any call, an object literal holding one given to
 `Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
 `Reflect.set`, `__defineGetter__`) given a key that may be one or read other than as a direct
-callee, an alias of `Object` or `Reflect`, a prototype swap (`__proto__=`, `setPrototypeOf`), and a
-write to an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a
-string, a template without substitutions, or `Symbol.x`. A computed key is known when every value
-it can take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof`
-result, or a variable each write of which is one of those, so a loop counter (`o[i]=`) or a
-TypeScript enum (`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target
-is cleared only when it is provably fresh: a literal or a function (never a call result, not even
-`Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
-superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
-holds one of those; or the `prototype` of a function or class declared in the module whose every
-reference is `F.prototype.k` with a named key other than `constructor` (a call, `new`, or
-`F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
-given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
-built from a string: global `eval` other than a direct call, the global `Function` used other
+callee, an alias of `Object` or `Reflect` (a destructuring declarator is none when each definer it
+takes, as in `var{defineProperty:f}=Object`, is never written again and only called, each call
+then checked as that definer's, and every other key it takes is a static that defines nothing
+and hands out no code, such as `getPrototypeOf` or `keys`), a prototype swap (`__proto__=`,
+`setPrototypeOf`), and a write to
+an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a string, a
+template without substitutions, or `Symbol.x`. A computed key is known when every value it can
+take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof` result, or a
+variable each write of which is one of those, so a loop counter (`o[i]=`) or a TypeScript enum
+(`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target is cleared only
+when it is provably fresh: a literal, a function, or `new` of a class declared in the module with
+no superclass and no constructor returning a value; a call of the global `Object.create`, or the
+object an `Object` definer returns, which trusts `Object` and `create` or the definer's name,
+since any of them can be replaced first; `this` in the constructor of a class with no superclass
+(a derived class's `this` is whatever `super()` returns), or in a function every reference to
+which binds it to a fresh object (`r.bind(b,c)`, trusting `bind`); a `?:` whose branches both
+are; a variable that only ever holds one of those, or is assigned one before any read in its own
+function; the `prototype` of a function or class declared in the module whose every reference is
+`F.prototype.k` with a named key other than `constructor` (a call, `new`, or
+`F.prototype.constructor` leads back to F, which could replace it); and a parameter never written,
+when every call of its function passes one (not followed for a function that reads `arguments` or
+is declared in a block, which sloppy code can change or call unseen). For an exported function
+those calls include every importer's: `sinks` holds the hit as pending, and it clears only when
+each module importing the export calls it directly with a fresh argument (the helper's
+`fresh_args` op), none re-exports it, and no module loads its file whole or loads a file the
+parser cannot name. Every module is then checked for the names the cleared targets trusted as
+well. `Reflect.set`'s receiver, when given, must be fresh too. A module that does not parse or
+calls `eval` is a sink, and so is code built from a string: global `eval` other than a direct
+call, the global `Function` used other
 than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
@@ -501,13 +516,15 @@ module, holds no sink by this same rule (followed up to 4 folds deep). The modul
 what only sloppy code allows (`with`) and parses the rest the same, except an HTML-like comment,
 so text holding `<!--` or `-->` is not folded. `test_reader_findings` pins the three shapes #9983 reports
 on 2.1.310 (lodash's probe, the `new Function("")` probe, an unused syntax check) as clearing;
-ajv's generated code is no constant and stays a sink. Any other use stays a sink: a stored function
+ajv's generated code is no constant and stays a sink. Folded code that loads a file
+(`import("...")`, `require("...")`) is a sink too, since the bundle's load scan never reads it.
+Any other use stays a sink: a stored function
 (`var F=Function("...");F()`), a body that is no constant (`Function(s)()`), `.call` or `.apply`
 on the result. The folded calls trust the global `Function` itself, so the rule counts `Function`
 among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
 the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
 given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
-holds a computed write of its own.
+holds a computed write of its own. `Object`, once a cleared target trusts it, counts the same way.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export

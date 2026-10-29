@@ -260,6 +260,11 @@ export function createGitHub({
     if (!keepGraphQLErrors && Array.isArray(json?.errors) && json.errors.length > 0) {
       throw new GitHubError(response.status, `${method} ${apiPath} (GraphQL errors)`);
     }
+    // A list keeps its Link header for a reader that pages by cursor
+    // (merge-holds.mjs branchActivity).
+    if (Array.isArray(json)) {
+      Object.defineProperty(json, Symbol.for("github.link"), { value: response.headers.get("link") });
+    }
     return json;
   };
 }

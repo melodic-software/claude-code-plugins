@@ -630,6 +630,11 @@ runs:
                 denied+=("Edit(./.lane/feedback/$file)" "Write(./.lane/feedback/$file)" "NotebookEdit(./.lane/feedback/$file)")
               done
               preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
+              # The fresh fixer round past the round cap: the select job's
+              # fixed brief (address-feedback.mjs FRESH_ROUND_BRIEF), never
+              # text a head, a finding or a model wrote.
+              retry=$(jq -r '.retry.brief // empty' "$FEEDBACK_DIR/threads.json")
+              [ -z "$retry" ] || preamble="$preamble $retry"
             fi
             # tidy: an issue lane's skill tidies its own change before its
             # last check run, with the entry skill and its passes and no other
