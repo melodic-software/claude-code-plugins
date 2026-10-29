@@ -474,7 +474,7 @@ id_deny "git config --global --remove-section user" 'git config --global --remov
 id_deny "git config --global --rename-section to includeIf" \
   'git config --global --rename-section old "includeIf.gitdir:/placeholder/"'
 id_deny "git config --global -t bool" 'git config --global -t bool user.email a@example.invalid'
-id_deny "a key in another case"'git config --global USER.EMAIL a@example.invalid'
+id_deny "a key in another case" 'git config --global USER.EMAIL a@example.invalid'
 id_deny "a git config write behind sh -c" "bash -c 'git config --global user.email a@example.invalid'"
 id_deny "a git config write after another command" 'cd /placeholder && git config --global user.email a@example.invalid'
 id_deny "a redirection appends to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
