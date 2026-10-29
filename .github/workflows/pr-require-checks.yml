@@ -4687,9 +4687,11 @@ jobs:
           if [ -n "$held" ] || [ "$(grep -c . <<<"$files")" -ge 3000 ]; then
             conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
             apps='[]'
-            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
+            # pipefail, and an empty list counts as unread: the step runs without
+            # pipefail, so a failed yq would otherwise leave apps empty and pass.
+            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
               jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
-                then map(ascii_downcase) else error("not a list of [bot] logins") end'); }; then
+                then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
               echo "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml, so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
               exit 1
             fi

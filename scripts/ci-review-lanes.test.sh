@@ -204,7 +204,7 @@ expect() {
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -f "$TMP_ROOT/pr-files.json"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
     BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -445,6 +445,19 @@ STUB_COMMIT_COUNT=2 expect "a commit list shorter than the pull request is held"
 STUB_PUSHES_FAIL=1 expect "an unreadable push history is held" 1 "::error::could not read the push history of feature/x; re-run this run."
 STUB_PUSHES="$(jq -cn --argjson p "$(push kyle-sexton $SHA_A)" '[range(100) | $p]')" \
   expect "a full page of push history is held" 1 "::error::the push history of feature/x is unreadable or fills a page"
+# yq failing or missing leaves no list: held, also on a file list at GitHub's
+# 3000-file cap that names no trust-gate path, where held is empty.
+# yq-fails prints a list and then fails, so only pipefail catches it, whatever
+# jq does with empty input.
+mkdir -p "$TMP_ROOT/yq-fails" "$TMP_ROOT/yq-missing"
+printf '#!/usr/bin/env bash\necho "[]"\necho "Error: boom" >&2\nexit 1\n' >"$TMP_ROOT/yq-fails/yq"
+printf '#!/usr/bin/env bash\necho "yq: command not found" >&2\nexit 127\n' >"$TMP_ROOT/yq-missing/yq"
+chmod +x "$TMP_ROOT/yq-fails/yq" "$TMP_ROOT/yq-missing/yq"
+for dir in yq-fails yq-missing; do
+  STUB_PATH="$TMP_ROOT/$dir" expect "a trust-gate change with $dir is held" 1 "::error::could not read merge.trust-path-hold-apps"
+  STUB_PATH="$TMP_ROOT/$dir" STUB_CHANGED=3000 SHARED_FILES="$(jq -cn '[range(3000) | {filename: "docs/f\(.).md"}]')" \
+    expect "a 3000-file list with $dir is held" 1 "::error::could not read merge.trust-path-hold-apps"
+done
 BASE_CONFIG='' expect "an unreadable base config is held" 1 "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml"
 printf 'merge:\n  trust-path-hold-apps: melodic-agent[bot]\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
 BASE_CONFIG="$TMP_ROOT/bare-config" expect "a malformed App list is held" 1 "could not read merge.trust-path-hold-apps"
