@@ -19,7 +19,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
+import { countedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
   classify,
@@ -90,13 +90,41 @@ export function countCheckRounds(checkRunsByCommit) {
   ).length;
 }
 
+const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
+
 // The newest ci-status run GitHub Actions posted on the head: its conclusion
 // once completed, else pending.
 export function ciStatusOf(checkRuns) {
-  const newest = checkRuns
-    .filter((run) => run.app?.slug === "github-actions")
-    .sort((a, b) => b.id - a.id)[0];
+  const newest = newestOf(checkRuns);
   return newest?.status === "completed" ? String(newest.conclusion) : "pending";
+}
+
+// While a full run is in flight on the head, the contract-only ci-status fails
+// with this annotation and the full run's newer ci-status decides
+// (pr-require-checks.yml, yield-to-full-run). The rule matches the guardrails
+// merge guard's: every failure annotation is that marker for this head or the
+// runner's exit line, and at least one is the marker.
+const SUPERSEDED = /^superseded by full run https:\/\/[^ ]+\/actions\/runs\/[0-9]+ in flight on ([0-9a-f]+)[:. ]/;
+const EXIT_LINE = /^Process completed with exit code [0-9]+\.$/;
+export function supersededOnly(annotations, headSha) {
+  const failures = annotations.filter((note) => note?.annotation_level === "failure").map((note) => String(note.message ?? ""));
+  const marks = (message) => SUPERSEDED.exec(message)?.[1] === headSha;
+  return failures.some(marks) && failures.every((message) => marks(message) || EXIT_LINE.test(message));
+}
+
+// ciStatusOf, with a superseded contract-only failure read as pending. A
+// failed annotations read leaves the failure standing.
+export async function readCiStatus(api, headSha) {
+  const runs = await api.listCheckRuns(headSha, "ci-status");
+  const status = ciStatusOf(runs);
+  if (status !== "failure") {
+    return status;
+  }
+  try {
+    return supersededOnly(await api.listAnnotations(newestOf(runs).id), headSha) ? "pending" : status;
+  } catch {
+    return status;
+  }
 }
 
 // A commit's changed paths, or null when unreadable or at the listing limit,
@@ -179,7 +207,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   const commits = await api.listPullCommits(pr);
   const classification = await classifyPull({
     pull,
-    ciStatus: ciStatusOf(await api.listCheckRuns(headSha, "ci-status")),
+    ciStatus: await readCiStatus(api, headSha),
     commits,
     files,
     config,
@@ -322,6 +350,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const config = readConfig(env.DEPENDABOT_CONFIG, log);
   const result = await select({

@@ -5,9 +5,10 @@ description: >
   in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
   response and one for the last. GET /rate_limit is never read: it reports a
   different bucket from the one the job spends. Then an `api-calls` notice,
-  `<name>=N not-modified=M`: N is this job's own calls, which cost (the rise in a
-  counter every concurrent job shares) is not, and M its 304 answers, which
-  GitHub does not count. Then one line for the job's content-creating writes
+  `<name>=N not-modified=M graphql=K`: N is this job's own requests, which cost (the rise in a
+  counter every concurrent job shares) is not, M its 304 answers, which
+  GitHub does not count, and K the GraphQL requests among N, which spend
+  GraphQL's own pool. Then one line for the job's content-creating writes
   (count and most in any 60 s). Also writes each line and a `<name>-cost=N`
   line to the step summary. A token with no reading gets only its api-calls
   line, at 0. Never fails the job.
@@ -43,7 +44,7 @@ runs:
             printf '%s\n' "$lines"
             sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
           fi
-          # This job's own calls, one reading each: unlike cost, no other job's.
+          # This job's own requests, every page and gh subcommand: unlike cost, no other job's.
           # A notice, as the hub reads annotations, not the log; 0 with no reading.
           calls=$(api_budget_emit_calls "$name")
           printf '%s\n' "$calls"

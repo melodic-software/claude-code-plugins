@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.14.0] - 2026-10-29
+
+### Added
+
+- `/harness-ops:behavior-probes`: an `intake-permissions` area that checks, under `dontAsk` with only `Bash(gh issue view *)` allowed, that a plain `gh issue view` runs and that the `;`, `&&`, `|` and `$()` forms adding a second command are denied. A stub `gh` logs the calls, so a failed deny touches no real issue.
+
 ## [4.13.4] - 2026-10-28
 
 ### Fixed

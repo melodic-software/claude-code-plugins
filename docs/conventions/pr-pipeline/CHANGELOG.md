@@ -1,5 +1,30 @@
 # Changelog for the PR pipeline convention
 
+## [7.2.1] - 2026-10-29
+
+### Fixed
+
+- check-wip-cap closes new admissions when it cannot read the base config (a failed resolve-config import, as after a failed `npm ci` of its dependencies), whatever `wip.pause-from` says: `admission-open` is `false`, and `admission_reason` and `admission_basis` are `config-unreadable`, with a `check-wip-cap` warning. Before, the default limits applied with admissions open, so a broken dependency took the queued cap off. The run pause keeps the last known state as before, and a failed `npm ci` still continues, with a warning that says admissions close.
+
+## [7.2.0] - 2026-10-29
+
+### Added
+
+- **`attended`, separate from `host-run` and `needs-human`.** Work that needs the owner present (a manual step on external state an agent cannot safely run or test) gets the `attended` label. Intake admission refuses it as it refuses `host-run`, parked at `status: confirmed` with no decision asked. While the newest `attended` event is a removal by anyone but a listed human, the lanes App included, admission refuses as if the label were on.
+- **External state in refinements.** An exact intake refinement ends its criteria with one plain line, `External state: none`, `iac (<owner/repo>)` or `manual (<class>: <what>)`. Admission refuses a `manual` one and adds `attended`, until a listed human removes `attended` after that refinement; `iac` routes nothing. The classes are config: the new `attended.classes` section of `pr-pipeline.yaml`, which `refine.mjs --select` puts in the model's context and `--apply` checks.
+- **`attended` holds downstream.** work-unblock never adds `agent-ready` to an issue carrying `attended`, or to an admission-deferred one whose newest `attended` event is a removal by anyone but a listed human; its re-admission paths park an attended refusal at `status: confirmed` with `attended`. resolve-issue and apply-issue-patch hold on `attended`.
+- **`manual-external` stop code.** A resolve-issue run that reaches such a step stops with `manual-external`, whose new `attended` route adds the label and removes `agent-ready`; `host-only` now names a host run alone.
+
+## [7.1.0] - 2026-10-28
+
+### Added
+
+- `limits.readmit-per-run` in `pr-pipeline.yaml` (default 20, at most 100): how many open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on. An issue left out before the rules run does not count.
+
+### Fixed
+
+- work-unblock's hourly sweep now runs intake's admission (`admit.mjs` `decide`) on open `status: ready` issues that carry neither `agent-ready` nor `admission-deferred`, such as a deferral whose label was lost or a `status: ready` set by hand. Before, nothing revisited them. One listing per sweep, oldest updated first. An issue with a hold or refuse label, an open blocker or an open sub-issue is left out unread; one whose `status: ready` neither a listed human nor the lanes App added, or whose `agent-ready` removal still stands, is skipped after its events are read. The writes match intake's: `agent-ready` within the queued cap's room, `admission-deferred` past it or while an open pull request is for the issue, and a refusal parked at `status: confirmed`, or at `status: needs-decision` when it holds for a person.
+
 ## [7.0.1] - 2026-10-28
 
 ### Changed

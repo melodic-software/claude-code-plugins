@@ -3526,6 +3526,20 @@ def score_unattended(
         if eligible.adoption
         else frozenset()
     )
+    # A trusted person's own gate-path lines on a head the verifier reader
+    # passed above clear on a clean security review (owner direction
+    # 2026-10-27); with no reader run, nothing does.
+    reviewed = (
+        merge_policy.author_reviewed_paths(
+            repo,
+            pr,
+            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            inputs.get("trusted_humans") or (),
+            reader is not None,
+        )
+        if complete
+        else frozenset()
+    )
     # The manifest review compares base and head text; the cost hold reads a
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
@@ -3549,6 +3563,7 @@ def score_unattended(
         high_paths=config.denied_paths,
         lanes=lanes,
         floor_exempt=own,
+        author_reviewed=reviewed,
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
         **lane_switches,

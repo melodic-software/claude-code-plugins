@@ -5880,6 +5880,71 @@ class ForeignPaths(unittest.TestCase):
             self.assertIsNone(policy.foreign_paths(REPO, owner_pr(), self.CHANGED))
 
 
+class AuthorReviewedPaths(unittest.TestCase):
+    """Owner direction 2026-10-27: a trusted person's own pull request's
+    `gate` paths only their own commits touched, on a head pr-verify passed,
+    clear on a clean security review (`babysit_risk.RiskInput.author_reviewed`);
+    the lanes App's, a bot's, a `trust` path and a lane's fix never do."""
+
+    GATE = ".github/scripts/pr-merge/who.mjs"
+    TRUST = ".github/actions/request-lane-token/action.yml"
+    CHANGED = frozenset({GATE, TRUST, "docs/x.md"})
+    LANES = {"login": "melodic-automation-lanes[bot]", "id": 337595936, "type": "Bot"}
+
+    def reviewed(
+        self, user=None, others=frozenset(), humans=(OWNER_ID,), verified=True
+    ):
+        pr = owner_pr() if user is None else owner_pr(user=user)
+        with mock.patch.object(policy, "foreign_paths", return_value=others):
+            return policy.author_reviewed_paths(
+                REPO, pr, self.CHANGED, humans, verified
+            )
+
+    def test_a_trusted_persons_own_gate_paths_on_a_passed_head(self) -> None:
+        self.assertEqual(self.reviewed(), frozenset({self.GATE}))
+
+    def test_a_lanes_app_or_bot_pull_request_gets_none(self) -> None:
+        for user in (
+            self.LANES,
+            {"login": "claude[bot]", "id": 209825114, "type": "Bot"},
+            # An App's id on the human list is still not a person.
+            {"login": "x[bot]", "id": OWNER_ID, "type": "Bot"},
+        ):
+            with self.subTest(user=user["login"]):
+                self.assertEqual(self.reviewed(user), frozenset())
+
+    def test_a_person_off_the_list_or_an_unread_list_gets_none(self) -> None:
+        stranger = {"login": "someone", "id": 99, "type": "User"}
+        self.assertEqual(self.reviewed(stranger), frozenset())
+        self.assertEqual(self.reviewed(humans=()), frozenset())
+        self.assertEqual(self.reviewed({"login": "x", "type": "User"}), frozenset())
+
+    def test_no_verifier_pass_gets_none(self) -> None:
+        self.assertEqual(self.reviewed(verified=False), frozenset())
+
+    def test_token_scope_paths_are_never_lifted(self) -> None:
+        # Owner decision 2026-10-28: what the token broker loads to scope a
+        # lane token waits for a person even on a trusted person's own pull
+        # request with a pr-verify pass.
+        token_scope = {
+            ".github/actions/resolve-config/resolve.mjs",
+            ".github/actions/resolve-config/effect-grants.json",
+            ".github/actions/resolve-config/lane-rules.json",
+            ".github/actions/resolve-config/activity-rules.json",
+        }
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            reviewed = policy.author_reviewed_paths(
+                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True
+            )
+        self.assertEqual(reviewed, frozenset({self.GATE}))
+
+    def test_a_gate_path_another_commit_touched_or_unread_commits_get_none(
+        self,
+    ) -> None:
+        self.assertEqual(self.reviewed(others=frozenset({self.GATE})), frozenset())
+        self.assertEqual(self.reviewed(others=None), frozenset())
+
+
 class LaneEnabledSince(unittest.TestCase):
     """Authority pr-merge reads its own enabled run (plan Design "Lane mode")."""
 

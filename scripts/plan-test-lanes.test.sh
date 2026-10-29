@@ -331,6 +331,12 @@ plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
 check "an unmapped data file runs no corpus and is counted" $?
 
+mk plugins/a/unread.css "p {}"
+plan -- plugins/a/unread.css plugins/z/data.cfg
+rm "$repo/plugins/a/unread.css"
+is "$(key unmapped)" 2 && is "$(key bash)" false && is "$(key windows_steps)" "[]"
+check "an unmapped file on each side of the inert list counts once each" $?
+
 plan -- plugins/z/z.sh
 is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
 check "an unmapped shell file runs the whole shell corpus and is counted" $?

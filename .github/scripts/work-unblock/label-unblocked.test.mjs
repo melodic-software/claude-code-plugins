@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -361,8 +361,8 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human or untrusted-provenance stays unlabeled", async () => {
-  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance"]) {
+test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
+  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", "attended"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
@@ -3266,6 +3266,25 @@ test("while the issue lane is paused over its WIP cap the sweep keeps a deferred
   assert.ok(lines.some((line) => line.includes("#25") && line.includes("the issue lane is paused")), lines.join("\n"));
 });
 
+// Owner decision 2026-10-28: `attended` holds an issue the App deferred, as
+// the label or as a newest removal by anyone but a listed human.
+test("the sweep keeps a deferred issue attended holds deferred; a listed human's removal of attended re-admits it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const attendedEvent = (event, actor, at) => ({ event, label: { name: "attended" }, actor, created_at: at });
+  const labeledHold = deferredWorld({ labels: ["admission-deferred", "attended"] });
+  assert.equal(await sweep({ github: labeledHold.github }, PAUSING), 0);
+  assert.deepEqual(writes(labeledHold.calls), []);
+  const removedBy = (actor) => [deferredAdd(LANES_BOT), attendedEvent("labeled", LANES_BOT, "2026-10-16T08:30:00Z"), attendedEvent("unlabeled", actor, "2026-10-16T09:00:00Z")];
+  for (const actor of [LANES_BOT, { id: 999999, login: "drive-by", type: "User" }]) {
+    const removed = deferredWorld({ events: removedBy(actor) });
+    assert.equal(await sweep({ github: removed.github }, PAUSING), 0);
+    assert.deepEqual(writes(removed.calls), [], actor.login);
+  }
+  const lifted = deferredWorld({ events: removedBy(OWNER) });
+  assert.equal(await sweep({ github: lifted.github }, PAUSING), 0);
+  assert.deepEqual(writes(lifted.calls), [labeled(25), undeferred(25)]);
+});
+
 test("the sweep keeps a held deferred issue deferred and drops the deferral of one no longer ready", async (t) => {
   t.mock.method(console, "log", () => {});
   const held = deferredWorld({ labels: ["admission-deferred", "needs-owner-decision"] });
@@ -3424,6 +3443,37 @@ test("a person's admissible mark with no room stays deferred", async (t) => {
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
   assert.ok(lines.includes("label-unblocked: #25 admission deferred: queued work is at the queued cap"), lines.join("\n"));
+});
+
+// Owner decision 2026-10-28: a refinement recording a manual external step
+// needs the owner present, which asks no decision.
+const manualSpec = (body) => ({
+  body,
+  author: { __typename: "User", databaseId: OWNER.id },
+  editor: null,
+  lastEditedAt: null,
+  comments: [
+    {
+      body: `${REFINE_MARKER}\n**Refinement.**\n\n**Acceptance criteria**\n\n- [ ] Line 3 says nineteen.\n\nExternal state: manual (dns: a CNAME for docs at the registrar)\n`,
+      author: { __typename: "Bot", databaseId: LANES_APP_ID },
+      editor: null,
+      lastEditedAt: null,
+      createdAt: "2026-10-16T06:30:00Z",
+    },
+  ],
+});
+const ATTENDED_REASON = "its refinement records External state: manual (dns: a CNAME for docs at the registrar), a step that needs the owner present (attended)";
+
+test("a person's mark refused only for a manual external step parks at status: confirmed with attended, never needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ specs: { 25: manualSpec(markedIssue(MARKED).body) } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(ATTENDED_REASON)}` })}`,
+    `POST /repos/${REPO}/issues/25/labels {"labels":["status: confirmed","attended"]}`,
+    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+    undeferred(25),
+  ]);
 });
 
 const NEEDS_DECISION_WRITE = `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`;
@@ -4012,6 +4062,17 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
   assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+test("a status: ready issue in no queue refused for a manual external step parks at status: confirmed with attended", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ extra: { specs: { 26: manualSpec(readyIssue(26).body) } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: confirmed","attended"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(ATTENDED_REASON)}` })}`,
+  ]);
 });
 
 test("a status: ready issue in no queue an open pull request is for gets admission-deferred and the wait comment", async (t) => {

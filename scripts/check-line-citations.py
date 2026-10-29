@@ -24,6 +24,8 @@ WHAT STAYS QUIET, by construction:
   * a point-in-time record (an ADR, a `docs/upstream/` decision record, a
     CHANGELOG or a `.changes/` fragment): it cites the tree as it was when
     written, and rewriting its line numbers later would falsify the record;
+  * a recorded eval sample (a `samples/` folder under a plugin's `evals/`):
+    it is a model's answer about a fixture repository, not about this tree;
   * whether the cited line still says what the citation claims: semantic drift
     is not mechanical, and is left to review.
 
@@ -71,6 +73,8 @@ RECORD_NAMES = frozenset({"CHANGELOG.md"})
 
 
 def is_record(path: str) -> bool:
+    if path.startswith("plugins/") and "/evals/" in path and "/samples/" in path:
+        return True
     return path.startswith(RECORD_PREFIXES) or Path(path).name in RECORD_NAMES
 
 

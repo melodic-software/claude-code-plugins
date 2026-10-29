@@ -23,6 +23,7 @@
 - [Adoption](#adoption)
 - [Review threads](#review-threads)
 - [Red main](#red-main)
+- [Attended work](#attended-work)
 - [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
@@ -582,7 +583,8 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 A `pr-unblock` run that stops ends on the route
 [`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json), the one
 routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is for a reason only
-a person settles: a path the lane token may not push or a supply-chain refusal (SAFETY), an intent,
+a person settles: a path the lane would itself have to resolve or write that its token may not
+push, or a supply-chain refusal (SAFETY), an intent,
 design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
 security-review or CRITICAL one), or any `review-dependency` stop: its failing status would be per head,
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
@@ -592,6 +594,9 @@ no label, a failing commit status on the head the activity gated (`pr-unblock/co
 `resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
+`workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
+`.github/workflows/` changes together with the base's, which the lane token cannot push, and
+nothing in it is a person's decision, so a session merges main by hand.
 A select job's stop (a cap, or a conflict no model can resolve) is final for its head. A stop
 after a model turn (the push, reply or verdict job's) is retried on the same head by the
 activity's dispatcher, under the cap it already keeps: `limit-stops-per-head` for
@@ -628,7 +633,7 @@ head:
 
 | Reason | Cleared when |
 |---|---|
-| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
+| `workflow-staged` (a label set before it routed `fail`) | main changes nothing under `.github/workflows/` since its merge base with the head; or a trusted move (below) took the head off the resume key and the head contains main as it was when the lane escalated |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `ci-fix-round-cap`, `ci-fix-empty`, `ci-fix-invalid`, `ci-fix-not-applied`, `ci-fix-escalated` | a trusted move took the head off the resume key, and at the new head no check other than `ci-status` (which the label itself fails) fails, runs or was cancelled, the latest run of each ended `success`, `neutral` or `skipped`, and one passed |
 | `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
@@ -922,31 +927,50 @@ the rules that only tighten in
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
   and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
-    App token, `.github/actions/check-trusted-trigger/**`, `.github/actions/check-kill-switch/**`,
-    whose output writer both actions use, `**/CODEOWNERS` and `**/.gitmodules`.
-  - `gate`, a person merges it: the merge gate's own code and the config the token broker loads.
-    `.github/actions/resolve-config/**`, whose code the broker runs from main in its signer
-    process, the rate guard (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit
-    defaults (`.github/actions/log-api-budget/rate-limits.json`), every script of
-    `.github/scripts/pr-merge/`, `docs/conventions/pr-pipeline.yaml`,
-    `scripts/sync-hold-floor.py`, which writes the floor's copies, `babysit_merge.py`, `babysit_merge_policy.py`, and `babysit_risk.py` and
-    `babysit_review_evidence.py`, which compute the security review's clear condition. And every
-    workflow a review cannot be trusted to judge (owner direction 2026-10-28): the review callers
-    and `pr-review-main.yml` with `.github/scripts/pr-review-main/**`, which run the review itself and
-    set the counts the gate reads, and each workflow that holds a credential beyond its job's
-    `GITHUB_TOKEN`: a secret other than `GITHUB_TOKEN`, a lane token (`request-lane-token`), or an
-    OIDC token (`id-token: write`), `pr-merge.yml` and `pr-unblock.yml` among them (owner decision
-    Q11 (A), 2026-10-28: a job token dies with its job and cannot push to main past branch
-    protection, while an App key or PAT outlives the run). `scripts/sync-hold-floor.py` derives
-    these rows from the workflow files with `babysit_risk.gated_workflow`, so a workflow that gains
-    a secret joins the gate, and `--check` fails on a stale table. A workflow whose token only
-    writes through its job token, such as `pr-require-checks.yml` (an `enforcement` path), is off
-    the gate: the main-run review binds it, and a gained write scope, trigger, secret or model leg
-    holds by its patch. And what changes what agents
-    may do unattended or what later reviews judge against: `**/.claude/settings*.json` (hooks,
-    permission allows), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`, `**/AGENTS.md`,
-    `REVIEW.md` and `docs/standards/**`.
-  - `enforcement`, a clean security review clears it: every module the floored scripts
+    App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
+    its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
+    which scope each lane token, `docs/conventions/pr-pipeline.yaml`, whose activity `effect:`
+    values and lane slots the broker reads, `.github/actions/check-trusted-trigger/**`,
+    `.github/actions/check-kill-switch/**`, whose output writer both actions use, `**/CODEOWNERS`,
+    `**/.gitmodules`, and the code that computes the author lift and the hold tables:
+    `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py` and
+    `babysit_review_evidence.py`, which compute the security review's clear condition,
+    `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
+    floor's copies, and the pr-merge scripts that apply and enforce the holds:
+    `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
+    `head-ref-map.mjs`.
+  - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
+    (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
+    (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
+    `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
+    review callers and `pr-review-main.yml` with `.github/scripts/pr-review-main/**`, which run the
+    review itself and set the counts the gate reads, and each workflow that holds a credential
+    beyond its job's `GITHUB_TOKEN`: a secret other than `GITHUB_TOKEN`, a lane token
+    (`request-lane-token`), or an OIDC token (`id-token: write`), `pr-merge.yml` and
+    `pr-unblock.yml` among them (owner decision Q11 (A), 2026-10-28: a job token dies with its job
+    and cannot push to main past branch protection, while an App key or PAT outlives the run).
+    `scripts/sync-hold-floor.py` derives these rows from the workflow files with
+    `babysit_risk.gated_workflow`, so a workflow that gains a secret joins the gate, and `--check`
+    fails on a stale table. A workflow whose token only writes through its job token, such as
+    `pr-require-checks.yml` (an `enforcement` path), is off the gate: the main-run review binds it,
+    and a gained write scope, trigger, secret or model leg holds by its patch. Also what changes
+    what agents may do unattended or what later reviews judge against: `**/.claude/settings*.json`
+    (hooks, permission allows), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
+    `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
+    request a person on the trusted-actor list opened, a `gate` path only that person's own
+    commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
+    requests merge without a person's review), on a head pr-verify passed
+    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
+    or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
+    a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
+    lane changing its own powers is still merged by a person. The review's own surface above
+    never takes this lift (`babysit_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
+    waits for a person. The token-scope files and the lift
+    and hold-table code and the scripts that apply the holds are `trust`, never `gate`, so they
+    never take this lift: agents commit as the trusted owner, so a pull request that widens a lane
+    token's scope, widens the lift, drops a floor row or weakens a hold waits for a person.
+  - `enforcement`, a clean security review clears it: `.github/workflows/pr-require-checks.yml`,
+    and every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
     reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
@@ -2718,8 +2742,11 @@ that fails leaves admissions open (`admission_basis: fail-open`) and changes no 
 search that answers `incomplete_results: true` (a degraded search can answer a false empty) is
 unknown, not failed: admissions pause whether or not `pause-from` is set or reached
 (`admission_basis` and `admission_reason` `search-incomplete`), with a `check-wip-cap` warning,
-and work-unblock's deferral log names that reason. The queued cap itself still pauses only on or
-after `pause-from`, and no run pause changes.
+and work-unblock's deferral log names that reason. A base config the check cannot read (a failed
+resolve-config import, as after a failed `npm ci` of its dependencies) leaves the caps unknown, so
+admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
+a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
+pauses only on or after `pause-from`, and no run pause changes.
 The search lists at most 1,000 issues: past that, the issues it counted but did not list count as
 queued, and admissions pause (`queued_truncated: true`).
 
@@ -2757,7 +2784,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 `admission-open` is `false` only while new admissions pause. A job that reads only `capped`
 (pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
 open listing and the merged count, and leaves the admission fields null with `admission_basis`
-`not-read`.
+`not-read` (`search-incomplete` or `config-unreadable` when either applies).
 
 | Field | Meaning |
 |---|---|
@@ -2779,8 +2806,8 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
-| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` or `search-incomplete` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
-| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `not-read` under `reads: pause`. |
+| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued`, `search-incomplete` or `config-unreadable` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
+| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `config-unreadable` when the base config could not be read; otherwise `not-read` under `reads: pause`. |
 
 ## Adoption
 
@@ -2990,6 +3017,37 @@ re-decides there instead of dropping. The log is the oldest `github-actions[bot]
 the dedupe. Any workflow's `GITHUB_TOKEN` posts as that account, so a comment there can still use
 up the cap, which only sends a culprit to a person. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
+
+## Attended work
+
+Work that needs the owner present gets the `attended` label (owner decision 2026-10-28): a manual
+step on external state an agent cannot safely run or test, of a class `attended.classes` lists. It is
+separate from `host-run`, an unattended agent run on a host, and from the human-gated role label
+(`needs-human`), an owner decision.
+
+- **Refinement.** An exact refinement
+  ([`refine.mjs`](../../../.github/scripts/intake-triage/refine.mjs)) ends its criteria with one
+  plain line, never a task-list line: `External state: none`, `External state: iac (<owner/repo>)`
+  or `External state: manual (<class>: <what>)`. The model reads the classes from its context,
+  which `--select` fills from `attended.classes`, and `--apply` refuses a `manual` class not
+  listed there. No keyword in the issue text sets the line.
+- **Admission.** `attended` is a `refuse-labels` entry, parked at `status: confirmed`, never
+  `status: needs-decision`. An issue whose counted refinement records `manual (...)` is refused
+  the same way, and admission adds `attended` and says why. `iac (<repo>)` routes nothing: that
+  repository's preview and deploy flow is the gate.
+- **Holds downstream.** work-unblock counts `attended` among its holds, so no sweep adds
+  `agent-ready` to an issue carrying it, or to an admission-deferred one whose newest `attended`
+  event is a removal by anyone but a listed human. Its re-admission paths park an attended refusal
+  at `status: confirmed` with `attended`, as admission does. resolve-issue and apply-issue-patch
+  list `attended` in `labels-absent`, so a run neither starts nor commits on it.
+- **Removal.** Only a listed human lifts it. While the newest `attended` event is a removal by
+  anyone else, the lanes App included, admission refuses as if the label were on. Once a listed
+  human removed it after the refinement, the refinement's `manual (...)` line no longer refuses. To
+  resume a parked issue once the step is done, a listed human removes `attended` and posts a
+  `**Decision recorded.**` comment, which sends it back through intake (`intake-reenter`).
+- **Mid-run.** A resolve-issue run that reaches such a step stops with the `manual-external` code,
+  whose `attended` route adds the label and removes `agent-ready`
+  ([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)).
 
 ## Branch cleanup
 

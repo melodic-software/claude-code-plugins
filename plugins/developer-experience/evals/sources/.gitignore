@@ -1,0 +1,6 @@
+fixtures/
+results*/
+judge/inputs/
+judge/calibration/
+judge/scores/
+judge/status.json
