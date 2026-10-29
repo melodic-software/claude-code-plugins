@@ -7,9 +7,9 @@ bump: patch
 - The write runner's apply-patch push reads a lane escalation again right before it pushes past
   the human-gated label. Callers pass `patch-human-gate` (`fix-request` or `lane-escalation`) in
   place of `patch-fix-requested`; on `lane-escalation` the hold step runs `gate-recheck.mjs`, which
-  re-reads the PR's timeline and keeps the label a hold unless `gateSource` still finds a lane
-  escalation, so a review-lane hold posted during the model turn, or a person removing and adding
-  the label back, stops the push
+  re-runs for `patch-activity` the check its select job ran, on the same reads (`prHold`, or
+  `gateSource` for address-feedback on a PR no owner opened), so a review-lane hold, a person's
+  comment, review or label, or a new escalation posted during the model turn stops the push
   ([#9419](https://github.com/melodic-software/claude-code-plugins/issues/9419)).
 - `gateSource` and clear-escalations read a review-lane hold as ci-status does: only a removal of
   the label by a person on `trusted-actors.json`, not through an App, lifts it, and a `labeled`
