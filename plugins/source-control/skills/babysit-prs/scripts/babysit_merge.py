@@ -668,6 +668,22 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None
     return [cast(dict[str, object], record) for record in records]
 
 
+def with_open_threads(
+    repo: str, number: int, risk_input: babysit_risk.RiskInput
+) -> babysit_risk.RiskInput:
+    """`risk_input` with its unresolved review thread count, read only when
+    that count could lane-arm a `gate` path (`babysit_risk.lane_arm_pending`).
+    A read that fails or is not served GraphQL leaves it None, which keeps
+    the person hold."""
+    if not babysit_risk.lane_arm_pending(risk_input):
+        return risk_input
+    try:
+        threads = unresolved_threads(repo, number)
+    except (RuntimeError, ValueError, json.JSONDecodeError):
+        threads = None
+    return replace(risk_input, open_threads=None if threads is None else len(threads))
+
+
 def repository_default_branch(repo: str) -> str | None:
     """Return the repository's default branch, or None when it cannot be read.
 
@@ -3585,6 +3601,7 @@ def score_unattended(
         base_sha=json_object(pr.get("base")).get("sha"),
         **lane_switches,
     )
+    risk_input = with_open_threads(repo, number, risk_input)
     risk = babysit_risk.score(risk_input)
     if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
         # Read only for a cost hold: an owner decision the body cites clears it.

@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 48, "enforcement": 40},
+            {"trust": 18, "gate": 50, "enforcement": 40},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1261,7 +1261,9 @@ class LanePathFloorTests(unittest.TestCase):
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
         # `.claude/rules/**` left this list under owner decision Q11
-        # (2026-10-28): agent settings and instruction files stay gated.
+        # (2026-10-28): agent settings and instruction files stay gated. So
+        # did `plugins/review/skills/**` (security review of #10966): the
+        # main-run review copies it from main as the model's criteria.
         for path in (
             "prompts/x.md",
             "plugins/foo/hooks/hooks.json",
@@ -1273,7 +1275,6 @@ class LanePathFloorTests(unittest.TestCase):
             "plugins/foo/.lsp.json",
             "plugins/foo/monitors/monitors.json",
             "docs/conventions/x.md",
-            "plugins/review/skills/x/SKILL.md",
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",

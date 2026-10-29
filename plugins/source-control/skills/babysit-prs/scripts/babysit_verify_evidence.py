@@ -2472,6 +2472,7 @@ def lane_risk_refusal(
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )
+        risk_input = babysit_merge.with_open_threads(repo, number, risk_input)
         risk = babysit_risk.score(risk_input)
         if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
             decision = merge_policy.cost_decision(

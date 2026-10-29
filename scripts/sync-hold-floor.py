@@ -16,6 +16,11 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   security review's own files (scrutiny only).
 - ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`).
+- babysit_risk.py and merge-holds.mjs `LANE_ARM`: `merge.lane-arm-gate` (on only when it
+  reads exactly `true`) and `merge.person-held` from docs/conventions/pr-pipeline.yaml, read
+  through the shared YAML reader, with every gated workflow added to the person-held list. A
+  person-held entry that is not a `trust` or `gate` floor row, a repeated one, a file the
+  reader rejects, or, with the switch on, any `gate` row left lane-armed stops the script.
 - `.github/trust-path-hold.json`, the whole file, which ci-workflows'
   pr-require-checks-trust-paths reads at the base SHA: `.github/**`, then the `hold_patterns`
   outside `.github/`, and `merge.trust-path-hold-apps` from pr-pipeline.yaml as `apps`. Its
@@ -106,6 +111,69 @@ def hold_patterns(indent: str) -> list[str]:
     return [f"{indent}hold_patterns=({quoted})"]
 
 
+PIPELINE = ROOT / "docs/conventions/pr-pipeline.yaml"
+SWITCH_KEY = "merge.lane-arm-gate"
+HELD_KEY = "merge.person-held"
+
+
+def lane_arm() -> tuple[bool, list[str]]:
+    """(`merge.lane-arm-gate` is exactly `true`, the person-held globs):
+    `merge.person-held`, each entry checked to be a `trust` or `gate` floor
+    row, then every gated workflow (`gate_workflows`), so a workflow that
+    gains a credential is person-held at once. With the switch on, a `gate`
+    row left outside them (a lane-armed glob) stops the script: ci-status
+    would pass it on its own, and nothing yet attests at the head that the
+    lane-arm conditions held, nor checks that no person-held file imports or
+    runs it."""
+    import babysit_merge_policy  # noqa: PLC0415
+
+    text = PIPELINE.read_text(encoding="utf-8")
+    values = babysit_merge_policy._concern_values(
+        text, [(SWITCH_KEY, False), (HELD_KEY, True)]
+    )
+    if values is None:
+        raise SystemExit(f"sync-hold-floor: the shared YAML reader rejects {PIPELINE}")
+    held = values[HELD_KEY]
+    rows = dict(floor_classes())
+    bad = [g for g in held if rows.get(g) not in ("trust", "gate")]
+    if bad or len(set(held)) != len(held):
+        raise SystemExit(
+            f"sync-hold-floor: {HELD_KEY} holds a repeated entry or one that is not a "
+            f"trust or gate floor row: {bad or held}"
+        )
+    on = values[SWITCH_KEY] == ["true"]
+    held = [*held, *(g for g in gate_workflows() if g not in held)]
+    armed = [g for g, c in floor_classes() if c == "gate" and g not in held]
+    if on and armed:
+        raise SystemExit(
+            f"sync-hold-floor: {SWITCH_KEY} would lane-arm {armed}: add them to "
+            f"{HELD_KEY}, or first give ci-status an attestation that the "
+            "lane-arm conditions held at the head and a closure check that no "
+            "person-held file loads them"
+        )
+    return on, held
+
+
+def risk_lane_arm(indent: str) -> list[str]:
+    on, held = lane_arm()
+    return [
+        f"{indent}LANE_ARM_GATE = {on}",
+        f"{indent}PERSON_HELD: tuple[str, ...] = (",
+        *(f"{indent}    {json.dumps(g)}," for g in held),
+        f"{indent})",
+    ]
+
+
+def mjs_lane_arm(indent: str) -> list[str]:
+    on, held = lane_arm()
+    return [
+        f"{indent}export const LANE_ARM_GATE = {json.dumps(on)};",
+        f"{indent}export const PERSON_HELD = Object.freeze([",
+        *(f"{indent}  {json.dumps(g)}," for g in held),
+        f"{indent}]);",
+    ]
+
+
 def trust_path_hold() -> str:
     found = subprocess.run(
         ["bash", str(ROOT / "lib/parse-concern-value.sh"), "--strict", "--list"]
@@ -125,11 +193,14 @@ def trust_path_hold() -> str:
     return json.dumps({"paths": paths, "apps": apps}, indent=2) + "\n"
 
 
-PIPELINE = "docs/conventions/pr-pipeline.yaml"
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
 BLOCKS = {
-    RISK: {"GATE_WORKFLOWS": gate_workflow_rows},
-    MERGE_HOLDS: {"COST_PATHS": cost_rows, "HOLD_PATH_CLASSES": class_rows},
+    RISK: {"GATE_WORKFLOWS": gate_workflow_rows, "LANE_ARM": risk_lane_arm},
+    MERGE_HOLDS: {
+        "COST_PATHS": cost_rows,
+        "HOLD_PATH_CLASSES": class_rows,
+        "LANE_ARM": mjs_lane_arm,
+    },
     ".github/workflows/pr-review-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-review-security-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-require-checks.yml": {"hold_patterns": hold_patterns},

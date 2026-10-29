@@ -956,6 +956,61 @@ merge:
     - melodic-agent[bot]
   # true: report each decision and write nothing.
   report-only: false
+  # Owner decision Q7 (#10743): true lets a pull request held only by
+  # lane-armed `gate` floor paths (those outside `person-held` below) merge
+  # without a person once both review lanes are bound to the main-run review
+  # at its head with no finding and no review thread is open. None is
+  # lane-armed today: `person-held` holds every `gate` row (security review of
+  # #10966), and with this on scripts/sync-hold-floor.py refuses to leave one
+  # out until ci-status can check an attestation at the head. `trust` paths
+  # wait for a person either way. Anything but true lane-arms nothing. The
+  # script copies this and `person-held` into babysit_risk.py and
+  # merge-holds.mjs; its --check fails on a stale copy.
+  lane-arm-gate: true
+  # The merge-enforcement set, held for a person whatever lane-arm-gate says
+  # (independent security review of #10966): the pr-merge scripts that apply
+  # and enforce the holds with every module and script they import or run,
+  # the rate guard and the check-run poster they load, the main-run review's
+  # scripts that set its counts, and the review criteria (owner decision Q11:
+  # agent settings and instruction files stay gated). scripts/sync-hold-floor.py
+  # adds every gated workflow (babysit_risk.gated_workflow: the review
+  # workflows, ci-status, and each that holds a secret, a lane or App token,
+  # OIDC or `actions: write`), so a workflow that gains a credential is
+  # person-held at once. Each entry must be a `trust` or `gate` floor row.
+  person-held:
+    - .github/scripts/pr-merge/merge-holds.mjs
+    - .github/scripts/pr-merge/enable-auto-merge.mjs
+    - .github/scripts/pr-merge/superseded.mjs
+    - .github/scripts/pr-merge/clear-escalations.mjs
+    - .github/scripts/pr-merge/gate-check.mjs
+    - .github/scripts/pr-merge/head-ref-map.mjs
+    - .github/scripts/pr-merge/carry-run-cache.mjs
+    - .github/scripts/pr-merge/lane-records.mjs
+    - .github/scripts/pr-merge/last-report.mjs
+    - .github/scripts/pr-merge/rate-stop.bash
+    - .github/scripts/pr-merge/refire-refused.mjs
+    - .github/scripts/pr-merge/rotation.mjs
+    - .github/scripts/pr-merge/sweep-summary.mjs
+    - .github/scripts/pr-merge/who.mjs
+    - .github/scripts/pr-merge/post-unarmed-status.mjs
+    - .github/scripts/pr-merge/verify-answers.mjs
+    - .github/scripts/pr-merge/listing-carry.mjs
+    - .github/actions/log-api-budget/rate-guard.mjs
+    - .github/actions/log-api-budget/rate-limits.json
+    - .github/actions/report-check-run/**
+    - .github/scripts/pr-review-main/**
+    - "**/.claude/**"
+    - "**/.claude-lane/**"
+    - docs/conventions/instruction-exception-register/**
+    - docs/conventions/untrusted-content/**
+    - "**/.mcp.json"
+    - "**/CLAUDE.md"
+    - "**/CLAUDE.local.md"
+    - "**/AGENTS.md"
+    - REVIEW.md
+    - docs/standards/**
+    - plugins/review/skills/**
+    - plugins/review/reference/**
   # true: post-merge-dispatch starts a full run of main inside its 30-minute
   # cap when an unverified lane merge has no started full run covering it,
   # one run for the whole batch, so the lane's in-flight room frees after one
@@ -1066,7 +1121,9 @@ merge:
     majors: review
   # No path is held for being trusted alone (owner direction 2026-10-24)
   # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, owner
-  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B). Its `trust`
+  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B; merge.lane-arm-gate
+  # above lets its `gate` globs outside merge.person-held merge on a clean
+  # main-run review, README.md Lane-armed gate paths). Its `trust`
   # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
   # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
   # guard, every pr-merge script, this file, babysit_merge*, babysit_risk.py,

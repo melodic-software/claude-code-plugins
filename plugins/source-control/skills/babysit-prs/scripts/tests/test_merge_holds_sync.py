@@ -15,7 +15,9 @@ workflow change after auto-merge is armed.
   `babysit_risk.FLOOR_CLASSES`, `COST_PATHS` and `merge.trust-path-hold-apps`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
-  matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
+  matches over `NATIVE_FLOOR`, `babysit_risk.HIGH_FLOOR` (its `trust` and
+  `gate` globs) less the `gate` globs `merge.lane-arm-gate` lane-arms
+  (`babysit_risk.LANE_ARMED_FLOOR`), which the gate holds instead, case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate` or, for the scripts that apply the
@@ -24,10 +26,8 @@ workflow change after auto-merge is armed.
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
   lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
-  `pathHold`, which judges only lanes App pull requests, holds all of it.
-- The enforcement closure: what every `trust` row and the merge-enforcement
-  `gate` scripts import or run sits on a `trust` or `gate` row, less the
-  pinned `OFF_FLOOR_ALLOWED` list awaiting the owner.
+  `pathHold`, which judges only lanes App pull requests, holds all of it
+  that is not lane-armed.
 - The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
@@ -66,6 +66,9 @@ import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
+# What pathHold holds for a person: the person floor less what the switch
+# lane-arms (owner decision Q7), which the merge gate holds instead.
+NATIVE_FLOOR = tuple(g for g in risk.HIGH_FLOOR if g not in risk.LANE_ARMED_FLOOR)
 # The floor actions' entry points and the floored scripts that enforce the
 # floor (owner decision Q-ENFORCE (A)): every module they load is code main
 # runs with their verdict, so the floor holds it too.
@@ -343,7 +346,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 106)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 108)
         self.assertEqual(len(risk.REVIEW_FLOOR), 40)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
@@ -352,7 +355,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):
             with self.subTest(path):
-                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                on_floor = any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 self.assertEqual(held, on_floor)
                 self.assertEqual(
                     configured,
@@ -387,6 +390,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "**/AGENTS.md",
             "REVIEW.md",
             "docs/standards/**",
+            "plugins/review/skills/**",
+            "plugins/review/reference/**",
         }
         self.assertEqual(
             list(risk.AUTHOR_REVIEW_FLOOR),
@@ -398,15 +403,24 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         )
         self.assertEqual(len(risk.AUTHOR_REVIEW_FLOOR), 14)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
-        self.assertEqual(module(samples)["held"], [True] * len(samples))
+        self.assertEqual(
+            module(samples)["held"],
+            [any(risk.glob_match(g, p) for g in NATIVE_FLOOR) for p in samples],
+        )
+        # What stays held natively is exactly the person-held `gate` rows.
+        self.assertEqual(
+            [g for g in gate if g in NATIVE_FLOOR],
+            [g for g in gate if g in risk.PERSON_HELD],
+        )
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk.HIGH_FLOOR, entry
-        # for entry and in order: the trust and gate globs a person clears.
+        # HOLD_PATH_FLOOR (merge-holds.mjs) is NATIVE_FLOOR, entry for entry
+        # and in order: the trust and gate globs a person clears, less the
+        # lane-armed ones (owner decision Q7).
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
             % json.dumps(MODULE.as_uri())
@@ -417,8 +431,34 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
-        self.assertEqual(len(risk.HIGH_FLOOR), 66)
+        self.assertEqual(tuple(json.loads(proc.stdout)), NATIVE_FLOOR)
+        self.assertEqual(len(risk.HIGH_FLOOR), 68)
+        self.assertEqual(len(NATIVE_FLOOR), 68 - len(risk.LANE_ARMED_FLOOR))
+
+    def test_no_person_held_file_loads_a_lane_armed_path(self) -> None:
+        # Security review of #10966: a person-held file must not import or
+        # run a path the switch lane-arms, or a model verdict could change
+        # what the merge-enforcement code does. loaded_closure walks what the
+        # floor's workflows, actions and modules import or run.
+        # loaded_closure's roots, plus every person-held module by name:
+        # head-ref-map.mjs, for one, imports rotation.mjs, which no workflow
+        # or FLOOR_ENTRIES root reaches.
+        roots = tuple(
+            g
+            for g in risk.PERSON_HELD
+            if g.endswith(".mjs") and "*" not in g and (ROOT / g).is_file()
+        )
+        files = sorted({*loaded_closure(), *import_closure(roots)})
+        self.assertIn(".github/scripts/pr-merge/rotation.mjs", files)
+
+        def armed_in(floor: tuple[str, ...]) -> list[str]:
+            return [f for f in files if any(risk.glob_match(g, f) for g in floor)]
+
+        self.assertEqual(armed_in(risk.LANE_ARMED_FLOOR), [])
+        # The check can fail: the closure loads the rate guard, which a
+        # lane-armed glob would name.
+        guard = ".github/actions/log-api-budget/rate-guard.mjs"
+        self.assertEqual(armed_in((guard,)), [guard])
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -435,7 +475,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 )
 
     def test_the_floor_holds_the_code_that_acts_on_a_stop_route(self) -> None:
@@ -448,7 +488,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in NATIVE_FLOOR)
                 )
 
     def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
@@ -1777,139 +1817,3 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
                     f"{path} is loaded by a hold path but neither held nor in CARRY_REFUSES",
                 )
                 self.assertFalse(policy.ungated_since(_pushed([path]), []), path)
-
-
-# The merge-enforcement code: every `trust` row, and the `gate` rows of the
-# scripts and actions that decide or post the holds (the pr-merge scripts,
-# the rate guard, the check-run poster, the main-run review's scripts).
-ENFORCEMENT_DIRS = (
-    ".github/scripts/pr-merge/",
-    ".github/actions/",
-    ".github/scripts/pr-review-main/",
-)
-# Code only: pr-pipeline.yaml names scripts a workflow runs, not this code.
-CODE = (".mjs", ".js", ".py", ".sh", ".bash", "/action.yml")
-
-
-def enforcement_roots() -> list[str]:
-    globs = [
-        g
-        for g, c in risk.FLOOR_CLASSES
-        if c == "trust" or (c == "gate" and g.startswith(ENFORCEMENT_DIRS))
-    ]
-    return sorted(
-        f
-        for f in tracked()
-        if f.endswith(CODE)
-        and ".test." not in f
-        and "/fixtures/" not in f
-        and not f.startswith(".github/workflows/")
-        and any(risk.glob_match(g, f) for g in globs)
-    )
-
-
-def enforcement_closure() -> list[str]:
-    """What the merge-enforcement code imports or runs: relative JS imports
-    and module-relative reads, the Python a module or script names, scripts an
-    action or shell script runs, and the babysit-prs modules Python imports."""
-    in_git = tracked()
-    seen: set[str] = set()
-    todo = [ROOT / f for f in enforcement_roots()]
-    while todo:
-        file = todo.pop().resolve()
-        if not file.is_file():
-            continue
-        name = file.relative_to(ROOT).as_posix()
-        if name in seen:
-            continue
-        seen.add(name)
-        text = file.read_text(encoding="utf-8")
-        if file.suffix in (".mjs", ".js"):
-            todo.extend(file.parent / spec for spec in IMPORT.findall(text))
-            todo.extend(ROOT / p for p, _ in PY_RUN.findall(text) if p)
-        elif file.suffix == ".py":
-            for node in ast.walk(ast.parse(text)):
-                names = (
-                    [a.name for a in node.names]
-                    if isinstance(node, ast.Import)
-                    else [node.module]
-                    if isinstance(node, ast.ImportFrom)
-                    and not node.level
-                    and node.module
-                    else []
-                )
-                todo.extend(
-                    d / f"{n}.py"
-                    for n in names
-                    for d in (file.parent, SCRIPTS)
-                    if (d / f"{n}.py").is_file()
-                )
-        else:
-            todo.extend(ROOT / p for p in py_runs(text))
-            todo.extend(ROOT / s for s in RUNS.findall(text) if s in in_git)
-    return sorted(seen)
-
-
-def enforcement_closure_off_floor() -> list[str]:
-    person = [g for g, c in risk.FLOOR_CLASSES if c in ("trust", "gate")]
-    return [
-        f
-        for f in enforcement_closure()
-        if not any(risk.glob_match(g, f) for g in person)
-    ]
-
-
-# The merge-enforcement code's closure today reaches these paths, which no
-# person holds: `enforcement` rows the security review holds, and
-# lib/publish-gate.mjs, on no floor row. TODO(#10743): whether they become
-# `gate` rows is the owner's decision; until then this pins the list, so a
-# new escape fails and a fixed one must leave it.
-OFF_FLOOR_ALLOWED: tuple[str, ...] = (
-    ".github/scripts/pr-unblock/address-feedback.mjs",
-    ".github/scripts/pr-unblock/escalation-routes.json",
-    ".github/scripts/pr-unblock/escalation-routes.mjs",
-    ".github/scripts/pr-unblock/gate-source.mjs",
-    ".github/scripts/pr-unblock/retry-fetch.mjs",
-    ".github/scripts/pr-unblock/thread-scope.mjs",
-    ".github/scripts/work-resolve-issue/limits.mjs",
-    ".github/scripts/work-resolve-issue/report-outcome.mjs",
-    ".github/scripts/work-resolve-issue/retry-fetch.mjs",
-    ".github/scripts/work-resolve-issue/stop-routes.json",
-    ".github/scripts/work-resolve-issue/stop-routes.mjs",
-    "lib/publish-gate.mjs",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_state.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_util.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-    "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
-)
-
-
-class TheEnforcementClosureStaysOnThePersonFloor(unittest.TestCase):
-    def test_what_the_merge_enforcement_code_loads_is_trust_or_gate(self) -> None:
-        # Security review of #10966: a file the merge-enforcement code imports
-        # or runs decides what that code does, so it needs the same person
-        # hold. A new escape fails here; so does a listed one that is gone.
-        closure = enforcement_closure()
-        self.assertIn(".github/scripts/pr-merge/rotation.mjs", closure)
-        self.assertIn(f"{_SCRIPTS_DIR}/babysit_merge_policy.py", closure)
-        self.assertEqual(enforcement_closure_off_floor(), list(OFF_FLOOR_ALLOWED))
-
-    def test_the_check_fails_on_a_loaded_path_off_the_person_floor(self) -> None:
-        loaded = ".github/scripts/pr-merge/rotation.mjs"
-        floor = tuple(g for g, _ in risk.FLOOR_CLASSES if g != loaded)
-        with mock.patch.object(
-            risk,
-            "FLOOR_CLASSES",
-            tuple((g, c) for g, c in risk.FLOOR_CLASSES if g in floor),
-        ):
-            self.assertIn(loaded, enforcement_closure_off_floor())

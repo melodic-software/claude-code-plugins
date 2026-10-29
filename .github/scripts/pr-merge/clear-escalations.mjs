@@ -105,7 +105,15 @@
 // that head: a person removes the label, or a push clears it as head-moved
 // above and enable-auto-merge labels the new head again if the cause holds.
 // An unread answer and a failed read keep it; so does a hold or cost path,
-// which no reader answer clears. At most NATIVE_READS_PER_RUN reads a run,
+// which no reader answer clears, except under merge.lane-arm-gate (owner
+// decision Q7): a refusal recorded only on `gate` paths the switch lane-arms
+// (merge-holds LANE_ARMED_FLOOR; `armedCause`) is read again at that head and
+// comes off as `refusal-cleared` only when the reader refuses nothing there,
+// which needs both review lanes bound to a main-run review of the head with
+// no finding and no open review thread. A merge-enforcement (merge.person-held)
+// or `trust` path in it keeps the label. ci-status reads the removal as no
+// approval: merge-holds counts only a trusted person's approving review, and
+// its review-lane hold check fails a review lane's hold an App lifted. At most NATIVE_READS_PER_RUN reads a run,
 // starting at an offset that moves with the run number (rotated), so labels
 // past the cap are read on a later run.
 //
@@ -162,8 +170,8 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT } from "./merge-holds.mjs";
-import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT, HOLD_PATH_CLASSES, LANE_ARMED_FLOOR, matchesHoldPath } from "./merge-holds.mjs";
+import { holdPathOnly, pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
@@ -230,9 +238,44 @@ export const LANE_CAUSES = Object.freeze({
 // Whether the `kind` reason (verifyHold's) names only causes the lanes clear:
 // each "; "-separated code on LANE_CAUSES[kind].
 function laneCause(kind, reason) {
-  const codes = reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
-  return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
+  return reasonCodes(kind, reason).every((code) => onLaneCauses(kind, code));
 }
+
+const reasonCodes = (kind, reason) => reason.slice(READER_HOLDS[kind].length, -1).split("; ").map((part) => part.split(": ")[0]);
+const onLaneCauses = (kind, code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry));
+
+// Owner decision Q7 (#10743): with merge.lane-arm-gate on, a `gate` hold the
+// switch lane-arms (merge-holds LANE_ARMED_FLOOR) was a person's when it was
+// recorded and is the lanes' now. A refusal recorded on such a hold alone is
+// judged again at its head, and lifted only when the gate's reader refuses
+// nothing there (`armedLift`): a merge-enforcement or `trust` path, any other
+// person code, or a reader answer short of a pass keeps the label.
+// - A risk refusal: each code is on LANE_CAUSES.risk or `high-path:<glob>`
+//   with the glob on LANE_ARMED_FLOOR, and at least one is the latter.
+// - A hold-path refusal (merge-holds pathHoldKind's "it changes <path>, a
+//   hold path", every reason line one): each path matches a LANE_ARMED_FLOOR
+//   glob and no other `trust` or `gate` floor glob.
+// `armed` is LANE_ARMED_FLOOR, a parameter so tests can give it rows: the
+// generated set is empty while every `gate` row is person-held.
+export function armedCause(refusal, armed = LANE_ARMED_FLOOR) {
+  if (armed.length === 0 || refusal === null) {
+    return false;
+  }
+  const armedCode = (code) => code.startsWith("high-path:") && armed.includes(code.slice("high-path:".length));
+  if (refusal.kind === "path") {
+    const held = HOLD_PATH_CLASSES.filter(([glob, kind]) => kind !== "enforcement" && !armed.includes(glob)).map(([glob]) => glob);
+    return refusal.paths.length > 0 && refusal.paths.every((path) => armed.some((glob) => matchesHoldPath(path, glob)) && !held.some((glob) => matchesHoldPath(path, glob)));
+  }
+  if (refusal.kind !== "risk") {
+    return false;
+  }
+  const codes = reasonCodes(refusal.kind, refusal.reason);
+  return codes.some(armedCode) && codes.every((code) => armedCode(code) || onLaneCauses("risk", code));
+}
+
+// Whether the reader's `evidence` at `head` lifts a refusal `armedCause`
+// accepted: the gate refuses nothing at that head.
+export const armedLift = (evidence, head) => verifyHold(evidence, head) === null;
 
 
 // The workflow whose lanes ci-status aggregates. An advisory lane's failure
@@ -462,10 +505,17 @@ function nativeRefusal(appComments, merged, label, head) {
   if (!(Date.parse(newest.updated_at) <= Date.parse(newest.created_at))) {
     return null;
   }
+  // A refusal of hold paths alone (enable-auto-merge holdPathOnly), which
+  // only `armedCause` ever lifts here.
+  if (holdPathOnly(newest.body, head, label)) {
+    const paths = lines(newest.body).flatMap((line) => HOLD_PATH_REASON.exec(line)?.slice(1, 2) ?? []);
+    return { kind: "path", reason: paths.map((path) => `it changes ${path}, a hold path`).join("; "), paths };
+  }
   const reason = lines(newest.body).slice(5, -1).join("\n");
   const kind = Object.keys(READER_HOLDS).find((key) => reason.startsWith(READER_HOLDS[key]));
   return kind !== undefined && refusalBody(true, reason, head, label) === newest.body ? { kind, reason } : null;
 }
+const HOLD_PATH_REASON = /^it changes (.+), a hold path$/;
 
 // Whether the reader's `evidence` at `head` lifts the `kind` refusal, whose
 // recorded cause the caller has found the lanes' (laneCause): nothing
@@ -508,7 +558,7 @@ function pairedWithPrMerge(appComments, since) {
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
+async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, laneArmed }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
@@ -572,7 +622,8 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     const native = lanePrs === "native" && isApp(pull.user, bot) ? nativeRefusal(appComments, merged, label, pull.head.sha) : null;
     // A person's recorded cause stays until a person removes the label or the
     // head moves (owner decision Q-CLEAR B): no reader answer lifts it.
-    if (native !== null && !laneCause(native.kind, native.reason)) {
+    const armed = armedCause(native, laneArmed);
+    if (native !== null && !armed && (native.kind === "path" || !laneCause(native.kind, native.reason))) {
       return { reason: `enable-auto-merge's refusal at ${pull.head.sha} is one a person clears (${native.reason})` };
     }
     if (native !== null) {
@@ -593,13 +644,17 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
         return { reason: `the gate's reader did not answer: ${escapeCommand(error?.message ?? error)}` };
       }
       const held = verifyHold(evidence, pull.head.sha);
-      if (!liftsRefusal(native.kind, evidence, pull.head.sha)) {
+      if (armed ? !armedLift(evidence, pull.head.sha) : !liftsRefusal(native.kind, evidence, pull.head.sha)) {
         return { reason: `enable-auto-merge's refusal still needs a person at ${pull.head.sha}: ${held}` };
       }
       return {
         ...cleared(timeline, bot, since, [REFUSAL_CLEARED], pull.head.sha, [
           `it refused this head (${native.reason})`,
-          held === null ? "the gate now takes its issue link, verifier verdict and risk score" : `what refuses now is one the lanes clear: ${held}`,
+          held === null
+            ? armed
+              ? "merge.lane-arm-gate lane-arms its gate paths, and the gate now takes its issue link, verifier verdict and risk score: both review lanes are bound to a main-run review of this head with no finding and no review thread is open"
+              : "the gate now takes its issue link, verifier verdict and risk score"
+            : `what refuses now is one the lanes clear: ${held}`,
         ]),
         threadsRead: true,
       };
@@ -679,7 +734,7 @@ function trustedIds(path) {
   }
 }
 
-export async function main({ env = process.env, github, checks, verify, reader } = {}) {
+export async function main({ env = process.env, github, checks, verify, reader, laneArmed = LANE_ARMED_FLOOR } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -716,7 +771,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
         continue;
       }
       try {
-        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
+        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted, laneArmed });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
