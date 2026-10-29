@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from four
-// serial searches: the lanes App's pull requests in this repository (the open
-// ones, the ones merged in the rolling window, and the ones opened in it), then
-// the open agent-ready issues with no hold label; and one pull request read per
-// open lane PR whose first body line names no issue.
+// check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from three
+// serial searches of the lanes App's pull requests in this repository (the
+// open ones, the ones merged in the rolling window, and the ones opened in
+// it), then the issues API's listing of the open agent-ready issues with no
+// hold label; and one pull request read per open lane PR whose first body
+// line names no issue.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
 // rounded up and at least wip.min-cap (limits.wip-cap when the merged count
@@ -28,7 +29,7 @@
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
 // queued issue leaves the count only by running. A search that answers
 // incomplete_results: true closes admissions whatever wip.pause-from says. A
-// failed queued read without that flag leaves admissions open.
+// failed queued read leaves admissions open.
 //
 // With `pauseOnly` (WIP_READS=pause) it makes only the open listing and the
 // merged count, the two reads the run pause depends on, and leaves the
@@ -119,13 +120,13 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       return null;
     }
   };
-  // The listed items, and how many more the search counted than it listed
+  // The items `read(page)` lists, and how many more it counted than it listed
   // (past MAX_PAGES); null when a read fails.
-  const list = async (q, map) => {
+  const list = async (read, map) => {
     const all = [];
     try {
       for (let page = 1; page <= MAX_PAGES; page += 1) {
-        const answer = await search(q, page, PAGE);
+        const answer = await read(page);
         const items = answer?.items;
         if (!Array.isArray(items)) {
           throw new Error("the search answered no items");
@@ -144,7 +145,7 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     }
     return null;
   };
-  const open = (await list(`repo:${repo} is:pr is:open ${author}`, (pr) => ({
+  const open = (await list((page) => search(`repo:${repo} is:pr is:open ${author}`, page, PAGE), (pr) => ({
     number: Number(pr?.number),
     createdAt: Date.parse(pr?.created_at),
     held: isHeld(pr),
@@ -155,8 +156,22 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     return { open, merged, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete, pauseOnly };
   }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
-  const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
-  const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
+  // The issues API, not search, whose index the docs do not promise is
+  // current (https://docs.github.com/en/rest/search/search, read 2026-10-29):
+  // admit.mjs reads this count after its reservation, so an agent-ready label
+  // a parallel admission just added must count. Oldest first, so a listing
+  // cut short at MAX_PAGES leaves out the newest. Pull requests and issues
+  // with a hold label, in any case, are left out.
+  const listed = (page) => {
+    const left = remaining();
+    if (left !== null && left <= 0) {
+      throw new Error("the rate limit has no requests left");
+    }
+    return github("GET", `/repos/${repo}/issues?state=open&labels=agent-ready&sort=created&direction=asc&per_page=${PAGE}&page=${page}`).then((items) => ({ items }));
+  };
+  const held = (issue) => (issue?.labels ?? []).some((label) => ISSUE_HOLDS.includes(String(typeof label === "string" ? label : label?.name).toLowerCase()));
+  const listing = await list(listed, (issue) => issue);
+  const queued = listing && { ...listing, items: listing.items.filter((issue) => !issue?.pull_request && !held(issue)).map((issue) => Number(issue?.number)) };
   // A search item carries no head ref, so a lane PR whose first body line
   // names no issue (a person edited it) costs one pull request read for its
   // lane branch. One that fails leaves the PR unmatched.
@@ -217,8 +232,8 @@ export function wipStatus(
   const perHour = Math.max(computed ? (admission["admission-factor"] * merged) / window : 0, admission["admission-min-per-hour"]);
   const queuedCap = Number((perHour * window).toFixed(9));
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
-  // Issues the search counted past its listing count as queued, and a count
-  // cut short that way never admits.
+  // Issues past the listing's MAX_PAGES count as queued, and a count cut
+  // short that way never admits.
   const truncated = (queuedUnlisted ?? 0) > 0;
   const waiting = new Set(blocked);
   const queuedIssues =

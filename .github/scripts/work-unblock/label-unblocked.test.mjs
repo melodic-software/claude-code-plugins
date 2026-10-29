@@ -106,7 +106,7 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
-// `queuedIssues` are the numbers the open agent-ready issue search lists,
+// `queuedIssues` are the numbers the open agent-ready issue listing answers,
 // `deferred` what the open admission-deferred listing answers, and `ready`
 // what the open `status: ready` listing answers.
 // `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
@@ -158,6 +158,11 @@ function world({
         assert.equal(params.get("state"), "open");
         return listed(deferred);
       }
+      // check-wip-cap's queued listing, oldest first.
+      if (params.get("labels") === "agent-ready" && params.get("state") === "open" && params.get("sort") === "created") {
+        const items = queuedIssues.map((number) => ({ number }));
+        return items.slice((page - 1) * 100, page * 100);
+      }
       if (params.get("labels") === "status: ready") {
         assert.equal(params.get("state"), "open");
         assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
@@ -181,10 +186,6 @@ function world({
         return { total_count: 0, incomplete_results: true, items: [] };
       }
       const q = new URL(path, "https://x").searchParams.get("q");
-      if (q.startsWith(`repo:${REPO} is:issue is:open label:agent-ready `)) {
-        const items = queuedIssues.map((number) => ({ number }));
-        return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
-      }
       // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
       if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
@@ -374,6 +375,18 @@ test("an issue held by needs-owner-decision, status: needs-decision, status: nee
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
   }
+});
+
+// admit.mjs decide's body hold: the close-event path admits without decide.
+test("an issue whose body has a line opening with Hold: stays unlabeled when its last blocker closes", async () => {
+  for (const body of ["- [ ] Line 3 says nineteen.\n\nHold: until the owner reads it.", "  hold: x"]) {
+    const { github, calls } = world({ ...oneDependentWorld(), issues: { 20: { ...issue(20), body } } });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], body);
+  }
+  const fenced = world({ ...oneDependentWorld(), issues: { 20: { ...issue(20), body: "```\nHold: quoted\n```" } } });
+  assert.equal(await main({ env: envFor(), github: fenced.github }), 0);
+  assert.deepEqual(writes(fenced.calls), [labeled(20)]);
 });
 
 test("a hold or agent-ready label in another casing still counts", async () => {
@@ -1713,7 +1726,6 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   const { github, actions, calls } = stalledRun();
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1796,7 +1808,6 @@ test("a failed mint is re-fired again on the same workflow files up to the bound
   const { github, actions, calls } = stalledRun(earlierPumps(2));
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1832,7 +1843,6 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
   const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 

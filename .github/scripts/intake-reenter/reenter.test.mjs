@@ -1,10 +1,12 @@
 // Expected values come from the requested behavior for answered issues: a
 // listed human's `**Decision recorded.**` first line on a
 // `status: needs-decision` issue, or the author's or a listed human's reply
-// on a `status: needs-info` issue, removes that status label (and
-// `needs-human` for a decision) and adds `needs-triage`; it dispatches
-// intake-triage.yml once with the issue number only when the issue's author is
-// one intake admits on open (a listed human or the lanes App). Anything else
+// on a `status: needs-info` issue, removes that status label and adds
+// `needs-triage`; it dispatches intake-triage.yml once with the issue number
+// only when the issue's author is one intake admits on open (a listed human or
+// the lanes App). A decision on an issue that carries `needs-human` changes
+// nothing; a listed human's removal of `needs-human` sends the issue back,
+// from `status: needs-decision` too (owner decision on #10735). Anything else
 // changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -119,7 +121,7 @@ const expectDispatched = (w) => {
 
 test("a listed human's decision on a needs-decision issue sends it back to triage", async () => {
   const w = world({
-    labels: ["status: needs-decision", "needs-human", "priority: medium"],
+    labels: ["status: needs-decision", "priority: medium"],
     comments: [{ id: 1, user: OWNER, body: DECISION }],
   });
   assert.equal(await run(w, 1), 0);
@@ -128,6 +130,20 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
 });
 
 const PARKED = { id: 9, user: LANES_APP, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane: no trusted-human acceptance criteria." };
+
+// Only a listed human lifts needs-human (docs/conventions/loop-lane/README.md),
+// and that lift sends the issue back, so a decision alone keeps it.
+test("a decision on an issue that carries needs-human changes nothing and keeps needs-human", async () => {
+  for (const [labels, comments] of [
+    [["status: needs-decision", "needs-human", "priority: medium"], [{ id: 1, user: OWNER, body: DECISION }]],
+    [["status: confirmed", "needs-human"], [PARKED, { id: 1, user: OWNER, body: DECISION }]],
+  ]) {
+    const w = world({ labels, comments });
+    assert.equal(await run(w, 1), 0);
+    assert.deepEqual(w.writes, [], labels.join());
+    assert.deepEqual(w.labels(), [...labels].sort(), labels.join());
+  }
+});
 
 test("a listed human's decision on an issue admission parked at status: confirmed sends it back to triage", async () => {
   const w = world({
@@ -170,7 +186,7 @@ test("the outside author's reply on a needs-info issue moves it to needs-triage 
 });
 
 test("a decision on an outside author's issue moves it to needs-triage without a model run", async () => {
-  const w = world({ labels: ["status: needs-decision", "needs-human"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  const w = world({ labels: ["status: needs-decision"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
   assert.deepEqual(w.labels(), ["needs-triage"]);
   assert.equal(w.dispatches().length, 0);
@@ -222,7 +238,7 @@ for (const [name, setup] of quiet) {
 
 test("a second decision after the first dispatches nothing more", async () => {
   const w = world({
-    labels: ["status: needs-decision", "needs-human"],
+    labels: ["status: needs-decision"],
     comments: [
       { id: 1, user: OWNER, body: DECISION },
       { id: 2, user: OWNER, body: "**Decision recorded.** Also option 2." },
@@ -250,13 +266,12 @@ test("a run that loses the status label to another run dispatches nothing", asyn
 const DISPATCH = `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`;
 const failures = [
   ["adding needs-triage", `POST /repos/${REPO}/issues/${NUMBER}/labels`],
-  ["removing needs-human", `DELETE /repos/${REPO}/issues/${NUMBER}/labels/needs-human`],
   ["the dispatch", `POST ${DISPATCH}`],
 ];
 
 for (const [name, fail] of failures) {
   test(`a failed call to ${name} after the claim restores the labels, and a re-run dispatches once`, async () => {
-    const before = ["needs-human", "priority: medium", "status: needs-decision"];
+    const before = ["priority: medium", "status: needs-decision"];
     const w = world({ labels: before, comments: [{ id: 1, user: OWNER, body: DECISION }], fail });
     assert.equal(await run(w, 1), 1);
     assert.deepEqual(w.labels(), before);
@@ -280,7 +295,7 @@ test("every answer waits in line instead of replacing a waiting run", () => {
 });
 
 test("never adds agent-ready", async () => {
-  const w = world({ labels: ["status: needs-decision", "needs-human"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  const w = world({ labels: ["status: needs-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
   await run(w, 1);
   const added = w.writes.filter(([method, path]) => method === "POST" && path.endsWith("/labels")).flatMap(([, , body]) => body.labels);
   assert.deepEqual(added, ["needs-triage"]);
@@ -317,12 +332,35 @@ test("a lift on a lanes App issue sends it back to triage", async () => {
   expectDispatched(w);
 });
 
+// The decision on a needs-human issue changed nothing, so the lift is what
+// sends it back from status: needs-decision (owner decision on #10735).
+test("a listed human lifting needs-human on an issue at status: needs-decision sends it back to triage", async () => {
+  const w = world({ labels: ["status: needs-decision", "priority: medium"], events: [lift(OWNER)] });
+  assert.equal(await runLift(w), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("a lift whose status: needs-decision another run took dispatches nothing", async () => {
+  const w = world({ labels: ["status: needs-decision"], events: [lift(OWNER)], gone: ["status: needs-decision"] });
+  assert.equal(await runLift(w), 0);
+  assert.equal(w.dispatches().length, 0);
+});
+
+test("a failed dispatch after a lift at status: needs-decision puts the status back", async () => {
+  const w = world({ labels: ["status: needs-decision", "priority: medium"], events: [lift(OWNER)], fail: `POST ${DISPATCH}` });
+  assert.equal(await runLift(w), 1);
+  assert.deepEqual(w.labels(), ["priority: medium", "status: needs-decision"]);
+});
+
 const liftQuiet = [
   ["an outsider's removal", { labels: [], events: [lift(STRANGER)] }],
   ["an older listed removal followed by an outsider's", { labels: [], events: [lift(OWNER), lift(STRANGER)] }],
   ["a removal of another label", { labels: [], events: [lift(OWNER, "priority: low")] }],
   ["no removal event", { labels: [], events: [] }],
   ["a status label still present", { labels: ["status: needs-info"], events: [lift(OWNER)] }],
+  ["a parked status: confirmed", { labels: ["status: confirmed"], events: [lift(OWNER)] }],
+  ["status: needs-decision beside another status", { labels: ["status: needs-decision", "status: ready"], events: [lift(OWNER)] }],
   ["an issue already agent-ready", { labels: ["agent-ready"], events: [lift(OWNER)] }],
   ["an issue that carries needs-human again", { labels: ["needs-human"], events: [lift(OWNER)] }],
   ["an issue already in needs-triage", { labels: ["needs-triage"], events: [lift(OWNER)] }],

@@ -227,7 +227,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, bodyHold, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { doneReason, isSplitParent, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -419,9 +419,21 @@ async function refusal(args) {
         })
       : [];
   const kept = lapsed.some(({ kind }) => kind === "held");
-  const reason = !open ? "not open" : held ? `held by ${held}` : lapsed.length > 0 ? lapsed.map((item) => item.reason).join("; ") : await readiness({ ...args, base, lower });
+  const ready = !open || held || lapsed.length > 0 ? null : await readiness({ ...args, base, lower });
+  // Otherwise ready, a body `Hold:` line holds as admission's decide holds it
+  // (admit.mjs bodyHold).
+  const bodyHeld = open && !held && lapsed.length === 0 && ready === null && bodyHold(current.body);
+  const reason = !open
+    ? "not open"
+    : held
+      ? `held by ${held}`
+      : lapsed.length > 0
+        ? lapsed.map((item) => item.reason).join("; ")
+        : bodyHeld
+          ? "a body line opens with `Hold:`, which holds it for a person"
+          : ready;
   const stale = kept || lapsed.some(({ kind }) => kind === "not-ready") ? [] : lapsed;
-  return { reason, held: open && Boolean(held), kept, stale, deferred: lower.includes(DEFERRED_LABEL), confirmed: parkedBesideReady(lower), current };
+  return { reason, held: open && Boolean(held), kept, bodyHeld, stale, deferred: lower.includes(DEFERRED_LABEL), confirmed: parkedBesideReady(lower), current };
 }
 
 async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
@@ -643,7 +655,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         console.log(`label-unblocked: #${number} stays deferred: the newest removal of ${ATTENDED} was not a listed human's`);
         continue;
       }
-      const { reason, held, kept, stale, deferred, confirmed, current } = await refusal({ github, repo, number, humans, closes, bot, appId, events });
+      const { reason, held, kept, bodyHeld, stale, deferred, confirmed, current } = await refusal({ github, repo, number, humans, closes, bot, appId, events });
       if (humans.has(mark.actor?.id) && labelNames(current).includes(READY) && !held && current.state === "open") {
         await admitMarked({ github, repo, number, issue: current, events, humans, bot, appId, closes, gate, admission, doneBy });
         continue;
@@ -656,7 +668,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
       } else if (reason === null) {
         const done = await doneBy(number);
         await (done.length > 0 ? parkDone({ github, repo, number, lower: labelNames(current).map((name) => name.toLowerCase()), pulls: done }) : admit({ github, repo, number, gate, deferred, confirmed }));
-      } else if (held || kept) {
+      } else if (held || kept || bodyHeld) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
       } else if (stale.length > 0) {
         // As intake's admit: needs-decision when a person settles a reason, else status: confirmed.

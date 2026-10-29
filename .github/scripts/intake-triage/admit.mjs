@@ -44,7 +44,11 @@
 //   repository's, and no open pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
-// - 9: the author is a listed human or the lanes App;
+// - 9: the author is a listed human, or the lanes App on a sub-issue a size
+//   split filed (splitChildBody): any other issue the App filed holds for a
+//   person (owner decision on #10735);
+// - no body line opens with `Hold:` outside a code fence (bodyHold), which
+//   holds the issue for a person as it holds a pull request;
 // - a `recurring` item's schedule row, read from the default branch's
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
@@ -79,6 +83,10 @@
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
 //   `admission-deferred`, so admission takes the oldest first (owner Q95).
+//   The label goes on before the room is read, as a reservation: another
+//   run's reservation within RESERVATION_MS takes one place of the room
+//   (reservations), so parallel apply-verdict runs, one per issue, cannot
+//   together admit past the cap.
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker, an open pull request or an open
@@ -533,6 +541,16 @@ const fenceBlocks = (lines) => {
   });
 };
 
+// Whether a line of `body` outside a code fence opens with `Hold:`, past any
+// indent, in any case, read without invisible characters and with
+// compatibility forms folded (NFKC): the line form of the body hold pr-merge
+// reads on a pull request (merge-holds.mjs BODY_HOLD). Pure.
+export const bodyHold = (body) => {
+  const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
+  return lines.some((line, index) => blocks[index] === 0 && /^hold:/i.test(line.replace(INVISIBLE, "").normalize("NFKC").trimStart()));
+};
+
 // [{line, text, more}] for each task-list item, a line read without its
 // invisible characters, in order: its index among the body's `\n`-split
 // lines, its text after the task-list prefix, and the
@@ -856,8 +874,9 @@ export function admissionSettled(labels, events, isMark) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
-// refusal that parks at needs-decision: an untrusted author or provenance or
-// a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
+// refusal that parks at needs-decision: an untrusted author or provenance, a
+// lanes App issue that is no size split's sub-issue, a body `Hold:` line, a
+// person-held label or a charge word (the owner's 2026-10-26 rule keeps a
 // person out of every other refusal), a paid-eval done-when item, or, on an
 // issue without a trusted `host-run` (addedByTrusted), done-when items a lane
 // run cannot perform beside items it can, which refine
@@ -894,6 +913,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const author = issue.user?.id;
   if (!(humans.has(author) || (appId !== undefined && author === appId))) {
     refuse.push("the author is neither a listed human nor the lanes App");
+    hold = true;
+  } else if (!humans.has(author) && splitChildBody(spec, humans, rules["task-list"]) === null) {
+    refuse.push("the lanes App filed it and it is not a sub-issue a size split filed, the one lanes App issue admission takes");
+    hold = true;
+  }
+  if (bodyHold(issue.body)) {
+    refuse.push("a body line opens with `Hold:`, which holds it for a person; removing that line lifts it");
     hold = true;
   }
   const type = issue.type?.name ?? "none";
@@ -1659,31 +1685,63 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   };
 }
 
-// Whether an open issue created before `issue` carries admission-deferred:
-// one search. An unreadable or incomplete answer counts as one, since the
-// sweep admits deferred issues oldest first anyway. It counts every older
-// deferred issue, including one the sweep keeps deferred for an open pull
-// request or an untrusted label; that costs a newer issue at most one hourly
-// sweep's wait, never a stall, and reading each one's events to tell them
-// apart would cost a call per deferred issue.
-async function deferredAhead(github, repository, issue) {
-  const created = Date.parse(issue.created_at);
-  if (!Number.isFinite(created)) {
-    return true;
-  }
-  const before = new Date(created).toISOString().replace(/\.\d{3}Z$/, "+00:00");
-  const q = `repo:${repository} is:issue is:open label:${DEFERRED} created:<${before}`;
+// How long admit's reservation (its admission-deferred add) stays live: the
+// apply-verdict job's 10-minute timeout (intake-triage.yml), with a margin
+// for the runner's clock against GitHub's.
+export const RESERVATION_MS = 15 * 60_000;
+// Reservations this close count as at once: event times read to the second,
+// and two issues' events carry no promised order.
+const RESERVATION_TIE_MS = 5000;
+
+// The other open issues carrying admission-deferred than `issue`, from the
+// issues API. A failed read throws.
+const deferredOthers = async (github, repository, issue) =>
+  (await paginate(github, `/repos/${repository}/issues?state=open&labels=${DEFERRED}`)).filter((item) => !item?.pull_request && item?.number !== issue.number);
+
+// When issue `number`'s newest admission-deferred add was made, in ms; NaN
+// when its events do not read or show none.
+async function deferredAt(github, repository, number) {
   try {
-    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=1`);
-    return answer?.incomplete_results !== false || answer.total_count !== 0;
+    const events = await paginate(github, `/repos/${repository}/issues/${number}/events`);
+    return Date.parse(events.filter((event) => event?.event === "labeled" && event.label?.name === DEFERRED).at(-1)?.created_at);
   } catch {
-    return true;
+    return Number.NaN;
   }
 }
 
+// How `others` (deferredOthers) bear on admitting `issue`, whose reservation
+// was added at `mine`: {ahead, peers}. A deferral is live while its newest
+// add is within RESERVATION_MS before `now`: a parallel run's reservation.
+// An older issue's deferral that is not live is ahead, so the sweep admits
+// deferred issues oldest first; it may be one the sweep keeps deferred for an
+// open pull request or an untrusted label, which costs a newer issue at most
+// one hourly sweep's wait, never a stall. A live one is a peer, taking one
+// place of the room, when its issue is older or it was added no later than
+// RESERVATION_TIE_MS after `mine`: that run may admit, while a run whose
+// newer issue reserved later lists this one first and counts it. An add that
+// does not read is live and a peer, and so is every live one when `mine`
+// does not read, and when `issue`'s creation time does not read every other
+// issue is older. `now` is read right after this run's reservation.
+async function reservations(github, repository, issue, others, mine, now) {
+  const created = Date.parse(issue.created_at);
+  const older = (item) => !Number.isFinite(created) || !(Date.parse(item.created_at) >= created);
+  const peers = [];
+  for (const item of others) {
+    const at = await deferredAt(github, repository, item.number);
+    const live = !(at < now - RESERVATION_MS);
+    if (!live && older(item)) {
+      return { ahead: true, peers };
+    }
+    if (live && (older(item) || !(at > mine + RESERVATION_TIE_MS))) {
+      peers.push(item.number);
+    }
+  }
+  return { ahead: false, peers };
+}
+
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. Returns {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
+// status for the issue lane; `now` the time in ms. Returns {outcome, reasons}.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, now = Date.now, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const facts = await admissionFacts({
@@ -1740,24 +1798,49 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
+  // The reservation goes on before any count is read, put on again when the
+  // issue already carries it so its add is this run's (reservations). The
+  // other deferred issues are listed before check-wip-cap reads the queued
+  // count, and a run adds agent-ready before it takes its reservation off,
+  // so a parallel run's issue is counted in one or the other. A run that
+  // stops partway leaves the issue deferred for work-unblock's sweep.
+  // work-unblock's sweep may take the label off first.
+  const unreserve = () =>
+    github("DELETE", `${base}/labels/${DEFERRED}`).catch((error) => {
+      if (error?.status !== 404) {
+        throw error;
+      }
+    });
+  if (names(issue.labels).includes(DEFERRED)) {
+    await unreserve();
+  }
+  await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+  const reservedNow = now();
+  const others = await deferredOthers(github, repository, issue).catch(() => null);
   const s = await status();
   // A queued count check-wip-cap could not read (fail-open) admits nothing,
   // as an incomplete search answer admits nothing.
   const unread = s.admission_basis === "fail-open";
   const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
-  if (full || (await deferredAhead(github, repository, issue))) {
-    const why = !full
-      ? `an older ${DEFERRED} issue is ahead of it`
-      : s.paused
+  const room = s.admission_room ?? Number.POSITIVE_INFINITY;
+  const seen = full || others === null ? null : await reservations(github, repository, issue, others, await deferredAt(github, repository, issue.number), reservedNow);
+  if (full || others === null || seen.ahead || seen.peers.length >= room) {
+    const why = full
+      ? s.paused
         ? `the lane is paused (${s.pause_reason})`
         : unread
           ? "the issue lane's queued count could not be read (admission_basis fail-open)"
-          : `admissions are closed (${s.admission_reason})`;
-    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+          : `admissions are closed (${s.admission_reason})`
+      : others === null
+        ? `the open ${DEFERRED} issues could not be read`
+        : seen.ahead
+          ? `an older ${DEFERRED} issue is ahead of it`
+          : `parallel admissions of ${seen.peers.map((n) => `#${n}`).join(", ")} take the issue lane's room of ${room}`;
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
   await github("POST", `${base}/labels`, { labels: [AGENT_READY] });
+  await unreserve();
   // A manual re-dispatch skips intake-reenter, which lifts the parked
   // status: confirmed; lift it here, as a refusal lifts status: ready, so
   // the issue keeps one status label.

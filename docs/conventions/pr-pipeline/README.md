@@ -83,7 +83,9 @@ model. On a new comment on an open issue, not a pull request, it acts on a `stat
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
 trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
+nothing: a listed human's removal of `needs-human` sends the issue back, removing
+`status: needs-decision` when the issue carries it. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
@@ -2908,8 +2910,8 @@ resolve-config import, as after a failed `npm ci` of its dependencies) leaves th
 admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
 a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
 pauses only on or after `pause-from`, and no run pause changes.
-The search lists at most 1,000 issues: past that, the issues it counted but did not list count as
-queued, and admissions pause (`queued_truncated: true`).
+The queued issues come from the issues API's listing, not search, at most 1,000 (10 pages of 100):
+past that, one more counts as queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
 ready issue `admission-deferred` instead, and each hourly sweep revisits the open
@@ -2937,8 +2939,9 @@ most 50 issues a call); a read that fails admits as though no such pull request 
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
-each admit the full room. The search index can still lag an `agent-ready` label added moments
-before, so a run right after another may read the room as one admission too wide.
+each admit the full room. The queued count reads the issues API's listing, not the search index,
+whose freshness the search docs do not promise, so a run right after another counts the
+`agent-ready` label the other just added.
 
 The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
 design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
@@ -2971,7 +2974,7 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
 | `queued_issues`, `queued_total` | Queued issues with no open lane PR and no blocker that still blocks (at most 30 blocker reads; an unread issue counts), and those plus the held lane PRs; null when a read failed. |
-| `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
+| `queued_truncated` | `true` when the queued listing filled its 10 pages, so more issues may be queued than it lists; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the five. |

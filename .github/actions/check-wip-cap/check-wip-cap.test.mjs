@@ -35,15 +35,27 @@ const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
 });
 
 // A search API that answers by query: the open listing pages through `open`,
-// the queued issue listing through `queued` (issues as { number }), the
-// merged and opened counts answer `merged` and `admitted`; an Error
-// answer throws. A pull request read answers `heads[number]` as its head
-// ref. Each path is recorded.
+// the merged and opened counts answer `merged` and `admitted`; the issues
+// API's agent-ready listing pages through `queued` (issues as { number }, a
+// non-list answered as is); an Error answer throws. A pull request read
+// answers `heads[number]` as its head ref. Each path is recorded.
 function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {}, blockedBy = {} } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
     const url = new URL(path, "https://api.github.com");
+    if (url.pathname === `/repos/${REPO}/issues`) {
+      assert.equal(`${url.searchParams.get("state")} ${url.searchParams.get("labels")}`, "open agent-ready");
+      if (queued instanceof Error) {
+        throw queued;
+      }
+      if (!Array.isArray(queued)) {
+        return queued;
+      }
+      const page = Number(url.searchParams.get("page"));
+      const size = Number(url.searchParams.get("per_page"));
+      return queued.slice((page - 1) * size, page * size);
+    }
     const deps = /^\/repos\/[^/]+\/[^/]+\/issues\/([0-9]+)\/dependencies\/blocked_by$/.exec(url.pathname);
     if (deps) {
       const answer = blockedBy[deps[1]] ?? [];
@@ -61,7 +73,7 @@ function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplet
       return { number: Number(pull[1]), head: { ref: head } };
     }
     const q = url.searchParams.get("q");
-    const answer = q.includes("is:issue") ? queued : q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
+    const answer = q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
     if (answer instanceof Error) {
       throw answer;
     }
@@ -106,20 +118,46 @@ test("near misses do not hold a PR", () => {
   assert.equal(isHeld({ labels: null, body: null }), false);
 });
 
-test("the reads are four serial searches: the lanes App's PRs, then the open agent-ready issues not held", async () => {
+test("the reads are three serial searches of the lanes App's PRs, then the issues API's open agent-ready listing", async () => {
   const { github, paths } = searchApi({ open: [pr()], merged: 5, admitted: 3 });
   await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
   const queries = paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com"));
-  assert.ok(queries.every((url) => url.pathname === "/search/issues"));
+  assert.ok(queries.slice(0, 3).every((url) => url.pathname === "/search/issues"));
   assert.deepEqual(
-    queries.map((url) => url.searchParams.get("q")),
+    queries.slice(0, 3).map((url) => url.searchParams.get("q")),
     [
       `repo:${REPO} is:pr is:open ${AUTHOR}`,
       `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`,
       `repo:${REPO} is:pr ${AUTHOR} created:>=2026-10-17T12:00:00Z`,
-      `repo:${REPO} is:issue is:open label:agent-ready -label:needs-human -label:needs-owner-decision -label:"status: needs-decision" -label:"status: needs-info"`,
     ],
   );
+  assert.deepEqual(paths.slice(3), [`GET /repos/${REPO}/issues?state=open&labels=agent-ready&sort=created&direction=asc&per_page=100&page=1`]);
+});
+
+// admit.mjs reads the queued count after its reservation, so the issues API's
+// current labels count, not a search index's: the holds search left out with
+// -label are left out here, in any case, and so are pull requests.
+test("the queued listing leaves out pull requests and issues with a hold label", async () => {
+  const labeled = (number, ...labels) => ({ number, labels: labels.map((name) => ({ name })) });
+  const queued = [
+    labeled(1, "agent-ready"),
+    labeled(2, "agent-ready", "needs-human"),
+    labeled(3, "agent-ready", "Needs-Owner-Decision"),
+    labeled(4, "agent-ready", "status: needs-decision"),
+    labeled(5, "agent-ready", "status: needs-info"),
+    { ...labeled(6, "agent-ready"), pull_request: { url: "x" } },
+    labeled(7, "agent-ready", "status: ready"),
+  ];
+  const reads = await read({ merged: 24, queued });
+  assert.deepEqual(reads.queued, [1, 7]);
+  assert.equal(status(reads).queued_issues, 2);
+});
+
+test("the queued listing pages until a short page", async () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({ number: i + 1 }));
+  const reads = await read({ merged: 24, queued: many });
+  assert.equal(reads.queued.length, 150);
+  assert.equal(reads.queuedUnlisted, 0);
 });
 
 test("the open listing pages until a short page", async () => {
@@ -130,9 +168,9 @@ test("the open listing pages until a short page", async () => {
   assert.equal(paths.filter((path) => path.includes("is%3Apr%20is%3Aopen")).length, 2);
 });
 
-test("a search that answers incomplete results is an unknown read", async () => {
+test("a search that answers incomplete results is an unknown read; the issues API's listing still reads", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete: true });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: [], queuedUnlisted: 0, blocked: [], searchIncomplete: true });
 });
 
 // During a GitHub search incident the API answered total_count 0 with
@@ -389,18 +427,18 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
   assert.equal(status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" }).admission_room, 36);
 });
 
-test("past the search's 1,000-result listing, unlisted queued issues still count and admissions pause", async () => {
-  // 1,050 queued issues: the search lists 1,000 (10 pages of 100) and answers
-  // total_count 1,050; the 50 unlisted ones count as queued, no lane PR names
-  // them. A cap above that (100/h x 24 h = 2,400) still pauses: a count the
-  // listing cut short never admits.
+test("past the listing's 1,000 issues, unlisted queued issues still count and admissions pause", async () => {
+  // 1,050 queued issues: the listing reads 1,000 (10 pages of 100) and
+  // answers no total, so one more counts as unlisted and queued, no lane PR
+  // names it. A cap above that (100/h x 24 h = 2,400) still pauses: a count
+  // the listing cut short never admits.
   const queued = issues(...Array.from({ length: 1050 }, (_, i) => i + 1));
   const reads = await read({ open: [pr({ body: "Closes #1" })], merged: 0, queued });
   assert.equal(reads.queued.length, 1000);
-  assert.equal(reads.queuedUnlisted, 50);
+  assert.equal(reads.queuedUnlisted, 1);
   const result = status(reads, { "pause-from": "2026-10-01" }, { ...LIMITS, "admission-min-per-hour": 100 });
   assert.equal(result.queued_cap, 2400);
-  assert.equal(result.queued_issues, 1049);
+  assert.equal(result.queued_issues, 1000);
   assert.equal(result.queued_truncated, true);
   assert.equal(result.queued_over, true);
   assert.equal(result.admission_open, false);
@@ -799,7 +837,7 @@ test("pause reads make exactly two searches however many issues are queued", asy
       paused.paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com").searchParams.get("q")),
       [`repo:${REPO} is:pr is:open ${AUTHOR}`, `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`],
     );
-    // Full reads: four searches, one pull request read when issues are queued,
+    // Full reads: three searches and the queued listing, one pull request read when issues are queued,
     // and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
     const named = n === 0 ? 0 : 2;
     assert.equal(full.paths.length, 4 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
