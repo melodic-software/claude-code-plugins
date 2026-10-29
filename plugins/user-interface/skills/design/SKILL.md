@@ -100,8 +100,38 @@ the user its slash command. Say which route you took and why.
 - When two routes conflict on the same decision, the higher rank wins (the project above all), and
   you say which advice you set aside.
 - With nothing installed or reachable for a concern, answer from this plugin's own guidance, and
-  you may name the free tool that would help. For the `component-libraries` concern that guidance
-  is `${CLAUDE_PLUGIN_ROOT}/reference/component-libraries.md`. Never install anything without the user's yes.
+  offer a better route as the next section says. For the `component-libraries` concern that
+  guidance is `${CLAUDE_PLUGIN_ROOT}/reference/component-libraries.md`. Never install anything
+  without the user's yes.
+
+## Offer a better route
+
+After Step 4 picks a route for a concern, or finds none, read the concern's rows ranked above the
+route it picked (all of them when it picked none). Offer the highest-ranked row that meets all of
+these:
+
+- It is not installed by Step 4's first test, Step 1's fallback included when `installed` is
+  `null`. An id in `uncertain`, or a plugin installed but off, is reported as Step 1 and the
+  Gotchas say, not offered.
+- Its `kind` is not `tool`, and it has a `pointer` to install from.
+- Its `status` is not `deferred`.
+- Its `platforms` include this machine's operating system.
+- It meets Step 4's `style` and `account` rules, so a `paid` row is offered only when no free row
+  covers the concern, and Step 2's rule for style-imposing tools.
+
+A route the team file skipped is not in `routes`, so it is never offered. Make one offer per
+concern:
+
+- Name the tool and say why it ranks above the route in use. When its `status` is `unconfirmed`,
+  say it has not been installed and tested here.
+- Point the user to the row's `pointer` for the install command for their platform and for the
+  sign-in or key step its `account` needs. Install at local scope, so it loads only for this user
+  in this project: `claude plugin install` defaults to user scope, so pass `--scope local`;
+  `claude mcp add` already defaults to local.
+- Install only after the user says yes. On a yes, follow the pointer's install and sign-in steps,
+  run Step 1 again, and route to the tool once Step 4 picks it; when its `reachable` is `null` or
+  `false`, tell the user to finish the sign-in or key step. On a no, or no answer, continue with
+  the best present route and do not offer that tool again in this conversation.
 
 ## Rules that hold in every answer
 
@@ -163,4 +193,5 @@ the user agrees.
     **Recheck trigger**: a Claude Code release note naming the `Artifact` tool, its types, or
     print-mode tool loading.
 - The routing data ranks candidates; its `unconfirmed` rows have not yet been installed and tested
-  here. Say so when you route to one.
+  here. Say so when you route to one. A `deferred` row becomes `confirmed` only after a recorded
+  end-to-end onboarding test, with its `as_of` updated.

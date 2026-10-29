@@ -115,6 +115,50 @@
         "The answer names docs/conventions/user-interface.yaml, the team file, as the source of the skip",
         "The answer does not route the visual direction to frontend-design"
       ]
+    },
+    {
+      "id": 11,
+      "name": "offer-confirmed-uninstalled-route",
+      "prompt": "Turn our settings screen into an editable design file my designer can open in a design tool. I don't have any design tools or MCP servers installed. Our team's settings are in docs/conventions/user-interface.yaml.",
+      "expected_output": "The fixture marks the pencil row of the design-tool-handoff concern confirmed; every other row for that concern stays deferred and nothing is installed. The skill offers Pencil as the better route: it names the tool, points to the row's pointer (https://docs.pen.dev/getting-started/installation) for the install command and the sign-in step its login account needs, says to install at local scope, and asks before installing. It offers no deferred row such as figma, installs nothing, and meanwhile answers from its own guidance.",
+      "files": [
+        "evals/fixtures/offer-confirmed/docs/conventions/user-interface.yaml"
+      ],
+      "expectations": [
+        "The answer offers Pencil for the handoff and asks whether to install it",
+        "The answer points to https://docs.pen.dev/getting-started/installation for the install and sign-in steps rather than stating an install command of its own",
+        "The answer offers no tool other than Pencil for the handoff: figma, canva, sketch and penpot stay deferred in the merged routes",
+        "The answer installs nothing and runs no install command"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "offer-declined-continues",
+      "prompt": "Turn our settings screen into an editable design file my designer can open in a design tool. I don't have any design tools or MCP servers installed. If you'd suggest installing Pencil or any other design tool, my answer is no, I don't want to install anything. Our team's settings are in docs/conventions/user-interface.yaml.",
+      "expected_output": "With the fixture's confirmed pencil row and the user's no to installing Pencil, the skill installs nothing and continues with the best present route: for design-tool-handoff nothing is installed, so it answers from its own guidance (for example a structured spec of the screen the designer can rebuild from). It does not ask again whether to install Pencil.",
+      "files": [
+        "evals/fixtures/offer-confirmed/docs/conventions/user-interface.yaml"
+      ],
+      "expectations": [
+        "The answer installs nothing and runs no install command",
+        "The answer continues with the design work from the best present route or the plugin's own guidance rather than stopping",
+        "The answer does not ask again whether to install Pencil"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "offer-accepted-installs-local",
+      "prompt": "Turn our settings screen into an editable design file my designer can open in a design tool. I don't have any design tools or MCP servers installed. If you'd suggest installing Pencil, yes, install it. Our team's settings are in docs/conventions/user-interface.yaml.",
+      "expected_output": "With the fixture's confirmed pencil row and the user's yes to Pencil, the skill follows the row's pointer (https://docs.pen.dev/getting-started/installation) for this platform's install and sign-in steps, installs at local scope, runs detect again, and routes the handoff to Pencil once Step 4 picks it. When its reachable is null or false it tells the user to finish signing in.",
+      "files": [
+        "evals/fixtures/offer-confirmed/docs/conventions/user-interface.yaml"
+      ],
+      "expectations": [
+        "The answer takes its install and sign-in steps from https://docs.pen.dev/getting-started/installation",
+        "The answer installs at local scope, not user or project scope",
+        "The answer runs detect again or otherwise confirms Pencil is installed before routing the handoff to it",
+        "The answer gives the user Pencil's sign-in step, from the pointer, or tells them to finish signing in when detect cannot confirm Pencil is reachable"
+      ]
     }
   ]
 }
