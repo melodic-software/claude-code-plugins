@@ -1107,8 +1107,16 @@ the rules that only tighten in
   the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
   `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
   whole diff) for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff
-  uses `--no-renames`, so a renamed file is reviewed whole. A verdict binds only when the head
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
+  `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
+  does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
+  a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
+  symlink or submodule, one that may run or load (an executable, a path under a `skills`, `agents`,
+  `commands` or `hooks` directory, or a file a tool reads by name such as `SKILL.md`, `hooks.json`,
+  `plugin.json`, `marketplace.json`, `conftest.py`, `__init__.py` or `settings.json`), and one whose
+  new path, last directory and name, name, or name without its extension an added line names
+  show whole (`write-diff.py`); the prompt tells the reviewer a rename-only entry is unseen and that
+  a change referencing a moved path is a finding. The caps apply after. A verdict binds only when the head
   also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
   cancelled before it recorded binds nothing. Each
   lane uploads `verdict.json` as
@@ -1129,8 +1137,20 @@ the rules that only tighten in
   an artifact or a comment, not a check run, and a forged one can only add a hold. A count that
   cannot be read leaves the lane unbound. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
   floor `enforcement` path beside it waits for that review. Each lane runs one leg on the reviews
-  role's API key and leaves a lane record (`report-lane-outcome`); a run that leaves no verdict
-  leaves the lanes unbound until the next push.
+  role's credentials in the review lanes' order: the API key (`REVIEWS_CLAUDE_API_KEY`); then,
+  for a lane whose key leg handed off (a credit stop, a 401 or 402) or whose key is empty, the
+  subscription token (`REVIEWS_CLAUDE_CODE_OAUTH_TOKEN`) in the `review-subscription` job; then,
+  for a lane that leg handed off (a limit stop, a credit stop, a 401 or 402, or an empty token)
+  with `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the fallback token in `review-fallback`. Each leg
+  is a job on a new VM holding one credential, and a route job with no secret passes on only
+  lanes whose handoff reason is in a closed set. The key leg checks out the main tip when it
+  starts and records that commit; a later leg checks out the recorded commit, which the route
+  passes on only as 40 hex characters, so a re-run of an old run cannot bring back older review
+  code. Every leg writes the same verdict, so neither the
+  record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
+  credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
+  comes from a successful run; a run that leaves no verdict leaves the lanes unbound until the
+  next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
