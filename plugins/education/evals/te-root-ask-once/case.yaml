@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: te-root-ask-once
+graders:
+  - name: asks-root-once
+    type: regex
+    pattern: '\b(?:where|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?|Claude Learning)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
+    flags: 'i'
+    match: 'count:1'
+    target: last_message
+  - name: offers-documents-default
+    type: regex
+    pattern: '\bClaude Learning\b|\bDocuments\b'
+    flags: 'i'
+    target: last_message
