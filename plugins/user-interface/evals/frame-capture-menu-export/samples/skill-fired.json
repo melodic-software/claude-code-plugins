@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit",
+            "args": "motion src/settings-menu.css"
+          }
+        }
+      ],
+      "why": "the audit skill fired by its bare name, with arguments"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "near miss: the sibling skill that writes animation, not the audit"
+    }
+  ]
+}

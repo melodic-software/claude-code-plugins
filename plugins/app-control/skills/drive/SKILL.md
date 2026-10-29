@@ -9,7 +9,9 @@ metadata:
 ---
 
 **Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]`.
-`<kind>` is `trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
+`<kind>` is `trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation` (at each
+sampled frame, every animation on the element under review: its property, from and to values,
+current value, duration, easing and progress) or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
 
 ## Purpose
 
@@ -157,6 +159,9 @@ All as of 2026-10-26; recheck when any of them changes.
   one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research
   tools to install; an unattended run only reports.
+- **An `animation` capture clicks.** It sets the interaction off itself, so it runs only on an app
+  this run launched, on seeded or test data: never with `--attach`, and never in the person's
+  signed-in browser, where a click can fire a real action.
 - **Unattended limits.** Never attach to a process this run did not start. Never drive a tool that
   controls the person's own signed-in browser. Capture only on a process this run launched. A step
   that needs a person becomes `blocked: <reason>`; continue with the steps that do not.

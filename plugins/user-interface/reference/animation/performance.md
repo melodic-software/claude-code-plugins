@@ -285,8 +285,15 @@ Name the cause before changing code. Work down this list, ordered by how often e
    at the start/end of transform animations due to the CPU↔GPU rendering handoff.
 
 Confirm with a recording, not by feel: the browser's performance panel for dropped frames and long
-tasks, its animation panel to slow motion down, and a real mid-range phone over remote debugging.
-Desktop CPU throttling models a slow CPU, not a weak GPU or a small memory budget.
+tasks, its animation panel to slow declarative motion down, and a real mid-range phone over remote
+debugging. Desktop CPU throttling models a slow CPU, not a weak GPU or a small memory budget. Motion
+a script drives each frame is captured with a controlled page clock instead: `/playwright:playwright`
+animation capture.
+
+- **Pointer**: Chrome DevTools, "Inspect animations", Overview (which animations the panel lists),
+  <https://developer.chrome.com/docs/devtools/css/animations#overview>
+- **As of**: 2026-10-29
+- **Recheck trigger**: the Overview changes which animation kinds the panel supports.
 
 ## Report: `report`
 

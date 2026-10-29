@@ -229,6 +229,9 @@ collection rather than inventing control points, and name it as a default.
 **Audit: Important.** `ease-in` (not `ease-in-out`) on an entrance or on-screen motion, in a
 `transition`, an `animation`, a library's `ease` prop or a utility class.
 
+**Audit: Important.** `ease-in` or an accelerate curve on an exit that is not permanent: a menu,
+drawer or popover that its trigger can close while it is open leaves on the curve it entered with.
+
 **Audit: Suggestion.** A built-in keyword curve on a deliberate animation where a custom curve
 belongs, or a permanent exit on the bare `ease-in` keyword instead of an accelerate curve. A hover,
 color or shadow change on `ease` (item 3) is not a finding.
@@ -484,7 +487,8 @@ entering list), say so and name the check instead of guessing a value:
   animation inspector, to see whether coordinated properties stay in sync and the easing ends
   cleanly. Animation feels off and you can't say why: screen-record it and scrub frame by frame;
   details invisible at full speed show up. Scrubbing is also how to find the one thing that feels
-  off in an animation someone else built.
+  off in an animation someone else built. To hand that frame to an agent, capture its state with
+  `/app-control:drive capture --kind animation`.
 - Put on the human list: "open each animated surface on a mid-range phone and watch the first
   frame", and "in the browser's animation panel, slow playback to 10% and watch each enter and exit
   for a jump at the start or the end". Report these as checks to run, never as verified.
