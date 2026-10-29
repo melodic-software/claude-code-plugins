@@ -638,7 +638,7 @@ class CostDecision(unittest.TestCase):
     # A branch name recreated for each sync (chore/standards-sync, #10990)
     # keeps its whole history in the activity API, so the decided head's push
     # can sit past the first page of 100.
-    def test_the_head_branchs_push_history_is_read_past_its_first_page(self) -> None:
+    def test_the_push_history_is_read_past_its_first_page(self) -> None:
         new = "1" * 40
         same = {OLD: _net(TF), HEAD: _net(TF)}
 
