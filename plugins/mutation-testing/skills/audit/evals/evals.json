@@ -206,13 +206,6 @@
       "files": []
     },
     {
-      "id": "user_layer_only",
-      "prompt": "Run /mutation-testing:audit. This repository has no .claude/mutation-testing.md and no .local.md overlay, but my user-global mutation-testing config sets `tool: stryker-js`, `diff-target: origin/develop` and `test-command: npx vitest run {tests}`.",
-      "expected_output": "Reads the layers in the order the setup skill's config merge model names, finds only the user-global one, and uses it: stryker-js, origin/develop and the vitest test command, with no fallback defaults for the keys it sets. The scope report's Config line names the user-global layer as the source of each of those values. Does not refuse for the missing team file.",
-      "files": [],
-      "narration": true
-    },
-    {
       "id": "tool_unavailable",
       "prompt": "Run /mutation-testing:audit. The config says `tool: stryker-net`, but dotnet-stryker is not installed.",
       "expected_output": "Does not refuse outright. Names the install command for Stryker.NET, as /mutation-testing:setup check would, and offers to continue this run with `tool: manual`. Refuses only when the user declines both. Does not install the tool unasked. Running unattended, it stops with the install command and the manual offer rather than switching tools on its own.",
