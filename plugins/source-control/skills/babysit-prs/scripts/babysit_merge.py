@@ -3831,15 +3831,37 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(refusal: str, head: str) -> str:
+# The verifier refusals that never clear for the head (the FAIL cap, an old
+# pull request): their escalation reaches the attended queue and says what a
+# person does, and address-feedback and fix-ci start no round on the cap.
+VERIFY_FINAL = (verify_evidence.REPEATED_FAIL, verify_evidence.TOO_OLD)
+
+
+def verify_escalation_body(refusal: str, head: str, detail: str | None = None) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal and the head only, so a rerun renders the same body."""
+    refusal, the head and the reader's detail only (for the cap, the FAILed
+    heads), so a rerun renders the same body."""
+    if refusal not in VERIFY_FINAL:
+        return "\n".join(
+            [
+                VERIFY_ESCALATION_MARKER,
+                f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+                f"`{head}`. That refusal needs a human, who merges in person; the "
+                "pr-merge lane will not merge this pull request.",
+            ]
+        )
+    why = f" ({detail})" if detail else ""
     return "\n".join(
         [
+            ATTEND_QUEUE_MARKER,
             VERIFY_ESCALATION_MARKER,
             f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-            f"`{head}`. That refusal needs a human, who merges in person; the "
-            "pr-merge lane will not merge this pull request.",
+            f"`{head}`{why}. That refusal never clears for this pull request, so "
+            "the pr-merge lane will not merge it and address-feedback and fix-ci "
+            "start no more rounds on it.",
+            "",
+            "A person decides it: fix the cause, approve the head and remove the "
+            "human-gated label, then merge it in person; or close the pull request.",
         ]
     )
 
@@ -3894,10 +3916,11 @@ def escalate_verify(
     identity: str,
     refusal: str,
     inputs: Mapping[str, Any],
+    detail: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal."""
+    """`escalate` for a needs-human verifier refusal, `detail` the reader's."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    body = verify_escalation_body(refusal, head)
+    body = verify_escalation_body(refusal, head, detail)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
@@ -4339,6 +4362,7 @@ def unattended_writes(
                 identity,
                 str(verify.get("refusal")),
                 inputs,
+                verify.get("detail") if isinstance(verify.get("detail"), str) else None,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

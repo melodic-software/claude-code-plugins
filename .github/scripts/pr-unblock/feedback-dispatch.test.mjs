@@ -157,7 +157,7 @@ const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReas
   return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
-async function decide(api, resolved = resolvedLane()) {
+async function decide(api, resolved = resolvedLane(), extra = {}) {
   const lines = [];
   const asked = [];
   const result = await dispatchFeedback({
@@ -172,6 +172,7 @@ async function decide(api, resolved = resolvedLane()) {
       return resolved;
     },
     log: (line) => lines.push(line),
+    ...extra,
   });
   return { result, lines, asked };
 }
@@ -188,6 +189,30 @@ const pull = (overrides) => [
     ...overrides,
   },
 ];
+
+// Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
+// pull request, so a fix round's push could never merge: the gate's reader
+// (verify-cap.mjs) says so, and the dispatcher starts no round and posts
+// nothing.
+test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
+  const api = fakeApi();
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+test("a PR the reader does not find at the cap dispatches as before", async () => {
+  const api = fakeApi();
+  const { result } = await decide(api, resolvedLane(), { verifyCapped: () => null });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+});
 
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {
   const api = fakeApi();

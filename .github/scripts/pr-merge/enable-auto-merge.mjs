@@ -521,6 +521,11 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
+// The verifier refusals that never clear for the head (babysit_merge.py
+// VERIFY_FINAL): the FAIL cap and an old pull request, each a person's
+// (NEEDS_HUMAN), whose comment says what the person does.
+export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
+
 // How verifyHold opens the reason for each answer that refuses: the issue
 // link, the verifier verdict and the risk score.
 export const READER_HOLDS = Object.freeze({
@@ -542,7 +547,10 @@ export function verifyHold(evidence, head) {
     return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
   }
   if (evidence.refusal !== null) {
-    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
+    // A refusal that never clears names the reader's detail (the cap's FAILed
+    // heads), so the person's comment says what holds it.
+    const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
   }
   // A line without the link's or the reviews' answer read neither: it allows nothing.
   if (evidence.ineligible !== null) {
@@ -750,9 +758,19 @@ async function liftBlocked(github, repo, number, options) {
 // A reason as the comment's fenced block carries it.
 const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
 
+// What a person does about a reason: for a VERIFY_FINAL refusal, which no
+// later run clears, decide the pull request; else fix it and let the next run
+// judge it again.
+function personClears(reason) {
+  const final = VERIFY_FINAL.some((code) => String(reason).includes(`${READER_HOLDS.verdict}${code}`));
+  return final
+    ? "this reason never clears for the pull request, so the lanes start no more fix rounds on it. Fix the cause, approve the head and remove the label, then merge it in person; or close the pull request."
+    : "fix the reason, then remove the label, and the next scheduled run judges it again.";
+}
+
 export function refusalBody(person, reason, head, label, since = null, partial = false) {
   const who = person
-    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
+    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: ${personClears(reason)}`
     : "The lanes clear this reason on their own; the next scheduled run judges it again.";
   return [
     ...(person ? [ATTEND_QUEUE_MARKER] : []),

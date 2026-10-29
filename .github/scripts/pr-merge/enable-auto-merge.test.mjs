@@ -433,25 +433,36 @@ test("a floor path no configured glob names is commented on and labeled human-ga
 });
 
 // Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
-// a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
-// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
-// changed spec, the repeated-FAIL cap and an old pull request are the lanes'.
-test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are the lanes'", async () => {
-  const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
+// a CRITICAL security issue, trust holds kept; owner decision 2026-10-29: the
+// repeated-FAIL cap and an old pull request, which never clear for the head,
+// go to a person too. The gate's `needsHuman` (babysit_verify_evidence
+// NEEDS_HUMAN) decides, so a changed spec stays the lanes'.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are", async () => {
+  const refused = (refusal, needsHuman, detail = null) => ({ refusal, needsHuman, detail, head: HEAD, ineligible: null, reviews: null });
+  const failed = `fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3`;
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", false) }),
-    pull(4, { verdict: refused("verify:too-old", false) }),
+    pull(3, { verdict: refused("verify:repeated-fail", true, failed) }),
+    pull(4, { verdict: refused("verify:too-old", true, "created 2026-07-27T23:00:00+00:00") }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
+  // A refusal that never clears for the head says what a person does in place
+  // of the lanes clearing it, and names the reader's detail (the FAILed heads).
+  const finalNote = (reason) =>
+    personNote(reason).replace(
+      "fix the reason, then remove the label, and the next scheduled run judges it again.",
+      "this reason never clears for the pull request, so the lanes start no more fix rounds on it. Fix the cause, approve the head and remove the label, then merge it in person; or close the pull request.",
+    );
   assert.deepEqual(notes, [
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: finalNote(refusing(`verify:repeated-fail: ${failed}`)) } },
+    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: finalNote(refusing("verify:too-old: created 2026-07-27T23:00:00+00:00")) } },
+    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });

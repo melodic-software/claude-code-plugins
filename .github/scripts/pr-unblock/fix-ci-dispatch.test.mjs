@@ -218,6 +218,29 @@ test("a lanes App PR whose ci-status failed is dispatched fix-ci with the dispat
   ]);
 });
 
+// Owner decision 2026-10-29: a PR whose pr-verify FAILs are at the cap gets
+// no fix-ci round, read by the gate's reader (verify-cap.mjs); the next
+// candidate still does.
+test("a PR whose pr-verify FAILs are at the cap gets no fix-ci round", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return request.number === 5 ? "verify:repeated-fail: fails at 3 heads, the cap is 3" : null;
+  };
+  const base = "c".repeat(40);
+  const { api, lines, result } = await run({ pages: [[pr(5, { baseRefOid: base }), pr(6, { baseRefOid: base })]] }, { verifyCapped });
+  assert.deepEqual(result, { dispatched: [{ number: 6, workflowRunId: "7006" }], failed: 0 });
+  assert.deepEqual(
+    api.calls.dispatch.map((call) => call.inputs["pr-number"]),
+    ["6"],
+  );
+  assert.deepEqual(asked, [
+    { number: 5, head: pr(5).headRefOid, base },
+    { number: 6, head: pr(6).headRefOid, base },
+  ]);
+  assert.match(lines.join("\n"), /^skip fix-ci #5: .*verify:repeated-fail/m);
+});
+
 // A fork PR that pushed the same commit lists its runs under the same head SHA.
 // Its newer run, still going, would read as a re-run in flight and hold fix-ci
 // off (reconcilerOwns); readRequiredRun keeps it out of the tested run.

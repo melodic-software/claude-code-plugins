@@ -87,15 +87,17 @@ from a completed, successful one. Any other artifact is ignored.
   for a new head;
 - otherwise `verify:missing`.
 
-Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
-person: the spec's provenance is a trust boundary. Every other refusal holds
-for the lanes (when a person is needed:
+`verify:untrusted-spec`, `verify:repeated-fail` and `verify:too-old` need a
+human (`NEEDS_HUMAN`), who merges in person: the spec's provenance is a trust
+boundary, and the other two never clear for the head. Every other refusal
+holds for the lanes (when a person is needed:
 https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 waits for the lanes to judge the head again. `verify:repeated-fail` and
 `verify:too-old` never clear, so the gate never merges such a pull request
-unattended, and address-feedback's own round cap bounds the fix rounds. A
+unattended and escalates it, and address-feedback and fix-ci start no round
+on a pull request at `verify:repeated-fail` (pr-unblock verify-cap.mjs). A
 `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
@@ -367,12 +369,14 @@ INELIGIBLE = "verify:ineligible"
 INTENT_PULL_REQUEST = "pull-request"
 # The refusals only a person clears (when a person is needed:
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
-# with trust holds kept): an untrusted spec (provenance). Every other refusal,
-# the repeated-FAIL cap and an old pull request included, holds for the
-# lanes: it still refuses the merge, with no label. The one list the merge
-# gate and enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
+# with trust holds kept): an untrusted spec (provenance), and the two that
+# never clear for the head, the repeated-FAIL cap and an old pull request
+# (owner decision 2026-10-29), so the gate escalates them instead of holding
+# them silently. Every other refusal holds for the lanes: it still refuses
+# the merge, with no label. The one list the merge gate and
+# enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
 # LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
-NEEDS_HUMAN = (UNTRUSTED_SPEC,)
+NEEDS_HUMAN = (UNTRUSTED_SPEC, REPEATED_FAIL, TOO_OLD)
 # The refusals no upload after the listing clears (`Reader.evidence`): a
 # counted FAIL at the head or the cap's FAILs stay counted whatever is
 # uploaded later, as no pass clears them, and a pull request's age only
@@ -690,6 +694,11 @@ def dependency_bot(user: Any) -> bool:
     return user.get("type") == "Bot" and is_dependency_author(
         str(user.get("login") or "")
     )
+
+
+def _heads(shas: set[str]) -> str:
+    """The FAILed heads the cap counted, sorted, for the escalation to name."""
+    return ", ".join(sorted(shas))
 
 
 @dataclass(frozen=True)
@@ -1990,7 +1999,7 @@ class Reader:
         detail = unreadable
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
-            detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
+            detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
         elif head in failed and not superseded(head):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
@@ -2002,7 +2011,8 @@ class Reader:
                 refusal = REPEATED_FAIL
                 detail = (
                     f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues, the cap is {self.max_fails}"
+                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
+                    f"the cap is {self.max_fails}"
                 )
         elif fails and (
             not self._passes_follow(fails, passes)
@@ -2029,7 +2039,8 @@ class Reader:
                 refusal = REPEATED_FAIL
                 detail = (
                     f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues, the cap is {self.max_fails}"
+                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
+                    f"the cap is {self.max_fails}"
                 )
             else:
                 refusals = {

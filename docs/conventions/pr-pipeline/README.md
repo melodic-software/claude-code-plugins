@@ -2277,15 +2277,25 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
-Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
-`verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
-so such a pull request never merges unattended, and address-feedback's own round cap bounds the
-fix rounds on it. While `merge.report-only` is
-false the lane escalates `verify:untrusted-spec`
+`verify:spec-changed` holds for the lanes
+([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
+`verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary, and so do
+`verify:repeated-fail` and `verify:too-old` (owner decision 2026-10-29), which never clear for the
+pull request, so it never merges unattended. `pr-feedback-dispatch.yml` and
+`pr-unblock-dispatch.yml` start no address-feedback or fix-ci round, and post nothing, on a pull
+request the gate's reader refuses `verify:repeated-fail`
+(`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
+dispatcher job's read token, last before each dispatch); a read that fails lets the round run under
+its own caps. While `merge.report-only` is
+false the lane escalates all three
 on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
-rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+rewritten only when either changes. For `verify:repeated-fail` and `verify:too-old` the comment opens
+with the attended queue's `<!-- work-items:escalation lane=pr-merge kind=escalated -->` marker,
+names the reader's detail (the FAILed heads, or when the pull request was created), and says what a
+person does: fix the cause, approve the head and remove the label, then merge in person, or close
+the pull request. On a lanes App pull request `enable-auto-merge.mjs` writes the same person's
+refusal comment and label (`verifyClears`), its reason carrying that detail. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that

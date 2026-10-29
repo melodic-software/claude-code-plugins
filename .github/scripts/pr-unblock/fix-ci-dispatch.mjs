@@ -109,7 +109,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository baseRefName headRefOid updatedAt body
+        number isDraft isCrossRepository baseRefName baseRefOid headRefOid updatedAt body
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         commits(last: 1) {
@@ -473,6 +473,8 @@ export async function dispatchCiFixes({
   adoption = DEFAULTS.adoption,
   record = emptyRecord(),
   now = Date.now(),
+  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  verifyCapped = () => null,
 }) {
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
     throw new Error("the lanes App sender id is not a user id");
@@ -658,6 +660,13 @@ export async function dispatchCiFixes({
     );
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
+      continue;
+    }
+    // Last, as it costs a full verifier read: a push past the FAIL cap could
+    // never merge, so a person decides the pull request (pr-merge escalates).
+    const verifyCap = await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid });
+    if (verifyCap) {
+      log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap (${verifyCap}); a person decides it, so no fix-ci round`);
       continue;
     }
     sent += 1;

@@ -134,6 +134,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -300,6 +301,8 @@ export async function dispatchFeedback({
   notesSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
+  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  verifyCapped = () => null,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -495,6 +498,12 @@ export async function dispatchFeedback({
     }
     if (anyHandles(existing, { now, limits: resolved.limits })) {
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
+    }
+    // Last, as it costs a full verifier read: a push past the FAIL cap could
+    // never merge, so a person decides the pull request (pr-merge escalates).
+    const capped = await verifyCapped({ number, head, base: pull.base?.sha });
+    if (capped) {
+      return skip(`#${number}: pr-verify's FAILs are at the cap (${capped}); a person decides it, so no ${settings.activity} round`);
     }
   }
   const { workflowRunId } = await api.dispatchWorkflow({
@@ -989,7 +998,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), now = Date.now() } = {}) {
+export async function main(env, { api, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -1019,6 +1028,9 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
+    // The gate's reader for the FAIL-cap skip (verify-cap.mjs), when the
+    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined),
     now,
     log,
   };
