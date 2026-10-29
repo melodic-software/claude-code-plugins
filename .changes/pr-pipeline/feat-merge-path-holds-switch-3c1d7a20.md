@@ -1,8 +1,8 @@
 ---
-bump: minor
+bump: major
 ---
 
-### Added
+### Changed
 
 - `merge.diff-check.path-holds` turns off every path-based merge hold with one switch. Absent or
   false (the default, and this repository's setting by owner decision Q15), a changed path no
@@ -13,3 +13,5 @@ bump: minor
   review, the trusted-actor widening, body holds, vetoes and `do-not-merge` still hold. The gate
   report (`risk.pathHoldsSkipped`), enable-auto-merge's log and merge-holds.mjs name each hold
   the switch skipped.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
