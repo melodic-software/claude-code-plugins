@@ -11,11 +11,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { REFINE_MARKER } from "../intake-triage/admit.mjs";
+import { bodyVersion, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -53,7 +53,9 @@ const labeled = (actor, day, name = "agent-ready") => labelEvent("labeled", acto
 const unlabeled = (actor, day, name = "agent-ready") => labelEvent("unlabeled", actor, day, name);
 
 // By default the owner added agent-ready after every comment a test posts.
-function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {} }) {
+// `spec` is the issue's text as admission's SPEC_QUERY answers it (admit.mjs
+// specOf); by default ISSUE's body, which a listed human wrote, with no comments.
+function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {}, issue = ISSUE, spec = {} }) {
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
@@ -63,13 +65,23 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
       return structuredClone(compare[key]);
     }
     if (key === `GET /repos/${REPO}/issues/6825`) {
-      return structuredClone(ISSUE);
+      return structuredClone(issue);
     }
     if (key === `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1`) {
       return structuredClone(events);
     }
     if (key === `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1`) {
       return structuredClone(comments);
+    }
+    if (key === "POST /graphql" && body.variables.number === 6825 && body.query.includes("comments(first")) {
+      const nodes = spec.comments ?? [];
+      return {
+        data: {
+          repository: {
+            issue: { body: issue.body, lastEditedAt: null, author: { __typename: "User", databaseId: OWNER.id }, editor: null, ...spec, comments: { totalCount: nodes.length, nodes } },
+          },
+        },
+      };
     }
     if (key === "POST /graphql" && body.variables.number === 6825) {
       const { lastEditedAt = null, renamedAt } = issueEdits;
@@ -173,6 +185,53 @@ test("keeps the lanes App's intake refinement, tagged refinement, whose criteria
     }),
   );
   assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
+});
+
+// Intake's split refinement (refine.mjs) names body items a person runs; the
+// lane gets them as person_checks only under admission's guards (admit.mjs
+// personChecks), and never from the comment's prose.
+describe("person_checks", () => {
+  const BODY = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const SPLIT = `${REFINE_MARKER}\n${bodyVersion(BODY)}\n${splitItemsLine([2])}\n**Split.** Done-when item 2 of the issue body needs a person.\n\n> - [ ] Run it on a Windows 11 host.`;
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const node = (id, author, body, extra = {}) => ({ databaseId: id, createdAt: at(id), updatedAt: at(id), body, lastEditedAt: null, author, editor: null, ...extra });
+  const split = (body = BODY, spec = {}, comments = [comment(11, LANES_BOT, SPLIT)], specComments = [node(11, LANES_ACTOR, SPLIT)]) =>
+    run(fakeGitHub({ comments, issue: { ...ISSUE, body }, spec: { body, ...spec, comments: specComments } }), { extraEnv: { ISSUE_LANE_WEB_HOSTS: "[]" } });
+
+  test("lists the items a standing split record names, as written, beside its comment", async () => {
+    const { code, issue } = await split();
+    assert.equal(code, 0);
+    assert.deepEqual(issue.person_checks, ["Run it on a Windows 11 host."]);
+    assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
+  });
+
+  test("a listed human's body edit since the split leaves the stale prose excusing nothing", async () => {
+    const edited = `${BODY}\n- [ ] Added since.`;
+    const { code, issue } = await split(edited, { lastEditedAt: at(12), editor: { __typename: "User", databaseId: OWNER.id } });
+    assert.equal(code, 0);
+    assert.equal(issue.person_checks, undefined);
+    assert.deepEqual(issue.comments, [], "the stale split refinement reaches the lane in no form");
+  });
+
+  test("an edited refinement or a record naming an item the lane can perform excuses nothing", async () => {
+    const appEdit = { lastEditedAt: at(12), editor: LANES_ACTOR };
+    for (const [why, specComments] of [
+      ["an edited refinement", [node(11, LANES_ACTOR, SPLIT, appEdit)]],
+      ["a runnable item", [node(11, LANES_ACTOR, SPLIT.replace(splitItemsLine([2]), splitItemsLine([1])))]],
+    ]) {
+      const { issue } = await split(BODY, {}, [comment(11, LANES_BOT, specComments[0].body)], specComments);
+      assert.equal(issue.person_checks, undefined, why);
+      assert.deepEqual(issue.comments, [], why);
+    }
+  });
+
+  test("a split row in the body or a listed human's comment names nothing", async () => {
+    const forged = `${REFINE_MARKER}\n${bodyVersion(BODY)}\n${splitItemsLine([2])}`;
+    const inBody = await split(`${BODY}\n${splitItemsLine([2])}`, {}, [], []);
+    assert.equal(inBody.issue.person_checks, undefined);
+    const byHuman = await split(BODY, {}, [comment(11, OWNER, forged)], [node(11, { __typename: "User", databaseId: OWNER.id }, forged)]);
+    assert.equal(byHuman.issue.person_checks, undefined);
+  });
 });
 
 test("a decision line inside a quote or code fence, or not first, is no decision", async () => {

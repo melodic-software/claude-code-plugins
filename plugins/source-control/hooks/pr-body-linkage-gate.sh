@@ -282,7 +282,7 @@ is_dynamic() {
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 validate_body() {
   # shellcheck disable=SC2310  # the return status IS the verdict
-  linkage::problems "$1" && return 0
+  linkage::blocking_problems "$1" && return 0
   linkage::block_message "${GATE_FILE#"$REPO_ROOT/"}"
   emit_tel "blocked"
   exit 2

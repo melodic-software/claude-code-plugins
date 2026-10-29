@@ -688,6 +688,29 @@ expect_split "only a newline is two empty elements" $'\n' "" ""
 split_pad="$(printf 'x%.0s' {1..16000})"
 expect_split "text past the here-string limit splits the same" "$split_pad"$'\nb\n' "$split_pad" b ""
 
+# linkage::problems stays the whole-contract verdict the standards lockstep
+# replays; only linkage::blocking_problems is advisory-blind.
+unlinked_body=$'Some prose.\n\n## Summary\ns\n\n## Fix\nf\n\n## Verification\nv\n\n## Related\nr\n'
+if linkage::problems "$unlinked_body"; then
+  fail "linkage::problems passed a body with no closing line"
+elif [[ "${LINKAGE_PROBLEMS[*]}" == *"No closing line"* ]]; then
+  ok "linkage::problems reports missing linkage on a body with every section"
+else
+  fail "linkage::problems did not name the missing closing line: ${LINKAGE_PROBLEMS[*]}"
+fi
+if linkage::problems $'Closes #5\n\n## Summary\ns\n'; then
+  fail "linkage::problems passed a body missing three sections"
+elif [[ "${LINKAGE_PROBLEMS[*]}" == *'Missing a "## Fix" section.'* ]]; then
+  ok "linkage::problems reports a missing contract section"
+else
+  fail "linkage::problems did not name the missing Fix section: ${LINKAGE_PROBLEMS[*]}"
+fi
+if linkage::blocking_problems "$unlinked_body"; then
+  ok "linkage::blocking_problems allows a body with no closing line"
+else
+  fail "linkage::blocking_problems blocked an advisory-only body: ${LINKAGE_PROBLEMS[*]}"
+fi
+
 {
   printf 'Closes #5\n\n'
   perf_i=0
