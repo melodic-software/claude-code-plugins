@@ -690,6 +690,7 @@ describe("decide", () => {
     test("holds only for a charge the owner's cost list names", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
       assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
+      assert.deepEqual(chargeHits("The lane spends Claude subscription usage; Claude subscriptions cover it.", chargePattern()), []);
       for (const [body, words] of [
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
