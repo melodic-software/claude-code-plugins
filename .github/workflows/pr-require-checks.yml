@@ -4502,7 +4502,8 @@ jobs:
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
       # is the base commit's .work-item-tracker.json role_labels.human-gated
-      # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
+      # (default `needs-human`), resolved by the base checkout's merge-holds.mjs
+      # humanGatedLabel as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
       # read live, not from the event payload, which a later label event
       # outdates. The reason is the newest hold comment's text: a review
@@ -4534,15 +4535,20 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
+          # The base module's humanGatedLabel; an empty tracker config names none.
+          # The module is not the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          human_gated=$(TRACKER=$tracker node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { humanGatedLabel } = await import(pathToFileURL(process.argv[2]).href);
+            const text = process.env.TRACKER ?? "";
+            const label = humanGatedLabel(text.trim() ? JSON.parse(text) : null);
+            if (typeof label !== "string" || !label) {
+              throw new Error("no verdict");
             }
-          fi
+            console.log(label);' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
             if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
@@ -4946,8 +4952,10 @@ jobs:
       # pull request a person opened when pr-verify fails its head, and removes
       # it on a pass. It is read here only: a red ci-status on a pull_request
       # event stops pr-verify from judging the next head (pr-verify.yml), so
-      # the pass that removes the label would never come. The human-gated label is resolved at the group's base commit,
-      # as the step above resolves it. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
+      # the pass that removes the label would never come. The rule is the base
+      # checkout's merge-holds.mjs labelHolds (the human-gated label by its
+      # humanGatedLabel, as the step above resolves it), which select-tests'
+      # queueHolds runs too; a base module that cannot judge fails closed. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
       # pull request merges only when its own group passes, and a failed group
       # removes the pull request it was built for, never one ahead of it
       # (HEADGREEN would need every entry read), so failing on an earlier
@@ -4984,15 +4992,33 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
-            }
+          module=$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs
+          if [ ! -s "$module" ]; then
+            echo "::error::cannot read merge-holds.mjs at $BASE_SHA; re-run this run."
+            exit 1
           fi
+          # The base module's labelHolds over the tracker config (an empty one
+          # names no label) and the live labels: `label` prints the human-gated
+          # label, `holds` the reasons as a JSON list of strings. The module is
+          # never the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          label_holds() {
+            TRACKER=$tracker node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [mode, module, labels, number] = process.argv.slice(1);
+              const { humanGatedLabel, labelHolds } = await import(pathToFileURL(module).href);
+              const text = process.env.TRACKER ?? "";
+              const tracker = text.trim() ? JSON.parse(text) : null;
+              const out = mode === "label" ? humanGatedLabel(tracker) : labelHolds(JSON.parse(readFileSync(labels, "utf8")), tracker, Number(number));
+              if (mode === "label" ? typeof out !== "string" || !out : !Array.isArray(out) || !out.every((reason) => typeof reason === "string" && reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(mode === "label" ? out : JSON.stringify(out));' "$@"
+          }
+          human_gated=$(label_holds label "$module") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           for attempt in 1 2 3; do
             if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
@@ -5000,21 +5026,20 @@ jobs:
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
-          held=0
-          if grep -qxF do-not-merge <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."
+          jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$labels" >"$RUNNER_TEMP/queued-labels.json"
+          if ! reasons=$(label_holds holds "$module" "$RUNNER_TEMP/queued-labels.json" "$pr") || [ -z "$reasons" ] ||
+            ! failing=$(jq -r 'if type == "array" then .[] else error("not a list") end' <<<"$reasons"); then
+            echo "::error::merge-holds.mjs at $BASE_SHA could not judge the labels of #$pr; re-run this run."
+            exit 1
           fi
-          if grep -qxF -- "$human_gated" <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries '$human_gated'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."
+          if [ -n "$failing" ]; then
+            while IFS= read -r reason; do
+              echo "::error::${reason//%/%25}"
+            done <<<"$failing"
+            exit 1
           fi
-          if grep -qxF pr-verify-failed <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."
-          fi
-          [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+          held=0
           # The trust hold, for a pull request an automation opened: its linked
           # issue (babysit_merge_policy._linked_issue: the closing issues here,
           # or with none, the one issue its plain `Refs:` lines name, by the
@@ -5213,7 +5238,9 @@ jobs:
       # one armed before it was turned on stops in the merge queue, as the
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
       # the vars context, no API read, and only the exact value `false` on
-      # both proceeds. Every other author's pull request is not affected.
+      # both proceeds, by the base checkout's merge-holds.mjs switchHold, which
+      # select-tests' queueHolds runs too; a base module that cannot judge
+      # fails closed. Every other author's pull request is not affected.
       # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
       # ci-status on each open lanes App pull request this failed, at most 3
       # per half-hourly run, when ci-status was the run's only failed job on
@@ -5422,8 +5449,27 @@ jobs:
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi
-          if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
-            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
+          # The kill switch, by the base checkout's merge-holds.mjs switchHold:
+          # it answers JSON null or the hold's reason, and anything else fails
+          # closed.
+          printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+            ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
+              const { LANES_APP_ID: appId, LANES_DISABLED: disabled, LANES_REPO_DISABLED: repoDisabled } = process.env;
+              const reason = switchHold(JSON.parse(readFileSync(process.argv[1], "utf8")), { appId, disabled, repoDisabled });
+              if (reason !== null && (typeof reason !== "string" || !reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
+            echo "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #$pr; re-run this run."
+            exit 1
+          fi
+          if [ -n "$reason" ]; then
+            echo "::error::${reason//%/%25}"
             exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA

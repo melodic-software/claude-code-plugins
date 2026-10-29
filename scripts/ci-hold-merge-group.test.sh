@@ -141,7 +141,13 @@ expect() {
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   mkdir -p "$config/.github/standards/trusted-actors" "$config/.github/scripts/pr-merge"
   printf '%s\n' "${STUB_ACTORS:-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
-  cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
+  # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
+  # none with STUB_NO_MODULE.
+  if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
+    printf '%s\n' "$STUB_MODULE_TEXT" >"$config/.github/scripts/pr-merge/merge-holds.mjs"
+  elif [[ -z "${STUB_NO_MODULE:-}" ]]; then
+    cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
+  fi
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="$5" STUB_LABELS="$6" STUB_FAILS="$7" \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" LANES_APP_ID="$LANES" BASE_SHA="${BASE_SHA-$BASE}" BASE_CONFIG="$config" \
@@ -188,6 +194,29 @@ expect "an invalid tracker config fails closed" 1 0 - "$QUEUE" "" 0 "::error::ca
 export STUB_TRACKER="$CUSTOM" STUB_CHECKOUT_FAILED=1
 expect "a base checkout that failed fails closed" 1 0 - "$QUEUE" "" 0 "::error::could not read .work-item-tracker.json at $BASE; re-run this run."
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
+export STUB_TRACKER=''
+expect "an empty tracker config falls back to needs-human" 1 1 6419 "$QUEUE" "needs-human" 0 "::error::#6419 carries 'needs-human'"
+unset STUB_TRACKER
+# Several hold labels each name their hold.
+expect "every hold label is named" 1 1 6419 "$QUEUE" "pr-verify-failed,needs-human,do-not-merge" 0 \
+  "::error::#6419 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.
+::error::#6419 carries 'needs-human'; the merge queue removes it."
+# The rule is the base's merge-holds.mjs labelHolds: a base that cannot judge
+# fails closed, before the labels read when it cannot name the label.
+export STUB_NO_MODULE=1
+expect "a base with no merge-holds.mjs fails closed without a call" 1 0 - "$QUEUE" "do-not-merge" 0 "::error::cannot read merge-holds.mjs at $BASE; re-run this run."
+unset STUB_NO_MODULE
+export STUB_MODULE_TEXT='export const refsIssue = () => null;'
+expect "a base module without labelHolds fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE with its merge-holds.mjs"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human";'
+expect "a base module with humanGatedLabel alone fails closed" 1 1 6419 "$QUEUE" "" 0 "::error::merge-holds.mjs at $BASE could not judge the labels of #6419; re-run this run."
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human"; export const labelHolds = () => null;'
+expect "a base module answering no list fails closed" 1 1 6419 "$QUEUE" "" 0 "could not judge the labels of #6419"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human"; export const labelHolds = () => [""];'
+expect "a base module answering an empty reason fails closed" 1 1 6419 "$QUEUE" "" 0 "could not judge the labels of #6419"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human"; export const labelHolds = () => { process.exit(0); };'
+expect "a base module exiting silently fails closed" 1 1 6419 "$QUEUE" "" 0 "could not judge the labels of #6419"
+unset STUB_MODULE_TEXT
 export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 - "$QUEUE" "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
