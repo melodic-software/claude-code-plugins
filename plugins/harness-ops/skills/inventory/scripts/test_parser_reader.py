@@ -849,6 +849,18 @@ class TestFlowQuery(unittest.TestCase):
                 "class D extends B{constructor(k){super();this[k]=1}}",
                 ["computed-write"],
             ),
+            # #5901 slice 8: a built-in superclass, unless the class can
+            # reach a prototype swap.
+            ("class Q extends Error{constructor(k){super();this[k]=1}}", []),
+            (
+                "class Q extends Error{constructor(k){super();this[k]=1}}h(Q);",
+                ["computed-write"],
+            ),
+            # A [[Set]] of `__proto__` swaps the prototype; a literal's
+            # `__proto__:` sets its own prototype, which `assign` never copies.
+            ('Reflect.set(P,"__proto__",Q);', ["proto-swap"]),
+            ('Object.assign(P,{["__proto__"]:Q});', ["proto-swap"]),
+            ("Object.assign(P,{__proto__:Q});", []),
             ("function F(){}F.prototype.includes=f;F.prototype.x;", []),
             ("function F(){}F.prototype.includes=f;new F;", ["write"]),
             (
@@ -878,7 +890,9 @@ class TestFlowQuery(unittest.TestCase):
         replaces `Object` or `create`, a definer's result only while nothing
         replaces `Object` or the definer, and a `this` every reference binds
         only through `bind`. A target that is an exported function's
-        parameter waits on that function's importers."""
+        parameter waits on that function's importers. `new` of a built-in
+        constructor, or of a class extending one, is fresh only while
+        nothing replaces that constructor's name (#5901 slice 8)."""
         for src, trusted, pending in (
             (
                 'var o=Object.create(null);Object.defineProperty(o,"includes",{});',
@@ -894,6 +908,12 @@ class TestFlowQuery(unittest.TestCase):
                 "function r(a){this[a]=1}var g=(a,b)=>r.bind(b,a);export{g};",
                 ["bind"],
                 [("computed-write", [("g", 1)])],
+            ),
+            ("var e=new Error;e[k]=1;", ["Error"], []),
+            (
+                "class Q extends Map{constructor(k){super();this[k]=1}}new Q(k)[k]=2;",
+                ["Map"],
+                [],
             ),
         ):
             with self.subTest(src=src):

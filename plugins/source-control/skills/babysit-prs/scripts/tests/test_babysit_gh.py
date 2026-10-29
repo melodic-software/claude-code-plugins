@@ -1324,13 +1324,97 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
         )
         self.assertEqual(counts["a" * 40]["claude-security-review"], [(1, 1)])
 
-    def counts(self, by_sha: dict[str, list[dict[str, Any]]]) -> Any:
+    def counts(
+        self,
+        by_sha: dict[str, list[dict[str, Any]]],
+        shas: dict[str, list[str]] | None = None,
+        calls: list[str] | None = None,
+    ) -> Any:
         def fake(args: list[str], env: Any = None) -> Any:
+            if calls is not None:
+                calls.append(args[1])
             sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
-            return [{"check_runs": by_sha.get(sha, [])}]
+            name = args[1].split("check_name=", 1)[1].split("&", 1)[0]
+            return [
+                {
+                    "check_runs": [
+                        run
+                        for run in by_sha.get(sha, [])
+                        if gh.quote(run["name"], safe="") == name
+                    ]
+                }
+            ]
 
+        if shas is None:
+            shas = {lane: list(by_sha) for lane in self.NAMES}
         with mock.patch.object(gh, "gh_json", side_effect=fake):
-            return gh.collect_main_review_counts("owner/repo", list(by_sha), self.NAMES)
+            return gh.collect_main_review_counts("owner/repo", shas, self.NAMES)
+
+    def test_a_stop_title_reads_as_the_stop_and_its_reason(self) -> None:
+        counts = self.counts(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "verdict=none reason=too-large"
+                    ),
+                    self.check("claude-review", "verdict=none reason=other"),
+                ]
+            }
+        )
+        self.assertEqual(
+            counts["a" * 40],
+            {
+                "claude-security-review": [("stop", "too-large")],
+                "claude-review": [None],
+            },
+        )
+
+    def test_a_stop_counts_no_critical_and_an_unknown_reason_counts_one(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "verdict=none reason=binary"),
+                    self.check("claude-review", "verdict=none reason=other"),
+                ]
+            }
+        )
+        self.assertEqual(found, {"claude-review": 1, "claude-security-review": 0})
+
+    def test_a_stop_on_one_head_leaves_another_heads_critical(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "verdict=none reason=long-line"
+                    )
+                ],
+                "b" * 40: [
+                    self.check("claude-security-review", "findings=1 critical=1")
+                ],
+            }
+        )
+        self.assertEqual(found["claude-security-review"], 1)
+
+    def test_reads_each_lane_only_on_the_heads_listed_for_it(self) -> None:
+        calls: list[str] = []
+        head, old = "a" * 40, "b" * 40
+        counts = self.counts(
+            {
+                head: [self.check("claude-review", "findings=1 critical=0")],
+                old: [self.check("claude-security-review", "findings=2 critical=2")],
+            },
+            {"claude-review": [head], "claude-security-review": [head, old, head]},
+            calls,
+        )
+        # One read per (head, lane) listed: 1 + 2, the repeated head once.
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(
+            counts,
+            {
+                head: {"claude-review": [(1, 0)], "claude-security-review": []},
+                old: {"claude-security-review": [(2, 2)]},
+            },
+        )
 
     def test_takes_the_most_critical_findings_on_any_head(self) -> None:
         found = self.collect(

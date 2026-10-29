@@ -780,9 +780,10 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, a runner check that failed, and on a
-// reused branch a leak scan that is missing or not clean. Runner checks that
-// did not report hold nothing: ci-status reruns them on the head. The scan is
+// changed path the merge lane refuses, and on a reused branch a leak scan that
+// is missing or not clean. Runner checks hold nothing, failed or unreported:
+// the PR's Verification section names a failure, and ci-status reruns them on
+// the head, where a red one goes to the fix lanes, not a person. The scan is
 // not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
 // or .gitleaksignore the branch can add, its password rule misses short or
 // symbol-bearing values scanLeak flags, and it reads only the commits' patches.
@@ -794,7 +795,6 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
     (reused && checks?.scan !== "clean")
   );
 }
@@ -1236,7 +1236,7 @@ const trustedAuthor = (author, { bot, humans }) =>
 //          continues the work instead of starting from the default branch.
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it) and is left as it is. With `keepBehind` it
+//          (`stale` names it and the tip read) and is left as it is. With `keepBehind` it
 //          resumes anyway: the read runner's issue-fields job re-derives a
 //          claim made before the model ran, and the default branch may have
 //          moved since;
@@ -1292,7 +1292,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
   if (resume && resume.behindBy !== 0 && !keepBehind) {
-    return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
+    return { action: "run", stale: { branch: resume.name, tip: resume.sha, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
 }
@@ -1495,6 +1495,13 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
   throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
 }
 
+// The marker of report-outcome's comment naming a stale lane branch a fresh
+// run left behind, once per branch.
+export const staleMarker = (branch) => `<!-- work-resolve-issue stale-branch=${branch} -->`;
+const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] === staleMarker(branch);
+export const staleComment = (branch) =>
+  `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits, and no lane deletes it: a person can delete it once it is no longer needed.`;
+
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. Any failed read, or an answer of the wrong shape, fails the step,
 // so the mint never follows it.
@@ -1512,8 +1519,8 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
-    const markers = (await paginate(github, `${repo}/issues/${issueNumber}/comments`))
-      .filter((comment) => comment.user?.login === bot)
+    const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
+    const markers = appComments
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
       .filter((marker) => marker.outcome !== undefined);
     // A marker naming no run is matched by its time, so that time must read.
@@ -1571,6 +1578,16 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
           "reuse-branch": "",
           ...(prior.action === "resume"
             ? { "resume-branch": prior.branch, "resume-tip": prior.tip, "resume-cause": prior.cause }
+            : {}),
+          // A fresh start past a stale branch: write-issue gives the model its
+          // commits as data, and report-outcome names it on the issue unless
+          // a lanes App comment already does (stale-noted).
+          ...(prior.stale
+            ? {
+                "stale-branch": prior.stale.branch,
+                "stale-tip": prior.stale.tip,
+                "stale-noted": String(appComments.some((comment) => staleNoted(comment.body, prior.stale.branch))),
+              }
             : {}),
         }
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
@@ -1727,6 +1744,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, issueNumber);
+    // The stale lane branch this run started fresh past, which issue-prior
+    // found no comment naming: lane.json's `stale` (rewritable, so only a
+    // name of this issue's lane-branch shape). The comment names it once so a
+    // person can find and delete it; nothing deletes it. A failed post is
+    // logged, and the next fresh start past it posts again.
+    const stale = readBranch(dir, issueNumber, "stale");
+    if (stale) {
+      await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: staleComment(stale) }).then(
+        () => console.log(`report-outcome: named the stale lane branch ${stale} on issue #${issueNumber}`),
+        (error) => console.log(`report-outcome: could not name the stale lane branch ${stale}: ${error.message}`),
+      );
+    }
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
     let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
