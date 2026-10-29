@@ -812,11 +812,21 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
-            ("Function.prototype.constructor(s)();", ["function-constructor"]),
+            # The `constructor` read is a sink of its own beside the global `Function`.
+            (
+                "Function.prototype.constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
             # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
-            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
+            (
+                "Function.prototype[k](s)();",
+                ["function-constructor", "unknown-load", "function-constructor"],
+            ),
             ("var P=Function.prototype;", ["function-constructor"]),
-            ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
+            (
+                "Function.prototype.valueOf().constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
             ("Function.prototype instanceof H;", ["function-constructor"]),
             # Cleared: a trusted name or computed key on a fresh object, or
             # a name nothing trusted.
@@ -854,6 +864,50 @@ class TestFlowQuery(unittest.TestCase):
             ("x.join=f;Array.prototype.join=f;", []),
             (
                 'Object.keys(o);e instanceof Object;Object.prototype.hasOwnProperty.call(o,"k");',
+                [],
+            ),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._sinks(src), kinds)
+
+    def test_a_loader_or_function_reached_without_its_name_is_a_sink(self) -> None:
+        """A fresh object whose prototype is swapped stays clear for its own
+        writes, but a computed read on it may still reach the loader, and a
+        `constructor` read reaches `Function` without that name. A
+        `constructor` read whose value is only tested, compared by identity
+        or named stays clear."""
+        for src, kinds in (
+            # A computed read on the swapped object is an unknown load too.
+            (
+                'var o={};Object.setPrototypeOf(o,module);o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            (
+                'var o={};Object.assign(o,globalThis);o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            (
+                'var o={};o.__proto__=globalThis;o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            ("var o={};Object.setPrototypeOf(o,P);o.includes=f;o.__proto__=Q;", []),
+            ("(()=>1).constructor(s)();", ["function-constructor"]),
+            (
+                "({}).constructor.constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
+            ('f["constructor"](s)();', ["function-constructor"]),
+            ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
+            # A method can be called with a function as `this`.
+            ("new this.constructor(s);", ["function-constructor"]),
+            # Coercion calls a `toString` or `valueOf` with it as `this`, and
+            # a write of a key it lacks calls an inherited setter the same way.
+            ('""+(()=>1).constructor;', ["function-constructor"]),
+            ("x.constructor+=s;", ["function-constructor"]),
+            ("(()=>1).constructor.y=s;", ["function-constructor"]),
+            (
+                "x.constructor===Object;x.constructor&&x.constructor.name;"
+                "typeof x.constructor;a instanceof x.constructor;",
                 [],
             ),
         ):

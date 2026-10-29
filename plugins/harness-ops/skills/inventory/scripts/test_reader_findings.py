@@ -1066,6 +1066,24 @@ class TestOpenFindings(unittest.TestCase):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, "Function.prototype.toString.call(f);")
 
+    def test_a_constructor_read_is_a_sink(self) -> None:
+        """A function's `constructor` is the Function constructor, and any
+        object's `constructor.constructor` is too, so either builds code
+        from a string without the name `Function`. A read that is only
+        compared or named stays clear."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        code = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (
+            f"(()=>1).constructor({code})();",
+            f"({{}}).constructor.constructor({code})();",
+            f"var{{constructor:C}}=function(){{}};C({code})();",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(
+            False, named, "var o={};o.constructor===Object&&o.constructor.name;"
+        )
+
     def test_an_importer_with_a_comment_before_from_is_followed(self) -> None:
         """Importers come from the parsed import and re-export declarations,
         so a comment beside `from` hides none."""

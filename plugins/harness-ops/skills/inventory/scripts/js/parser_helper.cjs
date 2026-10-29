@@ -1440,7 +1440,11 @@ function definerOf(n) {
 //     a `.prototype` read that stays clear of `constructor` (`prototypeOnly`),
 //     except a build whose result is discarded and a
 //     direct call whose every argument folds to a constant string and
-//     whose code, scanned the same way, hits nothing (`unrunOrClean`).
+//     whose code, scanned the same way, hits nothing (`unrunOrClean`);
+//   - a read of `constructor`, by name, by a computed key that may spell
+//     it or as a destructured key, since a function's `constructor` is
+//     the Function constructor (`(()=>1).constructor("code")()`), except
+//     a read whose value can never be called (`constructorInert`).
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
@@ -1599,6 +1603,31 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     if (p?.type === "SequenceExpression") return p.expressions.at(-1) !== n || discarded(p);
     return p?.type === "ChainExpression" && discarded(p);
   };
+  // Whether the property key `key` may be `constructor`.
+  const maySpellConstructor = (key, computed) => {
+    const name = keyName(key, computed);
+    const keys = name === null ? keyValues(key) : new Set([name]);
+    return keys === null || keys.has("constructor");
+  };
+  // Whether the `constructor` read as `node` is only discarded, tested,
+  // compared by identity, the right of `instanceof`, or followed by a
+  // `name` read or a plain `prototype` write: none of these calls it or
+  // coerces it, which would call a `valueOf` or `toString` with it as
+  // `this`. A Function constructor owns `name` and `prototype`, so no
+  // inherited getter or setter runs on it either.
+  const constructorInert = (node) => {
+    let top = node;
+    while (parents.get(top)?.type === "ChainExpression") top = parents.get(top);
+    const end = parents.get(top);
+    if (end?.type === "MemberExpression" && end.object === top) {
+      const by = parents.get(end);
+      const plainWrite = by?.type === "AssignmentExpression" && by.operator === "=" && by.left === end;
+      return memberName(end) === "name" ? !isTarget(parents, end) : memberName(end) === "prototype" && plainWrite;
+    }
+    if (end?.type === "BinaryExpression") return end.operator === "===" || end.operator === "!==" || (end.operator === "instanceof" && end.right === top);
+    if (end?.type === "UnaryExpression") return ["typeof", "!", "void", "delete"].includes(end.operator);
+    return discarded(top) || onlyTested(parents, top);
+  };
   // `Function(...)` and `new Function(...)` build a function from strings
   // and run none of its body; only a call runs it. So the global
   // `Function` as the callee of `built` runs no unknown code when the
@@ -1704,6 +1733,15 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
       hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
     }
+    // A function's `constructor` is the Function constructor, so is any
+    // object's `constructor.constructor`, and neither needs the name
+    // `Function` (`(()=>1).constructor("code")()`). A compound write
+    // (`x.constructor+=s`) reads and coerces it first.
+    const overwritten = isTarget(parents, node) && !(holder?.type === "AssignmentExpression" && holder.operator !== "=");
+    const constructorRead =
+      (node.type === "MemberExpression" && !overwritten && maySpellConstructor(node.property, node.computed) && !constructorInert(node)) ||
+      (node.type === "Property" && holder?.type === "ObjectPattern" && maySpellConstructor(node.key, node.computed));
+    if (constructorRead) hit("function-constructor", null, node);
     // node:vm runs strings as code, and even a new context reaches this
     // realm (`this.constructor.constructor("...")()` inside
     // `runInNewContext` patches the outer prototypes). Any load of the vm
