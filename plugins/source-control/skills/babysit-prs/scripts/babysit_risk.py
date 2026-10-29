@@ -86,7 +86,8 @@ gains a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, in a workflow or a
 composite action's `action.yml`, rates HIGH as `agent-surface-review`, each
 counted against the lines it removes, an expression split across lines read
 whole, so a move or repin is not new; so does a composite action file with
-no patch, unless it is deleted or renamed or re-moded with no line added.
+no patch, unless it is deleted, re-moded, or renamed from another composite
+action, with no line added.
 They widen what a credential or an
 agent can reach, so both are a person's (`PERSON_CODES`) and no cost
 decision clears them.
@@ -1421,15 +1422,19 @@ def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str
 def _composite_model_legs(f: _File, raw: Any) -> list[str]:
     """New model legs in a composite action's metadata, outside
     `.github/workflows/`; with no patch to read, one may hide there, unless
-    the file is deleted or renamed or re-moded with no line added."""
-    if not any(glob_match(g, p) for g in _ACTIONS for p in f.paths):
+    the file is deleted, re-moded with no line added, or renamed from another
+    composite action with no line added."""
+    action = [any(glob_match(g, p) for g in _ACTIONS) for p in f.paths]
+    if not any(action):
         return []
     lines = _patch_lines(getattr(raw, "patch", None))
     if lines is not None:
         return _new_model_legs(*lines)
     additions = getattr(raw, "additions", None)
     unchanged = type(additions) is int and additions == 0
-    if f.status == "removed" or (f.status in ("renamed", "modified") and unchanged):
+    if f.status == "removed" or (
+        f.status in ("renamed", "modified") and unchanged and all(action)
+    ):
         return []
     return ["no patch to read"]
 

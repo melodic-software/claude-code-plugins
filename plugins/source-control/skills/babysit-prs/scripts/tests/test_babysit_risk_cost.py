@@ -761,8 +761,16 @@ class LowRatedShapes(_Finding):
             deletions=0,
             patch=None,
         )
-        for held in (renamed_and_edited, copied):
-            with self.subTest(status=held.status):
+        renamed_in = _file(
+            ".github/actions/judge/action.yml",
+            status="renamed",
+            previous_path="tools/judge/action.yml",
+            additions=0,
+            deletions=0,
+            patch=None,
+        )
+        for held in (renamed_and_edited, copied, renamed_in):
+            with self.subTest(status=held.status, previous=held.previous_path):
                 self.assertSecurityHold(_cost([held], public=True), AGENT_SURFACE_CODE)
 
     def test_a_composite_action_moved_deleted_or_re_moded_with_no_patch_passes(self):
