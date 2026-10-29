@@ -23,8 +23,9 @@
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
 //   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
 //   work; no other work class gates admission (owner Q85, #9668);
-// - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
-//   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
+// - 7: a `task-list` line outside a code fence, the criteria the lane
+//   checks, in text pr-verify will read (resolve-pr.mjs linkedIssues): the
+//   body or a comment written,
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); and the body of a sub-issue a size split filed, under
@@ -473,21 +474,72 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
-// [{line, text, more}] for each task-list item, in order: its index among
-// the body's `\n`-split lines, its text after the task-list prefix, and the
+// Unicode format characters (category Cf): zero-width spaces and joiners, the
+// BOM, soft hyphens and bidi controls, which render as nothing.
+const INVISIBLE = /\p{Cf}/gu;
+// Criteria text as the lane may read it, for the refusals that match it:
+// invisible characters dropped (a copied refinement breaks `://` and `www.`
+// with a zero-width space so no link renders), compatibility forms such as
+// fullwidth letters folded to ASCII (NFKC) before and after percent-encoded
+// runs are decoded, and a run that decodes to a line break or not at all left
+// as written. Pure.
+const decodeRun = (run) => {
+  try {
+    const decoded = decodeURIComponent(run);
+    return /[\r\n]/.test(decoded) ? run : decoded;
+  } catch {
+    return run;
+  }
+};
+const plainText = (text) =>
+  String(text ?? "")
+    .replace(INVISIBLE, "")
+    .normalize("NFKC")
+    .replace(/(?:%[0-9a-f]{2})+/gi, decodeRun)
+    .normalize("NFKC")
+    .replace(INVISIBLE, "");
+
+// For each of `lines`, the 1-based number of the fenced code block it is part
+// of (its opening ``` or ~~~ line, the lines up to the closing fence, and
+// that fence), or 0 outside one. Pure.
+const fenceBlocks = (lines) => {
+  let open = null;
+  let block = 0;
+  return lines.map((line) => {
+    const fence = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (open === null) {
+      if (fence === undefined) {
+        return 0;
+      }
+      open = fence;
+      block += 1;
+    } else if (fence?.[0] === open[0] && fence.length >= open.length && line.trim() === fence) {
+      open = null;
+    }
+    return block;
+  });
+};
+
+// [{line, text, more}] for each task-list item, a line read without its
+// invisible characters, in order: its index among the body's `\n`-split
+// lines, its text after the task-list prefix, and the
 // indexes of the lines after it indented deeper than its marker (a sub-list
-// or wrapped text, part of the item). Item n (1-based) is entry n - 1. Pure.
+// or wrapped text, part of the item), a blank line inside a code fence that
+// opens among them included. Item n (1-based) is entry n - 1. Pure.
 export const taskItems = (body, taskList) => {
   const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
   const indent = (line) => line.length - line.trimStart().length;
   const items = [];
   lines.forEach((line, index) => {
-    const trimmed = line.trimStart();
+    const trimmed = line.replace(INVISIBLE, "").trimStart();
     if (!trimmed.startsWith(taskList)) {
       return;
     }
     const more = [];
-    for (let next = index + 1; next < lines.length && lines[next].trim() !== "" && indent(lines[next]) > indent(line); next += 1) {
+    const part = (next) =>
+      lines[next].trim() === "" ? blocks[next] !== 0 && blocks[next] === blocks[next - 1] && more.at(-1) === next - 1 : indent(lines[next]) > indent(line);
+    for (let next = index + 1; next < lines.length && part(next); next += 1) {
       more.push(next);
     }
     items.push({ line: index, text: trimmed.slice(taskList.length), more });
@@ -501,12 +553,13 @@ export const refusalText = (reasons) =>
   `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
-// perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
-// URL check, an absent list allows only GitHub and local hosts, and a `*.`
-// entry allows that domain's subdomains. Pure.
+// perform, each item's text read as plainText. `webHosts` is resolve-issue's
+// web-access domains: "any" skips the URL check, an absent list allows only
+// GitHub and local hosts, and a `*.` entry allows that domain's subdomains.
+// Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
-  const items = taskItems(body, taskList).map(({ text }) => text);
+  const items = taskItems(body, taskList).map(({ text }) => plainText(text));
   const found = [];
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
@@ -531,13 +584,23 @@ export function unrunnableCriteria(body, taskList, webHosts) {
 // The patch-rules.json row apply-patch.mjs reads for an issue lane push
 // (TARGETS.issue).
 export const PATCH_ROW = "issue";
+// The protected-path refusals of that row in the patch-rules.json at `path`.
+// A row that names none throws, so admission fails closed rather than let a
+// criterion name any path.
+export function pushRefusalsOf(path) {
+  const refuse = JSON.parse(readFileSync(path, "utf8"))[PATCH_ROW]?.refuse;
+  const names = Array.isArray(refuse) ? refuse.filter((name) => PROTECTED_REFUSALS[name]?.kind === "protected-path") : [];
+  if (names.length === 0) {
+    throw new Error(`${path}: the \`${PATCH_ROW}\` row refuses no protected path`);
+  }
+  return names;
+}
+
 let pushRefusalNames;
-// The protected-path refusals of that row in the default branch's
-// patch-rules.json beside this script, read once.
+// pushRefusalsOf the default branch's patch-rules.json beside this script,
+// read once.
 export function issuePushRefusals() {
-  pushRefusalNames ??= JSON.parse(readFileSync(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url), "utf8"))[PATCH_ROW].refuse.filter(
-    (name) => PROTECTED_REFUSALS[name]?.kind === "protected-path",
-  );
+  pushRefusalNames ??= pushRefusalsOf(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url));
   return pushRefusalNames;
 }
 
@@ -581,35 +644,53 @@ export function workflowFiles() {
 
 // A repository path a criterion names: a backticked span or a word, less a
 // trailing `:12` or `:3-9` and punctuation. A relative path with a `/`, a
-// root CODEOWNERS or .gitmodules, or the bare name of a file in `workflows`
-// (as that workflow's path) counts: any other bare file name or an absolute
-// runner path names no file of this repository.
-const pathTokens = (text, workflows) =>
-  [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
+// root CODEOWNERS or .gitmodules (the latter with or without its dot), or the
+// bare name of a file in `workflows` (as that workflow's path), each in any
+// case, counts: any other bare file name or an absolute runner path names no
+// file of this repository.
+const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
+const pathTokens = (text, workflows) => {
+  const workflowNames = new Set([...workflows].map((name) => name.toLowerCase()));
+  return [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
     .map((token) =>
       token
         .replace(/^["'(\[]+/, "")
         .replace(/[.,;:!?"')\]]+$/, "")
         .replace(/:\d+(-\d+)?$/, ""),
     )
-    .map((token) => (workflows.has(token) ? `.github/workflows/${token}` : token))
-    .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+    .map((token) => (workflowNames.has(token.toLowerCase()) ? `.github/workflows/${token}` : token))
+    .filter((token) => ROOT_NAMES.has(token.toLowerCase()) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+};
+
+// The dot-led names the path rules read, matched without their dot too: to a
+// lane reading it, `github/workflows/a.yml` names `.github/workflows/a.yml`.
+const DOTLESS = new Map([
+  ["github", ".github"],
+  ["gitmodules", ".gitmodules"],
+]);
+const dotted = (path) =>
+  path
+    .split("/")
+    .map((part) => DOTLESS.get(part.toLowerCase()) ?? part)
+    .join("/");
 
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
 // The paths the task-list items in `body`, with the wrapped text below each up
-// to its first nested bullet, name that apply-patch refuses under `names`
-// (issuePushRefusals), in order, each once, a bare name in `workflows`
-// (workflowFiles) read as that workflow's path. Pure.
+// to its first nested bullet outside a code fence, read as plainText, name
+// that apply-patch refuses under `names` (issuePushRefusals) in any case or
+// with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
+// name in `workflows` (workflowFiles) read as that workflow's path. Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
   const wrapped = (more) => {
-    const end = more.findIndex((index) => BULLET.test(lines[index]));
+    const end = more.findIndex((index) => blocks[index] === 0 && BULLET.test(lines[index]));
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens([text, ...wrapped(more)].join("\n"), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+    pathTokens(plainText([text, ...wrapped(more)].join("\n")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
   );
   return [...new Set(paths)];
 }
@@ -712,8 +793,9 @@ export function admissionSettled(labels, events, isMark) {
 // body. The sweep reads no lane comment and passes none. `public` (from
 // admissionFacts) skips the cost_private charge words. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
-// charge-words.json when not given; a file that does not read throws out of
-// decide, so no issue is admitted on a guess.
+// charge-words.json when not given; a file that does not read, or a
+// patch-rules.json row that refuses no protected path (pushRefusalsOf),
+// throws out of decide, so no issue is admitted on a guess.
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
@@ -773,13 +855,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans, appId, rules["task-list"]).flatMap((text) => text.split("\n"));
+  const texts = trustedSpecTexts(spec, humans, appId, rules["task-list"]);
+  const lines = texts.flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
-  // A copied refinement breaks `://` and `www.` with a zero-width space so no
-  // link renders; the check reads the URL as written.
-  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
+  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
     hold = true;
@@ -788,8 +869,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // (patch-protected-path), so a run for such a criterion is spent for
   // nothing; this refusal parks at status: confirmed, never with a person.
   // The title is not read: it names the subject, often a workflow whose
-  // script alone changes.
-  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals, workflows);
+  // script alone changes. Each text is read alone, so a fence one leaves open
+  // does not run on into the next.
+  const unpushable = [...new Set(texts.flatMap((text) => unpushablePaths(text, rules["task-list"], pushRefusals, workflows)))];
   if (unpushable.length > 0) {
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
@@ -1083,12 +1165,16 @@ export function trustedSpecTexts(spec, humans, appId, taskList) {
   return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
 
-const hasTaskLine = (text, taskList) =>
-  String(text ?? "")
-    .split("\n")
-    .some((line) => line.trimStart().startsWith(taskList));
+// A task-list line read as taskItems reads one; in a code fence it renders as
+// code, not as a criterion.
+const hasTaskLine = (text, taskList) => {
+  const lines = String(text ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
+  return lines.some((line, index) => blocks[index] === 0 && line.replace(INVISIBLE, "").trimStart().startsWith(taskList));
+};
 
-// Whether that text holds a `taskList` line: criterion 7. Pure.
+// Whether that text holds a `taskList` line outside a code fence: criterion
+// 7. Pure.
 export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
   trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
 

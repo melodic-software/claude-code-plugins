@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -109,6 +112,20 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
     });
 
+    test("a task list only inside a code fence is refused, and one after the fence is admitted", () => {
+      // A shorter fence line inside a longer fence does not close it.
+      for (const [open, inner, close] of [
+        ["```", [], "```"],
+        ["~~~", ["```"], "~~~"],
+        ["````markdown", ["```", "- [ ] Another item."], "````"],
+      ]) {
+        const fenced = issueOf({ body: ["## Done when", "", open, "- [ ] Line 3 says nineteen.", ...inner, close].join("\n") });
+        assert.deepEqual(decide(facts({ issue: fenced })), { verdict: "refuse", reasons: [NO_SPEC] }, open);
+        const after = issueOf({ body: [...fenced.body.split("\n"), "", "- [ ] Line 3 says nineteen."].join("\n") });
+        assert.deepEqual(decide(facts({ issue: after })), { verdict: "admit", reasons: [] }, open);
+      }
+    });
+
     test("admit() writes nothing when the text read answers an unexpected shape", async () => {
       for (const spec of ["no-issue", "no-body"]) {
         const { github, calls } = fakeGitHub({ spec });
@@ -139,6 +156,37 @@ describe("decide", () => {
     for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
       assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
     }
+  });
+
+  // The hold is a constant of decide, so no rules file loadRules accepts
+  // lifts it, one whose `classes` names the class included.
+  test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
+    const dir = tempDir("admit-rules-");
+    const widened = [
+      { ...RULES, classes: [...RULES.classes, UNTRUSTED_CLASS] },
+      { ...RULES, classes: [UNTRUSTED_CLASS], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+    ];
+    widened.forEach((content, index) => {
+      const path = join(dir, `rules-${index}.json`);
+      writeFileSync(path, JSON.stringify(content));
+      const rules = loadRules(path);
+      for (const overrides of [{ verdict: { ...VERDICT, workClass: UNTRUSTED_CLASS } }, { issue: issueOf({ labels: [{ name: READY }, { name: UNTRUSTED_CLASS }] }) }]) {
+        const result = decide(facts({ rules, ...overrides }));
+        assert.equal(result.verdict, "refuse", path);
+        assert.equal(result.hold, true, path);
+        assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
+      }
+    });
+  });
+
+  test("an issue row in patch-rules.json that refuses no protected path fails admission closed", () => {
+    const dir = tempDir("admit-patch-rules-");
+    for (const row of [{ refuse: [] }, { refuse: ["symlink", "gitlink"] }, {}]) {
+      const path = join(dir, "patch-rules.json");
+      writeFileSync(path, JSON.stringify({ [PATCH_ROW]: row }));
+      assert.throws(() => pushRefusalsOf(path), /row refuses no protected path/, JSON.stringify(row));
+    }
+    assert.ok(issuePushRefusals().length > 0);
   });
 
   test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
@@ -411,6 +459,31 @@ describe("decide", () => {
         const issue = withCriteria("- [ ] The job times out at 3 minutes.", bullet);
         assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] }, bullet);
       }
+    });
+
+    const evasions = [
+      ["a case change", "- [ ] `.GitHub/Workflows/a.yml` reads the new input.", ".GitHub/Workflows/a.yml"],
+      ["a case change in .gitmodules", "- [ ] `.GITMODULES` drops the old submodule.", ".GITMODULES"],
+      ["a case change in a bare workflow name", "- [ ] PR-Require-Checks.yml pins that release.", ".github/workflows/PR-Require-Checks.yml"],
+      ["a missing leading dot", "- [ ] github/workflows/a.yml reads the new input.", "github/workflows/a.yml"],
+      ["a missing leading dot on .gitmodules", "- [ ] `vendor/gitmodules` drops the old submodule.", "vendor/gitmodules"],
+      ["fullwidth characters", "- [ ] ．github／workflows／a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters", "- [ ] .git​hub/work⁠flows/a﻿.yml reads the new input.", ".github/workflows/a.yml"],
+      ["URL encoding", "- [ ] %2Egithub%2Fworkflows%2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["fullwidth percent signs", "- [ ] ％2Egithub％2Fworkflows％2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters in the task-list prefix", "​- [ ]​ .github/workflows/a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["a case change in a root CODEOWNERS", "- [ ] `codeowners` names the team.", "codeowners"],
+      ["a root .gitmodules without its dot", "- [ ] `gitmodules` drops the old submodule.", "gitmodules"],
+    ];
+    for (const [name, line, path] of evasions) {
+      test(`still refuses a protected path written with ${name}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
+    test("still refuses a protected path in a code fence under a criterion, past its blank and bullet-like lines", () => {
+      const issue = withCriteria("- [ ] Apply this change:", "  ```diff", "  - timeout-minutes: 3", "", "  + see .github/workflows/a.yml", "  ```");
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
     });
 
     const admitted = [
@@ -1355,6 +1428,19 @@ describe("unrunnableCriteria", () => {
     assert.ok(!text.includes("`"));
     assert.ok(text.includes("@\u200bowner"));
     assert.equal(text.length, 80);
+  });
+  test("still flags an item written with a case change, fullwidth or zero-width characters or URL encoding", () => {
+    for (const line of [
+      "RUN IT ON A WINDOWS 11 HOST.",
+      "Run it on a \uff37\uff49\uff4e\uff44\uff4f\uff57\uff53 11 host.",
+      "Run it on a Win\u200bdo\u200cws 11\u2060 host.",
+      "Run it on%20a%20Windows%2011%20host.",
+    ]) {
+      assert.deepEqual(kinds(line), ["a run on a host the lane is not"], line);
+    }
+    // An invisible character in the task-list prefix still leaves an item.
+    assert.equal(unrunnableCriteria("​- [ ]​ Run it on a Windows 11 host.", "- [ ] ", HOSTS).found.length, 1);
+    assert.deepEqual(kinds("The page at https://exa\u200bmple.com/docs shows the new flag."), ["a page on example.com, outside the lane's web hosts"]);
   });
 });
 
