@@ -209,6 +209,101 @@
         "Does not read sonnet-5-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to haiku-5-5.md",
         "Does not load every adaptation chapter in the directory"
       ]
+    },
+    {
+      "id": 17,
+      "name": "delegate-fan-out-independent-packages",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. Plan this, do not start yet: audit each of the 12 packages under packages/ for a direct use of the deprecated `requests-oauthlib` library, and for every hit report the file and line and whether the package calls it beyond the import. The packages share no code, and each one takes several searches and file reads to check. Say how you will run the audit.",
+      "expected_output": "Plans the audit as fan-out: twelve independent items needing the same treatment with no shared state. It plans read-only workers, one package each, with at most five running at once and the rest in later waves, and describes a worker spec with the objective, why it is asked, a return shape that cites file and line, and the rule to report a blocked check instead of guessing. It starts no audit.",
+      "files": [],
+      "expectations": [
+        "Plans to delegate the per-package checks to workers instead of auditing all 12 packages in the main session",
+        "States a concurrency cap of 5 or fewer workers at once",
+        "The planned worker spec says the worker is read-only and asks for a file and line for every hit",
+        "Edits no file and dispatches no worker"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "delegate-context-flooding-log-search",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. We are partway through fixing the checkout retry bug. Plan this side task, do not start yet: the last 30 days of production logs, about 2 GB under logs/prod/, hold a few thousand `RetryBudgetExceeded` errors. For each one, pull the surrounding request trace and classify its cause, so you can tell me which cause is most common and its first timestamp. Each trace takes a few reads to pull, and you will not need the logs again after this answer. Say how you will run it and what you will do with the answer.",
+      "expected_output": "Plans the trawl as context-flooding side work: raw output many times larger than the answer, read once. It plans to hand the trawl to a worker whose spec asks for a short return (the most common cause, its count, its first timestamp, and file and line evidence), keeps the main session for the fix, and says it will check the cited evidence itself before the answer drives the next edit. It starts no trawl.",
+      "files": [],
+      "expectations": [
+        "Plans to hand the log trawl to a worker instead of reading the logs into the main session",
+        "The planned worker spec asks for a short return with file and line evidence, not the raw traces",
+        "Says it will check the cited evidence itself before the answer drives an edit",
+        "Edits no file and dispatches no worker"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "delegate-isolation-fresh-verifier-small-batch",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop.",
+      "expected_output": "Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier.",
+      "files": [],
+      "expectations": [
+        "Plans a fresh-context verifier before declaring the task done, beyond its own self-review",
+        "Plans yes/no criteria for the verifier checkable by searching or reading, such as zero hits for handle_refund",
+        "Says it will not pass its reasons for the changes to the verifier"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "stay-inline-sequential-chain",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. Plan this, do not start yet: the repository is large. Find the commit that made `test_invoice_totals` start failing, then read that commit's diff, then fix the code based on what the diff changed. Say how you will run it.",
+      "expected_output": "Plans the three steps as one sequential chain: each step consumes the previous step's output (the commit feeds the diff read, the diff feeds the fix), so a worker per step would only add spawn latency between steps it must take anyway. The size of the repository does not override that. It plans the chain in the main session, or at most in one worker end to end, and starts none of it.",
+      "files": [],
+      "expectations": [
+        "Plans the steps in order, each one using the previous step's result",
+        "Does not plan a separate worker for each step of the chain",
+        "Does not treat the large repository as a reason to split the chain across workers",
+        "Edits no file and dispatches no worker"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "stay-inline-file-being-edited",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. You are halfway through editing src/billing/invoice.py to add a `discount` field to Invoice. Plan the next part, do not start yet: update all 40 call sites of `Invoice(...)` to pass the discount. They are spread over 10 files under src/billing/, and 6 of them are in src/billing/invoice.py. Say how you will run it.",
+      "expected_output": "Keeps the call sites in src/billing/invoice.py in the main session: it is actively editing that file, and two writers on one file produce merge damage, not speed. Whatever it plans for the other files, no worker is given an edit to src/billing/invoice.py while its own edit there is unfinished. It starts no edit.",
+      "files": [],
+      "expectations": [
+        "Plans to update the call sites in src/billing/invoice.py itself, in the main session",
+        "Does not plan to hand any edit to src/billing/invoice.py to a worker while its own edit to that file is unfinished",
+        "Edits no file and dispatches no worker"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "stay-inline-small-job",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. Plan this, do not start yet: check whether each of these three config keys is read anywhere under src/: `retry.max_attempts`, `retry.backoff_ms`, `retry.jitter`, and tell me the file for each hit. Say how you will run it.",
+      "expected_output": "Plans to stay inline: three one-search items is a job of a few tool calls, so a worker spec would cost more than the work. It plans to run the three searches itself and starts none of them.",
+      "files": [],
+      "expectations": [
+        "Plans to run the searches itself in the main session",
+        "Does not plan a worker or a workflow for any of the three keys",
+        "Runs no search and dispatches no worker"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "stay-inline-detail-needed-later",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. Plan this, do not start yet: read through the payments module, about 15 files, until you know it in detail. Next we will redesign its error handling together, and I will be asking about specific functions as we go. Say how you will do the read.",
+      "expected_output": "Plans to stay inline: the redesign will need the module's full detail later in the session, and a worker would return a lossy summary whose missing detail it would have to re-read. It plans to read the payments files in the main session and starts no read.",
+      "files": [],
+      "expectations": [
+        "Plans to read the payments module files in the main session",
+        "Does not plan to delegate the read to a worker that returns a summary",
+        "Does not plan parallel workers to cover the 15 files",
+        "Reads no file and dispatches no worker"
+      ]
     }
   ]
 }

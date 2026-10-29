@@ -185,7 +185,7 @@ loop:
 models:
   profiles:
     standard:
-      model: default
+      model: opus
       max-turns: 75
     review:
       model: opus

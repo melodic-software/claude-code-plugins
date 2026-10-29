@@ -209,7 +209,7 @@ async function gatherFacts(
 
 // A model run's step outputs, or empty ones for a script. The args are
 // checked against their only shape, so no output can carry a second line.
-const MODEL_ARGS = /^(?:--model [a-z]+ )?--max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
+const MODEL_ARGS = /^--model [a-z]+ --max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
 function modelOutputs(models) {
   if (models === null) {
     return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "", model: "", effort: "" };
@@ -223,9 +223,8 @@ function modelOutputs(models) {
     "claude-args": args,
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
-    // run-claude-cli inputs: `default` has no --model to pass, so it is empty
-    // and the caller fails on it. A role profile always resolves an alias.
-    model: models.model === "default" ? "" : models.model,
+    // run-claude-cli inputs. Every profile resolves a routed alias.
+    model: models.model,
     effort: models.effort ?? "",
   };
 }
@@ -403,6 +402,13 @@ export function issueLaneWebHostsFromBase(env) {
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   const web = loadConfig(filesUnderBase(basePath, configPath), { configPath }).activities?.["resolve-issue"]?.["web-access"];
   return web?.enabled ? web.domains : [];
+}
+
+// The base config's attended classes, {name: meaning}, or {} when unset.
+export function attendedClassesFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath }).attended?.classes ?? {};
 }
 
 // The base config's `branch-cleanup` leaf as set, likewise; its defaults have

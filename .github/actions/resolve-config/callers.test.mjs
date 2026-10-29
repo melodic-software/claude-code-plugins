@@ -578,10 +578,11 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
   assert.equal(step(apply, "apply").run, 'node ".base/$SCRIPT" --apply');
   // Select and apply read the admission rules and web hosts the split uses
-  // from the default branch, and the model must return the split field.
+  // from the default branch, and the model must return the split and
+  // external fields (the attended classes come from the base config too).
   assert.equal(step(select, "select").env.BASE_PATH, ".base");
   assert.equal(step(apply, "apply").env.BASE_PATH, ".base");
-  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split"\]/);
+  assert.match(prompt, /"required":\["exact","outcome","criteria","dependencies","related","questions","sources","split","external"\]/);
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
@@ -4714,7 +4715,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 // anything else a model call reports; the subscription call starts on
 // address-feedback-handoff's read and reads none.
 const MODEL_CALL_READS = {
-  "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "apply-feedback-patch": ["feedback-attempt", "feedback-sha256", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
   // The scanned replies' attempt, SHA-256 and INCORRECT flag, never a run job output.
   "adjudicate-feedback": ["feedback-attempt", "feedback-disputed", "feedback-sha256"],
@@ -4998,6 +4999,11 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(apply["patch-threads-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   assert.equal(apply["patch-threads-sha256"], "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
   assert.equal(apply["patch-fix-requested"], "${{ needs.address-feedback-select.outputs.fix-requested }}");
+  // The push names the threads the same leg's scanned replies fix, the replies the reply job reads.
+  assert.equal(apply["patch-replies-attempt"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}");
+  assert.equal(apply["patch-replies-sha256"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}");
+  assert.equal(apply["patch-replies-attempt"], jobs["publish-feedback"].with["review-replies-attempt"]);
+  assert.equal(apply["patch-replies-sha256"], jobs["publish-feedback"].with["review-replies-sha256"]);
   // The adjudicator stages the select job's threads at the select job's head.
   const prepare = jobs["adjudicate-feedback"].steps.find((step) => step.id === "prepare").env;
   assert.equal(prepare.HEAD_SHA, SELECT_HEAD);
@@ -5329,6 +5335,41 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   assert.deepEqual(runCheck(digest), { status: 0, output: `file=${file}\n` });
   assert.deepEqual(runCheck("0".repeat(64)), { status: 1, output: "" });
   assert.deepEqual(runCheck(""), { status: 1, output: "" });
+});
+
+test("pr-run-activity-write.yml: apply-patch under the review-threads row reads the scanned replies, checked against their SHA-256 before the mint", (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const download = steps[at("Download the scanned replies for the patch")];
+  const check = steps[at("Check the scanned replies for the patch")];
+  // The name the read runner's scan job uploads under (feedback-upload).
+  assert.equal(download.with.name, "feedback-replies-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-replies-attempt }}");
+  assert.ok(at("Check the scanned replies for the patch") < at("Request the lane token"));
+  const context = (prepare) => ({ "steps.config.outputs.applies": "true", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": prepare });
+  for (const step of [download, check]) {
+    assert.equal(evaluate(step.if, context("review-threads")), true);
+    assert.equal(evaluate(step.if, context("ci-context")), false);
+    assert.equal(evaluate(step.if, context("")), false);
+  }
+  assert.equal(steps.find((s) => s.id === "act-script").env.PATCH_REPLIES_FILE, "${{ steps.patch-replies.outputs.file }}");
+  const dir = tempDir("patch-replies-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "replies.jsonl");
+  const runCheck = (text, sha) => {
+    writeFileSync(file, text);
+    const out = join(dir, "out");
+    writeFileSync(out, "");
+    const result = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: out, REPLIES_FILE: file, REPLIES_SHA256: sha } });
+    return { status: result.status, output: readFileSync(out, "utf8") };
+  };
+  const text = '{"thread":"PRRT_a"}\n';
+  const digest = createHash("sha256").update(text).digest("hex");
+  assert.deepEqual(runCheck(text, digest), { status: 0, output: `file=${file}\n` });
+  assert.deepEqual(runCheck(text, "0".repeat(64)), { status: 1, output: "" });
+  assert.deepEqual(runCheck(text, ""), { status: 1, output: "" });
+  // Over replies.jsonl's 49152-byte cap.
+  const big = "x".repeat(49153);
+  assert.deepEqual(runCheck(big, createHash("sha256").update(big).digest("hex")), { status: 1, output: "" });
 });
 
 // S&C 7.2 finding 2, carried into review-dependency: no patch applies

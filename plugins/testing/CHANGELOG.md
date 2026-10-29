@@ -3,6 +3,27 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` resolves a feature id named in the scenario, either `<module>/<feature>` or a single-level `<feature>`, to its feature file in `/app-control:drive`'s order, on the drive route and on its own driving alike. The id comes from the control skill's index path, and a legacy flat `features/<feature>.md` gives `<feature>`, so the touched-feature refresh names `/app-control:map refresh cart`, never `cart.md`.
+
+## [1.3.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` keeps a control skill current. After the run, each feature whose index `sources` globs match a changed file gets `/app-control:map refresh <feature id>` when app-control is installed, with `--unattended` on an unattended run. Without app-control, the report names the feature's possible drift and the refresh command in `## Next`; the run never stops or fails for it. run-e2e never edits a control skill itself, and a caller that splits one drive across several runs refreshes once over the merged report instead.
+
+## [1.2.0] - 2026-10-28
+
+### Changed
+
+- `/testing:run-e2e` chooses who drives each run. When the app-control plugin is installed and the app has a control skill, it hands launching, operating and capturing to `/app-control:drive` and judges what drive recorded; with app-control installed but no control skill it offers `/app-control:map create`; without app-control it suggests installing it. The person can decline any of these, and an unattended run asks nothing: it takes run-e2e's own driving and records the suggestion in its report. testing does not depend on app-control.
+- run-e2e's own driving (the bundled `run` launch step, prerequisites, run config, Workspace environment, session names and teardown) moved from the skill body to `context/own-driving.md`, which loads only on that route. The entry-point chooser and the per-entry-point report line are separate sections of the body.
+- `e2e_driver`, `reuse_running_instance` and `browser_driver` now apply only to run-e2e's own driving; on a run through `/app-control:drive`, the control skill supplies the tools. `recording` and `browser_mode` (`.claude/testing/e2e.md`) also apply only to own driving: drive has no headed or headless setting, and a recording on the drive route is the control skill's `video` capture.
+- On the drive route each touched feature gets its own `--out` directory, so one feature's drive report does not overwrite another's.
+
 ## [1.1.5] - 2026-10-27
 
 ### Changed
