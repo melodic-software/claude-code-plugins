@@ -1,0 +1,28 @@
+"""Command-line entry point: `bfk report`, `bfk release`."""
+
+import argparse
+import sys
+
+from bfk import release, store
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="bfk", description="brackenfold team tooling")
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("report", help="print a summary of data/accounts.jsonl")
+    rel = sub.add_parser("release", help="tag a release (asks for confirmation)")
+    rel.add_argument("version", help="version to tag, for example 0.5.0")
+    args = parser.parse_args(argv)
+
+    if args.command == "report":
+        accounts = store.load_accounts()
+        domains = sorted({a["email"].split("@", 1)[1] for a in accounts})
+        print(f"{len(accounts)} accounts across {len(domains)} domains: {', '.join(domains)}")
+        return 0
+    if args.command == "release":
+        return release.run(args.version)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

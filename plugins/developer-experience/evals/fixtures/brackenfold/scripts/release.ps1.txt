@@ -1,0 +1,5 @@
+# Tag a release on Windows: wraps `bfk release`.
+param([Parameter(Mandatory = $true)][string]$Version)
+Set-Location (Split-Path -Parent $PSScriptRoot)
+python3 -m bfk.cli release $Version
+exit $LASTEXITCODE
