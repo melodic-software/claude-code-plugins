@@ -4,7 +4,8 @@
 // schedule tick it reads the GITHUB_TOKEN pool once, projects the remaining
 // at the window's reset from the burn rate the window has shown so far, and
 // writes paced=true when that falls under `pace` of the header's limit
-// (limits.api github-token pace, default in rate-limits.json). Only an
+// (limits.api github-token pace: pr-pipeline.yaml, which each paced workflow
+// hands over as RESOLVED_CONFIG, over rate-limits.json; 0 is off). Only an
 // even-numbered tick is paced, so a paced lane runs at half its cadence
 // rather than stopping: the lost-run reconciler, which re-runs the runs a
 // breaker trip stops, keeps working while the pool recovers. A paced tick

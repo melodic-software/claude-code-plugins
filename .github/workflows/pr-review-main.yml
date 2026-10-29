@@ -1497,6 +1497,8 @@ jobs:
       - name: Log the API calls at the end
         if: always()
         run: |
-          calls=$(cat "$RUNNER_TEMP/pr-review-main-calls" 2>/dev/null)
+          # No file: the record step did not run (its download failed), so 0.
+          calls=0
+          [[ -f $RUNNER_TEMP/pr-review-main-calls ]] && calls=$(<"$RUNNER_TEMP/pr-review-main-calls")
           [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
           echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"

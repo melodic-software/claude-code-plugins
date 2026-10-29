@@ -4,7 +4,8 @@
 // share the breaker is also stated in (pr-pipeline.schema.json api-pool).
 // Expected values are worked by hand from limit, remaining and reset.
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -117,6 +118,32 @@ test("any other event, an unreadable answer or a failed read is never paced", as
   assert.match(failed.lines.join("\n"), /::warning::/);
 });
 
+// The step that hands the base config's limits.api to the pacer, in
+// resolve-config's output shape, which apiLimits reads.
+const READ_STEP = "Read the pace override from the base config";
+const READ_RUN = `yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"`;
+
+// The documented off switch, limits.api github-token pace: 0 in
+// pr-pipeline.yaml, through that step to main: a pool burning toward the
+// breaker on an even tick runs, with no pace notice.
+test("pace: 0 in the base config turns the pacer off", async () => {
+  const dir = tempDir("pace-off-");
+  mkdirSync(join(dir, ".base/docs/conventions"), { recursive: true });
+  const read = (yaml) => {
+    writeFileSync(join(dir, ".base/docs/conventions/pr-pipeline.yaml"), yaml);
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", READ_RUN], { cwd: dir, env: { PATH: process.env.PATH, RUNNER_TEMP: dir }, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return join(dir, "pace-config.json");
+  };
+  const low = answer({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "2900", "x-ratelimit-reset": String(NOW + 1800) });
+  const off = await run({ RESOLVED_CONFIG: read("limits:\n  api:\n    github-token:\n      pace: 0\n") }, low);
+  assert.equal(off.output, "paced=false\n");
+  assert.deepEqual(off.lines, []);
+  // With no api entry the rate-limits.json default paces the same reading.
+  assert.equal((await run({ RESOLVED_CONFIG: read("limits:\n  wip-cap: 12\n") }, low)).output, "paced=true\n");
+  assert.equal(apiLimits({ resolvedPath: read("lanes: {}\n") })["github-token"].pace, 0.2, "no limits section");
+});
+
 // The timer-driven lanes that read the pacer: each reads it once on the
 // event, never fails on it, and gates every step that spends the pool.
 test("each paced timer lane reads the pacer before its work and gates every spending step on it", () => {
@@ -131,6 +158,13 @@ test("each paced timer lane reads the pacer before its work and gates every spen
     const steps = block.split(/\n(?= {6}- name: )/).slice(1).map((s) => ({ name: /^ {6}- name: (.*)$/m.exec(s)[1], s: s.replace(/(\n *(#[^\n]*)?)+$/, "") }));
     const at = (name) => steps.findIndex((step) => step.name === name);
     const pace = steps[at("Pace the tick on the GITHUB_TOKEN burn rate")]?.s ?? "";
+    // The base config's limits.api reaches the pacer, so its pace (0 for off)
+    // overrides rate-limits.json.
+    assert.ok(at(READ_STEP) >= 0 && at(READ_STEP) < at("Pace the tick on the GITHUB_TOKEN burn rate"), `${file}: the override is read before the pacer`);
+    assert.equal(steps[at(READ_STEP)].s.replace(/^[\s\S]*?\n {8}run: \|\n {10}/, ""), READ_RUN, file);
+    assert.match(steps[at(READ_STEP)].s, /\n {8}continue-on-error: true\n/, file);
+    assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(READ_STEP)].s)?.[1], /\n {8}if: (.*)\n/.exec(pace)?.[1], `${file}: the read runs when the pacer does`);
+    assert.match(pace, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/pace-config\.json\n/, file);
     assert.match(pace, /\n {8}id: pace\n/, file);
     assert.match(pace, /\n {8}continue-on-error: true\n/, file);
     assert.match(pace, /\n {10}EVENT_NAME: \$\{\{ github\.event_name \}\}\n/, file);

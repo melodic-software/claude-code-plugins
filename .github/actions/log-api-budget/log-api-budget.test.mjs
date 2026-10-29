@@ -829,7 +829,8 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
     const lib = new URL("api-budget.bash", import.meta.url).pathname;
     const emitted = (count) => {
       if (count !== undefined) writeFileSync(join(dir, "pr-review-main-calls"), `${count}\n`);
-      return execFileSync("bash", ["-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+      // As Actions runs `shell: bash`: -e ends the step on any failing command.
+      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
     };
     const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
     assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
