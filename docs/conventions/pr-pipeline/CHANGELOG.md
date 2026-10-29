@@ -1,5 +1,71 @@
 # Changelog for the PR pipeline convention
 
+## [8.1.0] - 2026-10-29
+
+### Added
+
+- A work-resolve-issue run that starts fresh because the earlier run's lane branch is behind the
+  default branch now gives the model that branch's work. `report-outcome --find-prior` outputs
+  `stale-branch` and `stale-tip` (the tip it checked every commit of), and `write-issue.mjs` adds
+  `stale_branch` to `issue.json`: the branch, the tip, each commit's subject and the files it
+  changed, from the same capped `GET /compare` a resume uses, as data. report-outcome names the
+  branch on the issue once, in a comment opening with
+  `<!-- work-resolve-issue stale-branch=<branch> -->`, and deletes no branch
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+### Changed
+
+- pr-review-main records a designed stop instead of failing. A diff that holds a binary file, is
+  over the 300000-byte cap, or has a line over 1800 bytes leaves the leg green with no verdict.
+  The record job then posts the check run `pr-review-main: <lane>` on the head, titled
+  `verdict=none reason=<too-large|binary|long-line>` with conclusion neutral, and logs a
+  `pr-review-main stop` notice. Each stop is one countable record, and a real failure (a failed
+  fetch or diff write, an empty diff) still fails the run.
+
+### Fixed
+
+- A `work-resolve-issue` reuse PR whose runner check failed no longer carries `Hold: a human merges
+  this` or the `human-merge-hold` label. A failed check is not a reason for a person: the PR opens,
+  its Verification section lists the failure, and `ci-status` reruns the check on the head, where
+  the fix lanes take it. A `done` run with a failed runner check still opens no PR and retries
+  (`check-failed`). `merge: human`, untrusted provenance, an unreadable denied-path or changed-file
+  list, path holds and a reuse leak scan that is not `clean` still hold (`mustHold` in
+  `report-outcome.mjs`).
+
+- `clear-escalations.mjs` takes off a `needs-human` the lanes App set for `feedback-not-landed` once the head is none of that escalation's resume keys and no unresolved review thread carries a lanes App comment. It pages the PR's review threads over GraphQL, and a listing that may be cut short keeps the label. A person who commented or reviewed since the label went on still keeps it. The monitor's stalled-stop signal does not count that clear as a stop standing on the head.
+
+## [8.0.0] - 2026-10-29
+
+### Changed
+
+- `merge.diff-check.path-holds` turns off every path-based merge hold with one switch. Absent or
+  false (the default, and this repository's setting by owner decision Q15), a changed path no
+  longer holds a pull request for its path alone. This covers the risk scorer's path floor,
+  denied-paths and `review-path:` holds, enable-auto-merge's hold paths and ci-status's
+  merge-holds step. A standing refusal that names only hold paths comes off without an approval.
+  Set it to true to bring every one back. Cost paths, unsafe or aliasing paths, the manifest
+  review, the trusted-actor widening, body holds, vetoes and `do-not-merge` still hold. The gate
+  report (`risk.pathHoldsSkipped`), enable-auto-merge's log and merge-holds.mjs name each hold
+  the switch skipped.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
+## [7.7.0] - 2026-10-29
+
+### Added
+
+- A lanes App pull request that holds for a person carries the `human-merge-hold` label as well as
+  the `Hold: a human merges this` body line, which the App can edit
+  ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)). report-outcome
+  adds the label right after it opens the pull request, or when it reuses its open one; a pull
+  request the label cannot reach is closed and the issue retried (`hold-label-failed`). ci-status's
+  new `Fail a human-merge hold a listed person has not lifted` step fails while the label is on,
+  and once it is off unless the first removal at or after its newest add was by a `human` of the
+  base's trusted-actor list acting directly, not through an App. `enable-auto-merge.mjs`
+  (`HOLD_LABELS`) never arms a pull request carrying it, and merge-holds.mjs `labelHolds` holds it
+  in the merge queue, so deleting the hold line or rewriting `Refs: #N` to `Closes #N` no longer
+  lets a held pull request merge.
+
 ## [7.6.2] - 2026-10-29
 
 ### Fixed

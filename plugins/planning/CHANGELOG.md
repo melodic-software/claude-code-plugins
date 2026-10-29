@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+### Fixed
+
+- A Brief exported from the interview page lists the note typed on an Accept, an alternative or a Hedged choice under `### Intent`, beside the user's asks, notes and own answers. Before, that text reached the Brief only inside the row's Constraints line. A Reconfirm that posts the same choice and note again adds no second bullet.
+
+## [0.126.4] - 2026-10-29
+
+### Changed
+
+- The shared interview page shows a recommendation's basis as written, through the page's markdown renderer and folded behind "Why" as the 1:1 page folds it. The page no longer adds a `Basis:` label in front of the field, which already opens with `Checked against:` and carries its own `Basis:` label.
+
 ## [0.126.3] - 2026-10-29
 
 ### Changed

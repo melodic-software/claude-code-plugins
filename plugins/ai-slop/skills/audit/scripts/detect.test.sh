@@ -46,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=263
+EXPECTED_CASES=271
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -1201,6 +1201,54 @@ EOF
 chmod +x "$BADLS_BIN/git"
 out="$(cd "$BAREREPO" && PATH="$BADLS_BIN:$PATH" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
 assert_contains "bare invocation, listing fails: the summary reports 0 files scanned" "$out" "0 files scanned"
+
+# --- Prose extraction retry --------------------------------------------------------
+
+# gawk has aborted the extraction run (exit 134) on trees an unchanged rerun
+# passed, so detect.sh retries that status once. The stub fails the first <n>
+# extraction calls (the only awk call that passes dir=) with <status>, counts
+# them in <dir>/calls, and hands every other call to the real awk.
+REAL_AWK="$(command -v awk)"
+make_failing_awk() { # make_failing_awk <dir> <n> <status>
+  mkdir -p "$1"
+  cat >"$1/awk" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [[ "\$a" == dir=* ]]; then
+    n=\$(( \$(cat "$1/calls" 2>/dev/null || echo 0) + 1 ))
+    echo "\$n" >"$1/calls"
+    if [[ "\$n" -le $2 ]]; then
+      echo "awk: fatal error: internal error" >&2
+      exit $3
+    fi
+  fi
+done
+exec "$REAL_AWK" "\$@"
+EOF
+  chmod +x "$1/awk"
+}
+RETRY_DOC="$TEST_TMPDIR/retry.md"
+printf 'One em dash %s in prose.\n' "$EM" >"$RETRY_DOC"
+
+make_failing_awk "$TEST_TMPDIR/bin-awk-abort-once" 1 134
+out="$(PATH="$TEST_TMPDIR/bin-awk-abort-once:$PATH" bash "$DETECT" "$RETRY_DOC" 2>&1)"
+rc=$?
+assert_exit "extraction aborts once: the retry completes the scan" 0 "$rc"
+assert_contains "extraction aborts once: a retry notice reaches stderr" "$out" "prose extraction aborted (awk exit 134); retrying once"
+assert_contains "extraction aborts once: the retried scan still reports the finding" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+
+make_failing_awk "$TEST_TMPDIR/bin-awk-abort-always" 99 134
+out="$(PATH="$TEST_TMPDIR/bin-awk-abort-always:$PATH" bash "$DETECT" "$RETRY_DOC" 2>&1)"
+rc=$?
+assert_exit "extraction always aborts: the scan exits 2" 2 "$rc"
+assert_contains "extraction always aborts: the failure message stands" "$out" "prose extraction failed; nothing was scanned"
+assert_eq "extraction always aborts: it is retried once, not more" "$(cat "$TEST_TMPDIR/bin-awk-abort-always/calls")" "2"
+
+make_failing_awk "$TEST_TMPDIR/bin-awk-error" 99 2
+out="$(PATH="$TEST_TMPDIR/bin-awk-error:$PATH" bash "$DETECT" "$RETRY_DOC" 2>&1)"
+rc=$?
+assert_exit "extraction fails without an abort: the scan exits 2" 2 "$rc"
+assert_eq "extraction fails without an abort: no retry runs" "$(cat "$TEST_TMPDIR/bin-awk-error/calls")" "1"
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 

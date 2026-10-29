@@ -1290,6 +1290,12 @@ function keyName(key, computed) {
   return null;
 }
 
+// Whether an object literal property is an own `__proto__` property: every
+// form but `__proto__:v` or `"__proto__":v`, which set the literal's
+// prototype instead.
+const ownProto = (p) =>
+  p.type === "Property" && keyName(p.key, p.computed) === "__proto__" && (p.computed || p.shorthand || p.method || p.kind !== "init");
+
 const SINK_LIMIT = 20;
 // A computed key known to be a number, which no trusted name spells.
 const NUMBER = Symbol("number");
@@ -1460,19 +1466,37 @@ const trusting = (f, ...names) => both(f, { needs: new Set(), trusts: new Set(na
 const freshReply = (f) => ({ needs: [...f.needs].sort().map((n) => JSON.parse(n)), trusted: [...f.trusts].sort() });
 // The methods of `Object` that return the object they are given.
 const RETURNS_TARGET = new Set(["defineProperty", "defineProperties", "assign", "setPrototypeOf"]);
+// The global constructors that make their object with
+// OrdinaryCreateFromConstructor, so `new` of one, or `super()` in a class
+// extending one, gives a fresh object. `Object` is not one: `new Object(o)`
+// returns `o`.
+const BUILTIN_CONSTRUCTORS = new Set([
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+  "Map",
+  "Set",
+  "WeakMap",
+  "WeakSet",
+]);
 
 // What makes a target in the analyzed module `entry` (`analyze`) a fresh
 // object, which no write can make a built-in prototype: a function from a
 // node to its freshness (FRESH, `both`) or null. Fresh are a literal, a
-// function or class expression, `new` of a class the module declares, a
+// function or class expression, `new` of a class the module declares or
+// of a built-in constructor by its global name (trusting that name), a
 // call of the global `Object.create` (trusting `Object` and `create`,
 // either of which can be replaced first), what an Object definer returns
 // given a fresh object (trusting `Object` and its name), `this` in the
-// constructor of a class with no superclass or in a function only ever
-// bound to a fresh object (trusting `bind`), the own `prototype` of a
-// function or class, a `?:` with both branches fresh, and a variable only
-// ever holding one of those. A parameter never written holds what each
-// call passes.
+// constructor of a class with no superclass or a built-in one (trusting
+// its name) or in a function only ever bound to a fresh object (trusting
+// `bind`), the own `prototype` of a function or class, a `?:` with both
+// branches fresh, and a variable only ever holding one of those. A
+// parameter never written holds what each call passes.
 function freshnessOf(entry) {
   const parents = parentsOf(entry);
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
@@ -1502,26 +1526,78 @@ function freshnessOf(entry) {
     }
     return names;
   };
+  // The built-in constructor `node` names by its unshadowed global name, or null.
+  const builtinNamed = (node) =>
+    node?.type === "Identifier" && BUILTIN_CONSTRUCTORS.has(node.name) && entry.refs.get(node.start)?.resolved === null ? node.name : null;
+  // A reference to a class that hands it to other code only where `fresh`
+  // clears nothing: a `new` of it (`new.target`, an instance's
+  // `constructor`), a named member read that writes nothing or the right of
+  // `instanceof` (`this` in a getter or method), a superclass, or an
+  // `export{...}` (an importer's binding). A prototype swap on the class
+  // there is a sink.
+  const classUse = (id) => {
+    const p = parents.get(id);
+    switch (p?.type) {
+      case "NewExpression":
+        return p.callee === id;
+      case "BinaryExpression":
+        return p.operator === "instanceof" && p.right === id;
+      case "ClassDeclaration":
+      case "ClassExpression":
+        return p.superClass === id;
+      case "ExportSpecifier":
+        return p.local === id;
+      case "MemberExpression": {
+        const up = parents.get(p);
+        const written = isTarget(parents, p) || up?.type === "UpdateExpression" || (up?.type === "UnaryExpression" && up.operator === "delete");
+        return p.object === id && memberName(p) !== null && !written;
+      }
+      default:
+        return false;
+    }
+  };
+  // Whether a swap of the class `cls`'s own prototype is always a sink: it
+  // is a declaration or a plain declarator's class, never written again,
+  // and every reference to it is a `classUse`. Any other reference (an
+  // argument, an alias) could hand it to `Object.setPrototypeOf` or
+  // `__proto__=` as a target `fresh` clears.
+  const unswapped = (cls) => {
+    const holder = parents.get(cls);
+    const declarator = holder?.type === "VariableDeclarator" && holder.init === cls && holder.id.type === "Identifier" ? holder : null;
+    if (cls.type !== "ClassDeclaration" && declarator === null) return false;
+    const vars = [...entry.manager.getDeclaredVariables(cls), ...(declarator ? entry.manager.getDeclaredVariables(declarator) : [])];
+    return vars.every((v) => v.defs.length === 1 && v.references.every((r) => (r.isWrite() ? r.identifier === v.defs[0].name : classUse(r.identifier))));
+  };
+  // A class extending a built-in constructor (`class Q extends Error`):
+  // `super()` constructs with the class's own prototype, so it makes a
+  // fresh object while that is still the built-in (`unswapped`), trusting
+  // the name. Null for any other superclass.
+  const extendsBuiltin = (cls) => {
+    const name = builtinNamed(cls.superClass);
+    return name !== null && unswapped(cls) ? trusting(FRESH, name) : null;
+  };
   // A class declared in the module and never replaced, with no superclass
-  // (a derived class's instance is whatever `super()` returns) and no
-  // constructor returning a value in place of the instance.
+  // or a built-in one (any other derived class's instance is whatever
+  // `super()` returns) and no constructor returning a value in place of
+  // the instance: what `new` of it makes, or null.
   const ownClass = (callee) => {
     const v = callee.type === "Identifier" ? variable(callee) : null;
     const def = v?.defs.length === 1 && onlyInit(v) ? v.defs[0] : null;
     const cls = def?.type === "ClassName" ? def.node : def?.type === "Variable" && def.node.id === def.name ? def.node.init : null;
-    if ((cls?.type !== "ClassDeclaration" && cls?.type !== "ClassExpression") || cls.superClass !== null) return false;
+    if (cls?.type !== "ClassDeclaration" && cls?.type !== "ClassExpression") return null;
+    const made = cls.superClass === null ? FRESH : extendsBuiltin(cls);
     const ctor = cls.body.body.find((m) => m.kind === "constructor");
-    const stack = ctor ? [ctor.value.body] : [];
+    const stack = made && ctor ? [ctor.value.body] : [];
     while (stack.length) {
       const node = stack.pop();
-      if (node.type === "ReturnStatement" && node.argument !== null) return false;
+      if (node.type === "ReturnStatement" && node.argument !== null) return null;
       if (FUNCTIONS.has(node.type)) continue;
       for (const key of Object.keys(node)) {
         const child = node[key];
         for (const c of Array.isArray(child) ? child : [child]) if (c && typeof c.type === "string") stack.push(c);
       }
     }
-    return true;
+    return made;
   };
   // The assignment `v=...` writing `id`, when it runs before every read of
   // `v`: a plain `=` inside nothing but sequences and declarations, in a
@@ -1608,8 +1684,11 @@ function freshnessOf(entry) {
       case "ArrowFunctionExpression":
       case "ClassExpression":
         return FRESH;
-      case "NewExpression":
-        return ownClass(node.callee) ? FRESH : null;
+      // Replacing a built-in's global name replaces what `new` of it makes.
+      case "NewExpression": {
+        const name = builtinNamed(node.callee);
+        return name !== null ? trusting(FRESH, name) : ownClass(node.callee);
+      }
       // Replacing `Object` itself replaces the method too.
       case "CallExpression": {
         const name = objectMethod(node.callee);
@@ -1632,9 +1711,11 @@ function freshnessOf(entry) {
         const holder = fn && parents.get(fn);
         if (holder?.type !== "MethodDefinition") return fn ? boundThis(fn, depth) : null;
         if (holder.kind !== "constructor") return null;
-        // A derived class's `this` is what `super()` returns, which can be any object.
+        // A derived class's `this` is what `super()` returns, which can be
+        // any object unless the superclass is a built-in.
         const cls = parents.get(parents.get(holder));
-        return cls !== undefined && cls.superClass === null ? FRESH : null;
+        if (cls === undefined) return null;
+        return cls.superClass === null ? FRESH : extendsBuiltin(cls);
       }
       case "Identifier": {
         const v = variable(node);
@@ -1699,8 +1780,10 @@ function freshnessOf(entry) {
 //     `Reflect.set(o,"some",f)`, or any other callee that may pass it on);
 //   - an object literal holding one of the names given to `assign`,
 //     `defineProperties`, `setPrototypeOf` or `defineProperty`;
-//   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
-//     which can put any object's properties on the chain;
+//   - a prototype swap: a `__proto__` write, `Reflect.set` given the key
+//     `__proto__`, an own `__proto__` property given to `Object.assign`, or
+//     a `setPrototypeOf` call, which can put any object's properties on the
+//     chain;
 //   - a write to an undeclared (global) name that is one of the names;
 //   - code run from a string through node:vm: any load of the vm module
 //     except an import naming only `isContext`, and a vm runner's name
@@ -1721,7 +1804,8 @@ function freshnessOf(entry) {
 //   A target is cleared only when it is provably a fresh object
 //   (`freshnessOf`). `Function` counts as one of the names, since the
 //   folded calls trust it: a write of it anywhere is a sink of its own
-//   (as an argument, only to a definer).
+//   (as an argument, only to a definer, as are `Object` and the built-in
+//   constructors).
 //   -> {"hits":[[kind, name|null, offset], ...]} (at most SINK_LIMIT); a
 //      module that does not parse or calls `eval` directly is one hit.
 //      "pending" holds the hits on a target that is fresh only if every
@@ -1908,11 +1992,11 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
       const found = [];
       for (const arg of node.arguments) {
         const key = keyName(arg, true);
-        // `Function` and `Object` count only given to a definer: any other
-        // callee that could write one by its parameter is a computed write
-        // of its own, and a type test like underscore's `tagTester("Function")`
-        // is no write.
-        const builtin = key === "Function" || key === "Object";
+        // `Function`, `Object` and the built-in constructors count only
+        // given to a definer: any other callee that could write one by its
+        // parameter is a computed write of its own, and a type test like
+        // underscore's `tagTester("Function")` is no write.
+        const builtin = key === "Function" || key === "Object" || BUILTIN_CONSTRUCTORS.has(key);
         if (key !== null && names.has(key) && (!builtin || definer !== null)) found.push(["argument", key, arg]);
       }
       if (definer === null) {
@@ -1921,6 +2005,10 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
         if (definer.name === "setPrototypeOf") found.push(["proto-swap", null, node]);
         if (node.arguments.some((a) => a.type === "SpreadElement")) found.push(["computed-define", null, node]);
         const keyArg = definer.receiver ? node.arguments[0] : definer.keyed ? node.arguments[1] : null;
+        // A [[Set]] of `__proto__` runs the `Object.prototype` setter, which
+        // swaps the prototype: `Reflect.set(o,"__proto__",p)`, and an own
+        // `__proto__` property `Object.assign` copies (`{["__proto__"]:p}`).
+        if (definer.name === "set" && keyArg && keyName(keyArg, true) === "__proto__") found.push(["proto-swap", null, node]);
         if (keyArg && keyName(keyArg, true) === null) {
           const spelled = keyNames(keyArg);
           if (spelled === null) found.push(["computed-define", null, keyArg]);
@@ -1930,6 +2018,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
           for (const arg of node.arguments.slice(1)) {
             if (arg.type !== "ObjectExpression") found.push(["computed-define", null, arg]);
             else for (const key of literalNames(arg)) found.push([key === null ? "computed-define" : "object-key", key, arg]);
+            if (definer.name === "assign" && arg.type === "ObjectExpression" && arg.properties.some(ownProto)) found.push(["proto-swap", null, arg]);
           }
         }
         const target = definer.receiver ? node.callee.object : node.arguments[0];
