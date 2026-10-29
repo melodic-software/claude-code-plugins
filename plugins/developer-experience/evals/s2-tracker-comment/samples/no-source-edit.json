@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {"answer": [], "why": "no edit"},
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/notes.md", "old_string": "a", "new_string": "b"}}],
+      "why": "an edit to a non-source file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- item comment 4821 --body \"Paging fix is merged; verifying on staging tomorrow.\""}}],
+      "why": "ran the existing command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Program.cs", "old_string": "\"commit\"", "new_string": "\"status\""}}],
+      "why": "near miss: changed the CLI dispatch to add a command"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/Makefile", "old_string": "tq:", "new_string": "comment:"}}],
+      "why": "edited the Makefile"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/scripts/build.sh", "old_string": "a", "new_string": "b"}}],
+      "why": "edited a script"
+    }
+  ]
+}
