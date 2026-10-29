@@ -950,12 +950,15 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # The agent App, installed on every repository on purpose: ci-status holds
-  # a pull request it opened, wrote a commit of or pushed to when it changes a
-  # trust-gate path, and a person merges it (README.md, Both lanes review the
-  # head).
+  # The Apps whose touch holds a trust-gate path change for a person
+  # (README.md, Both lanes review the head): ci-status here, and ci-workflows'
+  # pr-require-checks-trust-paths through .github/trust-path-hold.json. Owner
+  # decision Q21 (2026-10-29) turned the hold off until open issues and pull
+  # requests reach zero: the one entry is a login no App holds, because the
+  # shared workflow fails on an empty list. Listing melodic-agent[bot] again
+  # restores it.
   trust-path-hold-apps:
-    - melodic-agent[bot]
+    - trust-path-hold-off[bot]
   # true: report each decision and write nothing.
   report-only: false
   # true: post-merge-dispatch starts a full run of main inside its 30-minute

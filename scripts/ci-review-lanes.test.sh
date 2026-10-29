@@ -456,7 +456,7 @@ STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)" "$(push "$APP" $SHA_B)")"
 expect "an App-pushed resolve-config change by a person's commit is held" 1 \
   "::error::#77 changes trust-gate paths: .github/actions/resolve-config/resolve.mjs, and melodic-agent[bot] pushed bbbbbbbbbbbb to it, so no review lane decides it. A person merges it."
 if grep -q '/actions/workflows/' "$TMP_ROOT/log"; then fail "a held App change read the review runs"; else ok "a held App change reads no review run"; fi
-BASE_CONFIG="$ROOT" expect "the repository's own pr-pipeline.yaml names the agent App" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+BASE_CONFIG="$ROOT" expect "the repository's own pr-pipeline.yaml holds no agent App while path holds are off (owner decision Q21)" 0 "No agent App opened, wrote or pushed to #77"
 STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
 STUB_AUTHOR="$APP" expect "an App-authored pull request changing a trust-gate path is held" 1 "and melodic-agent[bot] opened it, so no review lane decides it"
 STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")" "$(commit $SHA_B Melodic-Agent[bot] web-flow '')")" STUB_COMMIT_COUNT=2 \

@@ -2422,7 +2422,8 @@ them on every `pull_request` run, contract-only runs included:
   case-insensitively), since no lane
   reviews it; a person merges it. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
-  `[bot]` logins; this repository names the agent App, `melodic-agent[bot]`) opened it, is the
+  `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
+  the hold is off until `melodic-agent[bot]` is listed again) opened it, is the
   author or committer of one of its commits by account or noreply address, or pushed to its head
   branch (the repository activity API), since its head can rewrite the review callers; a person
   merges it. Such a PR still needs both lanes when no trust-gate path changed. ci-status reads the

@@ -541,11 +541,12 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
     base-branch hold's `.github/trust-path-hold.json` (the same, case-folded)
     each match every floor entry."""
 
-    def test_the_base_branch_hold_holds_github_and_the_agent_apps(self) -> None:
+    def test_the_base_branch_hold_holds_github_and_the_configured_apps(self) -> None:
         config = _trust_path_hold()
         self.assertEqual(sorted(config), ["apps", "paths"])
         self.assertEqual(config["paths"][0], ".github/**")
-        self.assertIn("melodic-agent[bot]", config["apps"])
+        # ci-workflows' shared hold fails on an empty `apps`.
+        self.assertTrue(config["apps"])
         pipeline = (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(
             encoding="utf-8"
         )
