@@ -1778,6 +1778,17 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@f31f7f9a133d17dab5c64da2602f8d107cf2204b": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "config-path"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/maintenance-sync-standards.yml@9a886d552706ad0a626e64da0dc27be2f2d0b437": {
       "routing": "runner-input",
       "runnerInput": "runner",
