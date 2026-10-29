@@ -134,3 +134,52 @@ test("feedback-dispatch's client counts each request, and once when handed budge
     assert.equal(await budgeted.getPermission("someone"), "read");
     assert.equal(lines("github-token"), LINE + LINE);
   }));
+
+// The mains run from the base checkout build their address-feedback client
+// with countedFetch, over the global fetch. Each answers 404 here, so a main
+// stops at its first request; every request it sent is one reading.
+const ROOT = new URL("../../../", import.meta.url).pathname;
+const SHA = "a".repeat(40);
+for (const [name, run] of [
+  ["address-feedback select", async (env) => (await import("../../scripts/pr-unblock/address-feedback.mjs")).main(["select"], env, { log: () => {} })],
+  ["fix-ci-context", async (env) => (await import("../../scripts/pr-unblock/fix-ci-context.mjs")).main({ ...env, FIX_CI_ROUNDS: "3" }, { log: () => {} })],
+  ["review-dependency select", async (env) => (await import("../../scripts/pr-unblock/review-dependency.mjs")).main(["select"], env, { log: () => {} })],
+]) {
+  test(`${name}'s main counts each request its client sends`, () =>
+    withBudget({ API_BUDGET_TOKEN: "github-token" }, async (lines) => {
+      const dir = tempDir("count-requests-main-");
+      const saved = globalThis.fetch;
+      let sent = 0;
+      globalThis.fetch = async () => {
+        sent += 1;
+        return new Response("{}", { status: 404, headers: READING });
+      };
+      try {
+        const env = {
+          GITHUB_TOKEN: "t",
+          GITHUB_REPOSITORY: "o/r",
+          GITHUB_API_URL: API,
+          GITHUB_OUTPUT: join(dir, "out"),
+          PR_NUMBER: "7",
+          HEAD_SHA: SHA,
+          APP_SENDER_ID: "1",
+          CONTEXT_FILE: join(dir, "context.json"),
+          THREAD_FILE: join(dir, "threads.json"),
+          RUN_FILE: join(dir, "run.json"),
+          TRUSTED_ACTORS: join(ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
+          TRACKER_CONFIG: join(ROOT, ".work-item-tracker.json"),
+          DEPENDENCY_FILE: join(dir, "dependency.json"),
+          CONTEXT_RUN_FILE: join(dir, "run.json"),
+          DEPENDABOT_CONFIG: join(ROOT, ".github/dependabot.yml"),
+          DEPENDABOT_POLICY: join(ROOT, ".github/standards/dependabot-policy/policy.json"),
+          BASE_PATH: ROOT,
+        };
+        await assert.rejects(run(env), /returned 404/);
+        assert.ok(sent > 0, "the main sent a request");
+        assert.equal(lines("github-token"), "404 5000 4990 10 1792751600 core\n".repeat(sent));
+      } finally {
+        globalThis.fetch = saved;
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }));
+}
