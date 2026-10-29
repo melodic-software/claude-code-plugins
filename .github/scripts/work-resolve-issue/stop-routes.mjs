@@ -43,6 +43,9 @@ for (const [reason, row] of Object.entries(STOP_ROUTES)) {
   if (row.retries !== undefined && !(COUNTED_ROUTES.has(row.route) && Number.isSafeInteger(row.retries) && row.retries >= 0)) {
     throw new Error(`stop-routes.json: ${reason}'s retries needs a ${[...COUNTED_ROUTES].join(", ")} route and a whole number`);
   }
+  if (row.route === "hold" && !HOLD_CLASSES.has(row.class)) {
+    throw new Error(`stop-routes.json: ${reason} holds, so its class needs to be one of ${[...HOLD_CLASSES].join(", ")}`);
+  }
 }
 // A spent cap that routed to retry would retry without end.
 for (const spent of ["retry-spent", "turn-cap-spent"]) {
@@ -67,10 +70,20 @@ export const stopReasonCode = (reason) => (Object.hasOwn(STOP_ROUTES, reason) &&
 export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].retries : undefined) ?? cap);
 export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");
 
-// The codes a run may open its `stopped` reason with, longest first.
+// The codes a run may open its `stopped` reason with, longest first, each in
+// any case and with a space or a hyphen between its words.
 const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
-  .sort((a, b) => b.length - a.length);
+  .sort((a, b) => b.length - a.length)
+  .map((code) => [code, new RegExp(`^${code.replaceAll("-", "[-\\s]")}\\b`, "i")]);
+// The hold row of each owner reason, found by its stop-reason code as a whole
+// word, security first.
+const OWNER_WORDS = ["security-risk", "intent-change", "design-change", "cost-risk"].map((row) => [row, new RegExp(`\\b${CLASS_CODES[row]}\\b`, "i")]);
 
-// The code a run's stop reason opens with, or "stopped" for none.
-export const runCode = (reason) => CODES.find((code) => new RegExp(`^\\s*\`?${code}\\b`).test(reason ?? "")) ?? "stopped";
+// The code a run's stop reason opens with, past any emphasis, backticks and a
+// `Reason:` label. With none, the hold row of an owner reason it names as a
+// word, so a misformatted owner code still reaches a person; else "stopped".
+export const runCode = (reason) => {
+  const text = String(reason ?? "").replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
+  return (CODES.find(([, code]) => code.test(text)) ?? OWNER_WORDS.find(([, word]) => word.test(text)) ?? ["stopped"])[0];
+};

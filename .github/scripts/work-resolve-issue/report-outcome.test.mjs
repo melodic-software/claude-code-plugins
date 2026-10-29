@@ -789,7 +789,7 @@ function env(dir) {
   };
 }
 
-const ISSUE = [/./, 200, { number: 77, labels: [{ name: "agent-ready" }, { name: "work-class: read-only" }] }];
+const ISSUE = [/./, 200, { number: 77, created_at: "2026-10-01T00:00:00Z", labels: [{ name: "agent-ready" }, { name: "work-class: read-only" }] }];
 
 // #7291 (run 40284651739): a run that wrote no readable outcome file crashed,
 // which needs no person. It keeps agent-ready, adds no label and posts a retry
@@ -3296,9 +3296,11 @@ test("route close: already-done and report-delivered close the issue as complete
 });
 
 // main against a fake API for the routes whose effect needs a read first.
-const stopRun = async ({ reason, summary = "", routes }) => {
+// `trusted` adds the trusted-actor list, whose humans' pull requests a wait accepts.
+const stopRun = async ({ reason, summary = "", routes, trusted = false }) => {
   let result;
-  await withAsyncDir({ "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }) }, async (dir) => {
+  const files = { "work-outcome.json": JSON.stringify({ exit: "stopped", reason, summary }), ...(trusted && { "trusted.json": TRUSTED_LIST }) };
+  await withAsyncDir(files, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
       ...routes,
@@ -3308,13 +3310,15 @@ const stopRun = async ({ reason, summary = "", routes }) => {
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["PATCH", /\/issues\/77$/, 200, {}],
     ]);
-    result = { code: await main({ env: env(dir), fetch }), calls };
+    result = { code: await main({ env: { ...env(dir), ...(trusted && { TRUSTED_ACTORS: join(dir, "trusted.json") }) }, fetch }), calls };
   });
   return result;
 };
 
+const APP_USER = { login: BOT, type: "Bot", id: 337595936 };
+
 test("main waits on an open pull request, and retries when the named one is not open", async () => {
-  const open = await stopRun({ reason: "blocked-by-pr: #5 adds the helper", routes: [["GET", /\/pulls\/5$/, 200, { state: "open", merged_at: null }]] });
+  const open = await stopRun({ reason: "blocked-by-pr: #5 adds the helper", routes: [["GET", /\/pulls\/5$/, 200, { state: "open", merged_at: null, user: APP_USER }]] });
   assert.equal(open.code, 0);
   assert.ok(!open.calls.some((c) => c.method === "DELETE" || c.method === "PATCH"));
   assert.match(open.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=wait pr=5 run=123 -->/);
@@ -3325,8 +3329,27 @@ test("main waits on an open pull request, and retries when the named one is not 
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /#5 is not an open pull request here, so it retries instead\./);
 });
 
+// Security review on #10978: anyone can open a pull request, so a wait on one
+// only the lanes App or a listed human opened, as closed-by-open-pr reads it.
+test("main waits only on an open pull request the lanes App or a listed human opened, and retries on anyone else's", async () => {
+  const waitOn = (user, trusted = false) =>
+    stopRun({ reason: "blocked-by-pr: #5 adds the helper", trusted, routes: [["GET", /\/pulls\/5$/, 200, { state: "open", merged_at: null, user }]] });
+  const marker = async (run) => (await run).calls.find((c) => c.method === "POST").body.body;
+  assert.match(await marker(waitOn({ login: "kyle-sexton", type: "User", id: OWNER_ID }, true)), /^<!-- work-resolve-issue outcome=wait pr=5 run=123 -->/);
+  for (const [name, user, trusted] of [
+    ["an outsider", { login: "someone", type: "User", id: 555 }, true],
+    ["another App", { login: "other-app[bot]", type: "Bot", id: 556 }, true],
+    ["a Bot with a listed human's id", { login: "other-app[bot]", type: "Bot", id: OWNER_ID }, true],
+    ["a listed human with no readable list", { login: "kyle-sexton", type: "User", id: OWNER_ID }, false],
+  ]) {
+    const body = await marker(waitOn(user, trusted));
+    assert.match(body, /^<!-- work-resolve-issue outcome=retry run=123 -->/, name);
+    assert.match(body, /#5 was not opened by the lanes App or a listed human, so it retries instead\./, name);
+  }
+});
+
 test("main closes an already-done issue only when its cited commit is on the default branch and cites the issue", async () => {
-  const tiedCommit = ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "fix(lane): resolve both items (#77)" }, files: [] }];
+  const tiedCommit = ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "fix(lane): resolve both items (#80)\n\nFixes #77", committer: { date: "2026-10-28T00:00:00Z" } }, files: [] }];
   const done = await stopRun({
     reason: "already-done: both items are on main at abb359be",
     routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }], tiedCommit],
@@ -3340,14 +3363,14 @@ test("main closes an already-done issue only when its cited commit is on the def
   });
   assert.ok(!unproven.calls.some((c) => c.method === "PATCH"), "no proof, no close");
   assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
-  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no merged pull request or default-branch commit that cites this issue or changes a path it names/);
+  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no pull request merged into the default branch, or commit on it, made after the issue opened that closes this issue or changes a path it names/);
   // Run 40844966342: a release commit on main closed an issue it never touched.
   const release = await stopRun({
     reason: "already-done: both items are on main at abb359be",
     routes: [
       ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
       ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "ahead" }],
-      ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "chore(release): cut 3.2.0 (#770)" }, files: [{ filename: "CHANGELOG.md" }] }],
+      ["GET", /\/commits\/abb359be$/, 200, { commit: { message: "chore(release): cut 3.2.0 (#77)", committer: { date: "2026-10-28T00:00:00Z" } }, files: [{ filename: "CHANGELOG.md" }] }],
     ],
   });
   assert.ok(!release.calls.some((c) => c.method === "PATCH"), "an unrelated commit on main is no proof");
@@ -3373,46 +3396,87 @@ const ON_MAIN = [
   [/\/compare\/abb359be\.\.\.main$/, { status: "ahead" }],
 ];
 
-test("doneEvidence takes a merged pull request only when it cites the issue or changes a path the issue names", async () => {
+// The issue, opened before every change below; its body names a path with a
+// directory and one without.
+const EVIDENCE_ISSUE = [/\/issues\/77$/, { created_at: "2026-10-01T00:00:00Z", body: "The table in `docs/lanes.md:12` is stale, and so is README.md." }];
+const evidencePull = (body, { files = [{ filename: "plugins/x/skills/y/SKILL.md" }], base = "main", mergedAt = "2026-10-29T14:07:27Z" } = {}) =>
+  evidenceClient([
+    [/\/repos\/o\/r$/, { default_branch: "main" }],
+    [/\/pulls\/5$/, { merged_at: mergedAt, base: { ref: base }, title: "fix: tidy", body }],
+    [/\/pulls\/5\/files/, files],
+    EVIDENCE_ISSUE,
+  ]);
+
+test("doneEvidence takes a merged pull request only when it closes the issue or changes a path the issue names", async () => {
   const reason = "already-done: #5 shipped it";
-  const pull = (body, files = [{ filename: "plugins/x/skills/y/SKILL.md" }]) =>
-    evidenceClient([
-      [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", title: "fix: tidy", body }],
-      [/\/pulls\/5\/files/, files],
-      [/\/issues\/77$/, { body: "The table in `docs/lanes.md:12` is stale." }],
-    ]);
-  assert.equal(await doneEvidence(pull("Tidies an unrelated table."), "/repos/o/r", reason, 77), false, "an unrelated merged PR");
-  assert.equal(await doneEvidence(pull("Closes #770"), "/repos/o/r", reason, 77), false, "#770 is not #77");
-  assert.equal(await doneEvidence(pull("Closes #77"), "/repos/o/r", reason, 77), true);
-  assert.equal(await doneEvidence(pull("Tidies a table.", [{ filename: "docs/lanes.md" }]), "/repos/o/r", reason, 77), true, "it changes a path the issue names");
+  assert.equal(await doneEvidence(evidencePull("Tidies an unrelated table."), "/repos/o/r", reason, 77), false, "an unrelated merged PR");
+  assert.equal(await doneEvidence(evidencePull("Closes #770"), "/repos/o/r", reason, 77), false, "#770 is not #77");
+  assert.equal(await doneEvidence(evidencePull("Closes #77"), "/repos/o/r", reason, 77), true);
+  assert.equal(await doneEvidence(evidencePull("Tidies a table.", { files: [{ filename: "docs/lanes.md" }] }), "/repos/o/r", reason, 77), true, "it changes a path the issue names");
 });
 
-test("doneEvidence takes a default-branch commit only when its message cites the issue or it changes a path the issue names", async () => {
+// Security review on #10978: only a GitHub closing keyword says a change
+// finishes the issue; a Refs line, a follow-up or a squash suffix does not.
+test("doneEvidence counts a citation only as a closing keyword before #<issue>", async () => {
+  const reason = "already-done: #5 shipped it";
+  for (const [body, closes] of [
+    ["Refs: #77", false],
+    ["Filed #77 for follow-up", false],
+    ["Tidy the table (#77)", false],
+    ["Closes #770", false],
+    ["Fixes #77", true],
+    ["fixes: #77", true],
+    ["RESOLVED #77.", true],
+    ["Part of it.\n\nClosed #77", true],
+  ]) {
+    assert.equal(await doneEvidence(evidencePull(body), "/repos/o/r", reason, 77), closes, body);
+  }
+});
+
+test("doneEvidence takes a merged pull request only into the default branch and after the issue opened", async () => {
+  const reason = "already-done: #5 shipped it";
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { base: "release/3.x" }), "/repos/o/r", reason, 77), false, "merged into another branch");
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { mergedAt: "2026-09-30T00:00:00Z" }), "/repos/o/r", reason, 77), false, "merged before the issue opened");
+  assert.equal(await doneEvidence(evidencePull("Closes #77", { mergedAt: "not a date" }), "/repos/o/r", reason, 77), false, "an unreadable merge time");
+});
+
+test("doneEvidence matches only a named path that holds a directory", async () => {
+  const reason = "already-done: #5 shipped it";
+  assert.equal(await doneEvidence(evidencePull("Tidies a file.", { files: [{ filename: "README.md" }] }), "/repos/o/r", reason, 77), false, "README.md names no directory");
+  assert.equal(await doneEvidence(evidencePull("Tidies a file.", { files: [{ filename: "docs/lanes.md" }] }), "/repos/o/r", reason, 77), true);
+});
+
+test("doneEvidence takes a default-branch commit only when its message closes the issue or it changes a path the issue names", async () => {
   const reason = "already-done: on main at abb359be";
-  const commit = (message, files = [{ filename: "CHANGELOG.md" }]) =>
+  const commit = (message, files = [{ filename: "CHANGELOG.md" }], date = "2026-10-28T00:00:00Z") =>
     evidenceClient([
       ...ON_MAIN,
-      [/\/commits\/abb359be$/, { commit: { message }, files }],
-      [/\/issues\/77$/, { body: "See https://github.com/o/r/blob/main/.github/scripts/a.mjs#L4 and ./lib/b.mjs." }],
+      [/\/commits\/abb359be$/, { commit: { message, committer: { date } }, files }],
+      [/\/issues\/77$/, { created_at: "2026-10-01T00:00:00Z", body: "See https://github.com/o/r/blob/main/.github/scripts/a.mjs#L4 and ./lib/b.mjs." }],
     ]);
-  assert.equal(await doneEvidence(commit("fix(lane): drop the stale row\n\nRefs #77"), "/repos/o/r", reason, 77), true);
+  assert.equal(await doneEvidence(commit("fix(lane): drop the stale row\n\nFixes #77"), "/repos/o/r", reason, 77), true);
+  assert.equal(await doneEvidence(commit("fix(lane): drop the stale row\n\nRefs #77"), "/repos/o/r", reason, 77), false, "a Refs line closes nothing");
   assert.equal(await doneEvidence(commit("chore(release): cut 3.2.0"), "/repos/o/r", reason, 77), false, "an unrelated release commit");
   assert.equal(await doneEvidence(commit("fix: tidy", [{ filename: ".github/scripts/a.mjs" }]), "/repos/o/r", reason, 77), true, "a linked path");
   assert.equal(await doneEvidence(commit("fix: tidy", [{ filename: "lib/b.mjs" }]), "/repos/o/r", reason, 77), true, "a ./ path ending a sentence");
+  assert.equal(await doneEvidence(commit("fix: tidy\n\nFixes #77", [], "2026-09-30T00:00:00Z"), "/repos/o/r", reason, 77), false, "committed before the issue opened");
 });
 
 test("doneEvidence proves nothing when a read fails", async () => {
-  const merged = [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", title: "fix: tidy", body: "" }];
-  const commit = [/\/commits\/abb359be$/, { commit: { message: "fix: tidy" }, files: [{ filename: "docs/lanes.md" }] }];
-  const issue = [/\/issues\/77$/, { body: "docs/lanes.md is stale" }];
-  // The issue read fails, so a path match cannot be made.
+  const merged = [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", base: { ref: "main" }, title: "fix: tidy", body: "" }];
+  const commit = [/\/commits\/abb359be$/, { commit: { message: "fix: tidy", committer: { date: "2026-10-28T00:00:00Z" } }, files: [{ filename: "docs/lanes.md" }] }];
+  const issue = [/\/issues\/77$/, { created_at: "2026-10-01T00:00:00Z", body: "docs/lanes.md is stale" }];
+  // The issue read fails, so neither its time nor a path match can be read.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit]), "/repos/o/r", "already-done: abb359be", 77), false);
   // The commit read fails, though the compare says it is on main.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, issue]), "/repos/o/r", "already-done: abb359be", 77), false);
   // The pull request's file list fails.
-  assert.equal(await doneEvidence(evidenceClient([merged, issue]), "/repos/o/r", "already-done: #5", 77), false);
+  assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, merged, issue]), "/repos/o/r", "already-done: #5", 77), false);
+  // The default branch read fails.
+  assert.equal(await doneEvidence(evidenceClient([merged, [/\/pulls\/5\/files/, [{ filename: "docs/lanes.md" }]], issue]), "/repos/o/r", "already-done: #5", 77), false);
   // Each read answering, the same evidence holds.
   assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, commit, issue]), "/repos/o/r", "already-done: abb359be", 77), true);
+  assert.equal(await doneEvidence(evidenceClient([...ON_MAIN, merged, [/\/pulls\/5\/files/, [{ filename: "docs/lanes.md" }]], issue]), "/repos/o/r", "already-done: #5", 77), true);
 });
 
 test("main posts a delivered report and closes the issue", async () => {

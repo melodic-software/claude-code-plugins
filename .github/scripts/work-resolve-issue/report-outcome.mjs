@@ -27,11 +27,13 @@
 //   work-unblock restarts it, up to limits.stop-retries; wait keeps
 //   agent-ready and names the open pull request the run waits on, so
 //   work-unblock restarts it once that pull request merges or closes (a
-//   pull request that is not open retries instead); intake removes
+//   pull request that is not open, or that neither the lanes App nor a
+//   listed human opened, retries instead); intake removes
 //   agent-ready and status: ready, so the triage sweep sends the issue back
 //   through intake; close closes the issue as completed (an already-done
 //   stop only once its cited commit or pull request is on the default
-//   branch, else it retries); fail removes agent-ready and adds no label. A
+//   branch and closes the issue or changes a path it names, doneEvidence,
+//   else it retries); fail removes agent-ready and adds no label. A
 //   route other than hold carries no escalation marker.
 //
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
@@ -1018,7 +1020,8 @@ export function decide({
   // The lane denies the paths apply-issue-patch refuses and tells a run whose
   // change needs one to stop with this reason, before it spends the run.
   // A run that stopped opens its reason with a stop-routes.json code, or with
-  // none; a missing or unreadable outcome carries its own stop.
+  // none, and runCode reads a misformatted owner code as its hold row; a
+  // missing or unreadable outcome carries its own stop.
   const stop = outcome.exit === "pushback" ? "pushback" : outcome.unread ? (outcome.stop ?? "outcome-unread") : runCode(outcome.reason);
   if (outcome.exit === "stopped" && stop === "patch-protected-path") {
     return routeStop(stop, {
@@ -1181,12 +1184,10 @@ export function readBranch(dir, issueNumber, key = "branch") {
 // that the lanes App or a listed human opened: anyone can write `Closes #N`, so
 // an outsider's PR would let anyone stop the lane.
 export const trustedCloser = (closing, { repo, bot, humans }) =>
-  closing.find(
-    ({ author, repository }) =>
-      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
-      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
-        (author?.__typename === "User" && humans.has(author.databaseId))),
-  );
+  closing.find(({ author, repository }) => String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() && trustedAuthor(author, { bot, humans }));
+// Whether a GraphQL author is the lanes App or a listed human (by id).
+const trustedAuthor = (author, { bot, humans }) =>
+  (author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) || (author?.__typename === "User" && humans.has(author.databaseId));
 
 // Whether an earlier run already did the issue's work, from facts read before
 // the resolve-issue mint:
@@ -1593,10 +1594,23 @@ async function applyHandBack(github, repo, plan) {
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
 }
 
-// Whether `pr` is a pull request in this repository that is still open; a
-// read that fails counts as not open, so the stop retries instead of waiting.
-const openPull = (github, repo, pr) =>
-  pr ? github("GET", `${repo}/pulls/${pr}`).then((pull) => pull?.state === "open" && pull.merged_at == null, () => false) : Promise.resolve(false);
+// `pr` read as a pull request in this repository: "open" while it is open and
+// the lanes App or a listed human opened it (trustedAuthor, as closed-by-open-pr
+// takes its closer: anyone can open one), "untrusted" while it is open and
+// someone else opened it, else "". A read that fails is "", so the stop
+// retries instead of waiting.
+const openPull = (github, repo, pr, { bot, humans }) =>
+  pr
+    ? github("GET", `${repo}/pulls/${pr}`).then(
+        (pull) =>
+          pull?.state === "open" && pull.merged_at == null
+            ? trustedAuthor({ __typename: pull.user?.type, login: pull.user?.login, databaseId: pull.user?.id }, { bot, humans })
+              ? "open"
+              : "untrusted"
+            : "",
+        () => "",
+      )
+    : Promise.resolve("");
 
 // The paths an issue body names: each word between spaces, quotes, brackets or
 // colons (so `path:line` counts), less a blob or tree link's prefix, a `#L`
@@ -1609,45 +1623,56 @@ const bodyPaths = (body) =>
       .filter(Boolean),
   );
 
+// Whether `text` closes issue `number` as GitHub reads a closing keyword:
+// close, fix or resolve in any tense and case, an optional colon, then
+// `#<number>`. A `Refs:` line, a follow-up or a squash suffix closes nothing.
+// branch-cleanup's linkedIssues takes the same keywords and `Refs` too, and a
+// script activity runs from a copy of its own directory, so it is restated here.
+const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?![0-9])`, "i").test(text);
+
 // Whether the commit or pull request an already-done reason cites is on the
-// default branch and tied to the issue: a merged pull request (`#<n>`), or a
-// commit SHA the default branch contains (the compare from it is ahead or
-// identical), whose title, body or message cites `#<issue>` or whose files
-// include a path the issue body names. Any merged change is not proof: a
-// release commit once closed an issue it never touched (run 40844966342). A
-// read that fails, or a reason that cites neither, proves nothing.
+// default branch and tied to the issue: a pull request (`#<n>`) merged into
+// the default branch, or a commit SHA the default branch contains (the
+// compare from it is ahead or identical), merged or committed after the issue
+// opened, whose title, body or message closes the issue (closesIssue) or whose
+// files include a path with a directory that the issue body names. Any merged
+// change is not proof: a release commit once closed an issue it never touched
+// (run 40844966342). A read that fails, or a reason that cites neither, proves nothing.
 export async function doneEvidence(github, repo, reason, issueNumber) {
-  const cites = (text) => new RegExp(`[#＃]${issueNumber}(?![0-9])`).test(text);
-  let named;
-  const tied = async (text, files) => {
-    if (cites(text)) {
-      return true;
-    }
-    named ??= await github("GET", `${repo}/issues/${issueNumber}`).then((issue) => bodyPaths(issue?.body));
-    return (await files()).some((file) => named.has(file?.filename));
-  };
   const pr = waitedPull(reason, issueNumber);
+  // A SHA holds a letter, so a run id or other number is never read as one;
+  // the first three such words are tried, so a hex-looking word is no cover.
+  const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
+  if (!pr && shas.length === 0) {
+    return false;
+  }
+  const issue = await github("GET", `${repo}/issues/${issueNumber}`).catch(() => null);
+  const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
+  const opened = Date.parse(issue?.created_at);
+  if (!Number.isFinite(opened) || typeof base !== "string" || base === "") {
+    return false;
+  }
+  const named = new Set([...bodyPaths(issue.body)].filter((path) => path.includes("/")));
+  const tied = async (text, at, files) => Date.parse(at) > opened && (closesIssue(text, issueNumber) || (await files()).some((file) => named.has(file?.filename)));
   if (
     pr &&
     (await github("GET", `${repo}/pulls/${pr}`)
-      .then((pull) => Boolean(pull?.merged_at) && tied(`${pull.title ?? ""}\n${pull.body ?? ""}`, () => paginate(github, `${repo}/pulls/${pr}/files`)))
+      .then(
+        (pull) =>
+          Boolean(pull?.merged_at) &&
+          pull.base?.ref === base &&
+          tied(`${pull.title ?? ""}\n${pull.body ?? ""}`, pull.merged_at, () => paginate(github, `${repo}/pulls/${pr}/files`)),
+      )
       .catch(() => false))
   ) {
     return true;
   }
-  // A SHA holds a letter, so a run id or other number is never read as one;
-  // the first three such words are tried, so a hex-looking word is no cover.
-  const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
-  if (shas.length === 0) {
-    return false;
-  }
-  const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
-  for (const sha of base ? shas : []) {
+  for (const sha of shas) {
     const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
     if (
       (comparison?.status === "ahead" || comparison?.status === "identical") &&
       (await github("GET", `${repo}/commits/${encodeURIComponent(sha)}`)
-        .then((commit) => tied(String(commit?.commit?.message ?? ""), () => commit?.files ?? []))
+        .then((commit) => tied(String(commit?.commit?.message ?? ""), commit?.commit?.committer?.date, () => commit?.files ?? []))
         .catch(() => false))
     ) {
       return true;
@@ -1656,21 +1681,28 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
   return false;
 }
 
-// A stop plan's edits. A wait on a pull request that is not open, and an
-// already-done close whose evidence is not on the default branch or not tied
-// to the issue, retry instead. A retry, wait or intake first counts its own outcome's markers
-// since a listed human last added agent-ready: past its cap it takes
-// retry-spent's route, so an issue intake keeps sending back cannot loop. A
+// A stop plan's edits. A wait on a pull request that is not open or that
+// neither the lanes App nor a listed human opened, and an already-done close
+// that doneEvidence does not prove, retry instead. A retry, wait or intake
+// first counts its own outcome's markers since a listed human last added
+// agent-ready: past its cap it takes retry-spent's route, so an issue intake
+// keeps sending back cannot loop. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
 async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
-  if (plan.action === "wait" && !(await openPull(github, repo, plan.pr))) {
-    const why = plan.pr ? `#${plan.pr} is not an open pull request here, so it retries instead.` : "Its reason names no pull request, so it retries instead.";
+  const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
+  if (plan.action === "wait" && waited !== "open") {
+    const why = !plan.pr
+      ? "Its reason names no pull request, so it retries instead."
+      : waited === "untrusted"
+        ? `#${plan.pr} was not opened by the lanes App or a listed human, so it retries instead.`
+        : `#${plan.pr} is not an open pull request here, so it retries instead.`;
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
-    const why = "Its reason cites no merged pull request or default-branch commit that cites this issue or changes a path it names, so it retries instead of closing.";
+    const why =
+      "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened that closes this issue or changes a path it names, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (COUNTED.has(plan.action)) {

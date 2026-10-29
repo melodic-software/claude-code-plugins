@@ -2,9 +2,13 @@
 // 2026-10-29: a person only for an intent, design, security or cost reason;
 // every retry has a hard end.
 import assert from "node:assert/strict";
+import { copyFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { HOLD_CLASSES, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
   assert.equal(stopRoute("no-such-reason"), "fail");
@@ -61,6 +65,61 @@ test("a run's stop reason routes by the code it opens with, and by none otherwis
   assert.equal(runCode("The tests failed; not host-only."), "stopped");
   assert.equal(runCode("check-failed: a code no run may give"), "stopped");
   assert.equal(runCode(undefined), "stopped");
+});
+
+// Security review on #10978: `stopped` retries and then fails, so a security
+// code the run misformats must still reach a person.
+test("a code opens the reason in any case, past emphasis, backticks and a Reason: label, with a space or hyphen between its words", () => {
+  for (const reason of [
+    "Security-risk: a token leaks",
+    "security risk: a token leaks",
+    "**security-risk**: a token leaks",
+    "SECURITY-RISK the token leaks",
+    "Reason: security-risk",
+    "_`Reason:` **Security Risk**_: a token leaks",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+  assert.equal(runCode("Host-Only: needs the native bundle"), "host-only");
+  assert.equal(runCode("blocked by pr: #5 adds the helper"), "blocked-by-pr");
+});
+
+test("a reason with no code that names an owner reason as a word holds for that reason, security first", () => {
+  assert.equal(runCode("The change would print the token, a security problem."), "security-risk");
+  assert.equal(runCode("It would change what the issue's intent is."), "intent-change");
+  assert.equal(runCode("This needs a Design call on the module split."), "design-change");
+  assert.equal(runCode("The new job would raise the cost of every run."), "cost-risk");
+  assert.equal(runCode("A design question with a security side."), "security-risk");
+  for (const reason of ["The change would print the token, a security problem.", "This needs a Design call."]) {
+    assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+test("a reason that opens with another code keeps it, and one naming no owner reason stays stopped", () => {
+  assert.equal(runCode("already-done: the security fix is on main"), "already-done");
+  assert.equal(runCode("blocked-by-pr: #5 settles the design"), "blocked-by-pr");
+  assert.equal(runCode("The tests failed twice on a flaky network read."), "stopped");
+  assert.equal(runCode("The designer's costs and insecure intents"), "stopped", "only the whole word counts");
+  assert.equal(runCode("Reason: the tests failed"), "stopped");
+});
+
+// The load check runs on import, so each case imports a copy of the module
+// beside its own copy of the real table.
+async function loadsWith(table) {
+  const dir = tempDir("stop-routes-");
+  try {
+    copyFileSync(new URL("./stop-routes.mjs", import.meta.url), join(dir, "stop-routes.mjs"));
+    writeFileSync(join(dir, "stop-routes.json"), JSON.stringify(table));
+    return await import(pathToFileURL(join(dir, "stop-routes.mjs")).href);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the table does not load when a hold row's class is not an owner reason", async () => {
+  assert.ok((await loadsWith(STOP_ROUTES)).STOP_ROUTES, "the real table loads");
+  await assert.rejects(loadsWith({ ...STOP_ROUTES, pushback: { ...STOP_ROUTES.pushback, class: "maintenance" } }), /pushback/);
+  await assert.rejects(loadsWith({ ...STOP_ROUTES, pushback: { route: "hold", why: "no class" } }), /pushback/);
 });
 
 // Owner decision 2026-10-28: a manual external step needs the owner present,

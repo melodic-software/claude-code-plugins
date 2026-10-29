@@ -15,6 +15,7 @@ import {
   decide,
   FILING,
   HANDED,
+  handedInComments,
   MAX_DISPATCHES,
   readState,
   renderState,
@@ -167,9 +168,12 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
       if (graphqlError) return { errors: [{ message: "Something went wrong" }] };
       assert.equal(body.variables.q, 'repo:o/r is:issue is:open commenter:app/github-actions in:comments "so the sweep no longer dispatches it"');
       const start = body.variables.after === null ? 0 : Number(body.variables.after);
-      // GraphQL names an App's account `Bot` and drops the `[bot]` suffix.
+      // GraphQL names an App's account `Bot`, drops the `[bot]` suffix and
+      // gives its account id as databaseId.
       const author = (user) =>
-        /\[bot\]$/.test(user?.login ?? "") ? { __typename: "Bot", login: user.login.replace(/\[bot\]$/, "") } : { __typename: "User", login: user?.login };
+        /\[bot\]$/.test(user?.login ?? "")
+          ? { __typename: "Bot", login: user.login.replace(/\[bot\]$/, ""), databaseId: user.id }
+          : { __typename: "User", login: user?.login };
       const nodes = handedIssues.slice(start, start + 50).map(({ number }) => ({
         number,
         comments: {
@@ -555,6 +559,35 @@ test("a needs-triage search hit with the bot's hand-off and a newer lanes App ha
   });
   const result = await sweep(gh);
   assert.deepEqual(result.dispatched, [1]);
+});
+
+// Security review on #10978: as readState counts only the lanes App's
+// hand-back, so does the hand-off search, so another App's comment cannot make
+// a handed-off issue cost a read every pass.
+test("a needs-triage search hit with the bot's hand-off and a newer hand-back from any other App is skipped unread", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1, { labels: [{ name: "needs-triage" }] })],
+    comments: { 1: [stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z"), handBack({ login: "other-app[bot]", id: OUTSIDER }, "2026-10-18T08:00:00Z")] },
+    runs: triaged,
+    handedIssues: [{ number: 1 }],
+  });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.equal(result.candidates, 0);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 0);
+  assert.deepEqual(gh.writes, []);
+});
+
+test("handedInComments counts a hand-back only from the lanes App's account", () => {
+  const state = { author: { __typename: "Bot", login: "github-actions" }, body: renderState({ runs: [1, 2], filed: HANDED, repoUrl: "u" }), createdAt: "2026-10-17T06:00:00Z" };
+  const back = (author) => ({ author, body: "<!-- work-unblock handed triage #40 -->", createdAt: "2026-10-18T08:00:00Z" });
+  assert.equal(handedInComments([state, back({ __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP })], String(APP)), false);
+  assert.equal(handedInComments([state, back({ __typename: "Bot", login: "other-app", databaseId: OUTSIDER })], String(APP)), true);
+  assert.equal(handedInComments([state, back({ __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP })], null), true, "with no App id no hand-back counts");
 });
 
 test("a hand-off search that answers with GraphQL errors skips nothing: the hit is read", async () => {
