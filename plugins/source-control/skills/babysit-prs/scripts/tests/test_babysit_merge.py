@@ -2486,10 +2486,19 @@ class MainReviewInputTests(unittest.TestCase):
             mock.patch.object(merge, "_force_pushed_heads", return_value=["b" * 40]),
             mock.patch.object(
                 merge,
-                "collect_main_review_critical",
+                "collect_main_review_counts",
                 side_effect=lambda repo, shas, names, env: (
                     calls.append(("critical-counts", list(shas), names))
-                    or {"claude-review": 0, "claude-security-review": 1}
+                    or {
+                        HEAD: {
+                            "claude-review": [(2, 0)],
+                            "claude-security-review": [(1, 0), None],
+                        },
+                        "b" * 40: {
+                            "claude-review": [],
+                            "claude-security-review": [(3, 1)],
+                        },
+                    }
                 ),
             ),
         ):
@@ -2513,7 +2522,13 @@ class MainReviewInputTests(unittest.TestCase):
                 "pr": 5,
                 "tree": tree,
                 "branch": "main",
+                # An unreadable title counts one CRITICAL, and only readable
+                # counts on this head can match a verdict.
                 "carried_critical": {"claude-review": 0, "claude-security-review": 1},
+                "head_records": {
+                    "claude-review": [[2, 0]],
+                    "claude-security-review": [[1, 0]],
+                },
             },
         )
         # Every head of the pull request, force-pushed ones included.
@@ -2521,7 +2536,7 @@ class MainReviewInputTests(unittest.TestCase):
             calls[1],
             (
                 "critical-counts",
-                [HEAD, "b" * 40],
+                [HEAD, HEAD, "b" * 40],
                 {
                     "claude-review": "pr-review-main: claude-review",
                     "claude-security-review": "pr-review-main: claude-security-review",

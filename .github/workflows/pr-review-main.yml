@@ -147,7 +147,9 @@ jobs:
       # the workspace. git diff reads no attributes or diff drivers from it,
       # so nothing in the PR runs; the patch is a data file. `--text` shows a
       # file git would call binary (a NUL byte early in a script) as text, so
-      # the reviewer sees what node or bash would run. A patch that still
+      # the reviewer sees what node or bash would run, and `--no-renames`
+      # shows a renamed file whole, so a partial rename into a lane source is
+      # reviewed as the new file. A patch that still
       # shows a binary file, or is larger than one review can read whole,
       # gets no verdict: the step fails and the lanes stay unbound. The tree
       # the verdict is keyed on comes from git, never from the model.
@@ -179,7 +181,7 @@ jobs:
           git init -q "$SRC"
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
-          git -C "$SRC" diff --text --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" diff --text --no-renames --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
             exit 1

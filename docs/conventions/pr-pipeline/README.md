@@ -958,7 +958,9 @@ the rules that only tighten in
     what agents may do unattended or what later reviews judge against: `**/.claude/settings*.json`
     (hooks, permission allows), `**/.claude/hooks/**` and `**/.claude/*.sh` (a hook settings already
     registers runs in every later lane), `**/.claude/skills/**`, `**/.claude/agents/**` and
-    `**/.claude/commands/**` (whose frontmatter can widen tools),
+    `**/.claude/commands/**` (whose frontmatter can widen tools), `**/.claude/rules/**`, `**/.claude/*.json`,
+    `**/.claude/*.md` and `.claude-lane/**` (auto-loaded instructions and the config beside
+    settings, under owner decision Q11, which supersedes the 2026-10-22 direction for rules),
     `docs/conventions/instruction-exception-register/**` and `docs/conventions/untrusted-content/**`
     (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
@@ -1022,7 +1024,10 @@ the rules that only tighten in
   run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
   line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
   the merge gate holds such a lane-source pull request for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. Each
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff
+  uses `--no-renames`, so a renamed file is reviewed whole. A verdict binds only when the head
+  also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
+  cancelled before it recorded binds nothing. Each
   lane uploads `verdict.json` as
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled

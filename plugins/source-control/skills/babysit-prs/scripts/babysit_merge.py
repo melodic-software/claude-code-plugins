@@ -185,7 +185,8 @@ from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
     collect_lane_runs,
-    collect_main_review_critical,
+    collect_main_review_counts,
+    main_review_critical,
     collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
@@ -477,7 +478,9 @@ def rerun_rate_limited_review(
         return report
     if lost:
         if number is None:
-            report["reason"] = "no pull request number, so what the lane posted is unread"
+            report["reason"] = (
+                "no pull request number, so what the lane posted is unread"
+            )
             return report
         try:
             comments = fetch_paginated_api(
@@ -3254,10 +3257,13 @@ def _main_reviews(
     reviews = collect_main_reviews(
         repo, names, review_evidence.MAIN_REVIEW_WORKFLOW, branch, read_env
     )
-    carried = collect_main_review_critical(
+    checks = {
+        lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES
+    }
+    counts = collect_main_review_counts(
         repo,
-        [*pull_request_heads, *_force_pushed_heads(repo, number)],
-        {lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES},
+        [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)],
+        checks,
         read_env,
     )
     return reviews, {
@@ -3265,7 +3271,13 @@ def _main_reviews(
         "pr": number,
         "tree": tree,
         "branch": branch,
-        "carried_critical": carried,
+        "carried_critical": main_review_critical(counts, checks),
+        # The record job's counts on this head: a verdict binds only beside
+        # one that matches it, so a run cancelled before `record` binds none.
+        "head_records": {
+            lane: [list(c) for c in counts.get(head_sha, {}).get(lane, ()) if c]
+            for lane in checks
+        },
     }
 
 
@@ -3298,9 +3310,9 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
     )
     items = json_object(
         json_object(
-            json_object(json_object(json_object(data).get("data")).get("repository")).get(
-                "pullRequest"
-            )
+            json_object(
+                json_object(json_object(data).get("data")).get("repository")
+            ).get("pullRequest")
         ).get("timelineItems")
     )
     nodes = items.get("nodes")

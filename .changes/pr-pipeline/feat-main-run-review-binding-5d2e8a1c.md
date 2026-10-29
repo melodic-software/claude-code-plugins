@@ -19,3 +19,6 @@ bump: minor
 - `**/.claude/*.sh`, `**/.claude/skills/**`, `**/.claude/agents/**`, `**/.claude/commands/**` and the instruction-exception register and untrusted-content conventions are `gate` floor paths outside the author lift too.
 - The pull-request merge gate reads every `pr-review-main: <lane>` check run on a head (`filter=all`), so a newer clean run hides no recorded CRITICAL.
 - A lane-source pull request whose patch holds a line over 1800 bytes holds for a person as `long-line-review:<path>`; the main-run review writes no verdict for it, and the binder counts no verdict past that line length.
+- `**/.claude/rules/**`, `**/.claude/*.json`, `**/.claude/*.md` and `.claude-lane/**` are `gate` floor paths outside the author lift (owner decision Q11: agent settings and instruction files stay gated).
+- A main-run verdict binds only beside the record job's matching check run on the head; the review diff uses `--no-renames`.
+- A workflow that reads the secrets context in any form (`secrets.*`, `toJSON(secrets)`) or sets `permissions: write-all` is a credentialed `gate` workflow, and an added object-form reference holds as `secret-exposure-review`.

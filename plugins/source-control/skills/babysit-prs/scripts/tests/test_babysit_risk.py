@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 46, "enforcement": 41},
+            {"trust": 18, "gate": 50, "enforcement": 41},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1260,9 +1260,10 @@ class LanePathFloorTests(unittest.TestCase):
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
+        # `.claude/rules/**` left this list under owner decision Q11
+        # (2026-10-28): agent settings and instruction files stay gated.
         for path in (
             "prompts/x.md",
-            ".claude/rules/x.md",
             "plugins/foo/hooks/hooks.json",
             "plugins/foo/hooks/guard.sh",
             "plugins/foo/bin/tool",
@@ -1863,11 +1864,24 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         for added in (
             "      - run: echo ${{ secrets.DEPLOY_KEY }}\n",
             "      - run: echo ${{ toJSON(secrets) }}\n",
+            # The object filter form.
+            "      - env:\n          ALL: ${{ secrets.* }}\n",
+            "      - run: echo ${{ secrets['DEPLOY'] }}\n",
+            # write-all sets every permission, id-token among them.
+            "    permissions: write-all\n",
             "      - uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[x]\n",
             "    permissions:\n      id-token: write\n",
         ):
             with self.subTest(added):
                 self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        # The job token itself, or the word inside a string or a name, is not.
+        for plain in (
+            "      - run: echo ${{ secrets['github_token'] }}\n",
+            "      - name: Scan for secrets\n",
+            "    if: ${{ contains(x, 'test-windows-secrets') }}\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
         # A comment or a quoted path naming one is no credential.
         self.assertFalse(
             babysit_risk.gated_workflow(
@@ -1946,6 +1960,8 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             "plugins/foo/skills/bar/AGENTS.md",
             "REVIEW.md",
             "docs/standards/README.md",
+            # Owner decision Q11 (2026-10-28), superseding 2026-10-22's.
+            ".claude/rules/x.md",
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
@@ -1954,7 +1970,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     any(c.startswith("high-path:") for c in persons), persons
                 )
         for path in (
-            ".claude/rules/x.md",
             "plugins/foo/.lsp.json",
             "docs/REVIEW.md.bak",
         ):
@@ -2051,7 +2066,13 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 result = self._score(
                     _floor_sample(glob), (_lane("claude-security-review"),)
                 )
-                self.assertEqual(_codes(result), (f"high-path:{glob}",))
+                # Globs may overlap (`settings*.json` and `*.json`): each
+                # sample holds by its own glob, and by nothing a review clears.
+                self.assertIn(f"high-path:{glob}", _codes(result))
+                self.assertTrue(
+                    all(c.startswith("high-path:") for c in _codes(result)),
+                    _codes(result),
+                )
                 self.assertTrue(holds(result))
 
     def test_a_review_caller_workflow_change_holds_for_a_person(self):
@@ -2233,6 +2254,13 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             ".claude/skills/control-claude-code-plugins/SKILL.md",
             ".claude/agents/x.md",
             ".claude/commands/x.md",
+            # Owner decision Q11 (2026-10-28): agent settings and instruction
+            # files stay gated, superseding the 2026-10-22 direction for rules.
+            ".claude/rules/cost-claims.md",
+            "plugins/x/.claude/rules/a.md",
+            ".claude/ai-slop.json",
+            ".claude/source-control.md",
+            ".claude-lane/profile.json",
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             "docs/standards/README.md",

@@ -460,7 +460,10 @@ def _main_bound(
     completed, successful run names `head`. It then counts the most findings,
     and the most CRITICAL ones, any counted review of the head's tree
     reported, so a re-run, a failed run, or an empty commit with the same
-    tree never clears one."""
+    tree never clears one. The binding verdict also needs the record job's
+    check run on `head` with the same counts (`context["head_records"]`), so
+    a run cancelled before it recorded, whose CRITICAL would not carry,
+    binds nothing."""
     if not isinstance(records, list | tuple) or not isinstance(context, Mapping):
         return None
     found = [
@@ -468,7 +471,16 @@ def _main_bound(
         for record in records
         if (each := _main_review_counted(lane, record, context)) is not None
     ]
-    if not any(done and verdict["head_sha"] == head for verdict, done in found):
+    records = context.get("head_records")
+    recorded = records.get(lane) if isinstance(records, Mapping) else None
+    if not isinstance(recorded, list | tuple):
+        return None
+    if not any(
+        done
+        and verdict["head_sha"] == head
+        and [verdict["findings"], verdict["critical"]] in [list(r) for r in recorded]
+        for verdict, done in found
+    ):
         return None
     counted = [verdict for verdict, _ in found]
     return (

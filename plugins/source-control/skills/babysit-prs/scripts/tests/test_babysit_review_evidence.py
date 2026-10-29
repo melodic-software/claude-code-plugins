@@ -901,6 +901,22 @@ CONTEXT = {
 }
 
 
+def recorded(reviews: Any, context: Any) -> Any:
+    """`context` with the record job's check runs for each review in
+    `reviews` on the head, as a completed run leaves them, unless the test
+    set `head_records` itself."""
+    if not isinstance(context, dict) or "head_records" in context:
+        return context
+    records: dict[str, list[list[int]]] = {lane: [] for lane in LANES}
+    for review in reviews or ():
+        verdict = review.get("verdict") if isinstance(review, dict) else None
+        if isinstance(verdict, dict) and verdict.get("lane") in records:
+            records[verdict["lane"]].append(
+                [verdict.get("findings"), verdict.get("critical")]
+            )
+    return dict(context, head_records=records)
+
+
 def main_review(
     lane: str,
     *,
@@ -975,9 +991,34 @@ class MainRunReviewTests(Base):
                 changed_paths=("app.py", self.SOURCE),
                 head_file=fixed_head,
                 main_reviews=reviews,
-                main_context=context,
+                main_context=recorded(reviews, context),
             )
         )
+
+    def test_a_verdict_with_no_matching_record_on_the_head_does_not_bind(
+        self,
+    ) -> None:
+        # A run cancelled before `record` left a verdict but no check run, so
+        # its CRITICAL would not carry to a later head: it binds nothing.
+        reviews = [main_review(lane, findings=1, critical=1) for lane in LANES]
+        for records in (
+            {lane: [] for lane in LANES},
+            {lane: [[0, 0]] for lane in LANES},
+            {},
+            None,
+        ):
+            with self.subTest(records=records):
+                result = self.main_bind(
+                    reviews, context=dict(CONTEXT, head_records=records)
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+        matched = self.main_bind(
+            reviews,
+            context=dict(CONTEXT, head_records={lane: [[1, 1]] for lane in LANES}),
+        )
+        for lane in LANES:
+            self.assertTrue(matched[lane].bound, lane)
 
     def test_a_clean_main_run_review_of_the_head_binds_both_lanes(self) -> None:
         result = self.main_bind([main_review(lane) for lane in LANES])
@@ -1159,7 +1200,9 @@ class MainRunReviewTests(Base):
                 changed_paths=(self.SOURCE,),
                 head_file=fixed_head,
                 main_reviews=[main_review("claude-review"), runs_review],
-                main_context=CONTEXT,
+                main_context=recorded(
+                    [main_review("claude-review"), runs_review], CONTEXT
+                ),
             )
         )
         security = result["claude-security-review"]
@@ -1228,7 +1271,7 @@ class MainRunReviewTests(Base):
                 base_changed=True,
                 changed_paths=(self.SOURCE,),
                 main_reviews=[main_review(lane) for lane in LANES],
-                main_context=CONTEXT,
+                main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
             )
         )
         for lane in LANES:

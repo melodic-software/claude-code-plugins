@@ -59,7 +59,7 @@ test("the model's job can only read, and the one writer runs no model", () => {
 
 test("the diff shows every file as text and refuses one a review cannot read whole", () => {
   const diff = step("Write the diff");
-  assert.match(diff, /git -C "\$SRC" diff --text --no-ext-diff --no-textconv/);
+  assert.match(diff, /git -C "\$SRC" diff --text --no-renames --no-ext-diff --no-textconv/);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
   assert.match(diff, /-gt "\$MAX_DIFF_BYTES"/);
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
@@ -104,6 +104,35 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
     assert.notEqual(run(` ${"y".repeat(LONG_LINE_BYTES + 1)}`), 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a partial rename is reviewed as the whole new file", () => {
+  const diff = step("Write the diff");
+  const command = diff.match(/^ *(git -C "\$SRC" diff .*?) >"\$DATA\/diff\.patch"$/m)[1];
+  assert.match(command, / --no-renames /);
+  const src = mkdtempSync(path.join(tmpdir(), "pr-review-main-rename-"));
+  try {
+    const git = (...args) => spawnSync("git", ["-C", src, ...args], { encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } });
+    git("init", "-q");
+    const lines = Array.from({ length: 40 }, (_, i) => `line ${i}`);
+    writeFileSync(path.join(src, "notes.md"), `${lines.join("\n")}\n`);
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
+    const base = git("rev-parse", "HEAD").stdout.trim();
+    mkdirSync(path.join(src, ".claude"));
+    git("mv", "notes.md", ".claude/hook.md");
+    writeFileSync(path.join(src, ".claude/hook.md"), `${lines.join("\n")}\nrun the payload\n`);
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "head");
+    const head = git("rev-parse", "HEAD").stdout.trim();
+    const out = spawnSync("bash", ["-c", command], { encoding: "utf8", env: { ...process.env, SRC: src, BASE_SHA: base, HEAD_SHA: head } }).stdout;
+    // Every line of the new file is shown as added, not only the change.
+    assert.doesNotMatch(out, /^rename from/m);
+    assert.match(out, /^\+line 0$/m);
+    assert.match(out, /^\+run the payload$/m);
+  } finally {
+    rmSync(src, { recursive: true, force: true });
   }
 });
 

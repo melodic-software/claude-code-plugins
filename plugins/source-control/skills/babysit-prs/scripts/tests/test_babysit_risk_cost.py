@@ -680,6 +680,16 @@ class WorkflowPrivilegeHolds(_Finding):
                 self.assertHeld(result, PERMISSION_WIDENING_CODE)
                 self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
 
+    def test_an_object_form_secrets_reference_holds(self):
+        for added in ("${{ secrets.* }}", "${{ toJSON(secrets) }}"):
+            with self.subTest(added):
+                head = READ_ONLY + f"    env:\n      K: {added}\n"
+                wf = _file(
+                    WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head)
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
     def test_a_secret_the_head_text_gains_holds_without_a_patch(self):
         head = READ_ONLY + "    env:\n      K: ${{ secrets.DEPLOY_KEY }}\n"
         wf = _file(WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head))

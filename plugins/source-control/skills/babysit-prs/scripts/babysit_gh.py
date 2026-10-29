@@ -2476,6 +2476,56 @@ def collect_main_reviews(
 MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
 
 
+def collect_main_review_counts(
+    repo: str,
+    shas: Iterable[str],
+    names: Mapping[str, str],
+    env_overrides: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, list[tuple[int, int] | None]]]:
+    """Per head SHA and lane, the (findings, CRITICAL) counts of every check
+    run named `names[lane]` on that head, None for a title that does not
+    read. `filter=all` reads every run of the name, since the default
+    returns only the latest, which a re-run or a forged clean record would
+    replace. A failed read raises `RuntimeError`."""
+    found: dict[str, dict[str, list[tuple[int, int] | None]]] = {}
+    for sha in dict.fromkeys(shas):
+        if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
+            raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
+        found[sha] = {}
+        for lane, name in names.items():
+            runs = fetch_paginated_api(
+                f"repos/{repo}/commits/{sha}/check-runs"
+                f"?check_name={quote(name, safe='')}&filter=all&per_page=100",
+                f"{name} on {sha[:12]}",
+                items_key="check_runs",
+                env_overrides=env_overrides,
+            )
+            counts: list[tuple[int, int] | None] = []
+            for check in runs:
+                if check.get("name") != name:
+                    continue
+                title = str(json_object(check.get("output")).get("title") or "")
+                match = MAIN_REVIEW_CHECK_TITLE.fullmatch(title)
+                counts.append((int(match[1]), int(match[2])) if match else None)
+            found[sha][lane] = counts
+    return found
+
+
+def main_review_critical(
+    counts: Mapping[str, Mapping[str, list[tuple[int, int] | None]]],
+    names: Iterable[str],
+) -> dict[str, int]:
+    """Per lane, the most CRITICAL findings any head's record carries; a
+    record whose title did not read counts one, so a doubtful record holds
+    rather than clears."""
+    found = dict.fromkeys(names, 0)
+    for by_lane in counts.values():
+        for lane in found:
+            for each in by_lane.get(lane, ()):
+                found[lane] = max(found[lane], 1 if each is None else each[1])
+    return found
+
+
 def collect_main_review_critical(
     repo: str,
     shas: Iterable[str],
@@ -2485,31 +2535,11 @@ def collect_main_review_critical(
     """Per lane, the most CRITICAL findings any check run named `names[lane]`
     records on one of `shas` (every head of the pull request). The checks API
     has no delete, so a count recorded once stays readable after its verdict
-    artifact expires or is deleted; `filter=all` reads every run of the name,
-    since the default returns only the latest, which a re-run or a forged
-    clean record would replace. A check run of that name whose title does
-    not read counts one CRITICAL, so a doubtful record holds rather than
-    clears. A failed read raises `RuntimeError`."""
-    found = dict.fromkeys(names, 0)
-    for sha in dict.fromkeys(shas):
-        if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
-            raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
-        for lane, name in names.items():
-            runs = fetch_paginated_api(
-                f"repos/{repo}/commits/{sha}/check-runs"
-                f"?check_name={quote(name, safe='')}&filter=all&per_page=100",
-                f"{name} on {sha[:12]}",
-                items_key="check_runs",
-                env_overrides=env_overrides,
-            )
-            for check in runs:
-                if check.get("name") != name:
-                    continue
-                title = str(json_object(check.get("output")).get("title") or "")
-                match = MAIN_REVIEW_CHECK_TITLE.fullmatch(title)
-                critical = int(match[2]) if match else 1
-                found[lane] = max(found[lane], critical)
-    return found
+    artifact expires or is deleted (`collect_main_review_counts`). A failed
+    read raises `RuntimeError`."""
+    return main_review_critical(
+        collect_main_review_counts(repo, shas, names, env_overrides), names
+    )
 
 
 def collect_lane_runs(

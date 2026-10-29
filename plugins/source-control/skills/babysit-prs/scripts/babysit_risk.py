@@ -359,6 +359,12 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("**/.claude/skills/**", "gate"),
     ("**/.claude/agents/**", "gate"),
     ("**/.claude/commands/**", "gate"),
+    # Auto-loaded instructions and the config beside settings, like CLAUDE.md
+    # (owner decision Q11: agent settings and instruction files stay gated).
+    ("**/.claude/rules/**", "gate"),
+    ("**/.claude/*.json", "gate"),
+    ("**/.claude/*.md", "gate"),
+    (".claude-lane/**", "gate"),
     # The security review applies both as its criteria.
     ("docs/conventions/instruction-exception-register/**", "gate"),
     ("docs/conventions/untrusted-content/**", "gate"),
@@ -391,15 +397,22 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
 PERSON_CLASSES = frozenset({"trust", "gate"})
 
 # A secret the job token is not: any `secrets` reference but GITHUB_TOKEN
-# (`secrets.X`, `secrets['X']`, `toJSON(secrets)`, `secrets: inherit`).
+# itself (`secrets.X`, `secrets.*`, `secrets['X']`, `toJSON(secrets)`):
+# any `secrets` context in a `${{ }}` expression (not a word inside a
+# string or a name), not
+# followed by `.github_token` or `['github_token']`; and `secrets: inherit`.
 _NON_JOB_SECRET = re.compile(
-    r"\bsecrets\s*(?:\.\s*(?!github_token\b)[A-Za-z0-9_]+|\[(?!\s*['\"]github_token['\"]\s*\])[^\]]*\])"
-    r"|\bsecrets\b(?=\s*\))|\bsecrets\s*:\s*inherit\b",
+    r"\$\{\{[^}]*?(?<![\w.'\"-])secrets(?![\w-])(?!\s*\.\s*github_token\b)(?!\s*\[\s*['\"]github_token['\"]\s*\])"
+    r"|\bsecrets\s*:\s*inherit\b",
     re.IGNORECASE,
 )
-# A lane token minted in the run, or an OIDC token a cloud trusts.
+# A lane token minted in the run, or an OIDC token a cloud trusts:
+# `id-token: write`, or `write-all`, which sets "access for all of the
+# available permissions" (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions),
+# id-token among them.
 _MINTED_CREDENTIAL = re.compile(
-    r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token\s*:\s*['\"]?write\b",
+    r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token\s*:\s*['\"]?write\b"
+    r"|\bwrite-all\b",
     re.IGNORECASE,
 )
 _REVIEW_WORKFLOW = re.compile(r"pr-review-[a-z0-9-]+")
@@ -436,6 +449,10 @@ _NO_AUTHOR_LIFT = frozenset(
         "**/.claude/skills/**",
         "**/.claude/agents/**",
         "**/.claude/commands/**",
+        "**/.claude/rules/**",
+        "**/.claude/*.json",
+        "**/.claude/*.md",
+        ".claude-lane/**",
         "docs/conventions/instruction-exception-register/**",
         "docs/conventions/untrusted-content/**",
         "**/.mcp.json",
@@ -1019,8 +1036,8 @@ _SAFE_PIPELINE_LINE = re.compile(
 # Any secrets reference: `secrets.NAME`, `secrets['NAME']`, the whole
 # `secrets` context, and `secrets: inherit`.
 _SECRET_REF = re.compile(
-    r"\bsecrets\s*(?:\.\s*[A-Za-z0-9_]+|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b",
+    r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
+    r"|\bsecrets\s*:\s*inherit\b|\$\{\{[^}]*(?<![\w.'\"-])secrets(?![\w-])[^}]*\}\}",
     re.IGNORECASE,
 )
 # A model leg: a claude-code-* action or image, run-claude-cli, or the
