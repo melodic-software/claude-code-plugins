@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.3] - 2026-10-29
+
+### Changed
+
+- `/work-items:work`: the issue lane's outcome file takes a `manual-external` stop code for a manual step on external state that needs the owner present, which the lane routes to the `attended` label; `host-only` now covers a host run alone.
+
 ## [3.11.2] - 2026-10-28
 
 ### Changed
