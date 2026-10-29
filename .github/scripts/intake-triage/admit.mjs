@@ -773,7 +773,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans, appId, rules["task-list"]).flatMap((text) => text.split("\n"));
+  // The body's checks a person runs (personChecks) leave the checks below.
+  // personChecks counts a refinement only on a body a listed human wrote, so
+  // that body is the first trusted text.
+  const texts = trustedSpecTexts(spec, humans, appId, rules["task-list"]);
+  const moved = personChecks(spec, humans, appId, rules["task-list"], webHosts);
+  if (moved.length > 0) {
+    texts[0] = withoutItems(texts[0], rules["task-list"], moved);
+  }
+  const lines = texts.flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
@@ -1067,6 +1075,71 @@ const writtenBy = (humans) => {
 // a body a listed human wrote (refinementSpec).
 const countedRefinement = (spec, humans, appId) => (spec && writtenBy(humans)(spec) ? refinementSpec(spec.comments, appId) : undefined);
 
+// A refinement comment's second line: the issue body it is for.
+export const bodyVersion = (body) => `<!-- refined body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
+
+// A split refinement's third line: the body's done-when items (1-based, as
+// taskItems numbers them) a person runs and the lane does not.
+export const splitItemsLine = (moved) => `<!-- split items=${[...moved].sort((a, b) => a - b).join(",")} -->`;
+const SPLIT_ITEMS = /^<!-- split items=([1-9][0-9]{0,2}(?:,[1-9][0-9]{0,2})*) -->$/;
+
+// Whether a comment carries a split record (splitItemsLine) on its third line.
+export const carriesSplit = (body) => SPLIT_ITEMS.test(String(body ?? "").split("\n")[2] ?? "");
+
+// The body's done-when items (1-based, ascending) a person runs, from
+// intake's split refinement, or []: the refinement that counts as spec
+// (countedRefinement) names the body as it is now (bodyVersion), and its
+// items are exactly the ones the lane cannot perform under `webHosts`
+// (unrunnableCriteria), leaving at least one for the lane, so a record never
+// drops a runnable criterion. The body itself is never edited; this record is
+// the split. Admission (decide), the size split (splitTaskLines), pr-verify
+// (resolve-pr.mjs) and the issue lane (write-issue.mjs) honor only this.
+// `webHosts` may be a function returning them, called only when a record
+// stands, so a caller reads its config only then. Pure but for that call.
+export function personChecks(spec, humans, appId, taskList, webHosts) {
+  const rows = String(countedRefinement(spec, humans, appId)?.body ?? "").split("\n");
+  const match = rows[1] === bodyVersion(spec?.body) ? SPLIT_ITEMS.exec(rows[2] ?? "") : null;
+  if (!match) {
+    return [];
+  }
+  const moved = match[1].split(",").map(Number).sort((a, b) => a - b);
+  const count = taskItems(spec.body, taskList).length;
+  if (new Set(moved).size !== moved.length || moved.length >= count) {
+    return [];
+  }
+  const hosts = typeof webHosts === "function" ? webHosts() : webHosts;
+  const flagged = unrunnableCriteria(spec.body, taskList, hosts).found.map(({ n }) => n);
+  return moved.join() === flagged.join() ? moved : [];
+}
+
+// The issue lane's web hosts as a workflow passes them (ISSUE_LANE_WEB_HOSTS,
+// JSON: "any" or a list of host names; empty when web access is off), or
+// undefined when unset, which allows only GitHub and local hosts. Anything
+// else throws.
+export function webHostsFrom(text) {
+  if (text === undefined || text === "") {
+    return undefined;
+  }
+  const value = JSON.parse(text);
+  if (value === "any" || (Array.isArray(value) && value.every((host) => typeof host === "string"))) {
+    return value;
+  }
+  throw new Error("ISSUE_LANE_WEB_HOSTS is neither \"any\" nor a list of host names");
+}
+
+// The lines the items `moved` (1-based) own: each one's own line and its
+// deeper-indented lines, nested task-list lines included. Pure.
+export const ownedLines = (items, moved) => new Set(items.flatMap(({ line, more }, index) => (moved.includes(index + 1) ? [line, ...more] : [])));
+
+// `body` without the lines the items `moved` own. Pure.
+export const withoutItems = (body, taskList, moved) => {
+  const gone = ownedLines(taskItems(body, taskList), moved);
+  return String(body ?? "")
+    .split("\n")
+    .filter((_, index) => !gone.has(index))
+    .join("\n");
+};
+
 // The texts pr-verify will read as spec: the body and each comment written,
 // and last edited if ever, by a User among `humans`, and, when the body is
 // such text, the lanes App's refinement (refinementSpec)
@@ -1108,9 +1181,11 @@ export const trustedTaskLines = (spec, humans, taskList) => trustedSpecTexts(spe
 // {lines, human, source}: `human` counts the listed human's lines, which come
 // first, and `source` is the refinement's {id, updatedAt} when a line of it
 // follows, else null. A refinement with no readable id or update time adds no
-// line. Pure.
-export function splitTaskLines(spec, humans, taskList, appId) {
-  const own = trustedTaskLines(spec, humans, taskList);
+// line. The body's checks a person runs (personChecks under `webHosts`) are
+// left out. Pure.
+export function splitTaskLines(spec, humans, taskList, appId, webHosts) {
+  const moved = personChecks(spec, humans, appId, taskList, webHosts);
+  const own = trustedTaskLines(moved.length > 0 ? { ...spec, body: withoutItems(spec.body, taskList, moved) } : spec, humans, taskList);
   const refinement = countedRefinement(spec, humans, appId);
   const usable = Number.isSafeInteger(refinement?.databaseId) && typeof refinement.updatedAt === "string";
   const more = usable ? taskLinesOf(refinement.body, taskList) : [];
