@@ -974,7 +974,7 @@ merge:
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
   # of it.
-  max-in-flight: 5
+  max-in-flight: 10
   # Paths the PR checks read (git pathspecs). When main changed one since a
   # PR's merge base, the gate updates the PR from main instead of enqueuing
   # it, and a later run enqueues the new head once its checks pass: a head
