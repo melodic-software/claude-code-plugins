@@ -260,9 +260,16 @@ or Escape.
 ### Passive listener
 
 A scroll or touch listener that promises not to block scrolling, so the browser keeps it smooth.
+It matters for `wheel`, `touchstart` and `touchmove` listeners; the plain `scroll` event cannot block
+scrolling, so `passive` changes nothing there.
 
 **Versus:** throttle limits how often a handler runs; a passive listener promises not to block
 scrolling at all.
+
+- **Pointer**: MDN, `EventTarget.addEventListener()`, "Using passive listeners",
+  <https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener#using_passive_listeners>
+- **As of**: 2026-10-29
+- **Recheck trigger**: the section changes which events `passive` matters for.
 
 ### Pointer events
 

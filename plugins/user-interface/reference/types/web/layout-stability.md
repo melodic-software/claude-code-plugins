@@ -41,7 +41,8 @@ beside it. Equal-width digits keep the timer in the interface's own font. Sectio
 
 Skeleton loaders, image placeholders, and dynamic content areas get hardcoded dimensions (or
 `aspect-ratio`) matching the loaded state. Images always declare their dimensions so the page
-doesn't reflow as they arrive. Videos declare theirs the same way.
+doesn't reflow as they arrive. Videos declare theirs the same way. The attributes don't fix the
+rendered size. They give the browser the ratio so it reserves the box before the bytes arrive.
 
 Skeletons occupy the same box the loaded content will. Whether a view shows a skeleton or a spinner
 is the `states` concern.
@@ -54,16 +55,21 @@ A form's error line works the same way: it is reserved before the error shows, s
 jump when it appears (the `forms` concern renders it). Recipe for media whose file you do not
 control: `image-box-that-holds-any-upload`.
 
-Hunt for: `<img>` and `<video>` with no `width` and `height` or `aspect-ratio`; a value fetched after
-mount rendered into the flow with nothing in its place until it lands; skeletons with a different
-height or row count than the loaded content.
+Hunt for: `<img>`, `<video>` and `<iframe>` with no `width` and `height` or `aspect-ratio`; a value
+fetched after mount rendered into the flow with nothing in its place until it lands; skeletons with
+a different height or row count than the loaded content; `next/image` with `fill` inside a parent
+that has no size; embeds and ad slots.
 
 **Audit: Blocking.** A dynamic number or async value with no reserved space or tabular numbers: it
 will shift the layout. Blocking applies where it arrives after first paint and moves content that is
 already on screen.
 
-**Audit: Important.** An image or video with no dimensions or `aspect-ratio`, or a skeleton or
-placeholder whose box differs from the loaded content.
+**Audit: Blocking.** Media with no reserved box that lands after first paint above content already
+on screen: an image, video, `<iframe>`, embed or ad slot with no dimensions or `aspect-ratio`, or a
+`next/image` with `fill` in a parent that has no size, placed in the first viewport.
+
+**Audit: Important.** The same media placed below the first viewport, or a skeleton or placeholder
+whose box differs from the loaded content.
 
 Preload fonts so text doesn't reflow when they land:
 

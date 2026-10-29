@@ -220,11 +220,12 @@ default `name` / `short_name`.
 
 The hero is the LCP element and the first thing that can go wrong. Check it at 375px wide, where a
 long word in a large size overflows the viewport. The rules underneath belong to their own concerns,
-one home each: preloaded fonts to `layout-stability`, the hero image preloaded with dimensions to
-`web-performance`, the hero's
+one home each: preloaded fonts to `layout-stability`, the hero image's preload to `web-performance`
+and its dimensions to `layout-stability`, the hero's
 `min-height` in small-viewport units to `touch`, and the balanced headline to `typography`.
 
-**Audit: Important.** A hero that shifts on load or overflows the viewport at 375px wide.
+**Audit: Important.** A hero that overflows the viewport at 375px wide, or shifts on load for a
+reason no other concern grades.
 
 ## 6. Header navigation
 

@@ -616,6 +616,40 @@
         "order": 1,
         "procedure": null
       }
+    },
+    {
+      "id": "web-performance",
+      "title": "Web performance",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "LCP",
+        "largest contentful paint",
+        "preload the hero image",
+        "lazy-load images",
+        "responsive images",
+        "virtualize a long list",
+        "virtual list",
+        "code splitting",
+        "bundle size",
+        "debounce search",
+        "static generation",
+        "autoplay video"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/performance.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 9,
+        "procedure": null
+      }
     }
   ]
 }
