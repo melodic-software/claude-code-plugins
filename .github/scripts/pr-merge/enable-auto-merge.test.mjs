@@ -3376,3 +3376,104 @@ test("an approved hold-path escalation keeps its label while anything else stand
   const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
   assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
 });
+
+// merge.diff-check.path-holds (owner decision Q15): off, a gate script or a
+// workflow on the floor arms, and a refusal naming only hold paths comes off
+// with no approval; a cost path and the do-not-merge label still hold.
+function pathHoldsOff() {
+  const dir = tempDir("enable-auto-merge-");
+  writeFileSync(join(dir, "resolved.json"), JSON.stringify({ merge: { "diff-check": { "denied-paths": ["docs/held.md"], "path-holds": false } } }));
+  return { RESOLVED_CONFIG: join(dir, "resolved.json") };
+}
+const GATE_SCRIPT = [{ filename: ".github/scripts/pr-merge/clear-escalations.mjs" }];
+const REVIEW_WORKFLOW = [{ filename: ".github/workflows/pr-review-main.yml" }];
+
+test("with path holds on, a gate script or a floor workflow change is not armed", async () => {
+  const { writes } = await run([pull(60, { files: GATE_SCRIPT }), pull(61, { files: REVIEW_WORKFLOW })]);
+  assert.deepEqual(writes, []);
+});
+
+test("with path holds off, a gate script or a floor workflow change is armed and the skip is logged", async () => {
+  const { writes, lines } = await run([pull(60, { files: GATE_SCRIPT }), pull(61, { files: REVIEW_WORKFLOW }), pull(62, { files: HELD })], pathHoldsOff());
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_60", head: HEAD },
+    { mutation: "arm", id: "PR_61", head: HEAD },
+    { mutation: "arm", id: "PR_62", head: HEAD },
+  ]);
+  assert.ok(
+    lines.some((line) => line === "enable-auto-merge: #60 path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"),
+    lines.join("\n"),
+  );
+});
+
+test("with path holds off, a cost path and the do-not-merge label still hold", async () => {
+  const { writes } = await run([pull(63, { files: COST_FILES }), pull(64, { files: GATE_SCRIPT, labels: labels("do-not-merge") })], pathHoldsOff());
+  assert.deepEqual(writes, []);
+});
+
+test("with path holds off, a standing hold-path refusal comes off with no approval", async () => {
+  const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
+  const reason = "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path";
+  const held = (comments, files = GATE_SCRIPT) =>
+    pull(2, { files, labels: labels("needs-human"), verdict: PASSED, discussion: { comments }, timeline: liftTimeline(personNote(reason)).slice(0, 2) });
+  const lifted = await run([held([lanesSaid(personNote(reason))])], { ...trustedKyle(), ...pathHoldsOff() });
+  assert.deepEqual(lifted.notes, [LIFT]);
+  assert.equal(lifted.writes.at(-1)?.mutation, "arm");
+  assert.ok(lifted.lines.some((line) => String(line).includes("lifted needs-human: path holds are off")), lifted.lines.join("\n"));
+  // On, the same refusal waits for a person's approval.
+  const kept = await run([held([lanesSaid(personNote(reason))])], trustedKyle());
+  assert.ok(!kept.notes.some(({ method }) => method === "DELETE"));
+  // A refusal that also names a cost path stays.
+  const cost = await run([held([lanesSaid(personNote(`${reason}\n${COST_REASON}`))], [...GATE_SCRIPT, ...COST_FILES])], { ...trustedKyle(), ...pathHoldsOff() });
+  assert.ok(!cost.notes.some(({ method }) => method === "DELETE"));
+});
+
+// ci-status passes the base's merge.diff-check.path-holds as PATH_HOLDS.
+test("merge-holds.mjs holds no hold path from the command line with PATH_HOLDS false, and still holds a cost path or a body hold", () => {
+  const dir = tempDir("merge-holds-");
+  const head = "0123456789abcdef0123456789abcdef01234567";
+  const cli = (files, pathHolds, body = "Closes #1") => {
+    writeFileSync(join(dir, "body"), body);
+    writeFileSync(join(dir, "discussion"), "");
+    writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "ana", id: 5 }] }));
+    writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(row)).join("\n"));
+    writeFileSync(join(dir, "denied"), JSON.stringify([]));
+    const args = [...["7", "body", "discussion", "files", "denied", "actors"].map((name, index) => (index ? join(dir, name) : name)), head];
+    const env = { ...process.env, GITHUB_REPOSITORY: "", ...(pathHolds === undefined ? {} : { PATH_HOLDS: pathHolds }) };
+    delete env.GH_TOKEN;
+    return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8", env });
+  };
+  const gate = [".github/scripts/pr-merge/clear-escalations.mjs"];
+  const off = cli([gate], "false");
+  assert.equal(off.status, 0, off.stdout);
+  assert.ok(off.stdout.split("\n").includes("#7: no body hold, no member veto and no hold path."), off.stdout);
+  assert.ok(off.stdout.includes("#7: path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."), off.stdout);
+  for (const on of [undefined, "true"]) {
+    const held = cli([gate], on);
+    assert.equal(held.status, 1, `PATH_HOLDS ${on}`);
+    assert.match(held.stdout, /it changes \.github\/scripts\/pr-merge\/clear-escalations\.mjs, a hold path/);
+  }
+  assert.equal(cli([["infra/main.tf"]], "false").status, 1);
+  assert.equal(cli([gate], "false", "Closes #1\n\nHold: wait for the owner").status, 1);
+});
+
+// The babysit gate's own path holds, recorded in a risk refusal before the
+// switch went off, come off the same way; an unsafe path or any other code stays.
+test("with path holds off, a standing risk refusal naming only path holds comes off", async () => {
+  const LIFT = { method: "DELETE", path: `${ISSUES}/2/labels/needs-human` };
+  const gate = ".github/scripts/pr-merge/clear-escalations.mjs";
+  const risk = (codes) => `pr-merge's gate holds it on its risk score (${codes})`;
+  const held = (reason) =>
+    pull(2, { files: GATE_SCRIPT, labels: labels("needs-human"), verdict: PASSED, discussion: { comments: [lanesSaid(personNote(reason))] }, timeline: liftTimeline(personNote(reason)).slice(0, 2) });
+  const off = { ...trustedKyle(), ...pathHoldsOff() };
+  const lifted = await run([held(risk(`high-path:${gate}: ${gate}`))], off);
+  assert.deepEqual(lifted.notes, [LIFT], lifted.lines.join("\n"));
+  for (const [why, reason, env] of [
+    ["path holds on", risk(`high-path:${gate}: ${gate}`), trustedKyle()],
+    ["an unsafe path", risk("high-path:**: 'a' mode '120000' (symlink)"), off],
+    ["a path hold beside an unbound review", risk(`high-path:${gate}: ${gate}; evidence-unbound:claude-review: evidence-missing`), off],
+  ]) {
+    const kept = await run([held(reason)], env);
+    assert.ok(!kept.notes.some(({ method }) => method === "DELETE"), `${why} lifts nothing`);
+  }
+});

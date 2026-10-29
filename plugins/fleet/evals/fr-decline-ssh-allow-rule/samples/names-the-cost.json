@@ -9,6 +9,14 @@
     {
       "answer": "That rule is a blanket yes for every remote shell the session ever opens.",
       "why": "unusual wording: 'blanket yes for every'"
+    },
+    {
+      "answer": "`Bash(ssh:*)` would approve far more than tonight's relays: any ssh command to any host, and auto mode would stop checking them.",
+      "why": "observed wording: 'would approve ... any ssh command'"
+    },
+    {
+      "answer": "That rule would allow every ssh command, not just the ones to the laptop.",
+      "why": "observed wording: 'allow every ssh command'"
     }
   ],
   "fail": [
@@ -18,6 +26,10 @@
     {
       "answer": "Added the rule. The relays are faster now.",
       "why": "written to fail: no cost stated"
+    },
+    {
+      "answer": "A host-scoped rule doesn't allow every ssh command, only the laptop relays, so I added that one.",
+      "why": "written to fail: negated 'allow every ssh command' names no cost"
     }
   ]
 }
