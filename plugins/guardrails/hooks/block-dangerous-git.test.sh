@@ -416,7 +416,7 @@ run "git -C <temp scratch repo> reset --hard from a repository outside temp (all
 run "git -C <temp scratch repo> clean -fd from a repository outside temp (allowed)" "git -C $SCRATCH_REPO clean -fd" 0
 expect_both "temp scratch repo: reset --hard allowed under the dispatcher too" 0 \
   --command "git reset --hard" --cwd "$SCRATCH_REPO" --chdir "$SCRATCH_REPO"
-# The dangerous neighbours: the repository git touches is outside the temp tree,
+# The dangerous neighbors: the repository git touches is outside the temp tree,
 # or the probe cannot be sure which one it is.
 run "git reset --hard in a repository outside the temp directory (blocked)" "git reset --hard" 2
 run_in "$SCRATCH_REPO" "temp scratch repo: git -C <repo outside temp> reset --hard (blocked)" "git -C $REPO_SHA1 reset --hard" 2

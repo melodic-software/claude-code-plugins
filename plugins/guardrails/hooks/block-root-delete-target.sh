@@ -3165,7 +3165,7 @@ rdt_lit_shape() {
   re="(^|[^A-Za-z0-9_])${n}(\\[|\\+?=|:=)"
   [[ "$t" =~ $re ]] && return 0
   # Every `$NAME` is a whole double-quoted word. Each one found is replaced by
-  # a blank, keeping the characters around it, so a neighbour still matches.
+  # a blank, keeping the characters around it, so a neighbor still matches.
   re="(^|[[:space:];&|(])\"\\\$${n}(/${ch}*)?\"([[:space:];&|)]|\$)"
   while [[ "$t" =~ $re ]]; do
     t="${t/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]} ${BASH_REMATCH[3]}"}"
