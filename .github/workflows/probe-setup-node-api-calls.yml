@@ -1,0 +1,75 @@
+name: Probe setup-node API calls
+
+# One-off measurement for the setup-pinned-node change; removed before the PR
+# opens. Each job reads the job token's x-ratelimit-used twice around
+# nothing (the control) and once more after the Node setup step, so
+# step = r2 - r1 - 1 and control = r1 - r0 - 1 (each read costs one call).
+on:
+  push:
+    branches: [perf/ci-setup-node-no-api]
+    paths:
+      - .github/workflows/probe-setup-node-api-calls.yml
+
+permissions:
+  contents: read
+
+jobs:
+  setup-node:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      max-parallel: 1
+      matrix:
+        run: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read used (r0, r1)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          used() { curl -sS -D - -o /dev/null -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-ratelimit-used"{print $2}'; }
+          r0=$(used); r1=$(used)
+          echo "R1=$r1" >>"$GITHUB_ENV"
+          echo "::notice title=probe::setup-node run ${{ matrix.run }} r0=$r0 r1=$r1 control=$((r1 - r0 - 1))"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Read used (r2)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          r2=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-ratelimit-used"{print $2}')
+          echo "::notice title=probe::setup-node run ${{ matrix.run }} r1=$R1 r2=$r2 step=$((r2 - R1 - 1)) node=$(node --version)"
+
+  setup-pinned-node:
+    needs: setup-node
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      max-parallel: 1
+      matrix:
+        run: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read used (r0, r1)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          used() { curl -sS -D - -o /dev/null -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-ratelimit-used"{print $2}'; }
+          r0=$(used); r1=$(used)
+          echo "R1=$r1" >>"$GITHUB_ENV"
+          echo "::notice title=probe::setup-pinned-node run ${{ matrix.run }} r0=$r0 r1=$r1 control=$((r1 - r0 - 1))"
+      - uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .node-version
+      - name: Read used (r2)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          r2=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-ratelimit-used"{print $2}')
+          echo "::notice title=probe::setup-pinned-node run ${{ matrix.run }} r1=$R1 r2=$r2 step=$((r2 - R1 - 1)) node=$(node --version)"
