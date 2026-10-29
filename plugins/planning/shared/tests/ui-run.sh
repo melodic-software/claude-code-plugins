@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# The browser suites: every ui_*.js beside this file, UI_JOBS at a time (default 2, or 6 under
+# The browser suites of one part: every ui_*.js beside this file that ui-parts.txt (one "<suite> <part>" per line)
+# puts in <part>, run by ui-<part>.test.sh. Before running any, it fails (exit 2) when a ui_*.js beside it is in no
+# part or in two, a row names no suite beside it, or a part has no ui-<part>.test.sh, so every suite runs in exactly
+# one wrapper. A part's suites run UI_JOBS at a time (default 2, or 6 under
 # CI where the runner's memory is the job's own), each into its own buffer printed
 # whole in suite order under `== <suite> <seconds>s`, then the 3 slowest. They start slowest first, by ui-timings.txt
 # (one "<suite> <seconds>" per line, from a full run's headers; a suite it does not list starts last), so the longest
@@ -7,12 +10,49 @@
 # cloudflared), prints SKIP and exits 0 without playwright-core and a Chromium, and exits non-zero on a failed check.
 # Under CI=true a missing node, playwright-core or Chromium fails this script instead of passing it.
 # A suite with timing windows (SERIAL: ui_snappy's millisecond limits, ui_telemetry's one-second dead-tap wait) runs
-# alone after the rest, since parallel load slows it past those windows. Passes only when every suite exits 0.
-#   bash plugins/planning/shared/tests/ui.test.sh
-# test-scope: plugins/planning/shared/tests/browser_harness.js plugins/planning/shared/tests/harness-open.js
-# test-scope: plugins/planning/shared/tests/ui_*.js plugins/planning/shared/web/*
+# alone after the rest of its part, since parallel load slows it past those windows. Passes only when every suite of
+# the part exits 0. --check runs only the part check and exits 0 when it holds.
+#   bash plugins/planning/shared/tests/ui-run.sh <part>
+#   bash plugins/planning/shared/tests/ui-run.sh --check
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+part=${1:-}
+[[ $part == --check || $part =~ ^[a-z]$ ]] || {
+  echo "usage: ui-run.sh <part> | --check, a part being a letter ui-parts.txt names" >&2
+  exit 2
+}
+declare -A part_of=()
+bad=0
+while read -r s p _; do
+  [[ -z $s || $s == \#* ]] && continue
+  if [[ $s != ui_*.js || ! -f $here/$s ]]; then
+    echo "ui-parts.txt: $s is no ui_*.js beside it" >&2
+    bad=1
+  elif [[ -n ${part_of[$s]+x} ]]; then
+    echo "ui-parts.txt: $s is in more than one part" >&2
+    bad=1
+  elif [[ ! -f $here/ui-$p.test.sh ]]; then
+    echo "ui-parts.txt: $s is in part '$p', which has no ui-$p.test.sh" >&2
+    bad=1
+  fi
+  part_of[$s]=$p
+done <"$here/ui-parts.txt"
+suites=()
+for f in "$here"/ui_*.js; do
+  s=${f##*/}
+  if [[ -z ${part_of[$s]+x} ]]; then
+    echo "ui-parts.txt: $s is in no part" >&2
+    bad=1
+  elif [[ ${part_of[$s]} == "$part" ]]; then
+    suites+=("$s")
+  fi
+done
+((bad == 0)) || exit 2
+[[ $part == --check ]] && exit 0
+((${#suites[@]} > 0)) || {
+  echo "ui-parts.txt puts no suite in part '$part'" >&2
+  exit 2
+}
 command -v node >/dev/null || {
   [[ ${CI:-} == true ]] && { echo "FAIL: node is not on PATH" >&2; exit 1; }
   echo "SKIP: node is not on PATH" # silent-skip-ok: a browser suite needs node locally
@@ -38,8 +78,6 @@ run() {
   echo $? >"$out/$1.rc"
   echo $((SECONDS - t0)) >"$out/$1.s"
 }
-suites=()
-for f in "$here"/ui_*.js; do suites+=("${f##*/}"); done
 order=()
 while read -r _ s; do order+=("$s"); done < <(for s in "${suites[@]}"; do
   t=$(awk -v s="$s" '$1 == s { print $2 }' "$here/ui-timings.txt" 2>/dev/null)
