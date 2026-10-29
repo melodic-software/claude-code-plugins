@@ -43,6 +43,7 @@ import {
   CACHE_ONLY_WINDOW_MS,
   ghCalls,
   ghCallsLine,
+  listingMissLines,
   LANE_ROOM_TIMEOUT_MS,
   VERIFY_TIMEOUT_MS,
   VERIFY_BUDGET_MS,
@@ -2437,11 +2438,18 @@ test("ghCalls reads babysit_gh.py's calls line: in all, under GITHUB_TOKEN, and 
   assert.equal(costLine({ number: 7, calls: null, ms: 20 }), "#7 calls=unknown ms=20");
 });
 
-test("pythonVerify logs each read's calls and time, keeps them, and names the error line, not the calls line, on a failure", async () => {
+// Two artifact reads that missed the live count, as
+// babysit_verify_evidence.py prints them before falling back to the full listing.
+const MISSES = [
+  'babysit-listing-miss {"base_age_seconds": 40, "fresh": 3, "kept": 95, "listed": 98, "pages": 1, "stage": "incremental", "total_count": 100}',
+  'babysit-listing-miss {"base_age_seconds": 52, "fresh": 104, "kept": 0, "listed": 104, "pages": 2, "stage": "top-up", "total_count": 101}',
+];
+
+test("pythonVerify logs each read's calls and time, keeps them, and names the error line, not the calls or miss line, on a failure", async () => {
   const line = producedCallsLine();
   const answers = [
     { status: 0, stdout: `${JSON.stringify(PASSED)}\n`, stderr: `${line}\n` },
-    { status: 1, stdout: "", stderr: `Traceback\nRuntimeError: listing 502\n${line}\n` },
+    { status: 1, stdout: "", stderr: `Traceback\nRuntimeError: listing 502\n${MISSES[0]}\n${line}\n` },
   ];
   const spawn = () => answers.shift();
   let at = 1000;
@@ -2459,7 +2467,7 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
   // The reader's per-endpoint calls line reaches the log after each cost
   // line, in the shape the merge job's tee logs, as one line of JSON.
   const logged = `babysit-gh-calls ${JSON.stringify(JSON.parse(line.slice("babysit-gh-calls ".length)))}`;
-  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", logged, "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250", logged]);
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=250", logged, "enable-auto-merge: #2 calls=4 github-token=3 paginated=1 ms=250", logged, MISSES[0]]);
   assert.deepEqual(JSON.parse(logged.slice("babysit-gh-calls ".length)).calls, JSON.parse(line.slice("babysit-gh-calls ".length)).calls);
   assert.deepEqual(
     verify.costs.map(({ number, ms }) => [number, ms]),
@@ -2468,6 +2476,29 @@ test("pythonVerify logs each read's calls and time, keeps them, and names the er
       [2, 250],
     ],
   );
+});
+
+test("listingMissLines keeps each babysit-listing-miss line in order and nothing else", () => {
+  assert.deepEqual(listingMissLines(`warning: something\r\n${MISSES[0]}\r\nbabysit-gh-calls {}\n${MISSES[1]}\n`), MISSES);
+  assert.deepEqual(listingMissLines("warning: something\nbabysit-gh-calls {}\n"), []);
+  assert.deepEqual(listingMissLines(undefined), []);
+});
+
+test("pythonVerify logs the reader's listing misses beside its calls line on a refusal that exits 0", async () => {
+  const line = producedCallsLine();
+  const refusal = { refusal: "verify:unreadable", head: HEAD };
+  const spawn = () => ({ status: 0, stdout: `${JSON.stringify(refusal)}\n`, stderr: `${MISSES[0]}\nwarning: something\n${MISSES[1]}\n${line}\n` });
+  const verify = pythonVerify({ GITHUB_REPOSITORY: REPO }, { spawn, clock: () => 0 });
+  const lines = [];
+  const log = console.log;
+  console.log = (text) => lines.push(text);
+  try {
+    assert.deepEqual(await verify(pull(1)), refusal);
+  } finally {
+    console.log = log;
+  }
+  const logged = `babysit-gh-calls ${JSON.stringify(JSON.parse(line.slice("babysit-gh-calls ".length)))}`;
+  assert.deepEqual(lines, ["enable-auto-merge: #1 calls=4 github-token=3 paginated=1 ms=0", logged, ...MISSES]);
 });
 
 test("the step summary carries each verifier read's cost even when the run raised nothing", async () => {
