@@ -937,13 +937,17 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    a write-access human's fix request created after the newest counted round (its latest marker,
    or the completion of a model check run that ended `success`, `failure`, `cancelled` or
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
-   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
-   finding ending in the `claude-lane: claude-review` footer nor a pr-verify note (a security lane
-   finding, or a `claude[bot]` or listed review bot's finding, whose footer would be model text), or a pr-verify note a
-   trusted person directed, escalates `feedback-round-cap`, which skips `awaiting-human`; otherwise one more round runs on every kept
-   thread (the fresh fixer), and once it has run the select job escalates
-   `feedback-verifier-open` when every kept thread is a pr-verify note, else
-   `feedback-not-converging`; both route to a failing status and skip `lane-stopped`. No escalation or skip runs a
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept
+   thread a person decides (`needsPerson`) escalates `feedback-round-cap`, which skips
+   `awaiting-human`: a security lane finding rated `CRITICAL` or unrated, a `claude[bot]` finding
+   (its footer would be model text), a pr-verify note or listed review bot's finding a trusted
+   person directed, or a listed review bot's finding the security lane's `security` state marks
+   `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
+   carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
+   Once it has run, the select job escalates `feedback-round-cap` when a security lane `IMPORTANT`
+   finding opened by that round's end is still open, else `feedback-verifier-open` when every kept
+   thread is a pr-verify note, else `feedback-not-converging`; those two route to a failing status
+   and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
@@ -1156,7 +1160,32 @@ the comment's first non-blank line or the last one above the footer. Any other s
 so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
 reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
-and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
+and any verdict for it is ignored. One security-review finding is settled without a person or a
+model (`hardRequire`): a flag whose first line is `manifest dependencies: flag` (the lane's
+pinned marker, security-review SKILL.md "Reporting"), on a `plugins/<p>/.claude-plugin/plugin.json`
+thread, rated below `CRITICAL`, with an `INCORRECT` reply; it takes no adjudicator slot. The reply
+job reads the manifest and `.claude-plugin/marketplace.json` at the PR head it checks before
+posting, through the contents API. It resolves the thread with a fixed reply naming the lane's
+cited call sites only when all of these hold: the flagged plugin is a marketplace entry; each
+`dependencies` entry is a bare name (no `@marketplace`, no object form, so no version) of another
+entry whose `source` is a `./` path in this repository; the dependency adds nothing Claude Code
+runs, at the base and the head: its `plugin.json` sets only metadata and `userConfig` (no `hooks`,
+`mcpServers`, `lspServers`, `experimental`, `settings`, `workflows`, `types`, `dependencies` or any
+other key), its marketplace entry only listing fields, and its directory holds no `hooks/`,
+`.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`, since enabling it
+enables those for every user of the flagged plugin; and the lane cited, for each entry, a line of a
+`.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case), outside a
+`## Next` section, where `/<entry>:` starts a token (not inside a path or URL) with no gate,
+condition, fallback or negation word (`installed`, `enabled`, `if`, `when`, `unless`, `once`,
+`exists`, `loaded`, `missing`, `fallback`, `otherwise`, `optional`, `not`, `never`, a `n't`
+contraction and the like) within two lines of it: a hard require
+([plugin philosophy](../../plugin-philosophy.md)). The word list fails closed: a hard require
+worded with one of them escalates. The call-site evidence is read at both
+the base and the head: the cited line holds up at the head, and the cited file already exists at
+the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
+its own call site. Anything else, a failed read included,
+escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
+A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
 head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
 person. Each thread gets one fresh

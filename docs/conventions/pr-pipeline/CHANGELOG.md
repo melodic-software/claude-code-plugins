@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [7.6.0] - 2026-10-29
+
+### Changed
+
+- pr-unblock settles a security-review `manifest dependencies: flag` rated below `CRITICAL` without a person when the lane's `INCORRECT` reply holds up. `hardRequire` in `adjudicate-feedback.mjs` reads the flagged `plugins/<p>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` at the PR head. It checks that the plugin is a marketplace entry, that each `dependencies` entry is a bare name of another entry with a `./` source in this repository, that the dependency adds nothing Claude Code runs at the PR's base and head (a manifest of metadata and `userConfig` only, a marketplace entry of listing fields only, and no `hooks/`, `.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`), and that the lane cited a line of the plugin's skills, agents or commands, outside a `## Next` section, where `/<entry>:` starts a token with no gate, condition, fallback or negation word within two lines, in a file that already holds such an unguarded call at the PR's base, so the call-site evidence is read at both the base and the head. The reply job then posts a fixed reply naming those lines and resolves the thread. Such a flag takes no adjudicator slot, and one the check does not settle escalates `feedback-disputed`: a cross-marketplace, object-form (versioned) or externally sourced entry, a dependency that ships hooks, servers, monitors, executables or dependencies of its own, an optional collaborator or a failed read. A `CRITICAL` or unrated flag, an `UNCERTAIN` or `VALID-defer` reply and every other security-review finding route as before.
+
+### Fixed
+
+- A pr-review-main run whose first attempt failed before any lane's verdict write started (every
+  credential leg stopped) is now re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is, so a lane-source pull request no longer waits for its next push to be
+  reviewed from main.
+
+## [7.5.3] - 2026-10-29
+
+### Added
+
+- A "Write identities" section lists which workflows write as `GITHUB_TOKEN`, the lanes App, the
+  release App or the owner token, and why each split exists.
+
+### Fixed
+
+- The pr-verify fail note no longer scrolls sideways. Each line of the verifier's quoted summary
+  and notes is wrapped at a space within 100 columns, continuations indented two spaces, with a
+  word longer than that (a URL or path) kept whole; a quote over 20 lines folds into a
+  `<details>` block. The text stays in its `text` fence, so a mention, reference, link or HTML in
+  it stays inert.
+
 ## [7.5.2] - 2026-10-29
 
 ### Fixed

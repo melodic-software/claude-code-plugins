@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.3] - 2026-10-29
+
+### Changed
+
+- `/review:security-review` opens each inline comment for a `manifest <field>: flag` with that flag's summary line, `manifest <field>: flag, <reason>`, and puts its severity line last above the footer. The pr-unblock lane matches that first line to find a `dependencies` flag it may settle without a person.
+
 ## [1.7.2] - 2026-10-29
 
 ### Changed

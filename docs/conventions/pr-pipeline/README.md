@@ -1127,8 +1127,10 @@ the rules that only tighten in
   code. Every leg writes the same verdict, so neither the
   record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
   credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
-  comes from a successful run; a run that leaves no verdict leaves the lanes unbound until the
-  next push.
+  comes from a successful run. A run whose first attempt failed before any lane's verdict write
+  started (every leg stopped) is re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is (`maintenance-reconcile-lost-runs`); any other run that leaves no verdict
+  leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
@@ -2786,13 +2788,18 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
-on the requested threads only. With no such request, a security lane finding rated `IMPORTANT` or
-`CRITICAL` (or with no rating the lane reads), a pr-verify note a trusted person directed, a `claude[bot]` or listed review bot's finding, whose lane no footer proves, or a person's `needs-human` hold
-hands the PR to a person; any other
-finding, a security lane `SUGGESTION` and an undirected pr-verify note included, goes to one fresh fixer round, a new session like every round. That is the last automatic
-round: once it has run, no sweep, schedule or dispatch starts another, and the next select fails
-the head as `feedback-verifier-open` when only pr-verify notes are open, else as
-`feedback-not-converging`, a comment that names the open threads. A round cap is a lane bound, not
+on the requested threads only. With no such request, a security lane finding rated `CRITICAL` (or
+with no rating the lane reads), a pr-verify note or listed review bot's finding a trusted person
+directed, a listed review bot's finding on a head the security lane held as `CRITICAL`, a
+`claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold hands the PR
+to a person; any other finding, a security lane `IMPORTANT` or `SUGGESTION`, a listed review bot's
+finding and an undirected pr-verify note included, goes to one fresh fixer round, a new session like
+every round, whose preamble carries a fixed brief: fix each finding in code and never weaken a
+test or check to close one. That is the last automatic round: once it has run, no sweep, schedule
+or dispatch starts another. The next select hands the PR to a person when a security lane
+`IMPORTANT` finding that round was given is still open, and otherwise fails the head as
+`feedback-verifier-open` when only pr-verify notes are open, else as `feedback-not-converging`, a
+comment that names the open threads. A round cap is a lane bound, not
 an intent question, and pr-verify's FAIL already holds the merge until it passes a later head. Removing the label alone does not resume it, since
 the rounds already run still count: a person resolves the open threads, or a write-access fix
 request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
@@ -3092,9 +3099,10 @@ that lane has posted its reviewed-head marker for the head the bot reviewed and 
 `critical-security` hold (its `claude-lane-hold` comment) on that head, or one posted after the
 bot's review, on a later head, sends the dispute to a person as `feedback-question-security`.
 Before the lane has reviewed the head, the dispute waits: the round escalates nothing and skips
-`finding-stands`, so the next review completion or the scheduled sweep runs it again. Past the
-round cap such a finding
-goes to a person, as a `claude[bot]` finding does. The bot's later comments in its thread
+`finding-stands`, so the next review completion or the scheduled sweep runs it again. At the
+round cap such a finding goes to the fresh fixer round as a code-review lane finding does, unless
+a trusted person directed it or the security-review lane held its head as `CRITICAL`, which goes
+to a person ([Loop caps](#loop-caps)). The bot's later comments in its thread
 count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the

@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.21.2] - 2026-10-29
+
+### Changed
+
+- `/source-control:pull-request create` merges the base into the branch before it pushes and opens the draft when the open state resolves to `ready` and `ready`'s `base-merge` step would run, including under `create --pushed` when the worker's branch is behind. `ready`'s base merge then finds nothing to push, so the PR no longer starts a `synchronize` CI run between the `opened` and `ready_for_review` runs. A `draft` state keeps the old behavior.
+
+## [3.21.1] - 2026-10-29
+
+### Changed
+
+- `comments --ci` records `INCORRECT` on a security-review `manifest dependencies: flag` when each entry is a bare name of another plugin in the repository's own `.claude-plugin/marketplace.json` and the flagged plugin cannot work without it. The reply cites, for each entry, a line in the flagged plugin, outside a `## Next` section, that invokes `/<entry>:`. When any entry is optional (presence-gated, with a fallback), it records `UNCERTAIN`.
+
 ## [3.21.0] - 2026-10-29
 
 ### Added
