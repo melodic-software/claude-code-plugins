@@ -984,7 +984,8 @@ the rules that only tighten in
   `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
-  and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
+  and Q26 option B), matched case-insensitively whatever `high-path-floor` says, while
+  `merge.diff-check.path-holds` is true (owner decision Q15 turns it off here):
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
@@ -1392,9 +1393,13 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the manifest review HIGH; the fixed HIGH path floor scores
-  either way),
+  either way while `path-holds` is true),
+  `path-holds` (true holds a pull request for a changed path alone: the path floor, `denied-paths`
+  and `review-path:` in the gate, enable-auto-merge's and ci-status's hold paths; absent or false
+  holds none and the gate report lists each skipped hold as `risk.pathHoldsSkipped`),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `high-path-floor: false` (owner direction 2026-10-24) and `path-holds: false` (owner decision
+  Q15, 2026-10-29, until open issues and pull requests reach zero); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the manifest review and
   both caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
@@ -1819,13 +1824,15 @@ the pull request opened, while it waits to be armed or sits in the queue, stops 
 person on that list lifts it by removing the label and re-queuing. A person's own pull request is
 not read.
 
-report-outcome writes no `Hold:` line only because the issue lane's runner checks did not report
-(missing or for another tip): that line would also fail `ci-status`, so pr-verify would never run,
-and `ci-status` reruns those checks on the head. A reuse leak scan is not covered that way, so on a
-reused branch any scan word but `clean` still holds: `lint-repo`'s gitleaks scan honors a
-`gitleaks:allow` comment or `.gitleaksignore` the branch can add, its password rule misses short
-or symbol-bearing values the lane scan flags, and it reads only the commits' patches. A failed
-runner check and every trust reason still write the line.
+report-outcome writes no `Hold:` line because of the issue lane's runner checks, failed or not
+reported (missing or for another tip): that line would also fail `ci-status`, so pr-verify would
+never run, and `ci-status` reruns those checks on the head, where a failing one goes to the fix
+lanes like any other. The PR's Verification section lists each runner check's result. A `done` run
+whose runner check failed opens no PR: it stops `check-failed`, which retries. A reuse leak scan is
+not covered that way, so on a reused branch any scan word but `clean` still holds: `lint-repo`'s
+gitleaks scan honors a `gitleaks:allow` comment or `.gitleaksignore` the branch can add, its
+password rule misses short or symbol-bearing values the lane scan flags, and it reads only the
+commits' patches. Every trust reason still writes the line.
 
 A removal by a non-human cannot be lifted on that issue: both readers check every removal in the
 issue's timeline, and the timeline keeps it, so a trusted person re-adding and then removing the
