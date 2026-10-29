@@ -2420,7 +2420,9 @@ them on every `pull_request` run, contract-only runs included:
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
   trust-gate path (the hold-paths above less the security review's own files, matched
   case-insensitively), since no lane
-  reviews it; a person merges it. The same holds a same-repository PR that changes a trust-gate
+  reviews it; a person merges it. That hold applies only while `merge.diff-check.path-holds` is true:
+  `scripts/sync-hold-floor.py` writes an empty `hold_patterns` list otherwise, and this repository
+  sets it false (owner decision Q21, 2026-10-29), so no exempt author's PR is held for its paths. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off until `melodic-agent[bot]` is listed again) opened it, is the

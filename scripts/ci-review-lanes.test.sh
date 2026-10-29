@@ -111,16 +111,29 @@ else
   fail "the review callers pin different or no pr-review-cli commits: ${pins//$'\n'/ }"
 fi
 
-# An exempt author's pull request, which no review lane reads, still fails on
-# the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
+# The trust-gate paths in bash form, as sync-hold-floor.py writes them with
+# merge.diff-check.path-holds true: `**/X` is X or */X, a trailing `**` is
 # `*`. The security review's own files in hold-paths are scrutiny only.
 want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
-if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
-  ok "the exempt-author hold patterns are the trust-gate paths"
+# Owner decision Q21 (2026-10-29): this repository's path-holds is false, so
+# the step carries an empty list and no exempt author is held for its paths.
+if [[ "$(yq '.merge."diff-check"."path-holds" // false' "$ROOT/docs/conventions/pr-pipeline.yaml")" == false && -z "$got_patterns" ]]; then
+  ok "with path-holds false the exempt-author hold patterns are empty"
 else
-  fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
+  fail "exempt-author hold patterns '$got_patterns' do not follow merge.diff-check.path-holds"
 fi
+if [[ -n "$want_patterns" ]]; then
+  ok "the hardened exempt-author hold patterns are the trust-gate paths"
+else
+  fail "no trust-gate paths to hold"
+fi
+# The cases below exercise the hold with the hardened list, so turning
+# path-holds back on is tested before it is needed.
+cp "$TMP_ROOT/body.sh" "$TMP_ROOT/body.live.sh"
+hardened="hold_patterns=($(sed "s/.*/'&'/" <<<"$want_patterns" | paste -sd' '))"
+awk -v line="$hardened" '/^ *hold_patterns=\(/ { match($0, /^ */); print substr($0, 1, RLENGTH) line; next } { print }' \
+  "$TMP_ROOT/body.sh" >"$TMP_ROOT/body.hardened" && mv "$TMP_ROOT/body.hardened" "$TMP_ROOT/body.sh"
 
 # The base commit's config names the agent App.
 mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/conventions"
@@ -229,7 +242,7 @@ expect() {
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
-    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -407,6 +420,12 @@ for changed in .github/standards/trusted-actors/trusted-actors.json .github/acti
   .GitHub/Actions/Request-Lane-Token/action.yml vendor/sub/.GitModules docs/CodeOwners Scripts/Sync-Hold-Floor.PY; do
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
+done
+# Owner decision Q21 (2026-10-29): the step as committed, path-holds false,
+# holds no exempt author for a trust-gate path.
+for changed in CODEOWNERS .github/actions/request-lane-token/action.yml .gitmodules; do
+  STUB_FILES="$(files "$changed")" STUB_CHANGED=1
+  BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 expect "with path-holds off an exempt author changing $changed passes" 0 "no trust-gate path changed"
 done
 for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs \
   plugins/review/skills/security-review/SKILL.md plugins/review/evals/security-review-kill-switch-narrowed/prompt.md; do

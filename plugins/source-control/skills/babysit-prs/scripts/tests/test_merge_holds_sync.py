@@ -43,6 +43,7 @@ workflow change after auto-merge is armed.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import fnmatch
 import json
 import pathlib
@@ -298,10 +299,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
             text=True,
             check=True,
         )
-        workflow = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
-            encoding="utf-8"
-        )
-        line = re.search(r"^ *(hold_patterns=\(.*\))$", workflow, re.MULTILINE)[1]
+        line = _hold_patterns_line()
         bash = subprocess.run(
             [
                 "bash",
@@ -510,11 +508,35 @@ def _hold_paths(workflow: str) -> list[str]:
     return block[1].split()
 
 
-def _hold_patterns() -> list[str]:
+def _sync_hold_floor() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "sync_hold_floor", ROOT / "scripts/sync-hold-floor.py"
+    )
+    assert spec and spec.loader
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def _hold_patterns_line() -> str:
+    """ci-status's exempt-author `hold_patterns` as the generator writes them
+    with `merge.diff-check.path-holds` true: the hardened list. While the
+    switch is false the workflow carries an empty list
+    (test_the_workflow_list_follows_the_path_holds_switch)."""
+    return _sync_hold_floor().hold_patterns("", holds=True)[0]
+
+
+def _workflow_hold_patterns() -> list[str]:
     text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
         encoding="utf-8"
     )
     found = re.search(r"^ *hold_patterns=\((.*)\)$", text, re.M)
+    assert found
+    return shlex.split(found[1])
+
+
+def _hold_patterns() -> list[str]:
+    found = re.fullmatch(r"hold_patterns=\((.*)\)", _hold_patterns_line())
     assert found
     return shlex.split(found[1])
 
@@ -561,6 +583,15 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(any(_shared_glob(g, path) for g in config["paths"]))
         self.assertFalse(any(_shared_glob(g, "README.md") for g in config["paths"]))
+
+    def test_the_workflow_list_follows_the_path_holds_switch(self) -> None:
+        # Owner decision Q21 (2026-10-29): with merge.diff-check.path-holds
+        # false, no exempt author's pull request is held for its paths.
+        sync = _sync_hold_floor()
+        self.assertEqual(sync.hold_patterns("", holds=False), ["hold_patterns=()"])
+        want = _hold_patterns() if sync.path_holds() else []
+        self.assertEqual(_workflow_hold_patterns(), want)
+        self.assertTrue(_hold_patterns())
 
     def test_each_list_covers_every_floor_entry(self) -> None:
         lists = {

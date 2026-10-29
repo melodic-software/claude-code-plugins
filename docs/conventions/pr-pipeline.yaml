@@ -1079,7 +1079,8 @@ merge:
   # (pr-merge.yml and pr-require-checks.yml, by owner direction 2026-10-27;
   # the other modules the floored scripts import; the rest of the Python that
   # decides the holds) wait for a clean security review bound to the head.
-  # It holds whatever `high-path-floor` says. `high-path-floor:
+  # It holds whatever `high-path-floor` says, while `path-holds` (below) is
+  # true. `high-path-floor:
   # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The
   # verifier verdict, both AI review lanes, ci-status and the post-merge
@@ -1092,6 +1093,12 @@ merge:
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.
+  # `path-holds: false`: no changed path holds a pull request for its path
+  # alone, not the floor above, denied-paths nor `review-path:` (owner
+  # decision Q15, 2026-10-29: "We shouldn't really have any path
+  # restrictions at all"). True brings every one back. The gate report and
+  # enable-auto-merge's log name each hold it skipped.
   diff-check:
     denied-paths: []
     high-path-floor: false
+    path-holds: false
