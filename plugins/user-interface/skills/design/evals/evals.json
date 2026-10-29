@@ -127,7 +127,7 @@
       "expectations": [
         "The answer offers Pencil for the handoff and asks whether to install it",
         "The answer points to https://docs.pen.dev/getting-started/installation for the install and sign-in steps rather than stating an install command of its own",
-        "The answer offers no tool other than Pencil for the handoff: figma, canva, sketch and penpot stay deferred in the merged routes",
+        "The answer offers no tool other than Pencil for the handoff: the figma@claude-plugins-official, canva@claude-plugins-official, sketch and penpot rows stay deferred in the merged routes",
         "The answer installs nothing and runs no install command"
       ]
     },
