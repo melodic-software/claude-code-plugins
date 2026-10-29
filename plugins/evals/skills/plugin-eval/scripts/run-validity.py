@@ -347,16 +347,19 @@ def sets_scaffold(case, root):
         return None, "no case directory at %s" % os.path.join(root, case_dir)
     path = os.path.join(root, case_dir, CASE_YAML)
     try:
-        with open(path, encoding="utf-8") as handle:
+        with open(path, encoding="utf-8-sig") as handle:
             text = handle.read()
     except FileNotFoundError:
         return False, None
     except (OSError, ValueError) as error:
         return None, "cannot read %s (%s)" % (path, error)
     in_context = False
-    for line in text.splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
+    lines = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    for index, line in enumerate(lines):
         top = re.match(r"([^\s#][^:]*):\s*(.*)", line)
         if top:
             in_context = top.group(1).strip("'\"") == YAML_CONTEXT
@@ -364,9 +367,14 @@ def sets_scaffold(case, root):
                 pair = re.search(r"\b%s\s*:\s*([^,}]*)" % YAML_SCAFFOLD, top.group(2))
                 return bool(pair and yaml_scalar(pair.group(1))), None
             continue
-        pair = re.match(r"\s+%s:\s*(.*)" % YAML_SCAFFOLD, line)
+        pair = re.match(r"(\s+)%s:\s*(.*)" % YAML_SCAFFOLD, line)
         if in_context and pair:
-            return bool(yaml_scalar(pair.group(1))), None
+            if not re.sub(r"(^|\s+)#.*$", "", pair.group(2)).strip():
+                # No inline value: a more indented next line holds it.
+                after = lines[index + 1] if index + 1 < len(lines) else ""
+                indent = len(after) - len(after.lstrip())
+                return indent > len(pair.group(1)), None
+            return bool(yaml_scalar(pair.group(2))), None
     return False, None
 
 

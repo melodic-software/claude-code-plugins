@@ -843,6 +843,8 @@ class RunValidityTest(unittest.TestCase):
             "context:\n  add_dirs: [resources]\n"
             "  scaffold_script: 'fixture.sh' # git repo\n",
             "context: {scaffold_script: fixture.sh}\n",
+            "context:\n  scaffold_script:\n    fixture.sh\n",
+            b"\xef\xbb\xbfcontext:\n  scaffold_script: fixture.sh\n",
         ):
             path = self.scaffold_suite(case_yaml)
             proc = self.run_script(path, "--runs", "1")
@@ -866,6 +868,8 @@ class RunValidityTest(unittest.TestCase):
             "name: measurable-criterion\ncontext:\n  add_dirs: [resources]\n",
             "name: measurable-criterion\n# scaffold_script: fixture.sh\n",
             "scaffold_script: fixture.sh\ncontext:\n  history_file: h.jsonl\n",
+            "context:\n  scaffold_script:\n  add_dirs: [resources]\n",
+            "context:\n  scaffold_script: ~\n",
         ):
             proc = self.run_script(self.scaffold_suite(case_yaml), "--runs", "1")
             self.assertVerdict(proc, "VALID", 0)
