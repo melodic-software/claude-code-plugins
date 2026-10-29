@@ -4,7 +4,28 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { adjudicable, adjudicationReply, checkQuote, collect, contractIssues, DISPUTED, disputes, FINDING_STANDS_SKIP, MAX_THREADS, main, parseVerdicts, prepare, quoteSource, reviewerEvidence, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import {
+  adjudicable,
+  adjudicationReply,
+  checkQuote,
+  collect,
+  contractIssues,
+  dependencyFlag,
+  DISPUTED,
+  disputes,
+  FINDING_ANSWERED,
+  FINDING_STANDS_SKIP,
+  hardRequireReply,
+  main,
+  MARKETPLACE,
+  MAX_THREADS,
+  parseVerdicts,
+  prepare,
+  quoteSource,
+  reviewerEvidence,
+  settleDisputes,
+  verdictOf,
+} from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { noteComments } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -744,4 +765,316 @@ test("a security-review IMPORTANT or a CRITICAL finding stays held even with a s
     assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "INCORRECT", settled), { escalationReason: reason, skipReason: "" }, label);
     assert.deepEqual(await settleOffline(new Map([["PRRT_a", make("PRRT_a")]]), "UNCERTAIN", settled), { escalationReason: "feedback-uncertain", skipReason: "" }, label);
   }
+});
+
+// A security-review flag on a plugin manifest's `dependencies` (the #10049
+// shape: planning -> work-items), rated IMPORTANT. The script checks the
+// manifest and the marketplace at the adjudicated head itself, the marketplace
+// at the PR's base, and the lane's cited call site at both the head and the
+// base, before it settles the flag without a person.
+const FLAG_PATH = "plugins/planning/.claude-plugin/plugin.json";
+const SITE = "plugins/planning/skills/wayfind/SKILL.md:2";
+const GUARDED_SITE = "plugins/planning/skills/wayfind/SKILL.md:6";
+const MOVED = "b".repeat(40);
+const FLAG = [
+  "manifest dependencies: flag, planning now requires work-items",
+  "",
+  "Enabling planning now enables work-items on update. There is no external source, so this is not CRITICAL.",
+  "",
+  "severity: IMPORTANT",
+  "",
+  "claude-lane: claude-security-review",
+].join("\n");
+const manifestWith = (dependencies) => JSON.stringify({ name: "planning", dependencies });
+const FLAG_FILES = {
+  [FLAG_PATH]: manifestWith(["work-items"]),
+  [MARKETPLACE]: JSON.stringify({
+    name: "melodic-software",
+    plugins: [
+      { name: "planning", source: "./plugins/planning" },
+      { name: "work-items", source: "./plugins/work-items" },
+      { name: "remote", source: { source: "github", repo: "o/remote" } },
+      { name: "escape", source: "./plugins/../../elsewhere" },
+    ],
+  }),
+  "plugins/planning/skills/wayfind/SKILL.md": [
+    "# wayfind",
+    "Write each item through `/work-items:track add`.",
+    "",
+    "## Sync",
+    "",
+    "When `/work-items:track` is installed, run it; otherwise write the item to a file.",
+    "",
+  ].join("\n"),
+  "plugins/planning/skills/goal/SKILL.md": ["# goal", "Multi-window work, when `work-items` is enabled:", "run `/work-items:work` on the backlog.", "", "", "", "", "Never call `/work-items:decompose` here.", ""].join("\n"),
+  "plugins/planning/skills/wayfind/evals/evals.json": '{"prompt": "route to /work-items:track add"}\n',
+  "plugins/planning/CHANGELOG.md": "- Wayfind writes through `/work-items:track add`.\n",
+  "plugins/work-items/skills/track/SKILL.md": "Run `/work-items:track add` for each item.\n",
+  "plugins/work-items/.claude-plugin/plugin.json": JSON.stringify({ name: "work-items", version: "1.0.0", description: "Tracker", author: { name: "o" }, license: "MIT", keywords: [], userConfig: {} }),
+};
+// The dependency's top-level entries, as listTree returns them.
+const FLAG_TREES = { "plugins/work-items": [".claude-plugin", "skills", "lib", "scripts", "README.md", "CHANGELOG.md"].map((name) => ({ name })) };
+
+// The PR's base, where the marketplace must already list each dependency and
+// each cited call-site file must already invoke it unguarded.
+const BASE = "d".repeat(40);
+const settleFlag = async ({ files = FLAG_FILES, baseFiles = FLAG_FILES, baseMarketplace = FLAG_FILES[MARKETPLACE], trees = FLAG_TREES, baseTrees = trees, baseSha = BASE, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
+  const posts = [];
+  const logs = [];
+  let resolved = false;
+  const result = await settleDisputes({
+    headSha,
+    api: {
+      getPull: async (pr) => {
+        assert.equal(pr, 42);
+        return { base: { sha: baseSha } };
+      },
+      getText: async (file, ref) => {
+        if (files === null) {
+          throw new Error("GET returned 502");
+        }
+        if (ref === BASE) {
+          return file === MARKETPLACE ? baseMarketplace : baseFiles[file] ?? null;
+        }
+        assert.equal(ref, headSha ?? HEAD, "files are read at the PR head");
+        return files[file] ?? null;
+      },
+      listTree: async (ref, dir) => {
+        if (trees === null) {
+          throw new Error("GraphQL returned 502");
+        }
+        return (ref === BASE ? baseTrees : trees)[dir] ?? [];
+      },
+      readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2, 3] }),
+      replyToComment: async (pr, id, text) => {
+        posts.push(text);
+        return { id: 4, in_reply_to_id: id };
+      },
+    },
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition }],
+    replies: [{ thread: "PRRT_a", disposition, evidence }],
+    shown: new Map([["PRRT_a", { path, comment_ids: [1, 2] }]]),
+    now: new Map([["PRRT_a", thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body }], path)]]),
+    verdicts: new Map(),
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => {
+      resolved = true;
+      return true;
+    },
+    escalationReason: "",
+    log: (line) => logs.push(line),
+  });
+  return { result, posts, resolved, logs };
+};
+
+test("dependencyFlag takes only a non-CRITICAL security-review flag on a plugin manifest's dependencies", () => {
+  const root = (body, extra = {}) => [{ id: 1, author: "reviewer", lane: "claude-security-review", body, ...extra }];
+  assert.equal(dependencyFlag(root(FLAG), FLAG_PATH), true);
+  assert.equal(dependencyFlag(root(FLAG.replace("IMPORTANT", "SUGGESTION")), FLAG_PATH), true);
+  for (const [label, comments, path] of [
+    ["CRITICAL", root(FLAG.replace("IMPORTANT", "CRITICAL")), FLAG_PATH],
+    ["unrated", root(FLAG.replace("severity: IMPORTANT\n", "")), FLAG_PATH],
+    ["another field", root(FLAG.replace("manifest dependencies:", "manifest hooks:")), FLAG_PATH],
+    ["marker not first", root(`**x**\n\n${FLAG}`), FLAG_PATH],
+    ["the marketplace file", root(FLAG), MARKETPLACE],
+    ["the code-review lane", [{ id: 1, author: "reviewer", lane: "claude-review", body: FLAG }], FLAG_PATH],
+    ["a listed bot", root(FLAG, { listed: true, security: "clear" }), FLAG_PATH],
+    ["a person", [{ id: 1, author: "trusted-human", lane: "claude-security-review", body: FLAG }], FLAG_PATH],
+  ]) {
+    assert.equal(dependencyFlag(comments, path), false, label);
+  }
+});
+
+test("settleDisputes resolves a same-marketplace bare-name hard-require flag without needs-human, citing the call site", async () => {
+  const { result, posts, resolved } = await settleFlag();
+  assert.deepEqual(result, { escalationReason: "", skipReason: "" });
+  assert.equal(resolved, true);
+  assert.deepEqual(posts, [hardRequireReply(FLAG_PATH, [SITE], HEAD)]);
+  assert.equal(posts[0].split("\n")[0], FINDING_ANSWERED);
+  assert.match(posts[0], new RegExp(`Evidence: \`${SITE}\``));
+  // A guarded line cited beside the call site does not stop it.
+  assert.equal((await settleFlag({ evidence: [GUARDED_SITE, SITE] })).resolved, true);
+  // After this round's fix push the files are read, and named, at the new head.
+  const moved = await settleFlag({ headSha: MOVED });
+  assert.equal(moved.resolved, true);
+  assert.deepEqual(moved.posts, [hardRequireReply(FLAG_PATH, [SITE], MOVED)]);
+  // An INCORRECT reply on the flag takes no adjudicator slot, at either rating;
+  // an UNCERTAIN one on a SUGGESTION flag is adjudicated as before.
+  const flagThread = (body) => thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body }], FLAG_PATH);
+  const SUGGESTED = FLAG.replace("IMPORTANT", "SUGGESTION");
+  assert.deepEqual(disputes(fileOf(flagThread(FLAG)), incorrect("PRRT_a")).slots, []);
+  assert.deepEqual(disputes(fileOf(flagThread(SUGGESTED)), incorrect("PRRT_a")).slots, []);
+  assert.deepEqual(disputes(fileOf(flagThread(SUGGESTED)), incorrect("PRRT_a", { disposition: "UNCERTAIN" })).slots.map((slot) => slot.thread), ["PRRT_a"]);
+});
+
+test("a cross-marketplace, versioned or externally sourced entry, an optional collaborator, a CRITICAL rating or an unsettled reply still escalates", async () => {
+  const cases = [
+    ["cross-marketplace entry", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["work-items@other-marketplace"]) } }],
+    ["versioned entry", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith([{ name: "work-items", version: "1.0.0" }]) } }],
+    ["external source", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["remote"]) }, evidence: [GUARDED_SITE] }],
+    ["source escaping the repository", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["escape"]) } }],
+    ["not in the marketplace", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith(["work-items", "absent"]) } }],
+    ["no dependencies", { files: { ...FLAG_FILES, [FLAG_PATH]: manifestWith([]) } }],
+    ["optional collaborator with a fallback", { evidence: [GUARDED_SITE] }],
+    ["presence gate on an adjacent line", { evidence: ["plugins/planning/skills/goal/SKILL.md:3"] }],
+    ["negated call", { evidence: ["plugins/planning/skills/goal/SKILL.md:8"] }],
+    ["eval case", { evidence: ["plugins/planning/skills/wayfind/evals/evals.json:1"] }],
+    ["changelog", { evidence: ["plugins/planning/CHANGELOG.md:1"] }],
+    ["call site in another plugin", { evidence: ["plugins/work-items/skills/track/SKILL.md:1"] }],
+    ["cited line that invokes nothing", { evidence: ["plugins/planning/skills/wayfind/SKILL.md:1"] }],
+    ["unsettled SUGGESTION flag", { body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] }],
+    ["CRITICAL rating", { body: FLAG.replace("IMPORTANT", "CRITICAL") }],
+    ["flagged plugin not in the marketplace", { files: { ...FLAG_FILES, [MARKETPLACE]: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/work-items" }] }) } }],
+    // The same PR adds the dependency's marketplace entry: only the head lists it.
+    ["dependency not in the marketplace at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "planning", source: "./plugins/planning" }] }) }],
+    ["dependency at another source at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/other" }] }) }],
+    ["no marketplace at the PR base", { baseMarketplace: null }],
+    // null, not undefined: settleFlag's default would replace undefined with BASE.
+    ["unknown PR base", { baseSha: null }],
+    ["a failed read", { files: null }],
+  ];
+  for (const [label, options] of cases) {
+    const { result, posts, resolved } = await settleFlag(options);
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" }, label);
+    assert.deepEqual(posts, [], label);
+    assert.equal(resolved, false, label);
+  }
+  for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+    const { result, posts } = await settleFlag({ disposition });
+    assert.deepEqual(result, { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
+    assert.deepEqual(posts, [], disposition);
+  }
+  // Every other security-review finding still goes to a person.
+  const hooks = await settleFlag({ body: FLAG.replace("manifest dependencies:", "manifest hooks:") });
+  assert.deepEqual(hooks.result, { escalationReason: "feedback-disputed", skipReason: "" });
+  assert.deepEqual(hooks.posts, []);
+});
+
+test("hardRequire reads the cited call site at the PR base as well as the head", async () => {
+  const WAYFIND = "plugins/planning/skills/wayfind/SKILL.md";
+  const withBase = (text) => ({ ...FLAG_FILES, [WAYFIND]: text });
+  const baseWhy = `work-items: no line of ${WAYFIND} at the PR base invokes /work-items: with no gate, fallback or negation within 2 lines`;
+  for (const [label, baseFiles] of [
+    ["the cited file is absent at the base", { ...FLAG_FILES, [WAYFIND]: undefined }],
+    ["the call line was added only at the head", withBase(["# wayfind", "", "## Sync", ""].join("\n"))],
+    ["the base line carries a guard word", withBase(["# wayfind", "", "", "", "Run `/work-items:track add` if installed.", ""].join("\n"))],
+  ]) {
+    const { result, posts, resolved, logs } = await settleFlag({ baseFiles });
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" }, label);
+    assert.deepEqual(posts, [], label);
+    assert.equal(resolved, false, label);
+    assert.ok(logs.some((line) => line.includes(baseWhy)), label);
+  }
+  // An unguarded call line at both base and head settles, wherever it sits at the base.
+  const settled = await settleFlag({ baseFiles: withBase(["# wayfind", "", "", "", "", "Write each item through `/work-items:track add`.", ""].join("\n")) });
+  assert.deepEqual(settled.result, { escalationReason: "", skipReason: "" });
+  assert.equal(settled.resolved, true);
+  assert.deepEqual(settled.posts, [hardRequireReply(FLAG_PATH, [SITE], HEAD)]);
+});
+
+const WORK_ITEMS_MANIFEST = "plugins/work-items/.claude-plugin/plugin.json";
+const inertManifest = JSON.parse(FLAG_FILES[WORK_ITEMS_MANIFEST]);
+const withManifest = (extra) => ({ ...FLAG_FILES, [WORK_ITEMS_MANIFEST]: JSON.stringify({ ...inertManifest, ...extra }) });
+const withTree = (...names) => ({ "plugins/work-items": [...FLAG_TREES["plugins/work-items"], ...names.map((name) => ({ name }))] });
+const marketplaceWith = (extra) =>
+  JSON.stringify({ ...JSON.parse(FLAG_FILES[MARKETPLACE]), plugins: JSON.parse(FLAG_FILES[MARKETPLACE]).plugins.map((entry) => (entry.name === "work-items" ? { ...entry, ...extra } : entry)) });
+
+test("hardRequire settles only a dependency that adds nothing Claude Code runs, read at the PR base and head", async () => {
+  // A manifest of metadata and userConfig, and a tree of skills, scripts and docs, settles.
+  assert.equal((await settleFlag()).resolved, true);
+  const cases = [
+    ["head manifest declares hooks", { files: withManifest({ hooks: "./x.json" }) }],
+    ["head manifest declares mcpServers", { files: withManifest({ mcpServers: {} }) }],
+    ["head manifest declares lspServers", { files: withManifest({ lspServers: {} }) }],
+    ["head manifest declares experimental monitors", { files: withManifest({ experimental: { monitors: [] } }) }],
+    ["head manifest declares a mod's types", { files: withManifest({ types: "./types/index.d.ts" }) }],
+    ["head manifest declares settings", { files: withManifest({ settings: { agent: "x" } }) }],
+    ["head manifest declares its own dependencies", { files: withManifest({ dependencies: ["context-guard"] }) }],
+    ["head manifest declares a key no one listed", { files: withManifest({ futureComponent: "./x" }) }],
+    ["base manifest declares mcpServers", { baseFiles: withManifest({ mcpServers: {} }) }],
+    ["no dependency manifest", { files: { ...FLAG_FILES, [WORK_ITEMS_MANIFEST]: undefined } }],
+    ["unreadable dependency manifest", { files: { ...FLAG_FILES, [WORK_ITEMS_MANIFEST]: "{" } }],
+    ["head tree holds hooks/", { trees: withTree("hooks") }],
+    ["head tree holds .mcp.json", { trees: withTree(".mcp.json") }],
+    ["head tree holds .lsp.json", { trees: withTree(".lsp.json") }],
+    ["head tree holds monitors/", { trees: withTree("monitors") }],
+    ["head tree holds bin/", { trees: withTree("bin") }],
+    ["head tree holds settings.json", { trees: withTree("settings.json") }],
+    ["head tree holds workflows/", { trees: withTree("workflows") }],
+    ["base tree holds hooks/", { baseTrees: withTree("hooks") }],
+    ["no dependency directory", { trees: {} }],
+    ["a failed tree read", { trees: null }],
+    ["head marketplace entry declares hooks", { files: { ...FLAG_FILES, [MARKETPLACE]: marketplaceWith({ hooks: {} }) } }],
+    ["base marketplace entry declares mcpServers", { baseMarketplace: marketplaceWith({ mcpServers: {} }) }],
+  ];
+  for (const [label, options] of cases) {
+    const { result, posts, resolved } = await settleFlag(options);
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" }, label);
+    assert.deepEqual(posts, [], label);
+    assert.equal(resolved, false, label);
+  }
+});
+
+// A planning skill whose text is the same at the base and the head, cited at `line`.
+const PROBE = "plugins/planning/skills/probe/SKILL.md";
+const settleProbe = (text, line, options = {}) => {
+  const files = { ...FLAG_FILES, [PROBE]: text };
+  return settleFlag({ files, baseFiles: files, evidence: [`${PROBE}:${line}`], ...options });
+};
+
+test("a call site is `/<dependency>:` starting a token, never inside a path, URL or word", async () => {
+  for (const line of ["/work-items:track add each item.", "Write each item through `/work-items:track add`.", "Write each item (/work-items:track add) now.", "Then run /work-items:track add."]) {
+    assert.equal((await settleProbe(`# probe\n${line}\n`, 2)).resolved, true, line);
+  }
+  for (const line of ["Read plugins/foo/work-items:bar for the layout.", "See https://host/work-items:1 for the layout.", "Read docs/work-items: notes first."]) {
+    const { result, resolved } = await settleProbe(`# probe\n${line}\n`, 2);
+    assert.equal(resolved, false, line);
+    assert.equal(result.escalationReason, "feedback-disputed", line);
+  }
+});
+
+test("a call under a `## Next` section is a successor mention, not a call site, at the head or the base", async () => {
+  const next = ["# probe", "", "## Next", "", "After planning, run `/work-items:track add`.", "", "### More", "", "Run `/work-items:work`.", ""].join("\n");
+  for (const line of [5, 9]) {
+    const { result, resolved } = await settleProbe(next, line);
+    assert.equal(resolved, false, `head line ${line}`);
+    assert.equal(result.escalationReason, "feedback-disputed", `head line ${line}`);
+  }
+  // A heading inside a fenced block does not end the section.
+  const fenced = ["# probe", "", "## Next", "", "```bash", "# a comment", "```", "", "", "Run `/work-items:track add`.", ""].join("\n");
+  assert.equal((await settleProbe(fenced, 10)).resolved, false);
+  // The next level-2 heading ends it.
+  const after = ["# probe", "", "## Next", "", "", "## Steps", "", "", "Run `/work-items:track add`.", ""].join("\n");
+  assert.equal((await settleProbe(after, 9)).resolved, true);
+  // The head call holds up, but the base file's only call sits under `## Next`.
+  const files = { ...FLAG_FILES, [PROBE]: after };
+  const baseOnlyNext = { ...FLAG_FILES, [PROBE]: next };
+  assert.equal((await settleFlag({ files, baseFiles: baseOnlyNext, evidence: [`${PROBE}:9`] })).resolved, false);
+});
+
+test("a conditional word or a contracted negation within two lines guards the call, and an imperative call does not", async () => {
+  for (const text of [
+    "Use `/work-items:track add` if you use work-items.",
+    "When the work-items plugin is loaded, run /work-items:track.",
+    "Unless work-items is missing, call `/work-items:track add`.",
+    "If /work-items:track exists, run it.",
+    "Run `/work-items:track add` whenever a tracker is bound.",
+    "Run `/work-items:track add` once the tracker is set up.",
+    "Run `/work-items:track add`, in case the tracker holds it.",
+    "Run `/work-items:track add` where a tracker is bound.",
+    "Check whether to run `/work-items:track add`.",
+    "Don't run `/work-items:track add` here.",
+    "You can't skip `/work-items:track add`.",
+    "Run `/work-items:track add` without a tracker? No.",
+    "Run `/work-items:track add`; it is unavailable offline.",
+    "Run `/work-items:track add` unless it is disabled.",
+  ]) {
+    const { result, resolved } = await settleProbe(`# probe\n\n\n\n${text}\n`, 5);
+    assert.equal(resolved, false, text);
+    assert.equal(result.escalationReason, "feedback-disputed", text);
+  }
+  assert.equal((await settleProbe("# probe\n\n\n\nUse `/work-items:track add` for each item.\n", 5)).resolved, true);
 });
