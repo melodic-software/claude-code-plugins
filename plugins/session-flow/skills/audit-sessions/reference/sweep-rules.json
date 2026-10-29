@@ -93,17 +93,17 @@
       "route": "config-change",
       "suggested_skill": "/session-flow:audit-friction",
       "confidence": "measured",
-      "basis": "tool denials per session; spike median 3, p90 27"
+      "basis": "tool denials per session; spike median 3, p90 27. Kinds: collect.py counts each user record's toolDenialKind value into the store field tools.denials, one count per kind; the finding sums those counts over the sessions above the threshold (by_kind) and names the kind with the most (dominant_kind, ties by kind name). Internal-format read: toolDenialKind and its values are undocumented, and no canary watches them. As of 2026-10-29. Recheck trigger: a drift run reports a denial_kind key as new or vanished"
     },
     {
       "metric": "subagents.count",
       "lens": "delegation",
       "unit": "count",
       "threshold": 33,
-      "route": "unhobble-experiment",
-      "suggested_skill": "/harness-config:unhobble",
+      "route": "retro-codify",
+      "suggested_skill": "/harness-ops:observability",
       "confidence": "measured",
-      "basis": "subagents spawned per session; spike median 6, p90 33"
+      "basis": "subagents spawned per session; spike median 6, p90 33. Route set by owner decision (2026-10-11): /harness-ops:observability reports token burn, cost and per-session activity across sessions, the same route as tokens.sub, the subagent output-token rule"
     },
     {
       "metric": "hooks.stop_ms",
