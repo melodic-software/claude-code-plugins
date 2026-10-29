@@ -38,6 +38,8 @@ import {
   waitedPull,
 } from "./report-outcome.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
+import { STOP_ROUTES } from "./stop-routes.mjs";
+import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
@@ -875,6 +877,8 @@ test("main on a split-required dimension skip sends the issue back through intak
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
@@ -887,6 +891,28 @@ test("main on a split-required dimension skip sends the issue back through intak
     assert.ok(!comment.includes("work-items:escalation") && !comment.includes("needs-human"), comment);
     assert.match(comment, /triage sweep sends it back through intake/);
     assert.match(comment, /owner Q93/);
+  });
+});
+
+// A trusted split child keeps Size Large past admission (owner Q93), so the
+// lane may skip it again: a second intake since a listed human added
+// agent-ready fails, so intake and the lane never loop.
+test("main fails a split-required skip that intake already sent back once, to no person", async () => {
+  await withDir({}, async (dir) => {
+    const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, [earlier]],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch }), 0);
+    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+    assert.deepEqual(removed, ["agent-ready"]);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
   });
 });
 
@@ -2784,11 +2810,14 @@ test("a stop the skill reported goes to a person even with a funding record", ()
 
 // collect-base-activity runs a script activity from a copy of its own
 // directory under $RUNNER_TEMP, so every import must resolve inside it.
-test("the script loads from a copy of its own directory alone", async () => {
+// collect-base-activity puts the base .github/scripts/lib/ beside that copy.
+test("the script loads from a copy of its own directory alone, beside the shared lib", async () => {
   const copy = tempDir("base-script-");
   try {
-    cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
-    const module = await import(pathToFileURL(join(copy, "report-outcome.mjs")).href);
+    const here = dirname(fileURLToPath(import.meta.url));
+    cpSync(here, join(copy, "base-script"), { recursive: true });
+    cpSync(join(here, "..", "lib"), join(copy, "lib"), { recursive: true });
+    const module = await import(pathToFileURL(join(copy, "base-script", "report-outcome.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
     rmSync(copy, { recursive: true, force: true });
@@ -3018,6 +3047,42 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
     assert.ok(!plan.addLabels.includes("needs-human"), plan.comment);
     assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   }
+});
+
+// Every comment that reaches a person says which of the owner's reasons
+// applies, as a marker and a visible line (../lib/stop-reason.mjs); `none`
+// never reaches one.
+test("every person-routed comment carries the stop-reason marker and the Reason line", async () => {
+  const holds = Object.keys(STOP_ROUTES).filter((reason) => STOP_ROUTES[reason].route === "hold");
+  assert.ok(holds.length > 0);
+  const plain = { issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555", humanLabel: "needs-human" };
+  for (const reason of holds) {
+    const outcome = { exit: "stopped", reason: "Why.", title: "", summary: "", changes: [], verification: [], notDone: [], steps: [], unread: true, stop: reason };
+    const plan = decide({ ...plain, outcome });
+    assert.equal(plan.action, "hand-back", reason);
+    const code = parseReason(plan.comment)?.reason;
+    assert.ok(isPersonReason(code), `${reason}: ${code}`);
+    assert.ok(plan.comment.split("\n").includes(`Reason: \`${code}\``), plan.comment);
+  }
+  const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } });
+  assert.equal(parseReason(pushback.comment).reason, "intent");
+  assert.ok(pushback.comment.includes("Reason: `intent`"));
+  for (const skip of ["research-first", "probe-first"]) {
+    await withDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: skip }, fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.deepEqual(parseReason(comment), { lane: "work-resolve-issue", reason: "design" }, skip);
+      assert.ok(comment.includes("Reason: `design`"), comment);
+    });
+  }
+  // A comment that reaches no person carries no stop-reason marker.
+  assert.equal(parseReason(decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }).comment), null);
 });
 
 test("an outcome marker reads back after the escalation marker line, and after no other line", () => {
@@ -3256,6 +3321,7 @@ test("main waits on an open pull request, and retries when the named one is not 
   assert.equal(merged.code, 0);
   assert.match(merged.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
   assert.ok(!merged.calls.some((c) => c.method === "DELETE"));
+  assert.match(merged.calls.find((c) => c.method === "POST").body.body, /#5 is not an open pull request here, so it retries instead\./);
 });
 
 test("main closes an already-done issue only when its cited commit is on the default branch", async () => {
@@ -3278,6 +3344,15 @@ test("main closes an already-done issue only when its cited commit is on the def
   });
   assert.ok(!unproven.calls.some((c) => c.method === "PATCH"), "no proof, no close");
   assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /^<!-- work-resolve-issue outcome=retry run=123 -->/);
+  assert.match(unproven.calls.find((c) => c.method === "POST").body.body, /cites no merged pull request or commit the default branch holds/);
+  const later = await stopRun({
+    reason: "already-done: effaced text, then the commit abb359be",
+    routes: [
+      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "identical" }],
+    ],
+  });
+  assert.ok(later.calls.some((c) => c.method === "PATCH"), "a hex-looking word before the SHA hides nothing");
 });
 
 test("main posts a delivered report and closes the issue", async () => {

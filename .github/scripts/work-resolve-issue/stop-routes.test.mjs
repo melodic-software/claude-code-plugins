@@ -4,10 +4,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { HOLD_CLASSES, runCode, STOP_ROUTES, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { HOLD_CLASSES, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 
-test("a reason the table does not list holds", () => {
-  assert.equal(stopRoute("no-such-reason"), "hold");
+test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
+  assert.equal(stopRoute("no-such-reason"), "fail");
+  assert.equal(stopReasonCode("no-such-reason"), "none");
+});
+
+test("a hold row's comment carries its class as the stop-reason code, and no other row carries a person code", () => {
+  for (const [reason, row] of Object.entries(STOP_ROUTES)) {
+    const code = stopReasonCode(reason);
+    assert.equal(code === "none", row.route !== "hold", `${reason}: ${code}`);
+  }
+  assert.equal(stopReasonCode("pushback"), "intent");
+  assert.equal(stopReasonCode("patch-invalid"), "security");
+  assert.equal(stopReasonCode("probe-first"), "design");
 });
 
 // stop-routes.mjs's header: a person only for an intent, design, security or

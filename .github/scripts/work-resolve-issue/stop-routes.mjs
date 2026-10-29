@@ -21,13 +21,17 @@
 //             past that it takes retry-spent's route.
 //   intake    removes agent-ready, status: ready and admission-deferred, so
 //             the triage sweep sends the issue back through intake, whose
-//             admission and refinement decide it as the owner settled.
+//             admission and refinement decide it as the owner settled, up
+//             to limits.stop-retries, or the row's `retries` when fewer;
+//             past that it takes retry-spent's route.
 //   close     closes the issue as completed with the run's words.
 //   fail      removes agent-ready and adds no label: the comment's outcome
 //             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
 const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "close", "fail"]);
+// The routes a row's `retries` may cap.
+const COUNTED_ROUTES = new Set(["retry", "wait", "intake"]);
 // The owner's reasons for a person (owner direction 2026-10-27).
 export const HOLD_CLASSES = new Set(["intent-change", "design-change", "security-risk", "cost-risk"]);
 
@@ -36,8 +40,8 @@ for (const [reason, row] of Object.entries(STOP_ROUTES)) {
   if (!ROUTE_NAMES.has(row?.route) || typeof row.why !== "string" || row.why === "") {
     throw new Error(`stop-routes.json: ${reason} needs a route (${[...ROUTE_NAMES].join(", ")}) and a why`);
   }
-  if (row.retries !== undefined && !(row.route === "retry" && Number.isSafeInteger(row.retries) && row.retries >= 0)) {
-    throw new Error(`stop-routes.json: ${reason}'s retries needs the retry route and a whole number`);
+  if (row.retries !== undefined && !(COUNTED_ROUTES.has(row.route) && Number.isSafeInteger(row.retries) && row.retries >= 0)) {
+    throw new Error(`stop-routes.json: ${reason}'s retries needs a ${[...COUNTED_ROUTES].join(", ")} route and a whole number`);
   }
 }
 // A spent cap that routed to retry would retry without end.
@@ -52,8 +56,13 @@ export const HOST_RUN_LABEL = "host-run";
 // The label attended routes add, likewise declared in github-iac.
 export const ATTENDED_LABEL = "attended";
 
-// A reason's route; a reason the table does not list holds.
-export const stopRoute = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].route : "hold");
+// A reason's route; a reason the table does not list names no owner reason,
+// so it fails rather than reaching a person.
+export const stopRoute = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].route : "fail");
+// The stop-reason code (../lib/stop-reason.mjs) a reason's comment carries:
+// its hold row's class as intent, design, security or cost, else none.
+const CLASS_CODES = { "intent-change": "intent", "design-change": "design", "security-risk": "security", "cost-risk": "cost" };
+export const stopReasonCode = (reason) => (Object.hasOwn(STOP_ROUTES, reason) && CLASS_CODES[STOP_ROUTES[reason].class]) || "none";
 // The most retries a reason's row allows, within limits.stop-retries.
 export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].retries : undefined) ?? cap);
 export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");

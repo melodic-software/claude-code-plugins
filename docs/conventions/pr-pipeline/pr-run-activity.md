@@ -2132,7 +2132,12 @@ files its sub-issues (owner Q93). What changes from the PR flow:
   `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
   code retries once (its row's `retries`) and then fails; a reason the table does not list holds.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
-  `cost-risk`, the owner's only reasons for a person. `hold` labels the issue with the human-gated
+  `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
+  carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
+  `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
+  from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
+  collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
+  import. `hold` labels the issue with the human-gated
   role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes

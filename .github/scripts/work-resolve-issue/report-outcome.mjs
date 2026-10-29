@@ -133,7 +133,8 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
-import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { personReasonLines } from "../lib/stop-reason.mjs";
+import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 // The work class of an issue that asks for a report and no change.
@@ -212,6 +213,8 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 // marker follows on the next line.
 export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
+// The lane name its stop-reason markers carry.
+const LANE = "work-resolve-issue";
 const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
@@ -419,13 +422,19 @@ export function unmarkedAnswer(comments, humans, bot) {
 // The marker names the run, so --find-prior never reuses a branch whose work
 // this report already handed on. `unmarked` is unmarkedAnswer's URL, which a
 // pushback links with the line it lacks.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null }) {
+// `reason` is the stop-reason code (stopReasonCode), which must be a person
+// reason: the comment carries its marker and its visible line.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason }) {
   const pushback = outcome.exit === "pushback";
+  const [reasonMarker, reasonLine] = personReasonLines(LANE, reason);
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
+    reasonMarker,
     pushback
       ? "The work-resolve-issue lane did not start this issue: it needs a person to make it clearer first."
       : "The work-resolve-issue lane stopped partway through this issue and needs a person.",
+    "",
+    reasonLine,
     "",
     "Why, in the run's own words:",
     "",
@@ -479,6 +488,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
 const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
 const KEPT = new Set(["retry", "wait"]);
+// The routes whose stops are counted against a cap: past it, retry-spent's.
+const COUNTED = new Set([...KEPT, "intake"]);
 const ROUTE_REMOVES = { intake: ["agent-ready", "status: ready", "admission-deferred"] };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
@@ -492,11 +503,12 @@ const ROUTE_TEXT = {
 // full-width `＃<n>`) other than the issue itself, or "".
 export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "" }) {
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "" }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
     `<!-- work-resolve-issue outcome=${exit}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     `The work-resolve-issue lane stopped on this issue (\`${stop}\`): ${stopWhy(shown)}.`,
+    ...(why ? [why] : []),
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
@@ -541,26 +553,26 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
 }
 
 // A stop routed by stop-routes.json, or by `route` in its place; `args` are
-// handBack's. A retry or wait past limits.stop-retries, or the row's own
-// `retries` when fewer (`retries`, counted since a listed human last added
+// handBack's. A retry, wait or intake past limits.stop-retries, or the row's
+// own `retries` when fewer (`retries`, counted since a listed human last added
 // agent-ready), takes retry-spent's route instead.
-function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop) } = {}) {
+function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop), why = "" } = {}) {
   const cap = stopRetries(stop, limits["stop-retries"]);
-  const spent = KEPT.has(given) && retries >= cap;
+  const spent = COUNTED.has(given) && retries >= cap;
   const shown = spent ? "retry-spent" : stop;
   const route = spent ? stopRoute(shown) : given;
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
-      ? handBack(args)
-      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr });
-  return { ...plan, stop, stopArgs: args };
+      ? handBack({ ...args, reason: stopReasonCode(shown) })
+      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why });
+  return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 
-// A retry or wait plan with the restarts already made counted in: past the
-// cap it becomes retry-spent's route. Any other plan is returned as it is.
+// A retry, wait or intake plan with the earlier ones counted in: past the cap
+// it becomes retry-spent's route. Any other plan is returned as it is.
 export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
-  KEPT.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action }) : plan;
+  COUNTED.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action, why: plan.why }) : plan;
 
 // apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
@@ -586,9 +598,13 @@ const RETIRED_SKIPS = new Set(["not-assessed"]);
 // A run its issue dimensions skipped before any model turn: the issue goes to
 // a person with the next step, and agent-ready comes off.
 function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
+  const [reasonMarker, reasonLine] = personReasonLines(LANE, stopReasonCode(reason));
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
+    reasonMarker,
     `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]}`,
+    "",
+    reasonLine,
   ]);
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
@@ -1591,31 +1607,40 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
   if (pr && (await github("GET", `${repo}/pulls/${pr}`).then((pull) => Boolean(pull?.merged_at), () => false))) {
     return true;
   }
-  // A SHA holds a letter, so a run id or other number is never read as one.
-  const sha = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).find((word) => /[a-f]/.test(word));
-  if (!sha) {
+  // A SHA holds a letter, so a run id or other number is never read as one;
+  // the first three such words are tried, so a hex-looking word is no cover.
+  const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
+  if (shas.length === 0) {
     return false;
   }
-  return github("GET", repo)
-    .then(({ default_branch: base }) => github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`))
-    .then((comparison) => comparison?.status === "ahead" || comparison?.status === "identical", () => false);
+  const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
+  for (const sha of base ? shas : []) {
+    const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
+    if (comparison?.status === "ahead" || comparison?.status === "identical") {
+      return true;
+    }
+  }
+  return false;
 }
 
 // A stop plan's edits. A wait on a pull request that is not open, and an
 // already-done close whose evidence is not on the default branch, retry
-// instead. A retry or wait first counts its own restarts since a listed human
-// last added agent-ready: past its cap it takes retry-spent's route;
-// otherwise it posts its comment once per run (a rerun of this report finds
-// its own marker) and keeps agent-ready. A close comments, removes
-// agent-ready, then closes the issue as completed.
+// instead. A retry, wait or intake first counts its own outcome's markers
+// since a listed human last added agent-ready: past its cap it takes
+// retry-spent's route, so an issue intake keeps sending back cannot loop. A
+// retry or wait under the cap posts its comment once per run (a rerun of this
+// report finds its own marker) and keeps agent-ready. A close comments,
+// removes agent-ready, then closes the issue as completed.
 async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
   if (plan.action === "wait" && !(await openPull(github, repo, plan.pr))) {
-    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry" });
+    const why = plan.pr ? `#${plan.pr} is not an open pull request here, so it retries instead.` : "Its reason names no pull request, so it retries instead.";
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   if (plan.action === "close" && plan.stop === "already-done" && !(await doneEvidence(github, repo, plan.stopArgs.outcome?.reason, plan.issueNumber))) {
-    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry" });
+    const why = "Its reason cites no merged pull request or commit the default branch holds, so it retries instead of closing.";
+    plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
-  if (KEPT.has(plan.action)) {
+  if (COUNTED.has(plan.action)) {
     const outcome = plan.exit;
     const comments = await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`);
     const events = await paginate(github, `${repo}/issues/${plan.issueNumber}/events`);

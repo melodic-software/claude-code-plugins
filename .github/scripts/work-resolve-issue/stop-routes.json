@@ -26,7 +26,7 @@
   "security-risk": { "route": "hold", "why": "the run reports a HIGH or CRITICAL security risk, which a person decides", "code": true, "class": "security-risk" },
   "cost-risk": { "route": "hold", "why": "the run reports a HIGH or CRITICAL cost risk, which a person decides", "code": true, "class": "cost-risk" },
   "stopped": { "route": "retry", "retries": 1, "why": "the run stopped for a reason it gave no code for, which names no intent, design, security or cost finding, so the lane runs it once more and then stops" },
-  "split-required": { "route": "intake", "why": "the issue's Size is too large for one run, and intake's split (owner Q93) files its sub-issues" },
+  "split-required": { "route": "intake", "retries": 1, "why": "the issue's Size is too large for one run, and intake's split (owner Q93) files its sub-issues" },
   "research-first": { "route": "hold", "why": "the issue's Uncertainty says research comes first, so its approach, a design question, is not settled", "class": "design-change" },
   "probe-first": { "route": "hold", "why": "the issue's Uncertainty says only an experiment answers it, so its approach, a design question, is not settled", "class": "design-change" },
   "blocked-by-pr": { "route": "wait", "why": "the work waits on an open pull request the run names, so the lane runs it again once that pull request merges or closes", "code": true },
