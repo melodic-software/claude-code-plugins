@@ -32,8 +32,8 @@ else
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   echo "Downloading $base/$name"
-  curl -fsSL --retry 5 --retry-all-errors -o "$tmp/SHASUMS256.txt" "$base/SHASUMS256.txt"
-  curl -fsSL --retry 5 --retry-all-errors -o "$tmp/$name" "$base/$name"
+  curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/SHASUMS256.txt" "$base/SHASUMS256.txt"
+  curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/$name" "$base/$name"
   want=$(awk -v n="$name" '$2 == n { print $1 }' "$tmp/SHASUMS256.txt")
   [[ $want =~ ^[0-9a-f]{64}$ ]] || {
     echo "::error::setup-pinned-node: SHASUMS256.txt lists no checksum for $name"
