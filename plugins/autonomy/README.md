@@ -148,7 +148,7 @@ session, this gate for a standing lane.
 bare `CLAUDE_PLUGIN_OPTION_*` environment: for an unconfigured key, a watched repository's own
 `.claude/settings.json` `env` block populates that variable freely, and a gate whose enablement (or
 sentinel, or marker path) the watched repository controls is not a gate
-(`docs/conventions/hook-config-delivery`). Per-key precedence, ordered after Claude Code's own
+(`docs/contracts/hook-config-delivery`). Per-key precedence, ordered after Claude Code's own
 settings precedence:
 
 1. **Managed settings** (fixed root-owned paths + `managed-settings.d/` drop-ins), an org can veto

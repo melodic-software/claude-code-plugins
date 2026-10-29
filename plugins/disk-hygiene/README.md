@@ -494,7 +494,7 @@ installed. The measurements below carry the conditions they were taken under.
   standard-library scripts only, instant no-output deferral for any command
   not referencing the engine, and no new capability beyond what the skill-scoped deployment already
   did during active cleanup. Known costs, accepted, with the always-on share measured per the
-  [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
+  [hook-budget convention](../../docs/contracts/hook-budget/README.md)'s method (`EPOCHREALTIME`
   wall-clock around direct hook invocation with a benign representative payload; Windows 11 +
   Git Bash dev host, 2026-08-16): the engine-gate hook costs **≈ 190–300 ms per Bash/PowerShell
   tool call** across batches (92 single runs). ≈ 19–30% of the convention's ≤ 1 s typical

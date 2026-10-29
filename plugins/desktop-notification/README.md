@@ -202,7 +202,7 @@ of the routes above.
 ## Telemetry (opt-in)
 
 When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
-[telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
+[telemetry envelope](../../docs/contracts/hook-telemetry/README.md) per run.
 `hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
 of `notification_type` plus the `channels` that fired. When it is unset, the hook is an exact no-op.
 
