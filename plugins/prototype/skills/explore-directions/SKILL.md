@@ -39,11 +39,12 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-The output is a recorded decision about one screen's layout, made by a user who has clicked
-through working candidates rather than sketches. The candidates live in a local HTML mockup that
-opens with nothing running (or, on request, in the app itself) with a switcher attached; the
-verdict may combine parts of several of them, and once it is written down, all candidate code is
-deleted.
+The output is a recorded decision about the layout of one screen, or of each screen in a small
+set, and how it behaves in each of its states, written as UI acceptance criteria and made by a
+user who has clicked through working candidates rather than sketches. The candidates live in a
+local HTML mockup that opens with nothing running (or, on request, in the app itself) with a
+switcher attached; the verdict may combine parts of several of them, and once it is written down,
+all candidate code is deleted.
 
 The examples in this file follow one case: the `/shipments` page of an order-tracking app, where
 the team cannot agree on how to show parcels in transit.
@@ -103,15 +104,23 @@ When the intent selector picks this row, the variants live in one self-contained
 page with synthetic data and an in-page switcher. Assemble one per task:
 
 1. **N variant containers**. One block per variant, all in the single page, each marked with
-   `data-variant` (its key) and `data-variant-label` (its name).
+   `data-variant` (its key) and `data-variant-label` (its name). Inside each variant, one block
+   per planned state, marked with `data-screen-state` (its key, the same in every variant) and
+   `data-screen-state-label` (its name), never `data-state`, which component libraries set on
+   their own parts. A run that covers several screens writes one page per screen
+   into the same run directory, named for the route with slashes as hyphens (`holds-new.html`).
 2. **The bundled in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL.
    Inline [assets/variant-switcher.html](assets/variant-switcher.html) whole, just before
    `</body>`: it shows one variant at a time, switches on its arrows, number keys and left/right
-   arrow keys with wraparound, replays a variant's entrance, ignores keys while a field has
-   focus, and runs under the CSP below. It is chrome, not a contestant: leave its look alone, and
-   move it to the top only when a variant occupies the bottom center.
-3. **A copy-out terminator**, a small control that lifts the winning-variant key plus notes back
-   out as text you can paste into your durable answer.
+   arrow keys with wraparound, steps through the current variant's states on its state button
+   (labeled with the current state) and the up/down arrow keys, keeps the chosen state across a
+   variant switch, replays a variant's entrance, ignores keys while a field has focus, and runs
+   under the CSP below. It is chrome, not a contestant: leave its look alone, and move it to the
+   top only when a variant occupies the bottom center.
+3. **A copy-out terminator**, a small control that lifts the winning-variant key, notes and the
+   proposed test ids back out as text you can paste into your durable answer. It lists the test
+   ids per variant, read from the page's `data-testid` attributes rather than typed out, so the
+   list matches the markup.
 
 Constraints:
 
@@ -120,7 +129,14 @@ Constraints:
 - **Same data across variants.** All variants bind one identical data set; the data is the
   control variable, so the only thing that differs between variants is the design. On the real
   stack, sub-shape A's shared fetching above the switcher already enforces this; on the mockup
-  substrate, define the synthetic set once and have every variant render it.
+  substrate, define the synthetic set once and have every variant render it. States derive from
+  that one set, never from copies of it: an empty state renders it filtered to nothing, an error
+  state renders an error value in its place, so a search for any data literal finds one
+  definition.
+- **Proposed test ids.** Every interactive element, and every element a test would assert on (a
+  row, a count, an error message), carries a proposed `data-testid` named `<screen>-<element>`
+  (`shipments-parcel-row`). An element that recurs across variants or states keeps one id, so the
+  tests written for the winner do not depend on which variant won.
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
   `file://`. No external scripts, fonts, or data fetches. Enforce this rather than trusting it:
   emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource:
@@ -138,12 +154,12 @@ Constraints:
   That is why the page takes a fixed name inside the generated directory rather than an
   `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under
-  `%LOCALAPPDATA%\Temp`. One file per run, or one per variant when the person asks for separate
-  files. The path is handed to the user to open from `file://`,
-  so do not delete it. It must still be readable when they open it. A shared interview places
-  its output elsewhere: [For a shared interview](#for-a-shared-interview).
-- **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
-  answer (per the shared discipline); the HTML is throwaway.
+  `%LOCALAPPDATA%\Temp`. One file per run (one per screen when the run covers several), or one
+  per variant when the person asks for separate files. The path is handed to the user to open
+  from `file://`, so do not delete it. It must still be readable when they open it. A shared
+  interview places its output elsewhere: [For a shared interview](#for-a-shared-interview).
+- **Markdown captures the answer.** Copy the winning-variant key, notes and test ids into your
+  durable answer (per the shared discipline); the HTML is throwaway.
 - **An existing app keeps its look.** When the variants change part of an app that exists, build
   every variant from the app's own styling and markup: inline its CSS in the page's `<style>`
   (never linked, per the rule above; fold its `@import`s in and turn its `url()` assets into
@@ -192,8 +208,8 @@ the variants as above, then emit each offered tier and nothing the session does 
 | Tier | Emit per variant | Rules |
 |---|---|---|
 | Screenshots | One to four PNG files, in viewing order | Captured at 2x with `/playwright:playwright` when it is among the available skills, after using the variant's main control once; without it, emit no screenshots and say so |
-| HTML snapshot | One self-contained HTML file, with no switcher unless it prototypes the interview page itself (below), since the interview's prototype page tabs between variants | Starts with `<!doctype html>`, at most 10 MB, every style, script, image and font inline; the interview serves it with no network access, so a fetch fails |
-| Live | One static build folder for all variants: `index.html` plus its files, picking the variant from `?variant=<key>` | Every script, style, image and font in its own file in the folder: the live server allows same-origin files only, so inline `<script>`, inline `<style>`, `data:` URLs and the mockup's CSP meta tag are blocked. Synthetic fixtures in a JSON file, every write stubbed in memory, relative or root-absolute URLs, no remote origin, no service worker, no secret or `.env` content. Regular files only (no hidden name, symlink or hard link), at most 2,000 files and 50 MB |
+| HTML snapshot | One self-contained HTML file, with no switcher unless it prototypes the interview page itself (below) or the plan lists states, since the interview's prototype page tabs between variants; for states, the bundled switcher steps through them | Starts with `<!doctype html>`, at most 10 MB, every style, script, image and font inline; the interview serves it with no network access, so a fetch fails |
+| Live | One static build folder for all variants: `index.html` plus its files, picking the variant from `?variant=<key>` and, when the plan lists states, the state from `?state=<key>` | Every script, style, image and font in its own file in the folder: the live server allows same-origin files only, so inline `<script>`, inline `<style>`, `data:` URLs and the mockup's CSP meta tag are blocked. Synthetic fixtures in a JSON file, every write stubbed in memory, relative or root-absolute URLs, no remote origin, no service worker, no secret or `.env` content. Regular files only (no hidden name, symlink or hard link), at most 2,000 files and 50 MB |
 
 A live prototype on the real stack is a server the owner runs: build one only when the owner asks
 for it and gives its port, seeded with sample data, its writes stubbed and no credentials in its
@@ -224,16 +240,21 @@ environment.
   build is never framed there, and the page opens it in a new tab.
 - **Handover.** Hand over the manifest path in place of a `file://` path or route URL, plus the
   tradeoffs table. People answer through the interview's question, so the reply template and the
-  copy-out terminator are not needed.
+  copy-out terminator are not needed; step 5 reads the test ids from each snapshot's markup.
 
 ## Process
 
 ### 1. Write the plan
 
-Before any code, record the plan as one line naming the route, the host and the keys, for example:
-"Plan: `/shipments`, HTML mockup in the app's look, variants A to C." The count is **3
-variants** unless the user asks for another number, and never more than 5: past five, new variants
-repeat earlier ones instead of disagreeing with them.
+Before any code, record the plan as one line per screen naming the route, the host, the variant
+keys and the screen's states, for example: "Plan: `/shipments`, HTML mockup in the app's look,
+variants A to C, states populated, empty, loading, error." List the states the screen has, such
+as empty, loading, populated, error, validation and permission-limited; every variant builds
+every listed state. For a single screen the count is **3 variants** unless the user asks for
+another number, and never more than 5: past five, new variants repeat earlier ones instead of
+disagreeing with them. When the run covers several screens, build 2 or 3 variants per screen: the
+person reviews every state of every variant of every screen, so each added screen multiplies the
+review.
 
 **Optional reference pass.** Two to four candidate directions, each described by its layout and
 density, plus color and type only when no app exists or a redesign was asked, can seed step 2 in
@@ -282,6 +303,7 @@ The switcher is a small floating bar, fixed at the bottom center of the viewport
 |---|---|
 | URL | Each step rewrites `?variant=`, so a reload or a shared link opens the same variant |
 | Keyboard | Left and right arrow keys step through the variants, except while a text input or textarea has focus |
+| States | When the plan lists states, a second control and the up and down arrow keys (except while a field has focus) step through them, rewriting `?state=`, with the current state in the control's label |
 | Buttons | Previous and next; both ends wrap around, so after the last variant comes the first and before the first comes the last |
 | Label | The current key, plus a descriptive name if exported (`B · parcel cards`); export each variant component under a name built from its key (`VariantB` for key B) |
 | Reuse | One shared component that sub-shape A and sub-shape B both mount |
@@ -292,12 +314,13 @@ The switcher is a small floating bar, fixed at the bottom center of the viewport
 
 The handover message has four parts, in this order:
 
-1. **Where to look.** The mockup's `file://` path or the real-stack route URL, and under it one
-   line per variant: its key, its name and, when evidence was captured, its screenshot path.
+1. **Where to look.** The mockup's `file://` path (one per screen) or the real-stack route URL,
+   and under each one line per variant: its key, its name, its states and, when evidence was
+   captured, its screenshot paths.
 2. **Evidence per variant.** With `/playwright:playwright` among the available skills, load each
    variant in it (on the mockup, open the page and step to it with the switcher), use its main control once (open the menu, submit the form, change the tab), and
-   capture a screenshot; the handover pairs every variant key with its screenshot path. Without
-   that skill, the handover says no screenshots exist.
+   capture a screenshot, plus one per planned state; the handover pairs every variant key with
+   its screenshot paths. Without that skill, the handover says no screenshots exist.
 3. **Tradeoffs.** One row per variant: its axis, when it is the right choice, and what it costs.
    Sell each honestly and never pre-pick a favorite; asked which you would choose, answer from the
    product's personality and how often people will use it. No variant is folded in before the
@@ -311,9 +334,12 @@ complete answer, not an indecisive one. On `/shipments` it might read `direction
 `steal: delivery-date cards from B` and `steal: map layout from C`.
 
 ```text
+screen: <route>   (one block per screen when the run covers several)
 direction: <winning variant key, or "graft">
 steal: <piece> from <variant>   (repeat per piece)
 skip: <piece or variant> because <one line>
+state: <state key> <what the screen shows and allows in it>   (repeat per state to change)
+test-ids: <variant>: <id>, <id>   (filled from the markup by the copy-out terminator)
 next-target: <what to explore or build next>
 ```
 
@@ -325,6 +351,19 @@ hierarchy choice, a primary affordance) gets its own steal/skip/adapt entry, so 
 across variants instead of collapsing into one "variant B, mostly" note. When the verdict is a
 graft rather than a single winner, say which piece came from where **and what the discarded parts
 held that the graft deliberately left behind**.
+
+Next to that record, write the picks as UI acceptance criteria, one list per screen, that the
+implementation and its tests are checked against: one line for the chosen variant or graft, one
+per planned state saying what the screen shows and lets the person do in it, and the test ids the
+copy-out terminator lifted for the pieces kept.
+
+```text
+screen: /shipments
+- [ ] Layout: B's parcel cards inside C's map layout (graft)
+- [ ] empty: with no parcels in transit, shows the empty message and the track-a-parcel action
+- [ ] error: a failed parcel fetch shows the error message and a retry, and keeps the page header
+- [ ] Test ids: shipments-parcel-card, shipments-region-filter, shipments-empty, shipments-error
+```
 
 Then carry out the "When the exercise ends" column of the intent selector for the host you used.
 Those deletions are irreversible: whatever is not written down first is gone. On the real stack,
