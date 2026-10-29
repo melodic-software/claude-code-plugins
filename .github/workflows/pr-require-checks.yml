@@ -4003,7 +4003,9 @@ jobs:
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label, the trusted-actor list names who
       # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
-      # lanes App's id that LANES_APP_ID must equal; all are read at the base
+      # lanes App's id that LANES_APP_ID must equal, and its
+      # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
+      # review-lanes step holds; all are read at the base
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
       # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
