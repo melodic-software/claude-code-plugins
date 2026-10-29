@@ -130,6 +130,69 @@
         "order": 5,
         "procedure": null
       }
+    },
+    {
+      "id": "typography",
+      "title": "Typography",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "typography",
+        "typeface",
+        "font pairing",
+        "font files",
+        "type scale",
+        "line height",
+        "letter spacing",
+        "line length",
+        "text wrapping",
+        "truncation",
+        "underline",
+        "variable font"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/typography.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/typography/typefaces-and-formats.md",
+          "read_when": "a typeface is chosen, paired or swapped, or font files are added or loaded"
+        },
+        {
+          "path": "reference/types/web/typography/font-capabilities.md",
+          "read_when": "a variable font, font weights, OpenType features, numerals, small caps or superscripts are set"
+        },
+        {
+          "path": "reference/types/web/typography/scale-and-rhythm.md",
+          "read_when": "a type scale, text units, line height, paragraph spacing, letter spacing or text-box trimming is set"
+        },
+        {
+          "path": "reference/types/web/typography/line-behavior.md",
+          "read_when": "line length, wrapping, truncation, text alignment, casing, typographic characters, language or direction is set or reviewed"
+        },
+        {
+          "path": "reference/types/web/typography/details-and-floors.md",
+          "read_when": "underlines, text selection, placeholders, carets, font smoothing, decorative text or minimum text sizes are set or reviewed"
+        },
+        {
+          "path": "reference/types/web/typography/tailwind.md",
+          "read_when": "detect reports Tailwind"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md",
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [
+        "typography-color"
+      ],
+      "audit": {
+        "order": 6,
+        "procedure": null
+      }
     }
   ]
 }
