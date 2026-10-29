@@ -115,6 +115,10 @@ drive finds a control skill by its hub.
   a pointer record in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md#upstream-recipes). Ready reads
   `build: not exposed` when the app shows no build identifier, and checks the rest. When a test
   harness hosts its own instance, Ready checks the harness's build and the services it needs.
+  Each check in Ready exits non-zero when it fails: a listing ends in `grep -q` on the expected
+  row, never the listing alone (the contract's "The Ready command"). Before step 5, fix each
+  `ready-listing` line `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" "<control skill dir>"`
+  prints: the stopped-app run cannot catch a bare listing behind a check that already fails.
 - **Pointer.** One line naming the control skill, in the instruction file the repository treats as
   its source, chosen by "Pointer target" in [`${CLAUDE_SKILL_DIR}/reference/naming.md`](reference/naming.md). Write it
   there only, never in both, and never in a new file when one exists.
@@ -134,8 +138,8 @@ When the tool the hub names cannot run on this host, the outcome is
 `blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
 
 [`${CLAUDE_SKILL_DIR}/reference/prove.md`](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
-calls, and the evidence and no-orphan checks that follow the run. A lesson the run learns is
-placed per Lessons below.
+calls, and the evidence, Ready-when-stopped and no-orphan checks that follow the run. A lesson the
+run learns is placed per Lessons below.
 
 ### 6. Report
 
@@ -153,6 +157,7 @@ placed per Lessons below.
   count;
 - drive's steps copied from its report, each with its entry point, what it observed and its
   artifact paths, plus drive's capability gaps, `blocked:` lines and the process check;
+- Ready's exit status with the app up and with it stopped, or that the stopped run did not run;
 - what each stand-in did that the target will not;
 - each lesson the proof run learned and the Gotchas it went to, or that it is left for
   `/corrections:codify` (see Lessons);
