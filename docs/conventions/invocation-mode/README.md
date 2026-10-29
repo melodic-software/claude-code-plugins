@@ -227,7 +227,7 @@ setup skills are class (ii) by contract; the 141
 | `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `start` and `restart` pull, update the marketplace, stop sessions and launch `--permission-mode auto` lanes with no stop, `stop`, `run-once` and `consume-restarts run` stop or launch sessions with none either, and `--dry-run` is an opt-in the model can leave off; evidence in [the re-grade below](#re-grade-harness-opslanes-under-the-2026-10-18-decision-9710)) |
 | `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, `sync` updates, installs and enables with no stop, and its `--allow-downgrade`, `--install-new` and `--only-install` are model-passable; evidence in [the re-grade below](#re-grade-harness-opsplugins-under-the-2026-10-18-decision-9708)) |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
-| `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the Windows/macOS manual deletion step and the opt-in elevated script do not stop for a person unattended; evidence in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706)) |
+| `disk-hygiene:clean` | (i) destructive-capable, approval-gated removal | **FLIPPED → `false`** by the owner's decision on [#9572](https://github.com/melodic-software/claude-code-plugins/issues/9572) (2026-10-26), after the 2026-10-18 D3 re-grade had kept it `true`; both are recorded in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706) |
 | `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
 | `education:teach` | (i) deliberate mode-entry, persistent coaching state | KEEP `true` |
 | `firecrawl:update` | (iii) maintainer-only | KEEP `true` |
@@ -331,7 +331,8 @@ from the catalog rather than the listing, is untouched and is what makes this sk
 
 Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missing key / 57 `true`
 = 48 `*:setup` plus 9 non-setup. **Every non-setup `true` skill in the fleet now carries a verdict
-in the table above**, and the table's two flips are the only entries that are not KEEP.
+in the table above**, and the table's two flips are the only entries that are not KEEP. (Since
+2026-10-26 a third: `disk-hygiene:clean`, flipped by owner decision on #9572.)
 
 ## Fleet grade, 2026-10-18 (the six ungraded human-only skills, #7974)
 
@@ -382,10 +383,16 @@ not hold. Read: `plugins/disk-hygiene/skills/clean/SKILL.md`, `reference/safety-
 Verdict: **KEEP `true`.** The Linux `apply` lane holds, but the skill is graded as a whole and two
 destructive steps (the Windows/macOS manual deletion lane and the opt-in elevated script) have no
 deterministic stop that survives an unattended run. `handoff-apply` is unproven for want of a probe.
-`disable-model-invocation: true` stays in `SKILL.md`, so `git show HEAD:plugins/disk-hygiene/skills/clean/SKILL.md | grep -c '^disable-model-invocation: true'`
-prints 1. What would flip it: a probed fail-closed stop on the PowerShell deletion lane (or removing
-that lane and the elevated script), plus a `handoff-apply` probe row. No `SKILL.md` or changelog
-change follows from a KEEP.
+What would flip it under that rule: a probed fail-closed stop on the PowerShell deletion lane (or
+removing that lane and the elevated script), plus a `handoff-apply` probe row.
+
+**Flipped by owner decision, 2026-10-26 ([#9572](https://github.com/melodic-software/claude-code-plugins/issues/9572)).**
+The owner set the order on 2026-10-25: decide #9853, close #5609, then drop
+`disable-model-invocation`. #9853's resume notice landed and #5609 closed, so `SKILL.md` now sets
+`false`. The flip is the owner's call, not a pass of the D3 test above. The manual deletion lane and
+the elevated script still have no deterministic stop, and the confirmation gate is unchanged. A
+`clean` loaded through the Skill tool writes no resume marker, so #9853's notice covers only a typed
+`/disk-hygiene:clean`.
 
 ## Re-grade: `repo-fleet-hygiene:apply` under the 2026-10-18 decision (#9707)
 

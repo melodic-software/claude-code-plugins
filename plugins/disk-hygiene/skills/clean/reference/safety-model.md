@@ -614,7 +614,9 @@ remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` 
 plugin data directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source`
 is `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
 tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
-registers the belt again. It relies on the model following the notice. The marker is written before
+registers the belt again. It relies on the model following the notice. Only a typed command fires
+`UserPromptExpansion`, so a skill Claude loaded through the Skill tool writes no marker and a
+resume after it gets no notice. The marker is written before
 the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
 later resume still warns; that errs toward no deletes. The marker is keyed on the session id, so a
 session that starts under a new id gets no notice.

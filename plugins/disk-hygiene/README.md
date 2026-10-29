@@ -14,8 +14,10 @@ contract); it never follows links or recursively deletes an unvalidated tree.
 
 ## Safety contract
 
-- The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
-  remote, or otherwise unattended sessions audit and stop.
+- The side-effecting skill is model-invocable (`disable-model-invocation: false`), so Claude can
+  load it when you ask for a cleanup. Loading it removes nothing: every removal still needs your own
+  answer at the confirmation gate naming one tier and its paths. Automated, scheduled, remote, or
+  otherwise unattended sessions audit and stop.
 - The investigated-entry catalog under the plugin data root records what a run or the operator
   concluded about an entry. `prior_disposition` is a hint on the next scan. It never authorizes
   deletion or skips approval, preview, or revalidation.
@@ -148,7 +150,9 @@ unconditionally, and fail closed to enabled.
 Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
 new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
 a `SessionStart` notice tells the model to make no delete or overwrite until the user types
-`/disk-hygiene:clean` again (#9853). The plugin-level engine gate fires inside subagents. The
+`/disk-hygiene:clean` again (#9853). That notice keys on a marker the typed command's expansion
+writes, so a session where Claude loaded `clean` through the Skill tool gets no notice on resume. The
+plugin-level engine gate still asks before every engine `apply` and `handoff-apply`, and it fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
 "evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
 [#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565) observed the subagent
@@ -296,7 +300,7 @@ launched.
 
 `/disk-hygiene:audit` is the model-invocable, read-only counterpart for delegated or orchestrated
 scans. It runs the engine's `scan` subcommand only, reports the snapshot with coverage gaps, and
-removes nothing. Any removal is a separate `/disk-hygiene:clean` run that a person invokes.
+removes nothing. Any removal is a separate `/disk-hygiene:clean` run, gated on your own answer.
 
 `--root-children` with `--root-child <name>` inventories only the named immediate children of the
 target. That is required for an OS-managed volume root (the root itself is never walked) and is
@@ -620,7 +624,7 @@ behavior or the hooks page changes the `PreToolUse` decision output:
   [plugin loading reference](https://code.claude.com/docs/en/plugins/loading). Plugin structure, cache isolation, manifests, versions, and
   local `--plugin-dir` testing.
 - [Skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). The
-  `clean` skill is manual-only because it has side effects; supporting files, arguments, and
+  `disable-model-invocation` (which `clean` sets `false`), supporting files, arguments, and
   skill-scoped hooks. As of 2026-10-11; recheck when that section renames or drops
   `disable-model-invocation` or the frontmatter `hooks` field.
 - [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
