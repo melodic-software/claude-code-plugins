@@ -533,8 +533,27 @@ behind a comma, or called with no literal; a computed member or destructured key
 as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
 `x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
 load any file whole, so any such module fails every export hop; `typeof require`,
-`require.resolve` and a binding named `require` do not count. A computed read whose key is a
+`require.resolve`, a binding named `require`, and a `.require` member read that is only tested
+(a `&&` operand other than the last, an `if`, loop or `?:` test, a `!` operand, as in lodash's
+`w&&w.require&&w.require("util")`) do not count. A computed read whose key is a
 parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+A template `import()` whose specifier starts with a bare package name
+(`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
+specifier cannot reach a file embedded in the executable (pointer: Bun's
+[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page, as of
+2026-10-29; recheck when it documents how a bare specifier resolves inside a compiled executable).
+
+A named loader is followed instead: an alias of `import.meta.require` or `require` that a
+module-scope declarator initializes, never written again and exported by name other than
+`default` (Bun's runtime chunk: `var Fe=import.meta.require;export{...,Fe}`, the helper's
+`aliases`). Every import of an exported alias name, in any module, holds the loader. A call of it
+with a literal specifier loads that file whole, followed by the `namespace` op like
+`require(...)`, and a literal `vm` or `node:vm` is a sink. Any other use (a call with no literal,
+an alias, an escape, a re-export, in an importer or the runtime chunk) counts as a load the scan
+cannot name, in the sink rule too. The alias stays such a load when Bun's module table names no
+file for its module or any module loads that file whole, since `R.Fe(s)` on a namespace of it
+reaches the alias unseen.
+
 On 2.1.284 to 2.1.288 the chunk
 re-exporting the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14
 times, each read by name, but on 2.1.288 3 modules hold a load the scan cannot name without a
