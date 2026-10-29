@@ -269,14 +269,15 @@ To run it again on this head now, dispatch the \`pr-unblock\` workflow:
 $dispatch
 \`\`\`
 EOF
+  # The session-builder queue label goes on before the comment that explains it, and back on when
+  # a session removed it and the lane stops again with the same comment.
+  if [[ -n $session_label ]] && [[ $(gh api "$issue" | jq --arg l "$session_label" '[.labels[].name] | index($l) != null') != true ]]; then
+    gh api -X POST "$issue/labels" -f "labels[]=$session_label" >/dev/null
+  fi
   id=$(jq -r '.id // empty' <<<"$existing")
   if [[ -n $id && $(jq -r '.body // ""' <<<"$existing" | tr -d '\r') == "$(cat "$body")" ]]; then
     echo "already reported $ESCALATION_REASON on $HEAD_SHA"
     exit 0
-  fi
-  # The session-builder queue label goes on before the comment that explains it.
-  if [[ -n $session_label ]] && [[ $(gh api "$issue" | jq --arg l "$session_label" '[.labels[].name] | index($l) != null') != true ]]; then
-    gh api -X POST "$issue/labels" -f "labels[]=$session_label" >/dev/null
   fi
   if [[ -n $id ]]; then
     [[ $id =~ ^[1-9][0-9]*$ ]] || die "the lane-stopped comment id is not a number"

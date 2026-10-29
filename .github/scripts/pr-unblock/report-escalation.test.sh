@@ -273,6 +273,19 @@ run ci-fix-round-cap
 check "fail, same head, comment unchanged: exit 0" 0 "$RC"
 check "fail, same head, comment unchanged: no write" 0 "$(writes)"
 
+# A session removed needs-session without a new head, and the lane stops
+# again with the same comment: the label goes back on, the comment is untouched.
+setup '[]' '[]'
+run ci-fix-weaken-required
+session_body=$(sed '/^=====$/d' "$STUB/bodies")
+setup '[]' "$(comment "$session_body" 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-weaken-required
+check "session, same head, label removed: exit 0" 0 "$RC"
+check "session, same head, label removed: label only" 'POST repos/o/r/issues/42/labels' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+setup '[{"name":"needs-session"}]' "$(comment "$session_body" 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-weaken-required
+check "session, same head, still labeled: no write" 0 "$(writes)"
+
 setup '[]' "$(comment "$STOP_MARKER"$'\nolder text' 'melodic-automation-lanes[bot]' Bot 77)"
 run ci-fix-round-cap "$HEAD_B"
 check "fail, new head: edits the comment in place" 'PATCH repos/o/r/issues/comments/77' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
