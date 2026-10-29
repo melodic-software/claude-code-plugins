@@ -943,6 +943,12 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
+  # The agent App, installed on every repository on purpose: ci-status holds
+  # a pull request it opened, wrote a commit of or pushed to when it changes a
+  # trust-gate path, and a person merges it (README.md, Both lanes review the
+  # head).
+  trust-path-hold-apps:
+    - melodic-agent[bot]
   # true: report each decision and write nothing.
   report-only: false
   # true: post-merge-dispatch starts a full run of main inside its 30-minute
