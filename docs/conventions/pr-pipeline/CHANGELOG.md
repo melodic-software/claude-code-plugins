@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## [7.5.0] - 2026-10-29
+
+### Added
+
+- A base-branch trust-path hold: `pr-require-checks-trust-paths.yml` runs ci-workflows' shared hold from `pull_request_target`, which posts a failing `ci-status` status when an agent App touched a pull request that changes a path in `.github/trust-path-hold.json`. `scripts/sync-hold-floor.py` generates that file from the same floor and `merge.trust-path-hold-apps` as the inline hold, which stays.
+
+### Fixed
+
+- Intake admission no longer parks host work at `status: needs-decision`. An issue whose done-when items are all ones an unattended lane run cannot perform now parks at `status: confirmed`, with `host-run` added, the host queue's label, when nothing else refuses or waits, and an issue that already carries `host-run` parks at `status: confirmed` whatever its items. A `host-run` label counts only when a listed human or the lanes App added it last. Only an issue without such a label that mixes such items with items the lane can do still holds at needs-decision, where refine.mjs splits it, and so does any issue with a paid-eval item, since a paid eval can bill the owner; the admission comment now names the host queue, or the owner for a paid eval, instead of a person. An issue held for a person, or with any other refusal, wait or pending split, gets no `host-run`, since that label starts an unattended host run. Before, the owner's release of [#9293](https://github.com/melodic-software/claude-code-plugins/issues/9293) with `host-run` added was re-held for a person.
+- The issue lane's `issue.json` carries `split_parent`, the body of the native parent a size split filed the issue from, when the issue counts as that parent's text (admit.mjs `splitChildBody`) and a listed human wrote, and last edited before the label if ever, that body. The split copies only the parent's task-list lines, so a part lost the parent's notes and plan, and the lane pushed back on missing text ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176), [#10205](https://github.com/melodic-software/claude-code-plugins/issues/10205)). The split-child trust rule is unchanged: the part's body still holds only copied task-list lines.
+
 ## [7.4.1] - 2026-10-29
 
 ### Fixed
