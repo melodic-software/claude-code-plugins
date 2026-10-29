@@ -3920,14 +3920,19 @@ jobs:
               waited=1
             done
           }
-          # ONE READ OF EACH PULL REQUEST FACT PER JOB. pr_read <gh api args>...
-          # answers what gh_read answered for the same args earlier in this job
-          # (the pull request, its labels, events and comments), else reads
-          # through gh_read and keeps the answer in $RUNNER_TEMP/pr-reads. A read
+          # ONE READ OF THE PULL, ITS LABELS AND ITS EVENTS PER JOB. pr_read
+          # <gh api args>... answers what an earlier step of this job read for
+          # the same args, else reads through gh_read and keeps the answer in
+          # $RUNNER_TEMP/pr-reads. Steps use it for three reads only: the pull
+          # request (pulls/<n>), its labels and its issue events. Comments,
+          # reviews, runs, jobs and annotations are always read live with
+          # gh_read, so a member's veto or a new review is never missed. A read
           # that fails keeps nothing, so the next step reads again and fails
           # closed as before. pr_read_put <answer> <args>... keeps an answer a
-          # step read its own way; pr_read_forget drops every kept answer, which
-          # a step that writes to the pull request runs after its write.
+          # step read its own way; pr_read_forget drops every kept answer, and
+          # every step that writes to the pull request runs it after its write
+          # (the cost-hold step and the lanes App step's auto-merge disarm).
+          # check-contract writes before any step reads through this cache.
           pr_read() {
             local file out
             file=$(pr_read_file "$@") || file=
@@ -4229,14 +4234,14 @@ jobs:
             echo "The cost hold stays for a person: $1."
             exit 0
           }
-          # Every read is live, as this step acts on it; each answer is kept
-          # for the later steps' pr_read of the same args.
+          # Every read is live, as this step acts on it; its pull and events
+          # answers are kept for the later steps' pr_read of the same args.
           read_api() {
             local attempt out
             for attempt in 1 2 3; do
               # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
               if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
-                pr_read_put "$out" "$@"
+                [[ ! $1 =~ ^repos/[^/]+/[^/]+/(pulls/[0-9]+|issues/[0-9]+/events\?per_page=100)$ ]] || pr_read_put "$out" "$@"
                 printf '%s\n' "$out"
                 return 0
               fi
@@ -4554,7 +4559,7 @@ jobs:
           identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
           [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
           # The reason is best effort; the step fails either way.
-          reason=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate |
+          reason=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate |
             jq -r '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
@@ -4606,7 +4611,7 @@ jobs:
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
           for attempt in 1 2 3; do
-            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) && held_at=$(jq -r \
+            if raw=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) && held_at=$(jq -r \
               '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
                 and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                   and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
@@ -4726,10 +4731,11 @@ jobs:
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
           fi
+          # READER=pr_read for the pull alone; runs, jobs and annotations are live.
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(pr_read "$2"); then
+              if body=$("${READER:-gh_read}" "$2"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -4746,7 +4752,7 @@ jobs:
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
             fi
-            pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
             # The broker step above leaves the file list it read; read it again
             # only when that step could not.
             if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
@@ -5224,7 +5230,7 @@ jobs:
           read3() {
             local attempt
             for attempt in 1 2 3; do
-              pr_read "${@:2}" && return 0
+              "${READER:-gh_read}" "${@:2}" && return 0
               [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
               sleep $((attempt * 5))
             done
@@ -5236,14 +5242,17 @@ jobs:
               echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
               exit 1
             fi
-            pull=$(read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+            pull=$(READER=pr_read read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
             head=$(jq -r '.head.sha // ""' <<<"$pull") || head=
           fi
           if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$head' is not a commit SHA."
             exit 1
           fi
-          # Newest first across pages, as unblockStops reads them.
+          # Newest first across pages, as unblockStops reads them. An inline
+          # import, not holds_js: holds_js is a function of the cost-hold step's
+          # own shell, which runs on pull_request events only, and this step
+          # runs in the merge queue too.
           rows=$(read3 "the statuses of $head" "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate --jq '.[]') || exit 1
           jq -s . <<<"$rows" >"$RUNNER_TEMP/pr-unblock-statuses.json" || { echo "::error::the statuses of $head do not parse."; exit 1; }
           # shellcheck disable=SC2016 # JavaScript, not shell
@@ -5327,7 +5336,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(pr_read "${@:2}"); then
+              if body=$("${READER:-gh_read}" "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -5335,7 +5344,7 @@ jobs:
               sleep $((attempt * 5))
             done
           }
-          pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          pull=$(READER=pr_read read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
           if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
             echo "::error::the author of #$pr could not be read."
             exit 1
@@ -5369,6 +5378,8 @@ jobs:
               if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
                 -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
                 echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
+                # The pull changed: later reads take it live.
+                pr_read_forget
               else
                 echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
               fi

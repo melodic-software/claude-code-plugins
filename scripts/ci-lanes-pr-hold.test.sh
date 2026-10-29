@@ -629,6 +629,11 @@ if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
 else
   fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
 fi
+if [[ ! -e "$TMP_ROOT/pr-reads" ]]; then
+  ok "after the disarm the step drops every kept read, so a later read of the pull is live"
+else
+  fail "the step kept reads after its disarm: '$(ls "$TMP_ROOT/pr-reads")'"
+fi
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 export STUB_DISARM_FAILS=1
 expect "a disarm that fails only warns, so a token that cannot disarm never holds a push red" 0 3 "::warning::could not turn off native auto-merge on #7 after a push to its head"
