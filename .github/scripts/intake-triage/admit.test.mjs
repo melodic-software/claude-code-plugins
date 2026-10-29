@@ -389,6 +389,10 @@ describe("decide", () => {
       ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
       ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+      // #9113's criterion: a bare name of a workflow on disk.
+      ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
+      ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
+      ["- [ ] pr-require-checks.yml is unchanged.", ".github/workflows/pr-require-checks.yml"],
     ];
     for (const [line, path] of refused) {
       test(`refuses, with no hold, on ${line}`, () => {
@@ -414,7 +418,8 @@ describe("decide", () => {
       "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
       "- [ ] `plugins/x/cases/y/settings.json` sets the model.",
       "- [ ] settings.json keeps its key.",
-      "- [ ] pr-require-checks.yml is unchanged.",
+      // #9092's: a bare .yml name no workflow on disk has.
+      "- [ ] No pr-test-macos.yml is added.",
       "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
     ];
     for (const line of admitted) {
@@ -423,6 +428,13 @@ describe("decide", () => {
         assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
       });
     }
+
+    // A title names the subject, not the change: #8682 and #9054 named an
+    // existing workflow in theirs and changed only scripts.
+    test("admits an issue whose title alone names an existing workflow", () => {
+      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-windows.yml" };
+      assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+    });
 
     test("reads the row apply-patch pushes an issue lane patch under", () => {
       assert.equal(PATCH_ROW, TARGETS.issue.row(""));
