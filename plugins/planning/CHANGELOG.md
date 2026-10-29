@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.124.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+- The 1:1 interview page's README lists where its question screen, answer note, keys and phone pin still differ from the shared page, each with its reason. Its deferred list gains two open items: the shared page's question screen on the 1:1 page, and the visual-viewport pin above 820 px for a phone held landscape.
+
+### Fixed
+
+- On a phone, the 1:1 interview page's text fields use 16 px text, as the shared page's do, so iOS Safari no longer zooms in when the note box or another field gets focus.
+
 ## [0.124.0] - 2026-10-29
 
 ### Added
