@@ -2462,7 +2462,8 @@ merge gate's own code merge with no person. The lane-armed set is exactly
 `plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py` and every
 `.github/scripts/pr-merge/` script on the floor, `trust` rows included
 (`scripts/sync-hold-floor.py` `lane_armable`). A change that keeps every hold path but weakens
-these files' logic merges on the two bound AI reviews alone.
+these files' logic merges on the two bound AI reviews plus pr-merge's `pr-merge/lane-armed`
+attestation, with no person.
 
 Every other `trust` and `gate` row is person-held: every workflow, the credential and token paths
 (`request-lane-token`, the trusted-actor list, `check-trusted-trigger`, `check-kill-switch`,

@@ -553,6 +553,8 @@ test("laneArmedHold holds on a forged, stale or unreadable attestation", async (
     "a run from a pull request branch": { run: { head_branch: "feat/x" } },
     "a pull_request_target run": { run: { event: "pull_request_target" } },
     "a pull_request run": { run: { event: "pull_request" } },
+    // The lane-armed job never runs on workflow_run, so no such run attests.
+    "a workflow_run run": { run: { event: "workflow_run" } },
     "a run that failed": { run: { status: "completed", conclusion: "failure" } },
     "a queued run": { run: { status: "queued" } },
     "a run in a fork": { run: { head_repository: { full_name: "fork/repo" } } },

@@ -500,7 +500,7 @@ export const LANE_ARMED_CHECK = "pr-merge/lane-armed";
 export const LANE_ARMED_WORKFLOW = ".github/workflows/pr-merge.yml";
 // The artifact only that run's own steps can upload, naming what it attested.
 export const laneArmedArtifact = (pr, head) => `pr-merge-lane-armed-${pr}-${head}`;
-const LANE_ARMED_EVENTS = Object.freeze(["schedule", "workflow_dispatch", "workflow_run"]);
+const LANE_ARMED_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 const RECORD = /^lane-armed (\{.*\})$/m;
 export const laneArmedRecord = (text) => {
   try {
@@ -519,7 +519,8 @@ export const laneArmedPaths = (files) => (Array.isArray(files) ? files : []).fil
 // workflow with checks: write posts as the GitHub Actions app and can copy a
 // real run's id, so the check run must name, in both external_id and
 // details_url, a run of pr-merge.yml on the default branch, started by
-// schedule, workflow_dispatch or workflow_run, running or succeeded, that
+// schedule or workflow_dispatch (the lane-armed job runs on nothing else),
+// running or succeeded, that
 // uploaded the unexpired artifact laneArmedArtifact(pr, head), which only
 // that run's own steps can; its record must cover every lane-armed path
 // changed now. Any read that fails or answers anything else holds.
