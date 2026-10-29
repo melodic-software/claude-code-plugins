@@ -2371,14 +2371,77 @@ def _flow_holds(src: str, ident: str, pos: int) -> bool:
 def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
     """The first place any module may write one of `names` (the built-in
     methods, keys and engine lookups the flow trusted) on an object that
-    could be a built-in prototype, or None. See the helper's `sinks` op."""
+    could be a built-in prototype, or None. See the helper's `sinks` op.
+    A target it clears as fresh may rely on more names (`create` for
+    `Object.create`), which every module is then checked for as well; a
+    hit on a target fresh only through its importers (an exported helper's
+    parameter) stands unless `_passes_fresh` shows they pass fresh
+    objects."""
     assert _PARSER is not None
     loaders = _named_loaders(src)
-    for lo, hi in _module_spans(src):
-        hits = _PARSER.sinks(src, lo, hi, names, loaders)
-        if hits:
-            return hits[0]
-    return None
+    trusted = set(names)
+    while True:
+        relied: set[str] = set()
+        for lo, hi in _module_spans(src):
+            found = _PARSER.sinks(src, lo, hi, sorted(trusted), loaders)
+            if found["hits"]:
+                return found["hits"][0]
+            for kind, name, at, needs in found["pending"]:
+                taken = _passes_fresh(src, lo, needs, loaders)
+                if taken is None:
+                    return kind, name, at
+                relied |= taken
+            relied.update(found["trusted"])
+        if relied <= trusted:
+            return None
+        trusted |= relied
+
+
+def _passes_fresh(
+    src: str,
+    lo: int,
+    needs: list[tuple[str, int]],
+    loaders: tuple[str, ...],
+    depth: int = 0,
+) -> set[str] | None:
+    """The names trusted in showing that, for each (name, index) in
+    `needs`, every module importing the export `name` of the module
+    starting at `lo` calls it directly with a fresh object as argument
+    `index` (the parser's `fresh_args` op), or None when one may not. The
+    module needs a path in Bun's module table, since importers name it by
+    path, and no module may load its file whole or load a file the parser
+    cannot name, since a namespace hands the export out unseen. An
+    importer's argument that is a parameter of its own export adds that
+    export's needs, followed at most 8 deep."""
+    assert _PARSER is not None
+    path = _PARSER.module_path(src, lo)
+    if path is None or depth > 8:
+        return None
+    file = path.rsplit("/", 1)[-1]
+    for span in _module_spans(src):
+        loaded = _PARSER.loads(src, *span, loaders)
+        if loaded is None or "*" in loaded or file in loaded:
+            return None
+    trusted: set[str] = set()
+    for span in _module_spans(src):
+        imported = _PARSER.imports(src, *span)
+        if imported is None:
+            return None
+        for name, index in needs:
+            for source in dict.fromkeys(p for n, p in imported if n == name):
+                start = _PARSER.module_start(src, source)
+                if start != lo and (start is not None or source.rsplit("/", 1)[-1] != file):
+                    continue
+                taken = _PARSER.fresh_args(src, *span, name, source, index)
+                if taken is None:
+                    return None
+                trusted.update(taken["trusted"])
+                if taken["needs"]:
+                    more = _passes_fresh(src, span[0], taken["needs"], loaders, depth + 1)
+                    if more is None:
+                        return None
+                    trusted |= more
+    return trusted
 
 
 def _module_spans(src: str) -> list[tuple[int, int]]:

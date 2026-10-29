@@ -961,6 +961,8 @@
 }
 .app .vf-claude-av .vf-i { inline-size: 62%; block-size: 62%; stroke-width: 2; fill: currentColor; fill-opacity: 0.2; }
 .app .vf-basis { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
+.app .vf-basis-sum { cursor: pointer; }
+.app .vf-basis-body { margin-block-start: 4px; }
 .app .vf-ndot { inline-size: 8px; block-size: 8px; margin-block-start: 6px; border-radius: 50%; background: var(--accent); flex: none; }
 /* an answer card's and a question row's dot stay the smaller size they had */
 .app :is(.vf-card-head, .vf-qside) .vf-ndot { inline-size: 7px; block-size: 7px; margin-block-start: 0; }
