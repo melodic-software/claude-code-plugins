@@ -99,6 +99,12 @@ IMPORT = re.compile(
 )
 
 
+# The trusted-actor list is held outside the floor table: the trust gate
+# rates it HIGH, and every review caller's hold-paths lists it first.
+def floor_or_trust_gate(path: str) -> bool:
+    return path == risk.TRUSTED_ACTORS_PATH or any(risk.glob_match(g, path) for g in risk.FLOOR)
+
+
 def import_closure(entries: tuple[str, ...]) -> list[str]:
     seen: set[str] = set()
     todo = [ROOT / entry for entry in entries]
@@ -340,8 +346,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 106)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 40)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 108)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 42)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -430,7 +436,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
@@ -443,7 +449,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )

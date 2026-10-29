@@ -345,6 +345,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
     (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/gate-recheck.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/lane-hold.mjs", "enforcement"),
     (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
     (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),

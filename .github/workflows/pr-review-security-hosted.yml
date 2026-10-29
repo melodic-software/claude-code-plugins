@@ -256,6 +256,8 @@ jobs:
         .github/scripts/pr-unblock/escalation-routes.mjs
         .github/scripts/pr-unblock/escalation-routes.json
         .github/scripts/pr-unblock/gate-source.mjs
+        .github/scripts/pr-unblock/gate-recheck.mjs
+        .github/scripts/pr-unblock/lane-hold.mjs
         .github/scripts/pr-unblock/thread-scope.mjs
         .github/scripts/pr-unblock/retry-fetch.mjs
         .github/scripts/work-resolve-issue/report-outcome.mjs
