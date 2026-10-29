@@ -1318,6 +1318,43 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
 });
 
+// #10902's head 4b2a4bd3 after a ci-fix-escalated stop (run 40843021992): the
+// rollup holds the rung-up's "Passed: no changes" fix-ci check and the push
+// job's lane-stopped apply-patch check, and REST lists one fix-ci check for
+// the pair. The rollup cannot show the stop, so the head is read over REST
+// and retried once under fix-ci-restarts.
+test("a head whose rollup shows a lane-stopped push job after a passed fix-ci check is retried once on the same head", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const passed = check("pr-unblock / fix-ci", "SUCCESS", { title: "Passed: no changes" });
+  const stopped = check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" });
+  const escalated = (checks) => pr(7, { checks: [lanes("FAILURE"), ...checks] });
+  const fixCi = (time, runId) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Passed: no changes" }, started_at: at(time), completed_at: at(time), external_id: `pr-unblock:fix-ci:${runId}:1` });
+  const stop = (time, runId) => ({ name: "pr-unblock / apply-patch", status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time), external_id: `pr-unblock:apply-patch:${runId}:1` });
+  const once = await run({ pages: [[escalated([passed, stopped])]], history: new Map([[head, [fixCi("08:40", 40843021992)]]]), stops: new Map([[head, [stop("08:50", 40843021992)]]]) });
+  assert.equal(once.api.calls.dispatch.length, 1, once.lines.join("\n"));
+  // The retry stopped too: past fix-ci-restarts, left for a new push.
+  const twice = await run({
+    pages: [[escalated([passed, stopped])]],
+    history: new Map([[head, [fixCi("08:40", 40843021992), fixCi("12:40", 40843021993)]]]),
+    stops: new Map([[head, [stop("08:50", 40843021992), stop("12:50", 40843021993)]]]),
+  });
+  assert.ok(twice.lines.some((line) => line.includes("failed 2 time(s) on this base, past 1 restart(s)")), twice.lines.join("\n"));
+  assert.deepEqual(twice.api.calls.dispatch, []);
+  // A push job the kill switch stopped did no work, so it spends no restart.
+  const killed = (time, runId) => ({ ...stop(time, runId), output: { title: "Skipped: kill-switch" } });
+  const paused = await run({
+    pages: [[escalated([passed, { ...stopped, title: "Skipped: kill-switch" }])]],
+    history: new Map([[head, [fixCi("08:40", 40843021992), fixCi("12:40", 40843021993)]]]),
+    stops: new Map([[head, [stop("08:50", 40843021992), killed("12:50", 40843021993)]]]),
+  });
+  assert.equal(paused.api.calls.dispatch.length, 1, paused.lines.join("\n"));
+  // With no stopped push job the passed check handles the head, read off the rollup alone.
+  const handled = await run({ pages: [[escalated([passed])]] });
+  assert.ok(handled.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), handled.lines.join("\n"));
+  assert.deepEqual(handled.api.calls.history, []);
+});
+
 // A re-run is the same run id at its next attempt (external_id
 // `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
 // attempt it followed.

@@ -56,7 +56,7 @@ import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
-import { KILL_SWITCH_STOP, killSwitchStop, laneStop } from "./limit-stop.mjs";
+import { KILL_SWITCH_STOP, killSwitchStop, LANE_STOP, laneStop } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -347,6 +347,7 @@ export function skipReason(
     appSenderId,
     actionsAppId,
     checkName,
+    stopCheckName = DEFAULTS.stopCheckName,
     holdLabels,
     gateLabel = null,
     restarts,
@@ -419,6 +420,11 @@ export function skipReason(
   if (runs.length === 0) {
     return "";
   }
+  // The rollup cannot tie a stopped push job to its fix-ci run, so a head
+  // whose rollup holds one is decided on its REST runs (withStops).
+  if (node.fixCiRuns === undefined && checks.some((run) => run.name === stopCheckName && run.conclusion === "NEUTRAL" && [LANE_STOP, KILL_SWITCH_STOP].includes(run.title))) {
+    return "";
+  }
   // A held skip (a held PR stopped above) or a kill-switch stop counts toward
   // the per-head cap with the rest, so a hold the run reads and this
   // dispatcher does not, or a switch that keeps flipping mid-run, stops there.
@@ -481,7 +487,7 @@ export async function dispatchCiFixes({
         }
         continue;
       }
-      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
       if (reason === "") {
         candidates.push(node);
       } else if (staleStop(node, { base, appSenderId, holdLabels, gateLabel })) {
@@ -640,7 +646,7 @@ export async function dispatchCiFixes({
     }
     const reason = skipReason(
       { ...node, requiredRun, laneGate, fixCiRuns, headFailing, timeLimited },
-      { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now },
+      { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now },
     );
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
