@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { floorChange, floorOf, main, patchLines, recordOf, rowRefusal } from "./lane-armed.mjs";
+import { astRefusal, floorChange, floorOf, main, patchLines, recordOf, rowRefusal } from "./lane-armed.mjs";
 import { laneArmedRecord } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -105,10 +105,7 @@ test("floorChange refuses every change that could hide or drop a floor row", () 
     ["a person-held entry dropped", RISK, py, PY(ROWS, ARMED, []), /changes the generated LANE_ARM block/],
     ["a comment added inside the rows", HOLDS, mjs, mjs.replace(`  ["${TOKEN}", "trust"],\n`, `  ["${TOKEN}", "trust"],\n  // fine\n`), /not a row of the generated shape/],
     // Python folds a fullwidth identifier to ASCII (NFKC): this rebinds FLOOR_CLASSES.
-    ["a fullwidth identifier", RISK, py, `${py}\uFF26\uFF2C\uFF2F\uFF2F\uFF32_CLASSES = ()\n`, /non-ASCII character or a reflective call/],
-    ["a globals() rebinding", RISK, py, `${py}globals()["FLOOR_" "CLASSES"] = ()\n`, /non-ASCII character or a reflective call/],
-    ["a setattr rebinding", RISK, py, py.replace("return x + 1", 'setattr(sys.modules[__name__], "FLOOR", ())'), /reflective call/],
-    ["an eval", HOLDS, mjs, mjs.replace("x + 1", 'eval("HOLD_" + "PATH_FLOOR.length = 0")'), /reflective call/],
+    ["a fullwidth identifier", RISK, py, `${py}\uFF26\uFF2C\uFF2F\uFF2F\uFF32_CLASSES = ()\n`, /holds a non-ASCII character/],
   ];
   for (const [name, path, before, after, why] of cases) {
     assert.match(String(judge(path, before, after)), why, name);
@@ -168,6 +165,7 @@ function world({ head = HEAD, files = {}, changed, moved = {}, mergeBase = MERGE
   const content = (text) => ({ encoding: "base64", content: Buffer.from(text).toString("base64") });
   const at = { [MERGE_BASE]: { [RISK]: PY(ROWS, ARMED), [HOLDS]: MJS(ROWS, ARMED) } };
   at[BASE] = { ...at[MERGE_BASE], ...moved };
+  at[head] = { ...at[MERGE_BASE], ...Object.fromEntries(Object.entries(files).filter(([, after]) => typeof after === "string")) };
   const listed = [
     { filename: ".github/scripts/pr-merge/who.mjs", status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" },
     ...Object.entries(files).map(([filename, after]) => (typeof after === "string" ? { filename, status: "modified", patch: diff(at[MERGE_BASE][filename], after) } : { filename, ...after })),
@@ -288,6 +286,59 @@ test("the base copy is read at the merge base the patch is measured from", async
   const { code, out } = await run([ROW], w);
   assert.equal(code, 0, out);
   assert.ok(out.includes(`its change could weaken the hold floor: it removes the floor row ${last}`), out);
+  assert.deepEqual(w.writes, []);
+});
+
+// babysit_risk.py as it stands in this checkout: the base copy each
+// rebinding below is added to. floor-ast.py parses both and runs neither.
+const RISK_TEXT = readFileSync(new URL(`../../../${RISK}`, import.meta.url), "utf8");
+const ADDED = (lines) => `${RISK_TEXT}\n\n${lines}\n`;
+test("floor-ast.py refuses each reflective or aliased rebinding of the Python floor", () => {
+  const cases = [
+    ["locals()", 'locals()["FLOOR_" "CLASSES"] = ()', /adds a reference to locals/],
+    ["an alias of globals", 'g = globals\ng()["FLOOR_" "CLASSES"] = ()', /adds a reference to globals/],
+    ["globals split over lines", '(globals\n)()["FLOOR_" "CLASSES"] = ()', /adds a reference to globals/],
+    ["builtins.setattr", 'import builtins\nbuiltins.setattr(object(), "x", 1)', /adds a reference to builtins|adds a reference to setattr/],
+    ["object.__setattr__", 'object.__setattr__(object(), "x", 1)', /adds a reference to __setattr__/],
+    ["sys.modules __setattr__", 'import sys\nsys.modules[__name__].__setattr__("FLOOR_" "CLASSES", ())', /adds a reference to (__setattr__|modules)/],
+    ["__import__ exec", '__import__("builtins").exec("FLOOR_CLASSES = ()")', /adds a reference to (__import__|exec)/],
+    ["importlib", 'import importlib\nimportlib.reload', /adds a reference to importlib/],
+    ["getattr", 'getattr(object(), "FLOOR_" "CLASSES")', /adds a reference to getattr/],
+    ["the compile builtin", 'compile("FLOOR_CLASSES = ()", "x", "exec")', /adds a reference to compile/],
+    ["__builtins__", '__builtins__["exec"]("FLOOR_CLASSES = ()")', /adds a reference to __builtins__/],
+    ["a second binding", "FLOOR_CLASSES = ()", /FLOOR_CLASSES is bound 2 times/],
+    ["an augmented binding", "FLOOR_CLASSES += ()", /FLOOR_CLASSES is bound 2 times/],
+    ["a loop target", "for FLOOR in []:\n    pass", /FLOOR is bound 2 times/],
+    ["a with target", "with open(__file__) as HIGH_FLOOR:\n    pass", /HIGH_FLOOR is bound 2 times/],
+    ["an import alias", "import os as REVIEW_FLOOR", /REVIEW_FLOOR is bound 2 times/],
+    ["a walrus", "(PERSON_HELD := ())", /PERSON_HELD is bound 2 times/],
+    ["a def", "def LANE_ARMED_FLOOR():\n    return ()", /LANE_ARMED_FLOOR is bound 2 times/],
+    ["an argument", "def f(FLOOR=()):\n    return FLOOR", /FLOOR is bound 2 times/],
+    ["a del", "del FLOOR", /FLOOR is bound 2 times/],
+    ["a global", "def f():\n    global HIGH_FLOOR", /HIGH_FLOOR is bound 2 times/],
+  ];
+  for (const [name, lines, why] of cases) {
+    assert.match(astRefusal(RISK_TEXT, ADDED(lines)), why, name);
+  }
+  // A derived set re-derived, a table no longer literal, a copy that does not parse.
+  assert.match(astRefusal(RISK_TEXT, RISK_TEXT.replace("FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)", "FLOOR: tuple[str, ...] = ()")), /changes how FLOOR is derived/);
+  assert.match(astRefusal(RISK_TEXT, RISK_TEXT.replace("LANE_ARM_GATE = True", "LANE_ARM_GATE = bool(1)")), /LANE_ARM_GATE is not a literal/);
+  assert.match(astRefusal(RISK_TEXT, `${RISK_TEXT}\ndef (\n`), /does not parse/);
+});
+
+test("floor-ast.py accepts a logic edit with no reflective name and a row addition", () => {
+  assert.equal(astRefusal(RISK_TEXT, RISK_TEXT), "");
+  assert.equal(astRefusal(RISK_TEXT, ADDED('def extra(x):\n    return re.compile("a").match(x) or x + 1')), "");
+  const row = '    (".github/scripts/pr-merge/lane-armed.mjs", "gate"),\n';
+  assert.ok(RISK_TEXT.includes(row));
+  assert.equal(astRefusal(RISK_TEXT, RISK_TEXT.replace(row, `${row}    ("docs/held/**", "gate"),\n`)), "");
+});
+
+test("a rebinding the patch rules cannot see is refused through floor-ast.py", async () => {
+  const w = world({ files: { [RISK]: `${PY(ROWS, ARMED)}locals()["FLOOR_" "CLASSES"] = ()\n` } });
+  const { code, out } = await run([ROW], w);
+  assert.equal(code, 0, out);
+  assert.ok(out.includes(`its change could weaken the hold floor: its ${RISK}: it adds a reference to locals`), out);
   assert.deepEqual(w.writes, []);
 });
 

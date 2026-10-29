@@ -296,6 +296,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/pr-merge/listing-carry.mjs", "gate"],
   [".github/scripts/pr-merge/lane-armed.mjs", "gate"],
+  [".github/scripts/pr-merge/floor-ast.py", "gate"],
   [".github/actions/report-check-run/posting-run.mjs", "gate"],
   ["scripts/sync-hold-floor.py", "trust"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"],
@@ -415,6 +416,7 @@ export const LANE_ARMED = Object.freeze([
   ".github/scripts/pr-merge/verify-answers.mjs",
   ".github/scripts/pr-merge/listing-carry.mjs",
   ".github/scripts/pr-merge/lane-armed.mjs",
+  ".github/scripts/pr-merge/floor-ast.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
 ]);
 export const PERSON_HELD = Object.freeze([

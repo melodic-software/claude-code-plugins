@@ -2498,8 +2498,16 @@ A lane-armed path clears only when all of these hold at the current head:
    `HOLD_PATH_CLASSES`, `HOLD_PATH_FLOOR`, `HIGH_FLOOR`, `REVIEW_FLOOR`, `PERSON_HELD`,
    `LANE_ARM*` and the rest); or when, inside them, it is anything but an added row of the
    generated shape or an added person-held entry. An added line also refuses when it holds a
-   non-ASCII character (Python folds a fullwidth identifier to ASCII) or a reflective call
-   (`globals(`, `setattr(`, `vars(`, `exec(`, `eval(`, `__dict__`). A removed row is a shrink.
+   non-ASCII character (Python folds a fullwidth identifier to ASCII). A removed row is a shrink.
+   For `babysit_risk.py`, the base checkout's `floor-ast.py` also parses the base and head copies
+   with `ast` and runs neither. It refuses a head that references a reflective name (`globals`,
+   `locals`, `vars`, `setattr`, `getattr`, `exec`, `eval`, `compile`, `__import__`, `importlib`,
+   `builtins`, `__dict__`, `__setattr__`, `modules` and the rest) more often than the base, so an
+   alias or a split line still counts. It also refuses a head that binds a floor table or a set
+   derived from one other than once, at module level, by one assignment: a table to a literal, a
+   derived set to the base's expression. `merge-holds.mjs` binds its tables with `const` and
+   `Object.freeze`, which no later line can rebind by name; a logic edit there stays the
+   residual below.
    The base copy and the patches come from one compare of the base branch with the head, and the
    base copy is read at its merge base, the commit GitHub measures the patch from. A missing
    patch, a renamed or deleted floor file, or a file list the compare cuts short (it lists at most

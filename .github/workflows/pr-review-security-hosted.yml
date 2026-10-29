@@ -232,6 +232,7 @@ jobs:
         .github/scripts/pr-merge/verify-answers.mjs
         .github/scripts/pr-merge/listing-carry.mjs
         .github/scripts/pr-merge/lane-armed.mjs
+        .github/scripts/pr-merge/floor-ast.py
         .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py

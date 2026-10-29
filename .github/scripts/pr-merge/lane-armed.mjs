@@ -21,8 +21,10 @@
 // change is judged instead, against the base's marked regions (main's copy,
 // so trusted): in each floor-definition file a patch line may name a floor
 // marker or a hold identifier only as an added row of the exact generated
-// shape inside a base region, and an added line holds no non-ASCII character
-// or reflective call. The base copy is read at the merge base the patch is
+// shape inside a base region, and an added line holds no non-ASCII
+// character. babysit_risk.py's head and base copies are also parsed, never
+// run, by floor-ast.py, which refuses a new reflective reference and any
+// rebinding of a floor table or a set derived from one. The base copy is read at the merge base the patch is
 // measured from. A removed row is a shrink. Any read that fails, a missing
 // patch, or a cut-short file list refuses.
 //
@@ -40,10 +42,12 @@
 //   LANE_ARMED_HEAD     the attested head (rerun)
 //   GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_API_URL
 import { Buffer } from "node:buffer";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { LANE_ARMED_CHECK, laneArmedArtifact } from "./merge-holds.mjs";
@@ -57,15 +61,15 @@ const LANE_ARMED_MJS = ".github/scripts/pr-merge/lane-armed.mjs";
 // The files that define the floor or how it is read; every other file holding
 // a generated floor block (the review callers, pr-require-checks.yml,
 // scripts/sync-hold-floor.py) is person-held, so the gate never attests it.
-export const FLOOR_FILES = Object.freeze([RISK, HOLDS, LANE_ARMED_MJS]);
+const FLOOR_AST = ".github/scripts/pr-merge/floor-ast.py";
+export const FLOOR_FILES = Object.freeze([RISK, HOLDS, LANE_ARMED_MJS, FLOOR_AST]);
 const MARKER = /\b(?:BEGIN|END) (?:floor-rows|hold-floor)\b/;
+// A non-ASCII character in an added line: Python folds a fullwidth or other
+// NFKC-equivalent identifier to ASCII, so a fullwidth `FLOOR_CLASSES = ()`
+// rebinds it past IDENTIFIER. Reflection and aliasing in babysit_risk.py are
+// floor-ast.py's to judge, on the parsed trees.
+const NON_ASCII = /[^\x00-\x7f]/;
 // The names that hold the floor tables and the sets derived from them.
-// What lets an added line bind a name the IDENTIFIER test cannot see: a
-// non-ASCII character (Python folds a fullwidth or other NFKC-equivalent
-// identifier to ASCII, so a fullwidth `FLOOR_CLASSES = ()` rebinds it) or
-// a reflective call (`globals()["FLOOR_" "CLASSES"]`). A method call such as
-// `RE.exec(` is not one.
-const REBINDS = /[^\x00-\x7f]|(?<![.\w])(?:globals|setattr|vars|exec|eval)\s*\(|__dict__/;
 const IDENTIFIER =
   /\b(?:FLOOR|FLOOR_CLASSES|HOLD_PATH_CLASSES|HOLD_PATH_FLOOR|HIGH_FLOOR|REVIEW_FLOOR|AUTHOR_REVIEW_FLOOR|AUTHOR_REVIEW_CLASSES|PERSON_CLASSES|PERSON_HELD|_NO_AUTHOR_LIFT|GATE_WORKFLOWS|COST_PATHS|LANE_ARM\w*)\b/;
 const LANES = ["claude-review", "claude-security-review"];
@@ -172,7 +176,7 @@ export function floorChange(path, patch, base) {
   for (const { sign, text, at } of changes) {
     const what = `${sign === "+" ? "an added" : "a removed"} line of ${path}`;
     if (MARKER.test(text)) return `${what} names a floor marker`;
-    if (sign === "+" && REBINDS.test(text)) return `${what} holds a non-ASCII character or a reflective call`;
+    if (sign === "+" && NON_ASCII.test(text)) return `${what} holds a non-ASCII character`;
     // A removed line sits strictly between the markers; an added one follows
     // BEGIN or a line before END.
     const inside = (r) => (sign === "-" ? r.begin < at && at < r.end : r.begin <= at && at < r.end);
@@ -190,6 +194,25 @@ export function floorChange(path, patch, base) {
     if (named) return `${what} names ${named[0]} outside the floor rows`;
   }
   return null;
+}
+
+// floor-ast.py from this checkout (the base's, never the head's) on the base
+// and head copies of babysit_risk.py: its one line of output, "" when it
+// accepts the head, or why it refused.
+export function astRefusal(baseText, headText, run = execFileSync) {
+  const dir = mkdtempSync(join(tmpdir(), "lane-armed-ast-"));
+  try {
+    writeFileSync(join(dir, "base.py"), baseText);
+    writeFileSync(join(dir, "head.py"), headText);
+    try {
+      run("python3", ["-I", fileURLToPath(new URL("./floor-ast.py", import.meta.url)), join(dir, "base.py"), join(dir, "head.py")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return "";
+    } catch (error) {
+      return String(error?.stdout ?? "").trim() || "floor-ast.py could not judge it";
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 // Why the pull request's change could weaken the floor, or null. The base
@@ -211,6 +234,10 @@ async function floorRefusal(github, repo, pull) {
     const base = file.filename === LANE_ARMED_MJS ? null : floorOf(await text(github, repo, file.filename, mergeBase), file.filename);
     const why = floorChange(file.filename, file.patch, base);
     if (why) return why;
+    if (file.filename === RISK) {
+      const parsed = astRefusal(await text(github, repo, RISK, mergeBase), await text(github, repo, RISK, pull.head.sha));
+      if (parsed) return `its ${RISK}: ${parsed}`;
+    }
   }
   return null;
 }
