@@ -2248,7 +2248,9 @@ them on every `pull_request` run, contract-only runs included:
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
   status is not read. The merge-group run checks the queued pull request's head too. A status post
-  re-runs nothing, so a stop posted after ci-status passed holds at the merge queue's run.
+  re-runs nothing, so a stop posted after ci-status passed holds at the merge queue's run. A clear
+  re-runs nothing either: the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs,
+  once and recorded, a first-attempt ci-status that failed only on stops once none fails the head.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
