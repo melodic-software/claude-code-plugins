@@ -71,7 +71,8 @@
 // - No person wrote or edited a review comment, or submitted a review, since
 //   the label went on. GitHub's timeline shows no event for a reply inside an
 //   existing review thread, so a lift the rules above allow reads
-//   pulls/<n>/comments (since the label) and pulls/<n>/reviews too; a failed
+//   pulls/<n>/comments (since the label) and pulls/<n>/reviews too, and
+//   feedback-not-landed reads them before its job-token reads; a failed
 //   read keeps the label. Known limits: a review body edited after the label
 //   is not seen (a REST review carries no update time), and any account
 //   GitHub does not mark Bot, an outsider included, keeps the label, which
@@ -330,6 +331,12 @@ const CHECKS = Object.freeze({
     }
     if (open > 0) {
       return { held: `${open} unresolved review thread(s) carry a lanes App comment` };
+    }
+    // The review threads before the job token's reads: a person's reply
+    // there keeps the label whatever the trusted move or the lanes answer.
+    const speaker = await context.speaker();
+    if (speaker !== undefined) {
+      return { spoke: speaker };
     }
     const moved = await context.moved();
     if (moved !== null) {
@@ -746,6 +753,7 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     return { reason: `${label} is no longer on it` };
   }
   const why = [];
+  let speakerOnce;
   if (merged.length > 0) {
     const unread = merged.find(({ head }) => head === null);
     if (unread !== undefined) {
@@ -817,15 +825,19 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     context.threads = () => (threadsOnce ??= unresolvedThreads(context));
     context.mainMerged = (reason) => mainMergedAt(context, reason);
     context.failing = failing;
+    context.speaker = () => (speakerOnce ??= threadSpeaker(github, repo, number, since));
     for (const reason of reasons) {
       const cleared = await CHECKS[reason](context);
+      if (cleared?.spoke !== undefined) {
+        return { reason: spokeReason(cleared.spoke, label) };
+      }
       if (typeof cleared !== "string") {
         return { reason: `${reason} still holds at ${pull.head.sha}: ${cleared?.held ?? "unknown"}` };
       }
       why.push(cleared);
     }
   }
-  return cleared(timeline, bot, since, reasons, pull.head.sha, why);
+  return { ...cleared(timeline, bot, since, reasons, pull.head.sha, why), threadsRead: speakerOnce !== undefined };
 }
 
 // The clear of `reasons` at `head`, and whether its comment is already posted.
