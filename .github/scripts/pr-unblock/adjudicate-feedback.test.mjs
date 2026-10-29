@@ -689,7 +689,27 @@ test("a quote that is the linked issue's own text settles an intent or design qu
   assert.ok(posted[0].includes(`The linked issue settles this intent question (${ISSUE_URL_7}):`));
   assert.ok(posted[0].includes(`> ${DONE_WHEN}`));
   // A comment's text settles too.
-  assert.equal(checkQuote({ verdict: "lane", question: "design", quote: ISSUE.comments[0] }, [{ ...ISSUE, url: ISSUE_URL_7 }]).url, ISSUE_URL_7);
+  assert.equal(checkQuote({ verdict: "reviewer", question: "design", quote: ISSUE.comments[0] }, [{ ...ISSUE, url: ISSUE_URL_7 }]).url, ISSUE_URL_7);
+});
+
+// A quote shows the text exists, not that it bears on the finding, so it may
+// only keep a finding standing (a fix round follows); dismissing one by quote
+// stays a person's (review of PR 10954, thread PRRT_kwDOTCGFQM6xlgoa).
+test("a quote never dismisses a finding: a lane verdict on an intent or design question goes to a person", async (t) => {
+  const dir = tempDir("adjudicate-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, "index.json"), JSON.stringify({ version: 1, head_sha: HEAD, slots: [{ slot: 0, thread: "PRRT_a" }], over: [] }));
+  mkdirSync(join(dir, "0"));
+  writeFileSync(join(dir, "0", "contract.json"), JSON.stringify({ issues: [{ number: 7, url: ISSUE_URL_7, body: ISSUE.body, comments: ISSUE.comments }] }));
+  writeFileSync(join(dir, "0", "verdict.json"), JSON.stringify({ verdict: "lane", question: "design", quote: DONE_WHEN }));
+  const collected = collect({ outDir: dir });
+  assert.deepEqual(collected.threads, [{ thread: "PRRT_a", verdict: "human", question: "design" }]);
+  const verdicts = parseVerdicts(JSON.stringify(collected), HEAD);
+  assert.deepEqual(verdicts.get("PRRT_a"), { verdict: "human", question: "design" });
+  assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", verdicts), { escalationReason: "feedback-question-design", skipReason: "" });
+  // A verdict file that carries the lane's quote with its URL is read the same way.
+  const text = JSON.stringify({ version: 1, head_sha: HEAD, threads: [{ thread: "PRRT_a", verdict: "lane", question: "intent", quote: DONE_WHEN, url: ISSUE_URL_7 }] });
+  assert.deepEqual(parseVerdicts(text, HEAD).get("PRRT_a"), { verdict: "human", question: "intent" });
 });
 
 test("a quote that is not an exact substring of the staged text settles nothing: the question stays a person's", async () => {

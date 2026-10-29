@@ -642,17 +642,23 @@ question, a finding no adjudicator may judge: a CRITICAL one, or a security-revi
 a code-review finding; a Dependabot security update the review would close, a risk the dependency
 review raised, or a commit on a Dependabot branch from anyone but Dependabot). A reason the table
 does not list holds too, with no activity to resume. The adjudicator settles an intent or design
-question itself when it quotes a line of the linked issues' spec text, the text pr-verify reads
-(`resolve-pr.mjs` `linkedIssues`), staged as `contract.json`: the script keeps the quote only when
-it is an exact substring of that text, at least 20 characters, and the reply quotes it with the
-issue's URL. A quote that fails the check, or no spec text, leaves the question a person's; a
+question for the reviewer itself when it quotes a line of the linked issues' spec text, the text
+pr-verify reads (`resolve-pr.mjs` `linkedIssues`), staged as `contract.json`: the script keeps the
+quote only when it is an exact substring of that text, at least 20 characters, and the reply
+quotes it with the issue's URL; the finding stands and the next round fixes it. A quote shows the
+text exists, not that it bears on the finding, so it never dismisses one: a `lane` verdict on an
+intent or design question goes to a person. A quote that fails the check, or no spec text, leaves
+the question a person's; a
 security question, a CRITICAL finding and a security-review one rated `IMPORTANT` or above never
 settle by quote. Every other reason routes `fail`. A `fail`
 entry that names `"label": "needs-session"` is a change the lane cannot make: a path its token may
 not push, a fix that weakens a required check after its fresh fixer round, a failing check the
 `fix-ci` rung-up retry could not fix, or a dependency update
 the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
-an uncited control, a workflow change beyond a pin swap). It also puts the PR in the
+an uncited control, a workflow change beyond a pin swap). `review-dependency` and
+`apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
+`pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
+rebased head until a session removes the label. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the

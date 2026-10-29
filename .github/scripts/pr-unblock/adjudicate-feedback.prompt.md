@@ -37,11 +37,12 @@ a claim to check against the code, not evidence on its own. Return:
   users).
 
 Before returning `human` with `intent` or `design`, read `adjudicate/contract.json`. When a line
-there (a done-when criterion, or a decision the issue records) settles the question, return the
-side it supports, `lane` or `reviewer`, with that `question` and `quote` set to the settling text
-copied exactly, character for character, from one `body` or comment, at least a full sentence. A
-quote that is not an exact copy settles nothing, and the question goes to a person. When no line
-settles it, return `human` with the question. A `security` question is never settled by a quote.
+there (a done-when criterion, or a decision the issue records) settles the question for the
+reviewer, return `reviewer` with that `question` and `quote` set to the settling text copied
+exactly, character for character, from one `body` or comment, at least a full sentence. A quote
+that is not an exact copy settles nothing, and the question goes to a person. A quote never
+dismisses a finding: when the contract supports the lane, or no line settles the question, return
+`human` with the question. A `security` question is never settled by a quote.
 
 Set `quote` to the empty string in every other case. When the code settles neither way and no such
 question applies, return `reviewer`: a finding stands until the code answers it.

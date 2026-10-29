@@ -187,7 +187,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      # A stop routed to needs-session waits for the session builder: no
+      # same-head re-roll and no fresh round budget on a rebased head until a
+      # session removes the label.
+      labels-absent: [do-not-merge, needs-human, needs-session]
       draft: [false]
   apply-dependency-patch:
     # Applies review-dependency's patch, on a fix verdict only, to the head
@@ -207,7 +210,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge, needs-human, needs-session]
       draft: [false]
   apply-dependency-verdict:
     # Acts on the verdict review-dependency recorded: posts the round marker

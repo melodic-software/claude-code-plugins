@@ -27,8 +27,8 @@
 //            launcher's structured output) and writes VERDICTS_FILE, one
 //            entry per indexed thread; an absent or malformed verdict is
 //            null, and an intent or design question settled by a quote that
-//            is not in the slot's contract.json stays that question for a
-//            person. Outputs `sha256`.
+//            is not in the slot's contract.json, or settled toward the lane,
+//            stays that question for a person. Outputs `sha256`.
 //
 // settleDisputes is publish-feedback.mjs's DISPUTED branch: after the lane's
 // replies are posted it applies each verdict (adjudicationReplies, fixed text
@@ -267,7 +267,9 @@ export function quoteSource(quote, issues) {
 // One structured output, held to the schema's closed sets; null otherwise.
 // A lane or reviewer verdict on an intent or design question must carry a
 // quote, the contract line that settles it; any other verdict's quote is
-// dropped.
+// dropped. A quote shows the text exists, not that it bears on the finding,
+// so it only keeps a finding standing: a lane verdict on such a question
+// goes to a person.
 export function verdictOf(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -286,7 +288,10 @@ export function verdictOf(value) {
   if (question === "none") {
     return { verdict, question };
   }
-  return CONTRACT_QUESTIONS.includes(question) && quote.trim() !== "" ? { verdict, question, quote } : null;
+  if (!CONTRACT_QUESTIONS.includes(question) || quote.trim() === "") {
+    return null;
+  }
+  return verdict === "lane" ? { verdict: "human", question } : { verdict, question, quote };
 }
 
 // A verdict that settles a question by quote, checked against the staged
@@ -371,12 +376,13 @@ const contractLines = (settled) =>
         ...settled.quote.split("\n").map((line) => `> ${line.replace(/\r$/, "").replaceAll("<!--", "&lt;!--")}`),
       ];
 
-// The fixed reply for a lane or reviewer verdict; no model text but a quote
-// of the linked issue's own text (`settled`, a verdict checkQuote kept).
+// The fixed reply for a lane or reviewer verdict; no model text but, on a
+// reviewer verdict, a quote of the linked issue's own text (`settled`, a
+// verdict checkQuote kept).
 export function adjudicationReply(verdict, evidence, headSha, settled) {
   const seen = `A fresh-context adjudicator read the review comment, the locations both sides cited and the code at \`${headSha}\`, without the fixing lane's reasoning,`;
   return verdict === "lane"
-    ? [FINDING_ANSWERED, "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**", "", `${seen} and found that the code answers the finding.`, ...contractLines(settled), "", evidenceLine(evidence)].join("\n")
+    ? [FINDING_ANSWERED, "**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**", "", `${seen} and found that the code answers the finding.`, "", evidenceLine(evidence)].join("\n")
     : [
         FINDING_STANDS,
         "**pr-unblock / adjudicate-feedback: the finding stands**",

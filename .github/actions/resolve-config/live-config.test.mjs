@@ -229,6 +229,20 @@ test("live config: every other PR activity still waits on needs-human", () => {
   }
 });
 
+// A review-dependency stop routed to needs-session (escalation-routes.json)
+// waits for the session builder: no same-head model re-roll and no fresh
+// round budget on a rebased head until a session removes the label (security
+// review of PR 10954, thread PRRT_kwDOTCGFQM6xlgPr).
+test("live config: review-dependency and its push job wait on needs-session", () => {
+  for (const [activity, facts] of [
+    ["review-dependency", { mergeable: "clean" }],
+    ["apply-dependency-patch", {}],
+  ]) {
+    assert.equal(skipReason("pr-unblock", activity, { ...facts, labels: ["needs-session"] }), "awaiting-human", activity);
+    assert.equal(selected("pr-unblock", activity, { ...facts, labels: [] }).applies, true, activity);
+  }
+});
+
 test("live config: publish-feedback runs the reply script after address-feedback, granted publish-artifact only", () => {
   const slot = selected("pr-unblock", "publish-feedback");
   assert.equal(slot.applies, true);
