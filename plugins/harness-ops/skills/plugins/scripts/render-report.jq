@@ -44,7 +44,7 @@ def reported:
   else (.output | outcome_line) end;
 def pair: "\(.old) -> \(.new)" + (if .direction == "unknown" then " (direction unknown)" else "" end);
 def scoped: "\(.id) (\(.scope))";
-# A labelled list as lines: inline up to three entries, past that one `- `
+# A labeled list as lines: inline up to three entries, past that one `- `
 # entry per line under the label. The caller indents the entry lines.
 def listed($head; $items):
   if ($items | length) <= 3 then ["\($head): \($items | join(", "))"]
