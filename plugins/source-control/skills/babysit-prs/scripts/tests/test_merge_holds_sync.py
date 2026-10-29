@@ -1874,9 +1874,9 @@ def enforcement_closure_off_floor() -> list[str]:
 
 # The merge-enforcement code's closure today reaches these paths, which no
 # person holds: `enforcement` rows the security review holds, and
-# lib/publish-gate.mjs, on no floor row. TODO(#10743): whether they become
-# `gate` rows is the owner's decision; until then this pins the list, so a
-# new escape fails and a fixed one must leave it.
+# lib/publish-gate.mjs, on no floor row. Whether they become `gate` rows is
+# the owner's decision (#10943); this pins the list, so a new escape fails and
+# a fixed one must leave it.
 OFF_FLOOR_ALLOWED: tuple[str, ...] = (
     ".github/scripts/pr-unblock/address-feedback.mjs",
     ".github/scripts/pr-unblock/escalation-routes.json",
