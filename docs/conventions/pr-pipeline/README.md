@@ -2361,12 +2361,13 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   secret, check each marker against a closed set and build the next leg's matrix
   (`handoff.mjs`). Each unit leaves one lane record (`lane-sweep`), from the leg that saw its end.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
-  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
-  lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
-  of the slice, workflow, job and the error signature with numbers, SHAs and times removed. A unit
-  whose data lists no jobs (a C unit, a D unit with no green run, an A unit whose runs list no failed
-  job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
-  steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the failed jobs its A
+  unit's data lists, or when any quote is not on its line in the run's main commit, then
+  fingerprints it: a hash of the slice, workflow, job and the error signature with numbers, SHAs and
+  times removed. A C or D unit, or an A unit whose runs list no failed job, leaves the job unbound:
+  a D unit's green samples do not list every job that ran, and its workflow-level findings
+  (duplicate runs, reruns) name none of them. The signature is free text in every slice, so
+  binding does not stop a steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
   per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
   as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
   matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,

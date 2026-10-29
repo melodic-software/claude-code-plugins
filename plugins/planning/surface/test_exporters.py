@@ -1247,9 +1247,23 @@ class TestSupersededCommitments(SessionCase):
             [question("Q1", commits=["PR 1 ships the parser", "PR 6 ships docs"])],
             [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")],
         )
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "One PR ships everything", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["One PR ships everything"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("risk: One PR ships everything (unconfirmed); from Q1", text)
@@ -1269,7 +1283,14 @@ class TestResolvedOwnAnswer(SessionCase):
             [question("Q1", commits=["Measure at p75"]), question("Q2")],
             [event(1, "Q1", "own", text=self.TYPED), event(2, "Q2", "accept")],
         )
-        rc, out = self.rp("reply", "Q1", "--resolution", self.READ)
+        ops = self.tmp / "reply.json"
+        ops.write_text(
+            json.dumps(
+                {"ops": [{"op": "reply", "id": "Q1", "resolution": self.READ}]}
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
 
     def row(self, ledger):
@@ -4307,9 +4328,23 @@ class TestUntickedCommitmentGate(SessionCase):
             ]
         )
         self.assertEqual(self.gate(), 0)
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "Two writers", "--commit", "Online", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["Two writers", "Online"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         self.assertEqual(
             self.row(),

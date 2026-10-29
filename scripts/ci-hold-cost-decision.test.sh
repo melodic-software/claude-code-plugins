@@ -34,6 +34,10 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Clear a cost-only review hold the owner decided'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -263,7 +267,9 @@ expect() {
   local label="$1" out rc cleared deleted posted config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
-  rm -rf "$config"
+  rm -rf "$config" "$TMP_ROOT/pr-reads"
+  # STALE_EVENTS stands for an events answer an earlier step kept (pr_read).
+  [[ -z "${STALE_EVENTS:-}" ]] || RUNNER_TEMP="$TMP_ROOT" bash -c '. "$RUNNER_TEMP/gh-read.sh"; pr_read_put "$1" "repos/o/r/issues/6419/events?per_page=100" --paginate' _ "$STALE_EVENTS"
   mkdir -p "$config/.github/standards/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
@@ -306,6 +312,11 @@ if grep -q '/jobs?filter=all&per_page=100 --paginate$' "$TMP_ROOT/log" && grep -
   ok "the jobs and annotations reads take every page, so a hold notice on page two is seen"
 else
   fail "the jobs or annotations read is not paginated: '$(grep -E 'jobs|annotations' "$TMP_ROOT/log")'"
+fi
+if [[ ! -e "$TMP_ROOT/pr-reads" ]]; then
+  ok "after its writes the step drops every kept read, so later steps read live"
+else
+  fail "the step kept reads after writing: '$(ls "$TMP_ROOT/pr-reads")'"
 fi
 if [[ "$(grep -n -- '-X POST' "$TMP_ROOT/log" | cut -d: -f1)" -lt "$(grep -n -- '-X DELETE' "$TMP_ROOT/log" | cut -d: -f1)" ]]; then
   ok "the comment is posted before the label comes off"
@@ -701,6 +712,17 @@ if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 1 ]] && grep -q '^api repos/o/r/i
   ok "with no lane label event the events are the step's one read"
 else
   fail "with no lane label event the step read more than the events: '$(cat "$TMP_ROOT/log")'"
+fi
+if [[ "$(cat "$TMP_ROOT"/pr-reads/* 2>/dev/null)" == "[]" ]]; then
+  ok "the events answer is kept for the later steps' pr_read"
+else
+  fail "the events answer was not kept: '$(ls "$TMP_ROOT/pr-reads" 2>&1)'"
+fi
+STALE_EVENTS="[$(event labeled "$OWNER" 2026-10-23T13:20:20Z)]" expect "a kept events answer is not this step's: it reads the events live" no no no "no label was added"
+if grep -q '^api repos/o/r/issues/6419/events' "$TMP_ROOT/log"; then
+  ok "the step reads the events itself even with a kept answer"
+else
+  fail "the step answered from a kept read: '$(cat "$TMP_ROOT/log")'"
 fi
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"owner-call"}}}'
 STUB_EVENTS="[$(jq -c '.label.name = "owner-call"' <<<"$(event labeled "$OWNER" 2026-10-23T13:20:20Z)")]"

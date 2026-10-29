@@ -283,12 +283,6 @@ scan_linkage() {
   [[ "$lower" =~ $NO_ISSUE_ERE ]]
 }
 
-# The four contract sections the pinned ci-workflows reusable requires
-# (melodic-software/ci-workflows pr-issue-linkage.yml @ v0.14.2). Stated once
-# here so both hook surfaces, the blocked-message remedy, and the tests cannot
-# drift from each other the way "Related only" drifted from the other three.
-REQUIRED_SECTIONS=(Summary Fix Verification Related)
-
 # Content of the first `## <heading>` section into <dest>; returns 1 when there
 # is no such heading, which is a different verdict from an empty one. Only a
 # heading at the SAME level or higher (fewer or equal `#`) closes the section,
@@ -435,10 +429,10 @@ mask_markdown_code_to() {
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
-# Section half of the verdict: append one LINKAGE_PROBLEMS line per <heading>
-# that is missing or empty in <body>, which must already be comment-stripped
-# and code-masked. Shared by linkage::problems and the pull-request skill's
-# pre-create check, which passes its own configured headings.
+# Append one LINKAGE_PROBLEMS line per <heading> that is missing or empty in
+# <body>, which must already be comment-stripped and code-masked. The
+# pull-request skill's pre-create check calls it with its own configured
+# headings; the hooks do not, since CI reports a missing section as advisory.
 linkage::section_problems() {
   local _plv_content="" _plv_masked="$1" heading
   shift
@@ -452,40 +446,36 @@ linkage::section_problems() {
   done
 }
 
-# Aggregate verdict: strip comments, mask Markdown code (CI does both before
-# any heading or keyword scan), then every required section plus the linkage
-# half: a negated closing reference, and missing linkage. Fills the global LINKAGE_PROBLEMS array with one line per
-# problem so the author sees the full set in one pass; returns 0 when the body
-# passes (array empty), 1 otherwise. The consuming hook owns what a failure
+# Blocking verdict: strip comments, mask Markdown code (CI does both before any
+# keyword scan), then report a negated closing reference, the one body problem
+# the hooks block on, since GitHub's parser still closes the issue on merge. CI
+# reports a missing contract section or closing line as advisory, so neither is
+# a problem here. Fills the global LINKAGE_PROBLEMS array; returns 0 when the
+# body passes (array empty), 1 otherwise. The consuming hook owns what a failure
 # DOES — block message, telemetry, exit code.
 LINKAGE_PROBLEMS=()
 linkage::problems() {
   # `_plv_`-prefixed per the DEST-NAME CONTRACT above: an out-variable named
   # `body`, `out`, or `line` would be captured by the callee's own local.
-  local _plv_stripped="" _plv_body=""
-  local _plv_linked=0 _plv_negated=""
+  local _plv_stripped="" _plv_body="" _plv_negated=""
   strip_html_comments_to _plv_stripped "$1"
   mask_markdown_code_to _plv_body "$_plv_stripped"
   LINKAGE_PROBLEMS=()
-  linkage::section_problems "$_plv_body" "${REQUIRED_SECTIONS[@]}"
-  # shellcheck disable=SC2310  # the exit IS the verdict: linkage present or not
-  scan_linkage "$_plv_body" || _plv_linked=1
+  # shellcheck disable=SC2310  # only LINKAGE_NEGATED decides; missing linkage is advisory
+  scan_linkage "$_plv_body" || :
   ((${#LINKAGE_NEGATED[@]} == 0)) || {
     printf -v _plv_negated '%s, ' "${LINKAGE_NEGATED[@]}"
     LINKAGE_PROBLEMS+=("Negated closing reference (${_plv_negated%, }): GitHub still auto-closes the issue on merge. Use \"Refs: #N\" on its own line instead.")
   }
-  ((_plv_linked == 0)) ||
-    LINKAGE_PROBLEMS+=('No closing line: add Closes #N, Refs: #N (link without closing), or No linked issue.')
   ((${#LINKAGE_PROBLEMS[@]} == 0))
 }
 
 # linkage::block_message <gate-path>: the PreToolUse block text for the current
 # LINKAGE_PROBLEMS, to stderr. One printer for both gates so the text cannot
-# drift between the Bash and MCP surfaces. The closing sentence names the
-# required shape for a repository with no PR-body rule of its own.
+# drift between the Bash and MCP surfaces.
 linkage::block_message() {
   local p
   echo "BLOCKED: PR body fails the pr-contract step in $1." >&2
   for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
-  echo "The body needs a closing line (Closes #N, Refs: #N, the bound tracker's link line from /work-items:track link, or No linked issue) and non-empty ## Summary, ## Fix, ## Verification and ## Related sections." >&2
+  echo "Only a negated closer blocks; a missing closing line or ## Summary, ## Fix, ## Verification or ## Related section is advisory." >&2
 }
