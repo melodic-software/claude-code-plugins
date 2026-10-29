@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ex-invalid-rung-layer
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-repo-layer
+    type: tool_used
+    tool: Bash
+    input_match: 'parse-concern-value\.sh|conventions/education\.yaml'
+  - name: names-invalid-value
+    type: regex
+    pattern: '^(?=[^\n]*\bexpert\b)(?=[^\n]*\b(?:invalid|not (?:a )?valid|isn''t valid|isn’t valid|unknown|unrecognized|not recognized|unsupported|not one of|isn''t one of|isn’t one of|ign[o]r\w*|drop\w*|neither)\b)(?=[^\n]*\bexplain_starting_rung\b)(?=[^\n]*(?:docs/conventions/education\.yaml|\brepositor(?:y|ies)\b|\brepo\b))'
+    flags: 'mi'
+    target: last_message
+  - name: rung-report-plain-default
+    type: regex
+    pattern: 'explain_starting_rung\W{0,4}plain\W{1,4}default\b[^\n]{0,40}\s*$'
+    flags: 'i'
+    target: last_message

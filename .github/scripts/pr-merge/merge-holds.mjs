@@ -1423,6 +1423,66 @@ export async function readStatuses(github, repo, head) {
   throw new Error("more than 1000 statuses on the head");
 }
 
+// The tracker config's human-gated role label (.work-item-tracker.json
+// config.role_labels["human-gated"], trimmed), `needs-human` when it names
+// none, as ci-status reads it.
+export function humanGatedLabel(tracker) {
+  const label = tracker?.config?.role_labels?.["human-gated"];
+  return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
+}
+
+// The hold labels on pull request `number`: `do-not-merge`, the tracker's
+// human-gated label and `pr-verify-failed`, one reason each. `labels` are
+// names or label objects; a list that is not an array throws.
+export function labelHolds(labels, tracker, number) {
+  if (!Array.isArray(labels)) {
+    throw new Error("the labels are not a list");
+  }
+  const names = new Set(labels.map((label) => (typeof label === "string" ? label : label?.name)));
+  const gated = humanGatedLabel(tracker);
+  return [
+    names.has("do-not-merge") && `#${number} carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.`,
+    names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
+    names.has("pr-verify-failed") &&
+      `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+  ].filter(Boolean);
+}
+
+// The lanes kill switch on a lanes App pull request: while CLAUDE_LANES_DISABLED
+// or CLAUDE_LANES_REPO_DISABLED is anything but the exact value `false`, a pull
+// request whose author is the Bot of numeric id `appId` holds. Any other
+// author, or an `appId` that is not a numeric id, holds nothing here.
+export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
+  const id = Number(appId);
+  if (!/^[1-9][0-9]*$/.test(String(appId)) || pull?.user?.type !== "Bot" || pull?.user?.id !== id) {
+    return null;
+  }
+  if (disabled === "false" && repoDisabled === "false") {
+    return null;
+  }
+  return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
+}
+
+// THE HOLDS THAT COST NO LANE WORK, for a queued pull request: its hold labels,
+// its head's pr-unblock stops and the lanes kill switch, from the pull request
+// as the pulls API returns it, its head's statuses newest first, the tracker
+// config (or null) and the kill switch's { appId, disabled, repoDisabled }.
+// select-tests runs this before the lanes; ci-status keeps judging each hold.
+export function queueHolds({ pull, statuses, tracker = null, lanes = {} } = {}) {
+  const head = pull?.head?.sha;
+  if (!Number.isInteger(pull?.number) || typeof head !== "string") {
+    throw new Error("the pull request does not read");
+  }
+  return [
+    ...labelHolds(pull.labels, tracker, pull.number),
+    ...unblockStops(statuses).map(
+      ({ context, state, description }) =>
+        `'${context}' is ${state} on ${head}: ${description}. The lane that stopped clears it by running again on this head, or a new head carries none.`,
+    ),
+    switchHold(pull, lanes),
+  ].filter(Boolean);
+}
+
 // Whether a person wrote the body of pull request `number` (personWrote); a
 // read that fails counts as a person.
 async function bodyByPerson(github, repo, number) {

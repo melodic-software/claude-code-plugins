@@ -1454,3 +1454,70 @@ test("Q10: a compare not read whole, not ahead, or with a dismissal the push did
   }
   assert.equal(carriesQ10(pushed(["docs/a.md"]), null), false, "unread hold paths");
 });
+
+// The queue holds select-tests checks before the lanes (#10747). Expected
+// reasons are ci-status's own error texts for the same holds: its hold-label
+// step's three label errors, its pr-unblock step's error and its lanes App
+// step's kill-switch error, which reconcile.test.mjs keys on.
+const QUEUED = "fedcba9876543210fedcba9876543210fedcba98";
+const queuedPull = (over = {}) => ({ number: 7, head: { sha: QUEUED }, labels: [], user: { id: 42, type: "User" }, ...over });
+const ON = { appId: "99", disabled: "false", repoDisabled: "false" };
+
+test("queueHolds: a pull request with no hold label, stop or switch passes", () => {
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [], tracker: null, lanes: ON }), []);
+});
+
+test("queueHolds: each hold label holds with ci-status's text", () => {
+  for (const [label, want] of [
+    ["do-not-merge", "#7 carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."],
+    ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
+    ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
+  ]) {
+    assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }), statuses: [] }), [want], label);
+  }
+  assert.equal(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "do-not-merge" }, { name: "needs-human" }] }), statuses: [] }).length, 2);
+});
+
+test("queueHolds: the human-gated label is the tracker's, trimmed, else needs-human", () => {
+  const tracker = { config: { role_labels: { "human-gated": "  hitl " } } };
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "needs-human" }] }), statuses: [], tracker }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "hitl" }] }), statuses: [], tracker }), [
+    "#7 carries 'hitl'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.",
+  ]);
+  for (const blank of [{ config: { role_labels: { "human-gated": " " } } }, { config: {} }, [], "x", null]) {
+    assert.equal(holdsModule.humanGatedLabel(blank), "needs-human", JSON.stringify(blank));
+  }
+});
+
+test("queueHolds: a pr-unblock stop on the head holds; a newer success or another account's status does not", () => {
+  const lane = { login: "github-actions[bot]" };
+  const failure = { context: "pr-unblock/fix-ci", state: "failure", creator: lane, description: "The lane stopped" };
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [failure] }), [
+    `'pr-unblock/fix-ci' is failure on ${QUEUED}: The lane stopped. The lane that stopped clears it by running again on this head, or a new head carries none.`,
+  ]);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, state: "success" }, failure] }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [{ ...failure, creator: { login: "someone" } }] }), []);
+});
+
+test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {
+  const app = { user: { id: 99, type: "Bot" } };
+  const text =
+    "#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.";
+  for (const [name, lanes] of [
+    ["on", { ...ON, disabled: "true" }],
+    ["repo on", { ...ON, repoDisabled: "1" }],
+    ["unset", { appId: "99" }],
+  ]) {
+    assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes }), [text], name);
+  }
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes: ON }), []);
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(), statuses: [], lanes: { appId: "99", disabled: "true" } }), [], "a person's");
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ user: { id: 99, type: "User" } }), statuses: [], lanes: { appId: "99" } }), [], "a User with the id");
+  assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull(app), statuses: [], lanes: { appId: "", disabled: "true" } }), [], "no app id");
+});
+
+test("queueHolds: a pull request, label list or status list that does not read throws", () => {
+  assert.throws(() => holdsModule.queueHolds({ pull: { number: 7, head: {} }, statuses: [] }), /does not read/);
+  assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }), statuses: [] }), /labels are not a list/);
+  assert.throws(() => holdsModule.queueHolds({ pull: queuedPull(), statuses: {} }), /not a list/);
+});
