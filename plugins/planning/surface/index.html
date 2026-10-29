@@ -442,6 +442,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
   .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
+  :root :is(textarea,input:not([type=checkbox],[type=radio]),select){font-size:16px} /* below 16px, iOS Safari zooms into a field on focus */
   .notice{max-width:100%}
   aside.fly.open,.layout.pinned aside.fly.open{position:fixed;inset:var(--vv-top,0px) 0 auto;height:var(--vv-h,100dvh);width:auto;border-radius:0}
   #pinBtn{display:none}
