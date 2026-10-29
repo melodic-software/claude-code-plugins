@@ -90,14 +90,24 @@ async function main() {
     ok("the load is announced once, not message by message", await until(gus, () => document.querySelector(".vf-sr")?.textContent === "50 earlier messages loaded."));
 
     // ---------- scrolling up loads the rest and keeps the reader's place ----------
-    const before = await gus.evaluate(() => {
-      const box = document.querySelector(".vf-mscroll");
-      box.scrollTop = 0;
-      const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21"));
-      return li.getBoundingClientRect().top;
+    // Scroll to the top until a scroll event finds the chat there. A repaint that runs before that event still counts
+    // the reader at the newest message and puts the chat back at the bottom, and then no load starts. The page's own
+    // handler runs first on that event and reads the message's place there, so the test reads it there too.
+    const before = await gus.evaluate(async () => {
+      const box = document.querySelector(".vf-mscroll"), frame = () => new Promise(r => requestAnimationFrame(r));
+      const top = () => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top;
+      let at = null;
+      const seen = () => { if (at === null && box.scrollTop < 1) at = top(); };
+      box.addEventListener("scroll", seen);
+      for (let i = 0; at === null && i < 20; i++) { box.scrollTop = 0; await frame(); await frame(); }
+      box.removeEventListener("scroll", seen);
+      return at;
     });
     ok("scrolling to the top loads the oldest messages by itself", await until(gus, n => document.querySelectorAll(".vf-mlist > .vf-msg").length === n, SEEDED), String(await msgCount(gus)));
-    // Read once the message holds still for 250 ms of frames (5 s at most): the load moves it, and the page puts it back.
+    // The page announces the load after it has put the message back.
+    ok("the load of the rest is announced", await until(gus, t => document.querySelector(".vf-sr")?.textContent === t, `${SEEDED - 2 * WINDOW} earlier messages loaded.`),
+      await gus.evaluate(() => document.querySelector(".vf-sr")?.textContent));
+    // Read once the message holds still for 250 ms of frames (5 s at most): late layout could still move it.
     const after = await gus.evaluate(() => new Promise(res => {
       const top = () => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top;
       const t0 = performance.now();
@@ -109,7 +119,7 @@ async function main() {
       };
       requestAnimationFrame(f);
     }));
-    ok("the message the reader was looking at stays where it was", Math.abs(after - before) <= 4, `${before} -> ${after}`);
+    ok("the message the reader was looking at stays where it was", before !== null && Math.abs(after - before) <= 4, `${before} -> ${after}`);
     ok("at the start of the chat no Load earlier row is left", await gus.evaluate(() => !document.querySelector(".vf-mlist > .vf-mgap")));
 
     // ---------- someone else's reaction on a loaded message outside the window reaches it ----------
