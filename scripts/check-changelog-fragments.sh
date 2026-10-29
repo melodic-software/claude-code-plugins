@@ -22,8 +22,8 @@
 #       is the group's base commit and the release is CHANGELOG_PR_HEAD, the
 #       queued pull request's head; without a readable one it refuses
 #
-# Shipped files are everything under plugins/<name>/, or docs/conventions/<name>/
-# for a listed convention. On the release pull request
+# Shipped files are everything under plugins/<name>/, or docs/contracts/<name>/
+# or docs/conventions/<name>/ for a listed convention. On the release pull request
 # (changelog_fragments::is_release_pr) the root CHANGELOG.md and a plugin.json
 # edit to `version` alone are left out: those are what a release writes, so it
 # needs no fragment of its own. A convention's release is a new newest
@@ -155,12 +155,11 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     name="${rest%%/*}"
     [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
     ;;
-  docs/conventions/*/*)
-    rest="${path#docs/conventions/}"
-    name="${rest%%/*}"
+  docs/contracts/*/* | docs/conventions/*/*)
     # Only a convention no plugin of the same name owns; in_mode below drops
     # an unlisted one.
-    [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]] || continue
+    name="$(changelog_fragments::convention_of "$path")" || continue
+    rest="${path#docs/*/}"
     if [[ "$rest" == "$name/CHANGELOG.md" ]]; then
       if [[ "$(git show "$merge_base:$path" 2>/dev/null | changelog_fragments::newest_version -)" != "$(git show "$head_commit:$path" 2>/dev/null | changelog_fragments::newest_version -)" ]]; then
         bumped["$name"]=1

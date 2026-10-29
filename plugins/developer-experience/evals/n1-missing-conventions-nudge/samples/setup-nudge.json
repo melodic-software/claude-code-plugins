@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "This repository has no developer tooling conventions yet (no `docs/conventions/developer-experience.md`). Run `/developer-experience:setup` to record them; I'll follow what the code shows for now.\n\nPlan: add `EnvDoctorCommand.cs` beside `EnvCheckCommand.cs`, calling `ProcessRunner.Run(\"dotnet\", \"--version\")`. Shall I go ahead?",
+      "why": "the nudge before the plan"
+    },
+    {
+      "answer": "Plan for `tq env doctor`:\n\n1. New `Commands/EnvDoctorCommand.cs` that runs `dotnet --version` through `ProcessRunner.Run`.\n2. Register it in `Program.cs`.\n\nNote: the conventions file is missing. Run /developer-experience:setup apply to write it.\n\nReply yes to build it.",
+      "why": "the nudge after the plan, with an action argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Plan for `tq env doctor`: a new command that runs `dotnet --version` through `ProcessRunner.Run`. Shall I go ahead?",
+      "why": "near miss: a plan with no nudge"
+    },
+    {
+      "answer": "There are no tooling conventions in this repository. Consider writing some down in AGENTS.md before we add commands.",
+      "why": "near miss: names the gap but not the setup skill"
+    },
+    {
+      "answer": "Run /developer-experience:setup-cli first.",
+      "why": "near miss: a different command name"
+    },
+    {
+      "answer": "The .NET SDK version is 10.0.100.",
+      "why": "answer to a different question"
+    }
+  ]
+}

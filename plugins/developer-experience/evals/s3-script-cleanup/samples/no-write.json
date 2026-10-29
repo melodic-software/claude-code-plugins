@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "scripts/test.sh"}},
+        {"tool": "Edit", "input": {"file_path": "Makefile", "old_string": "seed", "new_string": "seed"}}
+      ],
+      "why": "no Write call; the Edit is no-edit's"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "scripts/run_tests.sh", "content": "python3 -m unittest discover tests\n"}}
+      ],
+      "why": "rewrote a script"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "scripts/README.md"}},
+        {"tool": "Write", "input": {"file_path": "SCRIPTS-AUDIT.md", "content": "# Audit\n"}}
+      ],
+      "why": "wrote a new report file"
+    }
+  ]
+}

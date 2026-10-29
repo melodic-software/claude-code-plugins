@@ -11,6 +11,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
 # The test-bash lane exports this on main; each case below sets it itself.
 unset PLUGIN_TEST_ADVISORY
+# CI's GITHUB_ACTIONS would turn the suite budget on for every case; the
+# suite-budget cases below turn it on themselves.
+export PLUGIN_TEST_SUITE_BUDGET=0
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
@@ -83,6 +86,8 @@ empty_list="$scratch/empty-serial.txt"
 # The shipped advisory list names repository suites a fixture root lacks, and
 # the runner's stale guard would reject it; the advisory cases below pass their own.
 export PLUGIN_TEST_ADVISORY_LIST="$empty_list"
+# The same holds for the shipped suite-budget exceptions list.
+export PLUGIN_TEST_SUITE_EXCEPTIONS="$empty_list"
 
 # --- exit contract -----------------------------------------------------------
 
@@ -565,6 +570,12 @@ PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST=
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --budget no suite is timed against a share" --root "$r" --jobs 2
 assert_output_lacks "without --budget no suite is failed for its time" "share of the budget"
 assert_output_lacks "without --budget no overrun is reported" "OVER BUDGET"
+if grep -qE '^TIME: plugins/slow/slow\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT" &&
+  grep -qE '^TIME: plugins/quick/quick\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT"; then
+  ok "without --budget each suite's wall seconds still print"
+else
+  fail "without --budget a suite's TIME line is missing; output: $RUN_OUTPUT"
+fi
 
 budget_seconds="$scratch/budget-seconds.txt"
 printf '%s\n' "# seconds" "plugins/slow/slow.test.sh 5" >"$budget_seconds"
@@ -585,10 +596,79 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --budget= is reject
 PLUGIN_TEST_SHARE_MARGIN=0 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero share margin is rejected" --root "$r" --budget 60
 assert_output_has "the bad margin is named" "PLUGIN_TEST_SHARE_MARGIN must be a positive integer (got '0')"
 
+# --- the per-suite budget: warn over the threshold, fail over the ceiling --------
+#
+# Reuses the budget root: slow takes at least 2 s, quick 0 or 1.
+no_exceptions="$scratch/no-such-exceptions.txt"
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=60 \
+  PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "a suite over the threshold and under the ceiling warns and exits 0" --root "$r" --jobs 2
+assert_output_has "the slow suite is named over the threshold" "SLOW: plugins/slow/slow.test.sh took "
+assert_output_has "the warning annotation names the suite" "::warning title=plugins/slow/slow.test.sh::plugins/slow/slow.test.sh took "
+assert_output_lacks "a suite under the threshold is not named" "SLOW: plugins/quick/quick.test.sh"
+assert_error_count "a suite under the ceiling gets no error annotation" 0
+
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=1 \
+  PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "a suite over the ceiling fails the run" --root "$r" --jobs 2
+assert_output_has "the over-ceiling suite's time is named with its ceiling" "s, over its 1s per-suite ceiling"
+if grep -qx 'FAIL: plugins/slow/slow.test.sh' <<<"$RUN_OUTPUT"; then
+  ok "the over-ceiling suite gets a bare FAIL line that log readers attribute"
+else
+  fail "no bare 'FAIL: plugins/slow/slow.test.sh' line; output: $RUN_OUTPUT"
+fi
+assert_output_lacks "a suite inside the ceiling is not failed" "FAIL: plugins/quick/quick.test.sh"
+assert_error_count "the over-ceiling suite gets one error annotation" 1
+
+exceptions="$scratch/exceptions.txt"
+printf '%s\n' "# fixture" "plugins/slow/slow.test.sh 60 # needs more" >"$exceptions"
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=1 \
+  PLUGIN_TEST_SUITE_EXCEPTIONS="$exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "an exception row raises its suite's ceiling" --root "$r" --jobs 2
+assert_output_has "the excepted suite still warns over the threshold" "SLOW: plugins/slow/slow.test.sh took "
+
+PLUGIN_TEST_SUITE_BUDGET='' GITHUB_ACTIONS=true PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=60 \
+  PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "on GitHub Actions the suite budget is on by default" --root "$r" --jobs 2
+assert_output_has "the CI default times the slow suite" "SLOW: plugins/slow/slow.test.sh took "
+
+PLUGIN_TEST_SUITE_BUDGET='' GITHUB_ACTIONS='' PLUGIN_TEST_SUITE_WARN=1 PLUGIN_TEST_SUITE_CEILING=1 \
+  PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "outside GitHub Actions the suite budget is off by default" --root "$r" --jobs 2
+assert_output_lacks "no suite is timed against the threshold" "SLOW:"
+assert_output_lacks "no suite is failed for its time" "per-suite ceiling"
+
+stale_exceptions="$scratch/exceptions-stale.txt"
+printf 'plugins/gone/gone.test.sh 60\n' >"$stale_exceptions"
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_EXCEPTIONS="$stale_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 2 "an exception that matches no suite is rejected" --root "$r"
+assert_output_has "the stale exception is named" "names 'plugins/gone/gone.test.sh', which matches no discovered suite"
+
+bad_exceptions="$scratch/exceptions-bad.txt"
+printf 'plugins/slow/slow.test.sh\n' >"$bad_exceptions"
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_EXCEPTIONS="$bad_exceptions" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 2 "an exception row with no ceiling is rejected" --root "$r"
+assert_output_has "the malformed row is named" "row for 'plugins/slow/slow.test.sh' wants '<suite> <ceiling-seconds>'"
+
+PLUGIN_TEST_SUITE_BUDGET=yes PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a suite budget switch other than 0 or 1 is rejected" --root "$r"
+PLUGIN_TEST_SUITE_BUDGET=1 PLUGIN_TEST_SUITE_CEILING=0 PLUGIN_TEST_SUITE_EXCEPTIONS="$no_exceptions" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero ceiling is rejected" --root "$r"
+assert_output_has "the bad ceiling is named" "PLUGIN_TEST_SUITE_CEILING must be a positive integer (got '0')"
+
 # --- the shipped lists against the shipped corpus -------------------------------
 #
-# Every entry in scripts/run-plugin-tests-serial.txt and
-# scripts/run-plugin-tests-advisory.txt must name a suite that exists today.
+# Every entry in scripts/run-plugin-tests-serial.txt,
+# scripts/run-plugin-tests-advisory.txt and scripts/suite-budget-exceptions.txt
+# must name a suite that exists today.
+stale=0
+while read -r line secs _ || [[ -n "$line" ]]; do
+  [[ -n "$line" && "$line" != \#* ]] || continue
+  if [[ ! -f "$ROOT/$line" || ! "$secs" =~ ^[1-9][0-9]*$ ]]; then
+    fail "suite-budget-exceptions.txt row is not an existing suite and a ceiling: $line $secs"
+    stale=1
+  fi
+done <"$ROOT/scripts/suite-budget-exceptions.txt"
+((stale)) || ok "every suite-budget-exceptions.txt row names an existing suite and a ceiling"
 for shipped_list in "$ROOT/scripts/run-plugin-tests-serial.txt" "$ROOT/scripts/run-plugin-tests-advisory.txt"; do
   stale=0
   while IFS= read -r line || [[ -n "$line" ]]; do

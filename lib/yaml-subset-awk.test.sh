@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # backticks and $ in the single-quoted test names and inputs are literal YAML text
-# Tests for lib/yaml-subset.awk's refusals of a tab indent, of an unquoted
-# `: ` inside a plain value, of flow mappings and of document markers. Expected records and exit codes come from the
+# Tests for lib/yaml-subset.awk's refusals of a repeated key, a tab indent, an
+# unquoted `: ` inside a plain value, an unknown escape, flow mappings, nested
+# flow sequences, document markers, `%` directives and a sequence-item map
+# indented past its dash column + 2. Expected records and exit codes come from the
 # parser's header: `key<TAB>value` per scalar, and on a parse error one
 # `error<TAB><line><TAB><message>` record and exit 1.
 # Run directly: bash lib/yaml-subset-awk.test.sh
@@ -27,14 +29,16 @@ check() { # check <label> <expected stdout> <expected exit> <input> [awk -v args
 }
 
 T=$'\t'
-# -v STRICT=1: a key repeated in one mapping is a parse error at the second
-# occurrence; without it both records print as before.
-check 'a repeated key keeps both records without STRICT' "a${T}1"$'\n'"b${T}2"$'\n'"a${T}3" 0 'a: 1\nb: 2\na: 3\n'
-check 'a repeated key fails under STRICT at the second line' "a${T}1"$'\n'"b${T}2"$'\n'"error${T}3${T}duplicate key \`a\` (first at line 1)" 1 'a: 1\nb: 2\na: 3\n' -v STRICT=1
-check 'a repeated nested key fails under STRICT' "m.k${T}1"$'\n'"error${T}3${T}duplicate key \`m.k\` (first at line 2)" 1 'm:\n  k: 1\n  k: 2\n' -v STRICT=1
-check 'the same key under two parents is not a duplicate under STRICT' "a.k${T}1"$'\n'"b.k${T}2" 0 'a:\n  k: 1\nb:\n  k: 2\n' -v STRICT=1
-check 'the same key in two sequence items is not a duplicate under STRICT' "l.0.k${T}1"$'\n'"l.1.k${T}2" 0 'l:\n  - k: 1\n  - k: 2\n' -v STRICT=1
-check 'a key repeated inside one sequence item fails under STRICT' "l.0.k${T}1"$'\n'"error${T}3${T}duplicate key \`l.0.k\` (first at line 2)" 1 'l:\n  - k: 1\n    k: 2\n' -v STRICT=1
+# A key repeated in one mapping is a parse error at the second occurrence,
+# with or without -v STRICT=1.
+DUP_A="a${T}1"$'\n'"b${T}2"$'\n'"error${T}3${T}duplicate key \`a\` (first at line 1)"
+check 'a repeated key fails at the second line' "$DUP_A" 1 'a: 1\nb: 2\na: 3\n'
+check 'a repeated key fails the same way under STRICT' "$DUP_A" 1 'a: 1\nb: 2\na: 3\n' -v STRICT=1
+check 'a repeated key with an empty first value fails' "error${T}2${T}duplicate key \`a\` (first at line 1)" 1 'a:\na: 1\n'
+check 'a repeated nested key fails' "m.k${T}1"$'\n'"error${T}3${T}duplicate key \`m.k\` (first at line 2)" 1 'm:\n  k: 1\n  k: 2\n'
+check 'the same key under two parents is not a duplicate' "a.k${T}1"$'\n'"b.k${T}2" 0 'a:\n  k: 1\nb:\n  k: 2\n'
+check 'the same key in two sequence items is not a duplicate' "l.0.k${T}1"$'\n'"l.1.k${T}2" 0 'l:\n  - k: 1\n  - k: 2\n'
+check 'a key repeated inside one sequence item fails' "l.0.k${T}1"$'\n'"error${T}3${T}duplicate key \`l.0.k\` (first at line 2)" 1 'l:\n  - k: 1\n    k: 2\n'
 check 'a tab indent on line 1 is a parse error' "error${T}1${T}tab indentation" 1 '\tkey: v\n'
 check 'a tab after a space indent is a parse error' "error${T}2${T}tab indentation" 1 'a:\n \tb: v\n'
 check 'a tab indent on a later line is a parse error' "a${T}1"$'\n'"error${T}2${T}tab indentation" 1 'a: 1\n\tb: 2\n'
@@ -65,6 +69,24 @@ check 'a leading `---` marker is a parse error' "error${T}1${T}${MARK}" 1 '---\n
 check 'a `...` marker is a parse error' "a${T}1"$'\n'"error${T}2${T}${MARK}" 1 'a: 1\n...\n'
 check 'a `---` marker inside a BLOCK=1 fence is a parse error' "block${T}1"$'\n'"error${T}3${T}${MARK}" 1 '---\n```yaml config\n---\na: 1\n```\n' -v BLOCK=1
 check 'a nested map item still reads' "l.0.x${T}y" 0 'l:\n  - x: y\n'
+# Escapes, nested flow sequences, directives and item columns, also as in
+# lib/yaml-subset.mjs.
+check 'the known escapes read' "k${T}\"\\/${T}"$'\n'"j${T}a\\nb" 0 'k: "\\"\\\\\\/\\t"\nj: "a\\nb"\n'
+check 'an unknown escape in a value is a parse error' "error${T}1${T}unsupported escape \\q in double-quoted string" 1 'k: "a\\qb"\n'
+check 'an unknown escape in a key is a parse error' "error${T}1${T}unsupported escape \\q in double-quoted string" 1 '"a\\qb": 1\n'
+check 'an unknown escape in a flow item is a parse error' "l.0${T}a"$'\n'"error${T}1${T}unsupported escape \\x in double-quoted string" 1 'l: [a, "\\x41"]\n'
+check 'a backslash in single quotes is not an escape' "k${T}a\\qb" 0 "k: 'a\\\\qb'\n"
+NEST="nested flow sequences are outside the subset"
+check 'a nested flow sequence is a parse error' "error${T}1${T}${NEST}" 1 'a: [[1, 2]]\n'
+check 'a nested flow sequence after an item is a parse error' "a.0${T}x"$'\n'"error${T}1${T}${NEST}" 1 'a: [x, [y]]\n'
+check 'a flat flow sequence still reads' "a.0${T}1"$'\n'"a.1${T}2" 0 'a: [1, 2]\n'
+DIRECTIVE="directives (\`%\`) are outside the subset"
+check 'a leading `%` directive is a parse error' "error${T}1${T}${DIRECTIVE}" 1 '%YAML 1.2\na: 1\n'
+check 'a later `%` directive is a parse error' "a${T}1"$'\n'"error${T}2${T}${DIRECTIVE}" 1 'a: 1\n%TAG ! x\n'
+check 'a `%` inside a value stays legal' "a${T}50%" 0 'a: 50%\n'
+check 'a sequence-item map continues two columns past the dash' "l.0.k${T}1"$'\n'"l.0.j${T}2" 0 'l:\n  -   k: 1\n    j: 2\n'
+check 'a sequence-item map indented past dash column + 2 is a parse error' "l.0.k${T}1"$'\n'"error${T}3${T}unexpected indentation" 1 'l:\n  -   k: 1\n      j: 2\n'
+check 'a nested value under a wide sequence-item key still reads' "l.0.k.x${T}1" 0 'l:\n  -   k:\n        x: 1\n'
 
 # Long blank runs: a plain value keeps its inner blanks, a flow item likewise,
 # and blanks before `#` start a comment. All three lines read within 1 s.

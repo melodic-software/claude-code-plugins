@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.5] - 2026-10-29
+
+### Fixed
+
+- A control skill's Ready command must now fail when the instance is unfit. The contract's new "The Ready command" section and `/app-control:map`'s Generate step require each check in Ready to exit non-zero when it fails, so a listing such as `docker ps` ends in `grep -q` on the expected row instead of passing with no rows. Map's proof runs Ready once more with the app stopped and records that it exits non-zero, read from the new `ready.exit` field of `/app-control:drive`'s report. `/app-control:map check` reports a `ready-listing` finding for a Ready command whose last stage is a bare listing, and create fixes each one before its proof.
+
+## [0.17.4] - 2026-10-29
+
+### Fixed
+
+- `/app-control:map refresh`: a pass now switches to the upkeep branch, creating it from the default branch or merging the default branch into it, before the source wave and the live pass, so its corrections describe the tree the upkeep pull request ships. The dirty-tree checks and their blocked outcomes, and a legacy conversion's dirty-map check and attended ask, run before that switch, a refused merge is aborted, and a ticket-branch pass still stays on its branch. Every pass, blocked early or not, switches back to where it started, and a clean pass records its skip state only after that return.
+
 ## [0.17.3] - 2026-10-29
 
 ### Fixed

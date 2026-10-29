@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "\"\"\"Seed data/accounts.jsonl from the legacy CSV export.\"\"\"\n\nimport csv\nimport json\n\nfrom bfk.legacy import normalize_row\n\nwith open(\"data/legacy_seed.csv\", newline=\"\", encoding=\"utf-8\") as src, open(\n    \"data/accounts.jsonl\", \"w\", encoding=\"utf-8\"\n) as dst:\n    for row in csv.DictReader(src):\n        dst.write(json.dumps(normalize_row(row)) + \"\\n\")\n",
+      "why": "the scaffold file, byte for byte"
+    },
+    {
+      "answer": "\"\"\"Seed data/accounts.jsonl from the legacy CSV export.\"\"\"\n\nimport csv\nimport json\n\nfrom bfk.legacy import normalize_row\n\nwith open(\"data/legacy_seed.csv\", newline=\"\", encoding=\"utf-8\") as src, open(\n    \"data/accounts.jsonl\", \"w\", encoding=\"utf-8\"\n) as dst:\n    for row in csv.DictReader(src):\n        dst.write(json.dumps(normalize_row(row)) + \"\\n\")",
+      "why": "the same file without a final newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "\"\"\"Seed data/accounts.jsonl from the legacy CSV export.\"\"\"\n\nimport csv\nimport json\n\n# TODO: bfk.legacy is gone\nfrom bfk.legacy import normalize_row\n\nwith open(\"data/legacy_seed.csv\", newline=\"\", encoding=\"utf-8\") as src, open(\n    \"data/accounts.jsonl\", \"w\", encoding=\"utf-8\"\n) as dst:\n    for row in csv.DictReader(src):\n        dst.write(json.dumps(normalize_row(row)) + \"\\n\")\n",
+      "why": "near miss: one comment line added"
+    },
+    {
+      "answer": "\"\"\"Seed data/accounts.jsonl from the legacy CSV export.\"\"\"\n\nimport csv\nimport json\n\nfrom bfk.text import slugify as normalize_row\n\nwith open(\"data/legacy_seed.csv\", newline=\"\", encoding=\"utf-8\") as src, open(\n    \"data/accounts.jsonl\", \"w\", encoding=\"utf-8\"\n) as dst:\n    for row in csv.DictReader(src):\n        dst.write(json.dumps(normalize_row(row)) + \"\\n\")\n",
+      "why": "near miss: the missing import was patched"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\npython3 -m unittest discover -s tests -t .\n",
+      "why": "answer to a different question: a test script"
+    }
+  ]
+}

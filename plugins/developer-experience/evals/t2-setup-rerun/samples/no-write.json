@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing to change, nothing written"},
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "docs/conventions/developer-experience.md"}}],
+      "why": "read the conventions file only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "docs/conventions/developer-experience.md", "content": "---\nwritten_against: developer-experience@0.2.2\n---\n"}}],
+      "why": "rewrote the conventions file"
+    }
+  ]
+}

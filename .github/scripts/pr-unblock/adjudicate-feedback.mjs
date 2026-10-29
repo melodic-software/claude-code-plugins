@@ -47,6 +47,9 @@ export const MAX_THREADS = 3;
 // human verdict settles it, so a model never closes a thread the lane did not
 // dispute (settleDisputes).
 export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"]);
+// What a resolveAfterReply stand-in returns when the lanes App answered a
+// thread it cannot resolve (a PR it did not open): handled, and still open.
+export const LEFT_OPEN = "left-open";
 export const VERDICTS = ["lane", "reviewer", "human"];
 export const QUESTIONS = ["intent", "design", "security"];
 // The first line of each adjudication reply the lanes App posts: this, or
@@ -462,8 +465,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
 // - an INCORRECT reply on a dependencyFlag thread: when hardRequire settles
 //   it at the PR head (`headSha`, which headMoved checks before the reply)
-//   against the marketplace at the PR's base, the fixed hardRequireReply, then the thread is resolved, with no verdict
-//   and no person; otherwise feedback-disputed;
+//   against the marketplace at the PR's base, the fixed hardRequireReply, then the thread is resolved (left open, as LEFT_OPEN,
+//   where the lanes App cannot resolve it), with no verdict and no person;
+//   otherwise feedback-disputed;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
 //   with no readable rating, or one of unknown lane) goes to a person:
@@ -475,7 +479,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   a security-review finding rated below SECURITY_PERSON_SEVERITY, which is
 //   feedback-unadjudicated;
 // - lane: on an INCORRECT reply, the fixed reply, then the thread is
-//   resolved; on an UNCERTAIN or VALID-defer reply (the lane could not tell,
+//   resolved (left open, as LEFT_OPEN, where the lanes App cannot resolve
+//   it); on an UNCERTAIN or VALID-defer reply (the lane could not tell,
 //   or agreed the finding holds) no reply, the thread stays open (the
 //   ruleset's thread resolution still holds the merge), and
 //   feedback-unadjudicated;
@@ -498,9 +503,9 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
   const byThread = new Map(replies.map((reply) => [reply.thread, reply]));
   // Posts `body` on the thread, and resolves it when `resolve`, only while
   // neither it nor the PR head changed after the lane's reply. Returns
-  // "posted", "resolved", "changed" (nothing posted), "open" (posted, then
-  // left open) or "failed" (a write failed, and adjudication stops); the last
-  // three log why.
+  // "posted", "resolved", LEFT_OPEN (posted, and the lanes App cannot resolve
+  // it), "changed" (nothing posted), "open" (posted, then left open) or
+  // "failed" (a write failed, and adjudication stops); the last three log why.
   const answer = async (thread, body, resolve) => {
     try {
       const ids = shown.get(thread).comment_ids;
@@ -523,12 +528,13 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       if (!resolve) {
         return "posted";
       }
-      if (!(await resolveAfterReply(api, thread, [...before.commentIds, reply.id], headMoved))) {
+      const resolved = await resolveAfterReply(api, thread, [...before.commentIds, reply.id], headMoved);
+      if (!resolved) {
         log(`${thread}: answered, but the thread was left open: it or the PR head changed`);
         raise("feedback-partial");
         return "open";
       }
-      return "resolved";
+      return resolved === LEFT_OPEN ? LEFT_OPEN : "resolved";
     } catch (error) {
       log(`stopped adjudicating at ${thread}: ${String(error?.message ?? error).slice(0, 300)}`);
       return "failed";
@@ -585,8 +591,8 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
         raise("feedback-partial");
         break;
       }
-      if (outcome === "resolved") {
-        log(`${thread}: a dependencies flag on hard requires in this marketplace; resolved`);
+      if (outcome === "resolved" || outcome === LEFT_OPEN) {
+        log(`${thread}: a dependencies flag on hard requires in this marketplace; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
       }
       continue;
     }
@@ -627,8 +633,8 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       raise("feedback-partial");
       break;
     }
-    if (outcome === "resolved") {
-      log(`${thread}: the finding does not hold; resolved`);
+    if (outcome === "resolved" || outcome === LEFT_OPEN) {
+      log(`${thread}: the finding does not hold; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
     } else if (outcome === "posted") {
       log(`${thread}: the finding stands`);
       stands = true;

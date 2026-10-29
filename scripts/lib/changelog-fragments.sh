@@ -11,13 +11,20 @@
 # Only plugins named in scripts/fragment-plugins.txt are in fragment mode. A
 # missing list is an empty one: every plugin then keeps the per-PR bump, which is
 # the stricter of the two paths. A listed name with no plugin and a
-# docs/conventions/<name>/CHANGELOG.md is a convention, versioned by that
-# CHANGELOG's newest heading alone; everything here that says plugin covers it.
+# docs/contracts/<name>/CHANGELOG.md or docs/conventions/<name>/CHANGELOG.md is
+# a convention, versioned by that CHANGELOG's newest heading alone; everything
+# here that says plugin covers it.
 #
 #   changelog_fragments::in_mode <plugin>         0 when <plugin> is listed
 #   changelog_fragments::root_of <plugin>         print plugins/<plugin>, or
+#                                                 docs/contracts/<plugin> or
 #                                                 docs/conventions/<plugin> for a
-#                                                 convention; 1 when neither
+#                                                 convention; 1 when none
+#   changelog_fragments::convention_of <path>     print <name> when <path> is
+#                                                 under docs/contracts/<name>/ or
+#                                                 docs/conventions/<name>/ and
+#                                                 that directory is <name>'s root;
+#                                                 1 otherwise
 #   changelog_fragments::newest_version <file>    print the newest version
 #                                                 heading of a CHANGELOG (`-`
 #                                                 reads stdin); empty when none
@@ -86,11 +93,25 @@ changelog_fragments::in_mode() {
 changelog_fragments::root_of() {
   if [[ -f "plugins/$1/.claude-plugin/plugin.json" ]]; then
     printf 'plugins/%s\n' "$1"
+  elif [[ -f "docs/contracts/$1/CHANGELOG.md" ]]; then
+    printf 'docs/contracts/%s\n' "$1"
   elif [[ -f "docs/conventions/$1/CHANGELOG.md" ]]; then
     printf 'docs/conventions/%s\n' "$1"
   else
     return 1
   fi
+}
+
+changelog_fragments::convention_of() {
+  local rest name
+  case "$1" in
+  docs/contracts/*/* | docs/conventions/*/*) ;;
+  *) return 1 ;;
+  esac
+  rest="${1#docs/*/}"
+  name="${rest%%/*}"
+  [[ "$(changelog_fragments::root_of "$name")" == "${1%"$rest"}$name" ]] || return 1
+  printf '%s\n' "$name"
 }
 
 changelog_fragments::newest_version() {
@@ -168,7 +189,7 @@ changelog_fragments::validate() {
     return 1
   fi
   if ! root="$(changelog_fragments::root_of "$plugin")"; then
-    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json and no docs/conventions/$plugin/CHANGELOG.md." >&2
+    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json and no docs/contracts/$plugin/CHANGELOG.md or docs/conventions/$plugin/CHANGELOG.md." >&2
     return 1
   fi
   changelog_fragments::in_mode "$plugin"

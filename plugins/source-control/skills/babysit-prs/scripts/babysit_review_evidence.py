@@ -19,7 +19,9 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   names its head's tree, which finding closure keys on (`_open_findings`).
 - `comments`: the pull request's issue comments (REST), each by
   github-actions[bot] or the Claude App carrying an `edit` record: GraphQL's
-  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`).
+  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`),
+  and for an edited comment its `userContentEdits` as `history`
+  (`_marker_revisions`).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   whose comments carry `lastEditedAt` and `editor`, or None when they could
   not be read.
@@ -60,9 +62,10 @@ LANES: dict[str, tuple[str, str]] = {
 # workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
-# untrusted-content contract), the lane's input directory .claude-lane/ (the
-# code lane falls back to a context file there), and .gitattributes, which can
-# hide a hunk from the lane's `git diff`. The callers run every local action
+# untrusted-content contract, at docs/contracts/ and at the docs/conventions/
+# stubs installed plugin versions still read), the lane's input directory
+# .claude-lane/ (the code lane falls back to a context file there), and
+# .gitattributes, which can hide a hunk from the lane's `git diff`. The callers run every local action
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
@@ -74,6 +77,8 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
+    "docs/contracts/instruction-exception-register/",
+    "docs/contracts/untrusted-content/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
     ".claude-lane/",
@@ -552,6 +557,7 @@ def _bind_lane(
             chain,
             head_file,
             [(None, marker), *_summary_comments(lane, comments)],
+            _marker_revisions(lane, comments),
         )
     except Unbound as exc:
         return _unbound(
@@ -620,6 +626,7 @@ def _carried_blocking(
                 chain,
                 head_file,
                 [(None, marker), *_summary_comments(SEVERITY_LANE, comments)],
+                _marker_revisions(SEVERITY_LANE, comments),
             )
         except Exception:  # noqa: BLE001 - this head does not bind; try older
             continue
@@ -1101,6 +1108,62 @@ def _summary_comments(
     return found
 
 
+def _marker_revisions(
+    lane: str, comments: Sequence[Mapping[str, Any]]
+) -> list[tuple[datetime, str]]:
+    """Every body the lane's reviewed-head marker comments have held, with
+    when it was written: the lane producer edits one marker in place per head
+    (ci-workflows publish.cjs `writeMarker`), so an earlier review's summary
+    survives only in the comment's edit history (GraphQL `userContentEdits`,
+    each node's `diff` the whole body after that edit). An unedited marker's
+    one body counts at its creation. A comment whose history is missing,
+    incomplete, has a deleted revision or one written by anyone but its
+    author yields nothing, so the summaries it held stay unread."""
+    found: list[tuple[datetime, str]] = []
+    for comment in comments:
+        user = comment.get("user")
+        body = str(comment.get("body") or "")
+        match = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if (
+            not isinstance(user, Mapping)
+            or user.get("login") != MARKER_AUTHOR
+            or not match
+            or match[1] != lane
+        ):
+            continue
+        edit = comment.get("edit")
+        if not isinstance(edit, Mapping) or "lastEditedAt" not in edit:
+            continue
+        if edit["lastEditedAt"] is None:
+            created = _time(comment.get("created_at"))
+            if created is not None:
+                found.append((created, body))
+            continue
+        history = edit.get("history")
+        nodes = history.get("nodes") if isinstance(history, Mapping) else None
+        if not isinstance(nodes, list | tuple) or history.get("totalCount") != len(
+            nodes
+        ):
+            continue
+        revisions = []
+        for node in nodes:
+            at = _time(node.get("editedAt")) if isinstance(node, Mapping) else None
+            if (
+                at is None
+                or node.get("deletedAt") is not None
+                or not isinstance(node.get("diff"), str)
+                or _edited_by_another(
+                    user,
+                    {"lastEditedAt": node["editedAt"], "editor": node.get("editor")},
+                )
+            ):
+                break
+            revisions.append((at, node["diff"]))
+        else:
+            found.extend(revisions)
+    return found
+
+
 def _require_marked_runs(
     lane: str,
     lane_runs: list[Mapping[str, Any]],
@@ -1129,6 +1192,7 @@ def _open_findings(
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
     summaries: Sequence[tuple[datetime | None, str]] = (),
+    revisions: Sequence[tuple[datetime, str]] = (),
 ) -> tuple[int, bool, int]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
@@ -1171,12 +1235,16 @@ def _open_findings(
     `reviewed`'s tree reported a finding, and none of them was a whole
     review; and how many open findings are CRITICAL (`SEVERITY_RE`): open
     threads whose comment is not marked IMPORTANT or SUGGESTION, every inline
-    finding whose thread is gone, and the summary findings, of which only the
-    covering review's own may count fewer, when no other review of its tree
-    reported a summary finding: its one `critical-findings:` line, read from
-    `summaries` (the reviewed-head marker, which carries the summary, and
-    each Claude App summary comment posted inside that review's job). An
-    earlier review's summary is not read, so all its findings count."""
+    finding whose thread is gone, and the summary findings. A chain tree's
+    summary findings count fewer only when one review of that tree alone
+    reported any: by its one `critical-findings:` line. For the covering
+    review that line is read from `summaries` (the reviewed-head marker,
+    which carries the summary, and each Claude App summary comment posted
+    inside that review's job). For an earlier link's tree it is read from the
+    marker bodies in `revisions` (`_marker_revisions`) that name the
+    reporting review's head and were written inside its job, and from the
+    summary comments posted inside it; with no such line, or more than one,
+    all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
     # The covering review's job window, to place its summary comments.
@@ -1195,8 +1263,10 @@ def _open_findings(
     # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Per tree, how many reviews of it reported a summary finding.
+    # Per tree, how many reviews of it reported a summary finding, and the
+    # (head sha, job started, job completed, summary findings) of the last.
     summary_reviews: dict[str, int] = {}
+    reporter: dict[str, tuple[str, datetime | None, datetime | None, int]] = {}
     # The trees any review of which was whole or reported a finding.
     spent: set[str] = set()
     for item in lane_runs:
@@ -1224,9 +1294,15 @@ def _open_findings(
                 summary_max.get(tree, 0),
                 rec.findings - rec.inline,  # type: ignore[operator]
             )
+            started = _time(job.get("started_at"))
             if rec.findings > rec.inline:  # type: ignore[operator]
                 summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
-            started = _time(job.get("started_at"))
+                reporter[tree] = (
+                    rec.sha,
+                    started,
+                    rec.completed,
+                    rec.findings - rec.inline,  # type: ignore[operator]
+                )
             if rec == chain[0]:
                 span = (started, rec.completed)
             windows.append(
@@ -1315,6 +1391,28 @@ def _open_findings(
         and len(lines) == 1
     ):
         summary = rest + min(int(lines[0]), own)
+    for tree in chain_trees[1:]:
+        if summary_reviews.get(tree, 0) != 1:
+            continue
+        sha, start, end, reported = reporter[tree]
+        if not (start and end):
+            continue
+        named = [
+            body
+            for at, body in revisions
+            if start <= at <= end
+            and (mark := MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r")))
+            and mark[1] == lane
+            and mark[2] == sha
+        ]
+        posted = [body for at, body in summaries if at and start <= at <= end]
+        lines = [
+            line
+            for body in named + posted
+            for line in SUMMARY_CRITICAL_RE.findall(body)
+        ]
+        if len(lines) == 1:
+            summary -= reported - min(int(lines[0]), reported)
     return (
         count,
         count > 0 and not unresolved and not head_spent,

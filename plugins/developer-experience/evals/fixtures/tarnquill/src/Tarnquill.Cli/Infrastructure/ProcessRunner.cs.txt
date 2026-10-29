@@ -1,0 +1,36 @@
+using System.Diagnostics;
+
+namespace Tarnquill.Cli.Infrastructure;
+
+public sealed record ProcessResult(int ExitCode, string StdOut, string StdErr);
+
+public static class ProcessRunner
+{
+    public static ProcessResult Run(string file, params string[] args)
+    {
+        var startInfo = new ProcessStartInfo(file)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        try
+        {
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException($"could not start {file}");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            process.WaitForExit();
+            return new ProcessResult(process.ExitCode, stdout.Result, stderr.Result);
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            return new ProcessResult(127, string.Empty, ex.Message);
+        }
+    }
+}
