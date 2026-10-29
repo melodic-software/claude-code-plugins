@@ -26,7 +26,8 @@ name: pr-review-main
 # for a lane the subscription leg handed off (a limit stop, a credit stop, a
 # 401 or 402, or an empty token, with the fallback token set). Each leg is
 # its own job on a new VM holding one credential, and repeats every step from
-# a fresh main checkout (workflow.test.mjs holds them equal). A matrix job's
+# a fresh checkout of the main commit the lane's key leg recorded, the tip
+# when that leg started (workflow.test.mjs holds them equal). A matrix job's
 # outputs merge, so each lane's handoff reason is its own output, set after
 # run-claude-cli restored the step files; review-handoffs and
 # subscription-handoffs, which hold no secret and run no model, check each
@@ -92,14 +93,26 @@ jobs:
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
+      claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
+      claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The main commit this run started from, so every leg runs the same main.
-          ref: ${{ github.sha }}
+          # The tip when the run starts, never an older commit a re-run of an
+          # old run would bring back; later legs check out the commit this
+          # leg recorded.
+          ref: refs/heads/main
           path: .base
           persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -514,14 +527,17 @@ jobs:
         env:
           CODE: ${{ needs.review.outputs.claude-review }}
           SECURITY: ${{ needs.review.outputs.claude-security-review }}
+          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha }}
+          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha }}
           REASONS: credit-stop auth no-key
         run: |
-          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg reasons "$REASONS" '
+          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
             ($reasons | split(" ")) as $ok
-            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code},
-               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security}]
+            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code, base: $code_base},
+               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security, base: $security_base}]
             | map(select(.reason != ""))
-            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then {include: .} else error("a handoff reason is not one this leg hands on with") end')
+            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then . else error("a handoff reason is not one this leg hands on with") end
+            | if all(.[]; .base | test("\\A[0-9a-f]{40}\\z")) then {include: .} else error("a handed-on lane has no main commit to check out") end')
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
           echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
 
@@ -556,14 +572,25 @@ jobs:
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
+      claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
+      claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The main commit this run started from, so every leg runs the same main.
-          ref: ${{ github.sha }}
+          # The main commit this lane's key leg checked out, passed on by the
+          # route job only as 40 hex characters.
+          ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -979,14 +1006,17 @@ jobs:
         env:
           CODE: ${{ needs.review-subscription.outputs.claude-review }}
           SECURITY: ${{ needs.review-subscription.outputs.claude-security-review }}
+          CODE_BASE: ${{ needs.review-subscription.outputs.claude-review-base-sha }}
+          SECURITY_BASE: ${{ needs.review-subscription.outputs.claude-security-review-base-sha }}
           REASONS: limit-stop credit-stop auth no-key
         run: |
-          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg reasons "$REASONS" '
+          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
             ($reasons | split(" ")) as $ok
-            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code},
-               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security}]
+            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code, base: $code_base},
+               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security, base: $security_base}]
             | map(select(.reason != ""))
-            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then {include: .} else error("a handoff reason is not one this leg hands on with") end')
+            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then . else error("a handoff reason is not one this leg hands on with") end
+            | if all(.[]; .base | test("\\A[0-9a-f]{40}\\z")) then {include: .} else error("a handed-on lane has no main commit to check out") end')
           echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
           echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
 
@@ -1018,10 +1048,19 @@ jobs:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The main commit this run started from, so every leg runs the same main.
-          ref: ${{ github.sha }}
+          # The main commit this lane's key leg checked out, passed on by the
+          # route job only as 40 hex characters.
+          ref: ${{ matrix.base }}
           path: .base
           persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

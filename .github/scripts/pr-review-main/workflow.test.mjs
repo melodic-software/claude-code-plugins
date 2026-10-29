@@ -350,10 +350,25 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   for (const job of LEGS) {
     const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.block));
     assert.equal(checkouts.length, 1, job);
-    // workflow_run's github.sha is the default branch commit whose copy of
-    // this file runs, so every leg checks out that same main.
-    assert.match(checkouts[0].block, /^ {10}ref: \$\{\{ github\.sha \}\}$/m);
+    // The key leg checks out the tip when it starts, never github.sha, which
+    // a re-run of an old run would bring back; a later leg checks out the
+    // commit its lane's key leg recorded, which the route passed on.
+    const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].block)[1];
+    assert.equal(ref, job === KEY ? "refs/heads/main" : "${{ matrix.base }}", job);
+    // Right after it, the leg records the commit under the lane's name.
+    assert.equal(index("Record the main commit", job), index(checkouts[0].name, job) + 1, job);
+    assert.match(step("Record the main commit", job), /^ {8}run: echo "\$LANE-base-sha=\$\(git -C \.base rev-parse --verify HEAD\)" >>"\$GITHUB_OUTPUT"$/m);
     assert.match(checkouts[0].block, /^ {10}persist-credentials: false$/m);
+  }
+  assert.doesNotMatch(text, /github\.sha/);
+  // The key and subscription legs pass each lane's commit on, and each route
+  // reads the previous leg's.
+  for (const [route, from] of [["review-handoffs", KEY], ["subscription-handoffs", SUB]]) {
+    for (const lane of ["claude-review", "claude-security-review"]) {
+      assert.match(jobText(from), new RegExp(`^ {6}${lane}-base-sha: \\$\\{\\{ steps\\.base\\.outputs\\.${lane}-base-sha \\}\\}$`, "m"));
+    }
+    assert.match(jobText(route), new RegExp(`^ {10}CODE_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-review-base-sha \\}\\}$`, "m"));
+    assert.match(jobText(route), new RegExp(`^ {10}SECURITY_BASE: \\$\\{\\{ needs\\.${from}\\.outputs\\.claude-security-review-base-sha \\}\\}$`, "m"));
   }
   for (const [, local] of text.matchAll(/^\s+uses: (\.\/\S+)/gm)) {
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
@@ -478,6 +493,8 @@ const ROUTES = {
   "review-handoffs": ["credit-stop", "auth", "no-key"],
   "subscription-handoffs": ["limit-stop", "credit-stop", "auth", "no-key"],
 };
+const SHA_A = "a".repeat(40);
+const SHA_B = "0123456789abcdef0123456789abcdef01234567";
 const routeRun = (job) => {
   const block = jobText(job);
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(block)[1].replace(/^ {10}/gm, "");
@@ -487,7 +504,7 @@ const routeRun = (job) => {
       const out = path.join(dir, "out");
       writeFileSync(out, "");
       const reasons = /^ {10}REASONS: (.*)$/m.exec(block)[1];
-      const result = spawnSync("bash", ["-e", "-c", run], { encoding: "utf8", env: { ...process.env, REASONS: reasons, GITHUB_OUTPUT: out, ...env } });
+      const result = spawnSync("bash", ["-e", "-c", run], { encoding: "utf8", env: { ...process.env, REASONS: reasons, GITHUB_OUTPUT: out, CODE_BASE: SHA_A, SECURITY_BASE: SHA_B, ...env } });
       const line = readFileSync(out, "utf8").trim();
       return { status: result.status, matrix: line ? JSON.parse(line.replace(/^matrix=/, "")) : undefined };
     } finally {
@@ -508,11 +525,19 @@ test("a route hands the next leg fixed lane rows, only for a lane handed on with
   for (const [job, reasons] of Object.entries(ROUTES)) {
     assert.deepEqual(/^ {10}REASONS: (.*)$/m.exec(jobText(job))[1].split(" "), reasons, job);
     const route = routeRun(job);
-    assert.deepEqual(route({ CODE: "credit-stop", SECURITY: "" }), { status: 0, matrix: { include: [{ ...rows["claude-review"], reason: "credit-stop" }] } });
+    assert.deepEqual(route({ CODE: "credit-stop", SECURITY: "" }), { status: 0, matrix: { include: [{ ...rows["claude-review"], reason: "credit-stop", base: SHA_A }] } });
     assert.deepEqual(route({ CODE: "auth", SECURITY: "no-key" }), {
       status: 0,
-      matrix: { include: [{ ...rows["claude-review"], reason: "auth" }, { ...rows["claude-security-review"], reason: "no-key" }] },
+      matrix: { include: [{ ...rows["claude-review"], reason: "auth", base: SHA_A }, { ...rows["claude-security-review"], reason: "no-key", base: SHA_B }] },
     });
+    // A handed-on lane with no main commit, or one that is not 40 hex, fails
+    // the route, so no later leg runs for it; a lane not handed on needs none.
+    for (const base of ["", "main", "A".repeat(40), `${SHA_A}\n`, "a".repeat(39)]) {
+      const result = route({ CODE: "credit-stop", SECURITY: "", CODE_BASE: base });
+      assert.notEqual(result.status, 0, `${job} ${JSON.stringify(base)}`);
+      assert.equal(result.matrix, undefined);
+    }
+    assert.equal(route({ CODE: "credit-stop", SECURITY: "", SECURITY_BASE: "" }).status, 0);
     for (const bad of ["other", "credit-stop ", "true"]) {
       const result = route({ CODE: "", SECURITY: bad });
       assert.notEqual(result.status, 0, `${job} ${JSON.stringify(bad)}`);
@@ -587,6 +612,7 @@ test("every later leg repeats the key leg's steps but for its credential and why
   const normal = (block) =>
     block
       .replace(/secrets\.[A-Z_]+/g, "secrets.X")
+      .replace(/^( {8}with:\n)(?: {10}#.*\n)+ {10}ref: .*\n/m, "$1          ref: REF\n")
       .replace(/^( {10}SECRET_NAME: ).*$/m, "$1X")
       .replace(new RegExp(`^( {10})(?:${CREDENTIAL_INPUTS.join("|")}): `, "m"), "$1credential: ")
       .replace(/^ {10}LATER_PRESENT: .*\n/m, "")

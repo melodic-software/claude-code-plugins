@@ -1120,7 +1120,10 @@ the rules that only tighten in
   for a lane that leg handed off (a limit stop, a credit stop, a 401 or 402, or an empty token)
   with `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the fallback token in `review-fallback`. Each leg
   is a job on a new VM holding one credential, and a route job with no secret passes on only
-  lanes whose handoff reason is in a closed set. Every leg writes the same verdict, so neither the
+  lanes whose handoff reason is in a closed set. The key leg checks out the main tip when it
+  starts and records that commit; a later leg checks out the recorded commit, which the route
+  passes on only as 40 hex characters, so a re-run of an old run cannot bring back older review
+  code. Every leg writes the same verdict, so neither the
   record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
   credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
   comes from a successful run; a run that leaves no verdict leaves the lanes unbound until the
