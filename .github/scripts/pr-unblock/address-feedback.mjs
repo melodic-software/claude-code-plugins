@@ -121,29 +121,40 @@ export function coveringLanes(plan) {
   return [...matrix, ...node, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
 }
 
+// A test lane's check-run name: every test job in pr-require-checks.yml and
+// pr-test-windows.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
+const TEST_LANE = /^test-[a-z0-9]+(?:-[a-z0-9]+)*(?: \(\d+\))?$/;
+const failed = (run) => run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled");
+const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
 // The head's CI for the tests the PR selects, which the reply job settles a
 // tests-only finding from (adjudicate-feedback.mjs settleDisputes): the
-// latest real run (gate-source.mjs latestRuns) of each github-actions check
-// a covering lane posts. red: one failed or was cancelled; green: every
-// covering lane has a run and each one passed; unsettled otherwise (pending,
-// missing or skipped, a listing past its pages, no covering lane, or a
-// failed read), which settles nothing.
+// latest real run (gate-source.mjs latestRuns) of each github-actions check.
+// The plan is read from the base tree, so it can list fewer lanes than the
+// head's select-tests job ran. red: any test lane run on the head failed or
+// was cancelled, planned or not; green: every covering lane the plan names
+// has a run, each one passed, and no test lane the plan does not name ran;
+// unsettled otherwise (pending, missing or skipped, an unplanned lane that
+// ran, a listing past its pages, no covering lane, or a failed read), which
+// settles nothing.
 export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
   try {
     const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort()));
     const listed = await api.listCommitCheckRuns(headSha);
-    const latest = [...latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()];
-    const runs = latest.filter((run) => lanes.includes(String(run.name))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    const cite = runs.map((run) => ({ name: run.name, url: run.html_url }));
-    if (runs.some((run) => run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))) {
-      return { state: "red", runs: cite };
+    const tests = [...latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()].filter((run) => TEST_LANE.test(String(run.name)));
+    const red = tests.filter(failed).sort(byName);
+    if (red.length > 0) {
+      return { state: "red", runs: red.map((run) => ({ name: run.name, url: run.html_url })) };
     }
+    const runs = tests.filter((run) => lanes.includes(String(run.name))).sort(byName);
+    const unplanned = tests.some((run) => !lanes.includes(String(run.name)) && run.conclusion !== "skipped");
     const passed =
       lanes.length > 0 &&
       listed.complete !== false &&
+      !unplanned &&
       lanes.every((lane) => runs.some((run) => run.name === lane)) &&
       runs.every((run) => run.status === "completed" && run.conclusion === "success");
-    return { state: passed ? "green" : "unsettled", runs: cite };
+    return { state: passed ? "green" : "unsettled", runs: runs.map((run) => ({ name: run.name, url: run.html_url })) };
   } catch {
     return { state: "unsettled", runs: [] };
   }

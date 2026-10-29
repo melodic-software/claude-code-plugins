@@ -1797,6 +1797,23 @@ test("ciSnapshot is red when a covering check failed or was cancelled", async ()
   assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(7, "test-bash (1)", "failure")], { complete: false })).state, "red");
 });
 
+// The plan is read from the base tree, so the head's select-tests job can run
+// lanes it does not name (#11041 review).
+test("ciSnapshot is red when any test lane on the head failed, planned or not, and cites the failed runs", async () => {
+  const red = await snapshot([...GREEN, checkRun(20, "test-python (0)", "failure"), checkRun(21, "test-windows-hooks", "cancelled")]);
+  assert.equal(red.state, "red");
+  assert.deepEqual(red.runs.map((run) => run.name), ["test-python (0)", "test-windows-hooks"]);
+  // A failed check that is not a test lane is not CI for a tests-only finding.
+  assert.equal((await snapshot(GREEN)).state, "green");
+});
+
+test("ciSnapshot is unsettled when a test lane the plan does not name ran, even if it passed", async () => {
+  assert.equal((await snapshot([...GREEN, checkRun(22, "test-python (0)")])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN, checkRun(23, "test-bash (2)", null)])).state, "unsettled");
+  // A lane the head's plan skipped did not run.
+  assert.equal((await snapshot([...GREEN, checkRun(24, "test-python", "skipped")])).state, "green");
+});
+
 test("ciSnapshot is unsettled when a covering check is pending, missing or skipped, or nothing can be read", async () => {
   const without = (name) => GREEN.filter((run) => run.name !== name);
   for (const [label, runs, options] of [

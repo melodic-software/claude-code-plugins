@@ -1008,6 +1008,9 @@ test("settleDisputes resolves an UNCERTAIN tests-only finding on a green head wi
     assert.ok(posts[0].includes(`[${run.name}](${run.url})`), run.name);
   }
   assert.ok(posts[0].includes(HEAD));
+  // It claims only what the snapshot shows: the plan's checks passed at the head.
+  assert.ok(posts[0].includes(`Every check the plan selected (\`scripts/plan-test-lanes.sh\`) passed at \`${HEAD}\``));
+  assert.ok(!posts[0].includes("the tests this finding asks for"));
 });
 
 test("settleDisputes leaves an UNCERTAIN tests-only finding on a red head open with no reply and no escalation, for fix-ci", async () => {

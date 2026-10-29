@@ -512,9 +512,9 @@ export function adjudicationReply(verdict, evidence, headSha) {
 export function testsReply(runs, headSha) {
   return [
     FINDING_ANSWERED,
-    "**pr-unblock / adjudicate-feedback: the tests this finding asks for passed in CI, resolved**",
+    "**pr-unblock / adjudicate-feedback: every check the plan selected passed, resolved**",
     "",
-    `A fresh-context adjudicator found that this finding asks only for tests or checks CI runs. At \`${headSha}\`, every check run that covers the tests this pull request selects (\`scripts/plan-test-lanes.sh\`) concluded success:`,
+    `A fresh-context adjudicator found that this finding asks only for tests or checks CI runs. Every check the plan selected (\`scripts/plan-test-lanes.sh\`) passed at \`${headSha}\`, and no test check on that commit failed:`,
     "",
     ...runs.map((run) => `- [${run.name}](${run.url})`),
   ].join("\n");

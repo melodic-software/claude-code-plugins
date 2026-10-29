@@ -1209,11 +1209,11 @@ A `tests-only` verdict (the finding asks only that tests or checks CI runs be ru
 model text, and only on an `UNCERTAIN` reply in a round that pushed no fix (the snapshot is of the
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
-`scripts/plan-test-lanes.sh` over the pull request's files, the selection the `select-tests` job
-makes, and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
+`scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
 `test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-windows.yml` job it
-names). The state is `red` when one failed or was cancelled, `green` when every one of those checks
-has a run and each one passed, and
+names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
+`red` when any `test-*` run on the head failed or was cancelled, planned or not, `green` when every
+planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
 `unsettled` otherwise. On `green` the reply job posts a fixed reply citing those runs and resolves
 the thread; on `red` it posts nothing and escalates nothing, since `fix-ci-dispatch.mjs` starts
 fix-ci for a head whose lanes failed; on `unsettled`, or on another reply, the round ends

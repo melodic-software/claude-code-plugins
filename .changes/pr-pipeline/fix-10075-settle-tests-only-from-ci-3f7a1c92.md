@@ -9,7 +9,8 @@ bump: patch
   pushed no fix, the reply job settles it from the head's CI, which the select job records in
   `run.json`'s `ci`. The select job runs `scripts/plan-test-lanes.sh` over the pull request's
   files and reads the latest real run of each covering check: every planned `test-bash` and
-  `test-python` leg, `test-node` and each `pr-test-windows` job. If every one passed, a fixed
-  reply cites the runs and resolves the thread. If one failed, the thread stays open with no
-  escalation, and fix-ci takes the red head. If a check is pending, missing or skipped, the round
+  `test-python` leg, `test-node` and each `pr-test-windows` job. If every one passed and no
+  unplanned test lane ran, a fixed reply says every check the plan selected passed and resolves the
+  thread. If any test run on the head failed, the thread stays open with no escalation, and fix-ci
+  takes the red head. If a check is pending, missing or skipped, the round
   ends `feedback-unadjudicated` as before. No job gains a permission.
