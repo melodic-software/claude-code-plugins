@@ -162,7 +162,7 @@ case "$*" in
 */activity*)
   # Page N (after=pN, page 1 without it) prints STUB_PUSHES_N (page 1:
   # STUB_PUSHES); with -i, a Link to page N+1 while STUB_PUSHES_<N+1> is set (empty too)
-  # or STUB_PUSHES_ENDLESS is.
+  # or STUB_PUSHES_ENDLESS is; STUB_LINK=prev gives a Link with rel="prev" only.
   [[ -z "${STUB_PUSHES_FAIL:-}" ]] || exit 1
   n=1 args="$*"
   [[ "$args" != *after=p* ]] || { n="${args#*after=p}"; n="${n%%[!0-9]*}"; }
@@ -171,7 +171,9 @@ case "$*" in
   if [[ " $* " == *" -i "* ]]; then
     printf 'HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n'
     next="STUB_PUSHES_$((n + 1))"
-    if [[ -n "${!next+set}${STUB_PUSHES_ENDLESS:-}" ]]; then
+    if [[ "${STUB_LINK:-}" == prev ]]; then
+      printf 'Link: <https://api.github.com/repositories/1/activity?per_page=100&before=p0>; rel="prev"\r\n'
+    elif [[ -n "${!next+set}${STUB_PUSHES_ENDLESS:-}" ]]; then
       printf 'Link: <https://api.github.com/repositories/1/activity?ref=refs%%2Fheads%%2Ffeature%%2Fx&direction=desc&per_page=100&after=p%s>; rel="next", <https://api.github.com/repositories/1/activity?per_page=100>; rel="first"\r\n' "$((n + 1))"
     fi
     printf '\r\n'
@@ -474,6 +476,14 @@ STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(jq -c --argjson a "$(push
 STUB_PUSHES="$(list "$(push "$APP" $SHA_B)")" STUB_PUSHES_2="$(page kyle-sexton 50)" \
   expect "an App push on the first page is held" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
 if grep -q 'after=p2' "$TMP_ROOT/log"; then fail "a held first page read the next page"; else ok "an App push stops the read at its page"; fi
+STUB_PUSHES="$(page kyle-sexton 100)" \
+  expect "a full page with no Link header is held" 1 "::error::the push history of feature/x fills page 1 with no next link"
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_LINK=prev \
+  expect "a full page whose Link has only rel=prev is held" 1 "::error::the push history of feature/x fills page 1 with no next link"
+STUB_PUSHES="$(page kyle-sexton 99)" \
+  expect "a short page with no Link header ends the history" 0 "No agent App opened, wrote or pushed to #77" "::error::"
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 100)" \
+  expect "a full last page with no Link header is held" 1 "fills page 2 with no next link"
 STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_ENDLESS=1 \
   expect "a push history past 20 pages is held" 1 "::error::the push history of feature/x runs past 20 pages"
 if [[ "$(grep -c '/activity' "$TMP_ROOT/log")" -eq 20 ]]; then ok "the read stops at 20 pages"; else fail "read $(grep -c '/activity' "$TMP_ROOT/log") activity pages"; fi
