@@ -15,6 +15,7 @@
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
+- [Write identities](#write-identities)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -1128,8 +1129,10 @@ the rules that only tighten in
   code. Every leg writes the same verdict, so neither the
   record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
   credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
-  comes from a successful run; a run that leaves no verdict leaves the lanes unbound until the
-  next push.
+  comes from a successful run. A run whose first attempt failed before any lane's verdict write
+  started (every leg stopped) is re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is (`maintenance-reconcile-lost-runs`); any other run that leaves no verdict
+  leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
@@ -2252,7 +2255,10 @@ head:
   sub-issue since. On the edited path a line may also be a trusted line with its box
   ticked: the one `[ ]` of `task-list` written `[x]` or `[X]`, indent and text unchanged, and a
   `task-list` without exactly one `[ ]` takes exact lines only. GitHub names only the last editor,
-  so a listed human's edit vouches for ticked boxes, never for other text. A parent with more than
+  so a listed human's edit vouches for ticked boxes, never for other text. To amend such a
+  sub-issue, a listed human comments on it; any other line added to its body
+  leaves it untrusted, whoever adds it ([#10734](https://github.com/melodic-software/claude-code-plugins/issues/10734),
+  [#10936](https://github.com/melodic-software/claude-code-plugins/issues/10936)). A parent with more than
   100 comments leaves it untrusted, and a failed read of the sub-issue, its parent or the rules
   refuses `verify:unreadable`. Otherwise a Bot or App, the lanes App among them, never counts. The
   model's spec text holds what such
@@ -2648,6 +2654,19 @@ It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
 workflow. The kill switch stops it. The lanes App reading in signal 2 is what pr-merge's token sees
 at the start and end of each run, not the broker's own quota record, which this token cannot read.
+
+## Write identities
+
+Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's rule on which
+`GITHUB_TOKEN` events start workflow runs is on its
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
+
+| Identity | Workflows | Why |
+|---|---|---|
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
 
