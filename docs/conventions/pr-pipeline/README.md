@@ -1128,8 +1128,10 @@ the rules that only tighten in
   code. Every leg writes the same verdict, so neither the
   record job nor the gate depends on the leg; the lane record (`report-lane-outcome`) names the
   credential and why the leg ran. A handed-off leg stays green, so a later leg's verdict still
-  comes from a successful run; a run that leaves no verdict leaves the lanes unbound until the
-  next push.
+  comes from a successful run. A run whose first attempt failed before any lane's verdict write
+  started (every leg stopped) is re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is (`maintenance-reconcile-lost-runs`); any other run that leaves no verdict
+  leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
