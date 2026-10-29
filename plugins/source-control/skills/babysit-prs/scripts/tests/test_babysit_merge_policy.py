@@ -5808,6 +5808,11 @@ class ForeignPaths(unittest.TestCase):
         )
         own = changed - {
             ".github/workflows/pr-merge.yml",
+            # A workflow holding a secret is a gate path, and so are Claude
+            # Code settings and the agent instructions.
+            ".github/workflows/release-publish-plugins.yml",
+            ".claude/settings.json",
+            "AGENTS.md",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/resolve.mjs",
             "CODEOWNERS",

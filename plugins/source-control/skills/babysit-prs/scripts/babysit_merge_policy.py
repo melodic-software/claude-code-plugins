@@ -2746,6 +2746,10 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/skill-quality/scripts/**",
     "plugins/source-control/scripts/**",
     "plugins/testing/skills/check-visual-parity/scripts/**",
+    ".github/recurring-schedule.json",
+    "plugins/evals/skills/validate/scripts/**",
+    "plugins/testing/evals/browser-probe/**",
+    "plugins/work-items/scripts/**",
 )
 
 

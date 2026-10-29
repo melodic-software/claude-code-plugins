@@ -1133,7 +1133,11 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
    (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
    and a new secrets reference or model leg holds as `secret-exposure-review` or
-   `agent-surface-review`, which a person clears.
+   `agent-surface-review`, a workflow token that gains a write scope as
+   `permission-widening-review`, and an added `pull_request_target` or `workflow_run` trigger as
+   `privileged-trigger-review`, all of which a person clears. A pull request that changes a lane
+   source binds its review lanes only on `pr-review-main.yml`'s verdict from main
+   (`babysit_review_evidence._main_bound`).
    Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

@@ -1201,12 +1201,17 @@ class TestLinkHolder(unittest.TestCase):
     def test_the_no_connector_page_is_free(self):
         self.assertEqual(self.holder((530, NO_CONNECTOR_PAGE)), (None, True))
 
+    def test_the_plain_text_no_connector_answer_is_free(self):
+        # The whole body Cloudflare sent this client for a stopped tunnel's hostname (text/plain, 2026-10-29).
+        self.assertEqual(self.holder((530, b"error code: 1033")), (None, True))
+
     def test_another_interview_session_holds_it_for_certain(self):
         self.assertEqual(self.holder((404, b'{"error": "not-found"}')), (f"another interview session already serves https://{self.HOST}", True))
 
     def test_other_answers_hold_it_uncertainly(self):
         cases = {
             "another 530 error": (530, NO_CONNECTOR_PAGE.replace(b"1033", b"1016")),
+            "another plain-text 530 error": (530, b"error code: 1016"),
             "1033 only outside the Error heading": (530, b"<html>Error 1016 <script>properties:{errorCode: 1033 }</script> ray 10330</html>"),
             "a 1033 page with another status": (502, NO_CONNECTOR_PAGE),
         }
