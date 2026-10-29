@@ -5,7 +5,7 @@ The skills of `plugins/prototype`. Each one is driven with `<plugin-dir>` set to
 ## Parts
 
 - `build-generator`: Throwaway generating tool the person tunes, whose saved output goes into the project. No plain-words entry.
-- `explore-directions`: Throwaway UI variations answering what should this look like.
+- `explore-directions`: Throwaway UI variations answering what should this look like. Its actions are `vary [<variant>]`, `combine [<base>]` and `controls [<variant>]`; any other first word is the scope.
 - `pressure-test`: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model.
 
 ## Sub-features
