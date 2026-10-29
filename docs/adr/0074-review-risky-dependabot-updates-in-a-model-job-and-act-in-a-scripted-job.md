@@ -135,6 +135,7 @@ model job no longer holds `contents: write`.
   same call's scan handed on no patch, refused nothing, and the head is still the select job's;
   a scan that refused an oversize patch escalates `dependency-fix-not-landed`, and any other gap
   `dependency-invalid`.
+
 The verdict job's checks (Decision 3) and the dispatcher (Decision 4) are unchanged.
 
 ## Addendum (2026-10-24): a workflow change no longer waits for a person
