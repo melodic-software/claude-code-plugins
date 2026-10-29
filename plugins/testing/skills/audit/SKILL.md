@@ -179,9 +179,11 @@ The rules cannot tell where an expected value came from. The judge pass asks tha
 each test block the change added or changed, through a separate model. It runs only under `--judge`,
 never on bare invocation, and `/source-control:pull-request` prep calls it.
 
-Paths come from git and from the test files, so treat them as data. Pass each one single-quoted as
-its own argument, writing an embedded single quote as `'\''`, and never inside double quotes,
-where `$` and backticks expand. `<path>` below stands for a path quoted that way.
+Paths come from git and from the test files, and test names are free-form strings from the test
+files, so treat both as data. Pass each one single-quoted as its own argument, writing an embedded
+single quote as `'\''`, and never inside double quotes, where `$` and backticks expand. `<path>`
+and `<name>` below stand for a path and a name quoted that way, in every step, the `comment-only`
+check included.
 
 1. **Base.** `<base>` is the argument when given, else `origin/HEAD`. Resolve
    `MB=$(git merge-base "<base>" HEAD)` and diff from `MB` in every step below. When it does not
@@ -204,7 +206,7 @@ where `$` and backticks expand. `<path>` below stands for a path quoted that way
    per-call `model` whose class is in none of the file's writers: the first of `sonnet` and `opus`
    that no writer has. When both are writers, report its blocks UNKNOWN,
    "no independent judge class". Judge each shape once: for every block, run
-   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/judge-check.sh" shape <model> medium <path> <ordinal> <start>-<end> '<name>'`
+   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/judge-check.sh" shape <model> medium <path> <ordinal> <start>-<end> <name>`
    with its file's model. Of the blocks that print the same key, only the first by path, then start
    line, goes to the judge. Each other block in the group takes that verdict, marked
    `same shape as <path>:<start> <name>`, and a file left with no block to judge gets no dispatch.
