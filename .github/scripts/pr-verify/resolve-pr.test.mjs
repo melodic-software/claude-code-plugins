@@ -423,7 +423,7 @@ test("do-not-merge still fails ci-status and the merge queue", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = (name) => new RegExp(`^ {6}- name: ${name}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(workflow)?.[1] ?? "";
   const contract = step(CONTRACT_STEP);
-  assert.match(contract, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/check-contract@[0-9a-f]{40} /m);
+  assert.match(contract, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/pr-require-checks\/check-contract@main$/m);
   assert.doesNotMatch(contract, /do-not-merge-label|continue-on-error|^ {8}if:/m);
   assert.match(step("Fail a queued pull request carrying a hold label"), /^ {8}if: github\.event_name == 'merge_group'$/m);
   assert.deepEqual(labelHolds([{ name: "do-not-merge" }], null, 41), [

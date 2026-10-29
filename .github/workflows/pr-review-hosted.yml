@@ -110,7 +110,7 @@ jobs:
             exit 1
           fi
 
-  # The pinned reusable reads no kill switch, so this caller does. The org
+  # The reusable reads no kill switch, so this caller does. The org
   # and repository switches fail closed (check-kill-switch); the lane's own
   # CLAUDE_REVIEW_DISABLED stops it only at `true`, as github-iac's README
   # documents for the review-lane switches. A failed job leaves proceed empty,
@@ -172,7 +172,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@20a822d73b6e2d7e21d48e609a01b427e0e161e7 # v0.66.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
       lane: code
       publish: comments

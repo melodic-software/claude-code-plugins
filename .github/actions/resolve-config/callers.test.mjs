@@ -281,7 +281,7 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
   assert.deepEqual(label.permissions, { issues: "write" });
   assert.equal(label.concurrency, undefined);
   assert.equal(label.secrets, undefined);
-  assert.match(label.uses, /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-label-needs-triage\.yml@[0-9a-f]{40}$/);
+  assert.match(label.uses, /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-label-needs-triage\.yml@main$/);
   assert.deepEqual(label.with, { runner: "ubuntu-24.04", label: "needs-triage" });
 });
 
@@ -543,7 +543,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const launcher = (job) => job.steps.find((s) => s.id === "run");
   for (const job of [model, sub]) {
     const run = launcher(job);
-    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
+    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/);
     assert.equal(run.with.role, "intake");
     assert.equal(run.with["permission-mode"], "dontAsk");
     assert.deepEqual(run.with.tools.trim().split("\n"), ["Read", "Grep", "Glob", "WebFetch"]);
@@ -1656,7 +1656,7 @@ function ifTerms(condition) {
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
 const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
 const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
-const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@[0-9a-f]{40}$/;
+const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@main$/;
 function jobGates(doc, job) {
   const gates = new Set();
   const needs = [job.needs ?? []].flat();
@@ -1714,7 +1714,7 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // fallback-token or to the read runner as its third call's
 // fallback-claude-code-oauth-token. Any job may ask only whether it is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
-const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@[0-9a-f]{40}$/;
+const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
@@ -1834,7 +1834,7 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
   const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
   const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
-  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@d02b8697e092705153f0996549b05f95a446bb52";
+  const AT_MAIN = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main";
   const cases = {
     "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
@@ -1851,10 +1851,10 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
     "the gate's proceed && another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' && steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
     "the gate's proceed || another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' || steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "a gate output compared to false": [{ issues: {} }, { admit: admit(), run: { needs: "admit", if: "needs.admit.outputs.proceed != 'true'", steps: [launcher] } }, { "f.yml run": [] }],
-    "the pinned intake reusable with author ids": [{ issues: {} }, { triage: intake(PINNED, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
-    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(PINNED, "") }, { "f.yml triage": [] }],
-    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(PINNED.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
-    "an unpinned intake reusable": [{ issues: {} }, { triage: intake(PINNED.replace(/@.*/, "@main"), "1") }, { "f.yml triage": [] }],
+    "the intake reusable at main with author ids": [{ issues: {} }, { triage: intake(AT_MAIN, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
+    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(AT_MAIN, "") }, { "f.yml triage": [] }],
+    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(AT_MAIN.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
+    "an intake reusable at a ref other than main": [{ issues: {} }, { triage: intake(AT_MAIN.replace(/@.*/, "@feature"), "1") }, { "f.yml triage": [] }],
     "a pull_request job": [{ pull_request: {} }, { run: { steps: [launcher] } }, {}],
     "a gated trigger with no Claude credential": [{ issues: {} }, { run: { steps: [{ run: "true" }] } }, {}],
   };
@@ -1894,7 +1894,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
   const launcher = step("act-key").uses;
-  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/, "a full SHA pin of run-claude-cli");
+  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/, "run-claude-cli at main");
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
@@ -1959,33 +1959,21 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
-// Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
+// run-claude-cli at main passes `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743 and 81a603a6e2b0319428c981bf28f3fe923032afb2: lane.cjs:404-405; in cliArgs. A pin
-// bump fails here until its lane.cjs is read and its SHA added.
-const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
-  "7b362428c76085a160e28656cd2c75c3147a69ff",
-  "164c2809f6150429b6f24d4a2777bb377af953d9",
-  "d02b8697e092705153f0996549b05f95a446bb52",
-  "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
-  "ba7af78d291f10bd75651857a0db2357c23df0fe",
-  "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
-  "81a603a6e2b0319428c981bf28f3fe923032afb2",
-]);
+// ci-workflows' run-claude-cli/lane.test.cjs asserts the flag's value.
+const RUN_CLAUDE_CLI_AT_MAIN = "melodic-software/ci-workflows/.github/actions/run-claude-cli@main";
 
-test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
+test("every run-claude-cli step in this repo's workflows runs the launcher at main", () => {
   const files = new Set();
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
       for (const step of job.steps ?? []) {
         const uses = String(step.uses ?? "");
         if (!uses.includes("/run-claude-cli@")) continue;
-        const sha = uses.slice(uses.indexOf("@") + 1);
         files.add(file);
-        assert.match(sha, /^[0-9a-f]{40}$/, `${file} ${id} ${step.id} pins a full SHA`);
-        assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${file} ${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+        assert.equal(uses, RUN_CLAUDE_CLI_AT_MAIN, `${file} ${id} ${step.id}`);
       }
     }
   }

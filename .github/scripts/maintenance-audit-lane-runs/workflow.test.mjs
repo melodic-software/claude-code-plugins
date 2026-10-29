@@ -49,7 +49,7 @@ const list = (block, key) =>
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} # v\d+\.\d+\.\d+$/;
+const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/;
 // Why each later leg ran, for its unit's one lane record: the route job's
 // closed-set reason, compared to fixed strings, never written into a script.
 const SUB_REASON =

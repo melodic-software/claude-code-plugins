@@ -1,9 +1,9 @@
 // The replay must judge the way pr-verify.yml does. These tests read the
 // workflow and fail when its judge step, prompt step or model route drift
-// from replay.mjs's JUDGE, or when the ci-workflows pin moves: cliArgs,
-// LEG_ENV, CLI_VERSION and MANAGED_SETTINGS were read from run-claude-cli and
-// apply-claude-managed-settings at RUN_CLAUDE_CLI_PIN, so a new pin means
-// reading them again.
+// from replay.mjs's JUDGE. cliArgs, LEG_ENV, CLI_VERSION and MANAGED_SETTINGS
+// were read from run-claude-cli and apply-claude-managed-settings at
+// RUN_CLAUDE_CLI_PIN; the workflow runs them at main, so a change to either
+// action on ci-workflows main means reading them again.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -123,13 +123,13 @@ for (const job of JOBS) {
     assert.equal(resolve, "./.base/.github/actions/resolve-config");
   });
 
-  test(`${job}: run-claude-cli and the managed settings are at the replay's pin`, () => {
+  test(`${job}: run-claude-cli and the managed settings are at main`, () => {
     for (const [name, action] of [
       ["Judge the pull request", "run-claude-cli"],
       ["Apply the Claude managed settings", "apply-claude-managed-settings"],
     ]) {
       const uses = /^ {8}uses: (.*)$/m.exec(step(job, name))?.[1];
-      assert.match(uses, new RegExp(`^melodic-software/ci-workflows/\\.github/actions/${action}@${RUN_CLAUDE_CLI_PIN} # v`));
+      assert.match(uses, new RegExp(`^melodic-software/ci-workflows/\\.github/actions/${action}@main$`));
       // No `settings` input: the action's default JSON, which MANAGED_SETTINGS holds.
       if (action === "apply-claude-managed-settings") {
         assert.doesNotMatch(step(job, name), /\n {8}with:/);
