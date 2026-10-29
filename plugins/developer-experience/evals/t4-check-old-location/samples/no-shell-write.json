@@ -46,6 +46,30 @@
         }
       ],
       "why": "a redirect to /dev/null writes nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"=>\" src",
+            "description": "Search the source for lambdas"
+          }
+        }
+      ],
+      "why": "a C# lambda arrow is not a redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn -- \"->\" src",
+            "description": "Search the source for arrows"
+          }
+        }
+      ],
+      "why": "an arrow is not a redirect"
     }
   ],
   "fail": [

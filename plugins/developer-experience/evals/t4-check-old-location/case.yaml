@@ -18,7 +18,7 @@ graders:
   - name: no-shell-write
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:rm|mv|cp|ln|mkdir|touch|tee|truncate)\s|\bsed\s+-i|\bperl\s+-\w*i|(?<![0-9&>])>>?(?![&>]|\s*/dev/null)|\bgit\s+(?:add|commit|mv|rm|checkout|restore|reset|switch|apply)\b|pointer-line\.sh(?:\\"|'')?\s+apply\b(?!(?:[^"\\]|\\.)*--dry-run))'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:rm|mv|cp|ln|mkdir|touch|tee|truncate)\s|\bsed\s+-i|\bperl\s+-\w*i|(?<![0-9&>=-])>>?(?![&>]|\s*/dev/null)|\bgit\s+(?:add|commit|mv|rm|checkout|restore|reset|switch|apply)\b|pointer-line\.sh(?:\\"|'')?\s+apply\b(?!(?:[^"\\]|\\.)*--dry-run))'
     min: 0
     max: 0
     arm: both
