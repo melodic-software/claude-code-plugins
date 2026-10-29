@@ -530,16 +530,16 @@ test("a head with no lane stop gives a weaken-required stop its fresh round, wit
   assert.equal(read, false, "no statuses read without a lane stop");
 });
 
-test("the round after a weaken retry stop carries the brief and the PR's title and body, and has no retry left", async () => {
+test("the round after a weaken retry stop carries the brief, no PR text, and has no retry left", async () => {
   const pull = { state: "open", head: { sha: HEAD }, title: "feat: print the new banner", body: "x".repeat(5000) };
   const result = await selectWith(fakeApi({ pull, stopRuns: [LANE_STOP], statuses: [weakenStatus({ state: "success", description: "The lane ran again on this head and did not stop" }), weakenStatus()] }));
   assert.equal(result.weakenRetry, false);
   assert.equal(result.modelRung, "1");
   assert.deepEqual(result.file.retry, { after: "ci-fix-weaken-retry", brief: WEAKEN_BRIEF });
-  assert.match(result.file.retry.brief, /keeps every test's assertions/);
-  assert.match(result.file.retry.brief, /only when the behavior change the pull request states/);
-  assert.equal(result.file.pr_title, "feat: print the new banner");
-  assert.equal(result.file.pr_body.length, 4000);
+  assert.match(result.file.retry.brief, /keeps every test's assertions and expected values unchanged/);
+  assert.doesNotMatch(result.file.retry.brief, /pr_title|pr_body/);
+  assert.equal(result.file.pr_title, undefined);
+  assert.equal(result.file.pr_body, undefined);
 });
 
 test("an earlier finished fix-ci attempt on the head leaves no weaken retry, another app's check does not count", async () => {

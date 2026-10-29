@@ -16,8 +16,7 @@
 // wrote), so a fix the reviewer already named is not escalated. Check names,
 // annotations, logs and findings are data: they are copied into the file,
 // capped, and never logged or run. After a weaken retry stop on the head
-// (WEAKEN_RETRY) the file also carries the runner's fixed `retry` brief and
-// the pull request's title and body, as data.
+// (WEAKEN_RETRY) the file also carries the runner's fixed `retry` brief.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -43,8 +42,6 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
-const MAX_TITLE = 300;
-const MAX_BODY = 4000;
 
 // The fail-routed stop apply-patch.mjs gives a head's first weaken-required
 // escalation, as report-escalation.sh status describes it on the head's
@@ -54,8 +51,7 @@ export const WEAKEN_RETRY = "ci-fix-weaken-retry";
 const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
 export const WEAKEN_BRIEF =
   "An earlier fix-ci run on this head could fix a failing check only by weakening a test, and the lane refuses that fix. " +
-  "Find a fix that keeps every test's assertions. Change a test's expected value only when the behavior change the pull " +
-  "request states (pr_title, pr_body) requires it, and then give that reason on the check's report line. " +
+  "Find a fix in the code under test that keeps every test's assertions and expected values unchanged. " +
   "If the only way to green still weakens a check, escalate weaken-required: this round is the last before a person.";
 
 // A finished fix-ci check by the GitHub Actions app: an earlier attempt on the head.
@@ -217,7 +213,7 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
   const file = { pr, head_sha: headSha, checks, review_findings };
   if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
-    Object.assign(file, { retry: { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF }, pr_title: String(pull.title ?? "").slice(0, MAX_TITLE), pr_body: String(pull.body ?? "").slice(0, MAX_BODY) });
+    file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
   }
   const weakenRetry = modelRung === "" && !(await api.listCheckRuns(headSha, "pr-unblock / fix-ci")).some(earlierAttempt);
   return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, weakenRetry, file };

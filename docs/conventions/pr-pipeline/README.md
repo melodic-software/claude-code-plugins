@@ -347,9 +347,8 @@ workflow's `run` job has no status function in its `if:`, so it skips on a cance
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
 person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
 fix-ci attempt stops `ci-fix-weaken-retry` instead, a failing status: the dispatcher retries the
-head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (keep every
-test's assertions; change an expected value only when the behavior change the pull request
-states requires it, and say why on the report line) and the pull request's title and body. A
+head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (fix the
+code under test and keep every test's assertions and expected values). A
 `weaken-required` in that round, or after any earlier attempt on the head, goes to a person as
 `ci-fix-weaken-required`; the guard itself is unchanged. Beside a pushed patch, the new head's
 CI decides for all of them. The same

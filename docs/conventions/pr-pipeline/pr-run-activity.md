@@ -1359,10 +1359,8 @@ its fallback call on the role's OAuth token after the key call hands off
    apply-patch` check on it) its `weaken-retry` output is `true`. On a same-head retry whose head
    carries the `pr-unblock/fix-ci` status `Lane stopped: ci-fix-weaken-retry; ...` by
    `github-actions[bot]` (a status, so a later clear does not remove it), `context.json` also holds
-   `retry` (`after: ci-fix-weaken-retry` and a fixed `brief`: keep every test's assertions, change
-   an expected value only when the behavior change the pull request states requires it and say why
-   on the report line) and the pull request's `pr_title` and `pr_body` (at most 300 and 4,000
-   characters), as data. A closed pull request or a head with no such check skips the rest, and a
+   `retry` (`after: ci-fix-weaken-retry` and a fixed `brief`: fix the code under test and keep
+   every test's assertions and expected values). A closed pull request or a head with no such check skips the rest, and a
    scripted job posts the fix-ci check neutral `not-applicable` on that head with
    `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
