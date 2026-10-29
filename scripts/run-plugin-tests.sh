@@ -66,9 +66,11 @@
 #
 # Output stays readable under parallelism. Every suite's output is captured to
 # a file and replayed as one block under a lock (`=== path ===`, the suite's own
-# lines, then `PASS:` or `FAIL:`), so blocks from concurrent suites never
-# interleave and the per-suite markers that CI log tooling reads survive. The
-# block is printed the moment its suite finishes, so progress stays visible.
+# lines, `PASS:` or `FAIL:`, then `TIME: path <seconds>s`), so blocks from
+# concurrent suites never interleave and the per-suite markers that CI log
+# tooling reads survive. The block is printed the moment its suite finishes, so
+# progress stays visible. The TIME line prints on every run, with or without
+# --budget, so a CI log shows each suite's wall seconds.
 #
 # ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
 # scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
@@ -166,7 +168,8 @@ if [[ "${1:-}" == "--worker" ]]; then
   test_git_env::isolate "$log.gitconfig" || exit 2
   start=$SECONDS
   bash "$suite" >"$log.out" 2>&1 || rc=$?
-  printf '%s\n' "$((SECONDS - start))" >"$log.secs"
+  secs=$((SECONDS - start))
+  printf '%s\n' "$secs" >"$log.secs"
   printf '%s\n' "$rc" >"$log.rc"
   # noclobber opens the lock with O_EXCL inside bash itself. `mkdir` is not a
   # safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both
@@ -179,6 +182,7 @@ if [[ "${1:-}" == "--worker" ]]; then
   else
     echo "FAIL: $suite" >&2
   fi
+  echo "TIME: $suite ${secs}s"
   rm -f "$log_dir/.print-lock"
   exit 0
 fi
