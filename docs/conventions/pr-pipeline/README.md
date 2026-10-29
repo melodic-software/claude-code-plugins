@@ -697,14 +697,19 @@ each row to these keys:
 
 Every row refuses `.github/workflows/**` in any case and through any `..` segment (the lane
 token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
-`.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
+`.gitmodules`, `**/settings*.json`, the central lane grant file
+([`lane-grants.json`](../../../.github/actions/resolve-config/lane-grants.json)) and the
+trusted-actor list (`.github/standards/trusted-actors/trusted-actors.json`) in any case and through
+any `..` segment (`lane-grants`: they decide what every admitted repository's lanes may mint and
+who may start them, [ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)
+Decision 6), a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
 `CODEOWNERS`, `.gitmodules` and the merge gate's own code; the other files that enforce the floor
 wait for a clean security review instead) waits for a person, and the
-security lane judges the rest, the trusted-actor list included. The `docs` row also refuses, in any case and through
+security lane judges the rest. The `docs` row also refuses, in any case and through
 any `..` segment, a path under a `skills/` directory at any depth (`skills`) and a `SKILL.md`
 anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
 `patch-protected-path`; it otherwise matches `default`. No other row names those two refusals,
@@ -787,7 +792,10 @@ missed), `prerequisite-missing` (among others, mergeability still unknown at the
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
+write lane's mint for a workflow file the PR itself changes), `kill-switch` (a lanes kill switch
+stopped the run: its own kill-switch step, or the token broker refusing a write lane's mint on a
+pull request for a switch turned on after that step; the pr-unblock dispatchers dispatch the head
+again once the switch lifts), `rung-up` (a fix-ci run's patch is
 held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
 round whose model never ran, so the scan uploaded no replies), `finding-stands` (an
 address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
@@ -1047,16 +1055,13 @@ the rules that only tighten in
   [360-minute default](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
   or removed from a job or step the head still has, so that default or the action's own applies.
 
-  Spend that draws only on a subscription or prepaid credit is reported as the MEDIUM
-  `cost-finding`, which never holds:
-  - a workflow patch that adds a `--model` or `--max-turns` flag, or on a public repository a
-    `cron:` key;
-  - on a public repository, a `timeout-minutes` or `leg-timeout-minutes` the patch adds above
-    every one it removes, in a workflow whose head text uses one of those actions or could not be
-    read, and a raised artifact `retention-days`;
-  - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
-    comment-only, or a `description:` or `title:` value, or that only edits trailing comments
-    on the same lines in place. Flow style, quoted keys and new list items count.
+  Cost means only what can bill. Model usage under a subscription or prepaid credit does not, so
+  a `--model` or `--max-turns` flag reports nothing; nor do hosted minutes or artifact storage on
+  a public repository, so a `cron:` key, a raised timeout or a raised `retention-days` there
+  reports nothing. Any `pr-pipeline.yaml` change is reported as the MEDIUM `cost-finding`, which
+  never holds, except one whose added and removed lines are all blank, comment-only, or a
+  `description:` or `title:` value, or that only edits trailing comments on the same lines in
+  place. Flow style, quoted keys and new list items count.
 
   A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
   `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
@@ -1529,7 +1534,10 @@ was turned on stops in the merge queue; owner and Dependabot pull requests are n
 Once the switch is lifted, the next `maintenance-reconcile-lost-runs` run (half-hourly) re-runs the
 failed `ci-status` of each open lanes App pull request whose newest checks run the switch failed on
 its first attempt, at most three per run, merge-critical first; while the switch is on it reads
-nothing.
+nothing. A pr-unblock run the switch stopped mid-run posts its check neutral `kill-switch`, which no
+dispatcher counts as handling the head, so the next dispatcher run after the lift (the half-hourly
+`pr-unblock-dispatch.yml` tick, or a review completing at the head) dispatches it again, at most
+`limits.limit-stops-per-head` times per head, `SWEEP_HEAD_CAP` for `address-feedback`.
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs

@@ -1044,12 +1044,20 @@ jobs:
       # of a workflow file that GitHub's compare of the default branch with
       # the gated head lists as changed by this PR ends it green with no token
       # and skip reason workflow-modified, so every later step skips and the
-      # check is neutral. Every later step keys on the token.
+      # check is neutral. Every later step keys on the token. A PR run the
+      # broker refuses `kill-switch` (a switch turned on after the kill step
+      # above read it) ends the same way, with skip reason kill-switch, so the
+      # check is neutral and the dispatchers re-fire the head once the switch
+      # lifts (limit-stop.mjs killSwitchStop). An issue run stays red:
+      # work-unblock re-fires its issue from the failed mint step. So does
+      # report-escalation: no dispatcher re-fires it, so a skip would drop
+      # the escalation's comment and label.
       - name: Request the lane token
         id: lane-token
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
+          kill-switch-ok: ${{ inputs.issue-number == '' && inputs.activity != 'report-escalation' }}
           pr-workflow-change-ok: ${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           default-branch: ${{ github.event.repository.default_branch }}
@@ -1582,7 +1590,7 @@ jobs:
       # It is also uploaded below as audit evidence, since the REST API cannot
       # read step summaries; nothing in this workflow reads that artifact.
       - name: Show the skill's final reply
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: always() && steps.lane-token.outputs.token != '' && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         env:
           EXECUTION_FILE: >-
             ${{ steps.act-skill.outputs.execution_file
@@ -1615,7 +1623,7 @@ jobs:
       # step runs in pr-run-activity-read.yml, which holds no lane token.
       - name: Check the skill took a model turn
         id: act-turns
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: always() && steps.lane-token.outputs.token != '' && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: >-
@@ -1789,7 +1797,7 @@ jobs:
       # changed PATH. The lane branch is deleted either way.
       - name: Move the PR branch to the lane's commits
         id: promote
-        if: always() && steps.lane-branch.outputs.branch != '' && inputs.issue-number == ''
+        if: always() && steps.lane-token.outputs.token != '' && steps.lane-branch.outputs.branch != '' && inputs.issue-number == ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}

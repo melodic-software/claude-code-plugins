@@ -113,6 +113,7 @@ export const REFUSALS = {
   codeowners: PROTECTED_REFUSALS.codeowners,
   gitmodules: PROTECTED_REFUSALS.gitmodules,
   settings: PROTECTED_REFUSALS.settings,
+  "lane-grants": PROTECTED_REFUSALS["lane-grants"],
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],

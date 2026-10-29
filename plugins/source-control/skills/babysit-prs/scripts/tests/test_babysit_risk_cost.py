@@ -1,11 +1,11 @@
 """The `cost-review-required` hold: a change that could start a real charge
 (billed infrastructure or billed runner minutes) waits for the owner unless
-the caller verified an owner decision. Spend that draws only on a
-subscription or prepaid credit (a schedule, a model flag or leg, a secret
-reference, a pipeline spend line, a raised timeout on a public repository) is
-the reported, non-holding `cost-finding` (owner rule 2026-10-26: cost is not
-a stop, only a real new charge is). Expected codes come from those rules,
-never from running the scorer."""
+the caller verified an owner decision. Cost means only what can bill: a
+model flag, and a schedule, raised timeout or raised retention on a public
+repository, report nothing; a pipeline spend line is the reported,
+non-holding `cost-finding`. A secret reference or model leg is a person's
+security hold. Expected codes come from those rules, never from running the
+scorer."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ from babysit_risk import (
 from test_babysit_risk import _codes, _file, _input
 
 WORKFLOW = ".github/workflows/nightly.yml"
+PIPELINE = "conventions/pr-pipeline.yaml"
 DECISION = "https://github.com/owner/repo/issues/40#issuecomment-1"
 
 
@@ -55,6 +56,12 @@ class _Finding(unittest.TestCase):
         self.assertEqual(
             [c for c in held if not c.startswith("high-path:")], [], result.reasons
         )
+
+    def assertNotCost(self, result):
+        """No charge and no spend: nothing that can bill."""
+        codes = _codes(result)
+        self.assertNotIn(COST_CODE, codes)
+        self.assertNotIn(COST_FINDING_CODE, codes)
 
     def assertSecurityHold(self, result, code):
         """A credential or agent-surface change: a person's hold, never cost."""
@@ -93,7 +100,7 @@ class CostHold(_Finding):
     def test_a_new_schedule_holds_unless_public(self):
         # A schedule runs hosted minutes, billed off a public repository.
         wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
-        self.assertReported(_cost([wf], public=True))
+        self.assertNotCost(_cost([wf], public=True))
         for public in (False, None):
             with self.subTest(public=public):
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
@@ -239,7 +246,7 @@ class ModelSpendDetections(_Finding):
             with self.subTest(patch=patch):
                 wf = _file(WORKFLOW, patch=patch, contents=("", MODEL_WORKFLOW))
                 # Free minutes on a public repository; billed ones elsewhere.
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
 
@@ -254,7 +261,7 @@ class ModelSpendDetections(_Finding):
     def test_a_raised_timeout_on_an_unread_workflow(self):
         raised = _patch("+    timeout-minutes: 45")
         wf = _file(WORKFLOW, patch=raised, contents=None)
-        self.assertReported(_cost([wf], public=True))
+        self.assertNotCost(_cost([wf], public=True))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
     def test_a_raised_artifact_retention_holds_unless_public(self):
@@ -268,7 +275,7 @@ class ModelSpendDetections(_Finding):
                 wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
 
     def test_an_added_retention_within_the_default_does_not_count(self):
         # GitHub keeps artifacts 90 days by default, so 7 stores less.
@@ -346,7 +353,7 @@ class ReviewFindings(_Finding):
         )
         self.assertNotIn(COST_CODE, _codes(_cost([within], public=True)))
 
-    def test_a_flow_style_schedule_is_reported(self):
+    def test_a_flow_style_schedule_holds_unless_public(self):
         for line in (
             "+  schedule: [{cron: '0 3 * * *'}]",
             "+on: {schedule: [{cron: '0 3 * * *'}]}",
@@ -354,7 +361,8 @@ class ReviewFindings(_Finding):
         ):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line))
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_a_non_literal_or_unlisted_runner_holds_on_a_public_repository(self):
         for value in (
@@ -424,14 +432,16 @@ class ReviewFindings(_Finding):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
-    def test_model_flags_in_a_workflow_are_reported(self):
+    def test_model_flags_in_a_workflow_are_not_cost(self):
         for line in (
             "+          claude_args: --model opus",
             "+          claude_args: --max-turns 200",
         ):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
-                self.assertReported(_cost([wf], public=True))
+                for public in (True, False, None):
+                    with self.subTest(public=public):
+                        self.assertNotCost(_cost([wf], public=public))
 
     def test_a_file_under_a_pulumi_project_holds(self):
         program = _file("infra/Program.cs")
@@ -509,7 +519,7 @@ class SecurityAndCostHolds(_Finding):
             "+    timeout-minutes: 45",
             contents=(head, head),
         )
-        self.assertReported(_cost([wf], public=True))
+        self.assertNotCost(_cost([wf], public=True))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_the_multi_agent_role_defaults_are_no_charge(self):
@@ -523,14 +533,14 @@ class SecurityAndCostHolds(_Finding):
         self.assertIn(COST_CODE, _codes(_cost([_file("infra/main.tf")])))
 
     def test_a_real_charge_beside_subscription_spend_holds_and_reports(self):
-        wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
+        wf = _file(PIPELINE, patch=_patch("+      model: opus"))
         result = _cost([wf, _file("infra/main.tf")], public=True)
         self.assertIn(COST_CODE, _codes(result))
         self.assertIn(COST_FINDING_CODE, _codes(result))
         self.assertTrue(holds(result))
 
     def test_an_owner_decision_clears_the_hold_and_keeps_the_finding(self):
-        wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
+        wf = _file(PIPELINE, patch=_patch("+      model: opus"))
         files = [wf, _file("infra/main.tf")]
         result = _cost(files, public=True, cost_decision=DECISION)
         self.assertEqual(_codes(result), (COST_FINDING_CODE,))
