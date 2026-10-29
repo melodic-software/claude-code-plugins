@@ -16,7 +16,7 @@ import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
-const OWNER = { login: "kyle-sexton", type: "User" };
+const OWNER = { login: "kyle-sexton", id: 153232337, type: "User" };
 const CLAUDE_BOT = { login: "claude[bot]", type: "Bot" };
 const CODEX_BOT = { login: "chatgpt-codex-connector[bot]", type: "Bot" };
 const ACTIONS_BOT = { login: "github-actions[bot]", type: "Bot" };
@@ -338,6 +338,18 @@ test("report-escalation.sh's lane-stopped comment since the label is the lane's 
   assert.equal(w.writes().at(-1)?.method, "DELETE");
 });
 
+// publish-feedback.mjs posts the round record and the model-run line after
+// each address-feedback round on an escalated PR (gate-source.mjs knows both).
+test("address-feedback's round record since the label is pr-unblock's own, not another marker", async () => {
+  const round = commented(BOT, "<!-- pr-unblock:address-feedback-round -->\n<!-- pr-unblock:address-feedback-model-run 5000-1 -->\nRound 1.", "2026-10-18T10:30:00Z");
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), round] });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+  const odd = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(BOT, "<!-- pr-unblock:address-feedback-model-run -->", "2026-10-18T10:30:00Z")] });
+  await run(odd);
+  assert.deepEqual(odd.writes(), [], "a model-run line with no run id");
+});
+
 test("a conflict reason clears only once GitHub reports the PR mergeable", async () => {
   const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("unresolved-conflict")];
   const unknown = world({ timeline, mergeable: null });
@@ -614,8 +626,32 @@ test("a review-lane hold a person approved by unlabeling no longer keeps a later
       escalated(),
     ],
   });
-  await run(w);
+  await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
   assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+// ci-status (pr-require-checks.yml, "Fail a review-lane hold an untrusted
+// account lifted") accepts a lift only from a `human` of trusted-actors.json,
+// and counts a review lane's own `labeled` event as a hold.
+test("a review-lane hold an account off the trusted list unlabeled, or that the list does not read, keeps a later escalation", async () => {
+  const timeline = [laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(STRANGER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+  const w = world({ timeline });
+  const { logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("a review lane holds it: <!-- claude-lane-hold")), logs.join("\n"));
+  const unread = world({ timeline: timeline.map((item) => (item.event === "unlabeled" ? unlabeled(OWNER, item.created_at) : item)) });
+  await run(unread, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted-actors.json" });
+  assert.deepEqual(unread.writes(), [], "no trusted list");
+});
+
+test("a review lane's labeled event is a hold until a trusted person unlabels it", async () => {
+  const held = world({ timeline: [labeled(ACTIONS_BOT, "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  const { logs } = await run(held, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.deepEqual(held.writes(), []);
+  assert.ok(logs.some((line) => line.includes("a review lane holds it: needs-human added by github-actions[bot]")), logs.join("\n"));
+  const lifted = world({ timeline: [labeled(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  await run(lifted, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.equal(lifted.writes().at(-1)?.method, "DELETE");
 });
 
 test("a review-lane hold edited after the unlabel keeps it", async () => {
@@ -672,7 +708,7 @@ test("an unmarked bot comment, or the marker from another account, does not keep
 test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a later escalation", async () => {
   const lifted = [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
   const w = world({ timeline: lifted });
-  await run(w);
+  await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
   assert.equal(w.writes().at(-1)?.method, "DELETE");
   const edited = world({ timeline: [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", "2026-10-18T09:30:00Z"), ...lifted.slice(1)] });
   await run(edited);

@@ -10,10 +10,11 @@
 //   comment).
 // - No review lane holds it: no comment carrying a REVIEW_HOLD marker line, by
 //   claude[bot] or by github-actions[bot] ending in the lane's `claude-lane:`
-//   footer, was written or edited since the label was last removed (ever,
-//   when it never was). A lane adding a label the PR already carries writes
-//   no `labeled` event, so its hold can sit under the App's label, and a
-//   person removing the label is what lifts it.
+//   footer, and no `labeled` event of the label by either, was written or
+//   edited since a person on the trusted list last removed the label (ever,
+//   when none did), as ci-status reads a lift. A lane adding a label the PR
+//   already carries writes no `labeled` event, so its hold can sit under the
+//   App's label, and that person removing the label is what lifts it.
 // - check-signed-commits does not hold it: no github-actions[bot] comment
 //   whose first line is SIGNED_COMMITS_HOLD was written or edited since the
 //   label was last removed (ever, when it never was), by the same rule.
@@ -145,17 +146,19 @@ import {
   escalationRoute,
   failingChecks,
   foreignMarker,
+  holdText,
   isApp,
   labelHistory,
   LANE_STOPPED,
-  laneHold,
   lines,
+  MODEL_RUN,
   openReviewHold,
   openSignedCommitsHold,
   PAIRED_MS,
   personSince,
   RESUME_KEY,
   reviewEntries,
+  ROUND_MARKER,
   ROUTES,
   same,
   sinceParam,
@@ -510,15 +513,17 @@ function pairedWithPrMerge(appComments, since) {
 // What to clear on `number`, or { reason } saying why nothing is.
 async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
-  const { labeled, since, lifted } = labelHistory(timeline, label);
+  // A removal lifts a review lane's hold only when a person on the trusted
+  // list made it, as ci-status reads a lift; without that list none does.
+  const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted ?? new Set());
   if (!isApp(labeled?.actor, bot)) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
   }
   // A comment's writes are its creation and its last edit; a tie, or a time
   // that does not parse, keeps the label.
-  const held = openReviewHold(timeline, lifted);
+  const held = openReviewHold(timeline, lifted, reviewLabeled);
   if (held !== undefined) {
-    return { reason: `a review lane holds it: ${laneHold(held).slice(0, 120)}` };
+    return { reason: `a review lane holds it: ${holdText(held).slice(0, 120)}` };
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
@@ -544,7 +549,12 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   // the label again. Any marker on an App comment written or edited since the
   // label that is not the escalation being judged or this script's own keeps
   // it, so a marker this script does not know fails closed.
-  const known = merged.length > 0 ? prMergeLine : (line) => line === ESCALATION || RESUME_KEY.test(line) || LANE_STOPPED.test(line);
+  // address-feedback's round record and model-run line, which it posts after
+  // a round it works on the escalated PR, are pr-unblock's own too.
+  const known =
+    merged.length > 0
+      ? prMergeLine
+      : (line) => line === ESCALATION || RESUME_KEY.test(line) || LANE_STOPPED.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line);
   const foreign = foreignMarker(appComments, since, known);
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };

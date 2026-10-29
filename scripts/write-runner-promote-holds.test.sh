@@ -147,37 +147,57 @@ say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0), "a malf
 // activity's labels-absent, from a directory with no .base tracker file, so
 // the human-gated label is the needs-human default.
 const { execFileSync } = await import("node:child_process");
-const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+const { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
 const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const holdStep = wf.jobs.run.steps.find((s) => s.id === "hold-label");
-// fixRequested: under the review-threads row, the caller's select job's
-// fix-requested output (patch-fix-requested).
-const holdLabelsFor = (fixRequested, labelsAbsent) => {
+// gate: the caller's patch-human-gate. On lane-escalation the step runs the
+// base's gate-recheck.mjs; a stub in its place answers `recheck` and records
+// the environment it was given.
+const holdLabelsFor = (gate, labelsAbsent, recheck = "true") => {
   const dir = mkdtempSync(join(tmpdir(), "hold-label-"));
   try {
     const resolved = join(dir, "resolved.json");
     const out = join(dir, "out");
+    const seen = join(dir, "seen.json");
     writeFileSync(resolved, JSON.stringify({ selected: { "applies-when": { "labels-absent": labelsAbsent } } }));
     writeFileSync(out, "");
-    execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, env: { PATH: process.env.PATH, RESOLVED: resolved, FIX_REQUESTED: fixRequested, GITHUB_OUTPUT: out } });
-    return JSON.parse(readFileSync(out, "utf8").replace(/^labels=/, ""));
+    const stub = join(dir, ".base/.github/scripts/pr-unblock");
+    mkdirSync(stub, { recursive: true });
+    writeFileSync(join(stub, "gate-recheck.mjs"), `import { appendFileSync, writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ label: process.env.LABEL, pr: process.env.PR_NUMBER, head: process.env.HEAD_SHA, out: process.env.GITHUB_OUTPUT === ${JSON.stringify(out)} }));
+${recheck === "fail" ? "process.exit(1);" : `appendFileSync(process.env.GITHUB_OUTPUT, "lane-escalation=${recheck}\\n");`}
+`);
+    try {
+      execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, stdio: "pipe", env: { PATH: process.env.PATH, RESOLVED: resolved, HUMAN_GATE: gate, PR_NUMBER: "7", HEAD_SHA: "a".repeat(40), GITHUB_OUTPUT: out } });
+    } catch {
+      return { failed: true, seen: existsSync(seen) ? JSON.parse(readFileSync(seen, "utf8")) : null };
+    }
+    return { holds: JSON.parse(readFileSync(out, "utf8").replace(/^labels=/, "")), seen: existsSync(seen) ? JSON.parse(readFileSync(seen, "utf8")) : null };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-say(String(holdStep?.env?.FIX_REQUESTED) === "${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-fix-requested || '' }}",
-  "the hold-label step reads the caller's base-code verdict (fix-requested or lane-escalated) only for an apply-patch run");
-let holds = holdLabelsFor("true", ["do-not-merge"]);
-say(JSON.stringify(holds) === '["do-not-merge"]',
-  `a write-access fix request on a needs-human PR lifts only the human-gated hold (${JSON.stringify(holds)})`);
-holds = holdLabelsFor("true", ["needs-human"]);
-say(holds.includes("do-not-merge") && holds.includes("needs-human"),
+say(String(holdStep?.env?.HUMAN_GATE) === "${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-human-gate || '' }}",
+  "the hold-label step reads the caller's base-code verdict (patch-human-gate) only for an apply-patch run");
+let r_ = holdLabelsFor("fix-request", ["do-not-merge"]);
+say(JSON.stringify(r_.holds) === '["do-not-merge"]' && r_.seen === null,
+  `a write-access fix request on a needs-human PR lifts only the human-gated hold, with no re-read (${JSON.stringify(r_)})`);
+r_ = holdLabelsFor("fix-request", ["needs-human"]);
+say(r_.holds.includes("do-not-merge") && r_.holds.includes("needs-human"),
   "do-not-merge stays a hold beside a fix request, and a listed labels-absent label still holds");
-for (const requested of ["false", "", "TRUE"]) {
-  holds = holdLabelsFor(requested, ["do-not-merge"]);
-  say(holds.includes("needs-human") && holds.includes("do-not-merge"),
-    `with fix-requested ${JSON.stringify(requested)} the human-gated label stays a hold (${JSON.stringify(holds)})`);
+r_ = holdLabelsFor("lane-escalation", ["do-not-merge"], "true");
+say(JSON.stringify(r_.holds) === '["do-not-merge"]' && r_.seen?.label === "needs-human" && r_.seen.pr === "7" && r_.seen.head === "a".repeat(40) && r_.seen.out === false,
+  `a lane escalation the re-read still finds lifts only the human-gated hold (${JSON.stringify(r_)})`);
+r_ = holdLabelsFor("lane-escalation", ["do-not-merge"], "false");
+say(r_.holds?.includes("needs-human") && r_.holds.includes("do-not-merge") && r_.seen !== null,
+  `a lane escalation the re-read no longer finds keeps the human-gated hold (${JSON.stringify(r_)})`);
+r_ = holdLabelsFor("lane-escalation", ["do-not-merge"], "fail");
+say(r_.failed === true, `a re-read that fails fails the step (${JSON.stringify(r_)})`);
+for (const gate of ["false", "", "true", "FIX-REQUEST", "lane-escalation-x"]) {
+  r_ = holdLabelsFor(gate, ["do-not-merge"]);
+  say(r_.holds?.includes("needs-human") && r_.holds.includes("do-not-merge") && r_.seen === null,
+    `with patch-human-gate ${JSON.stringify(gate)} the human-gated label stays a hold (${JSON.stringify(r_)})`);
 }
 EOF
 )
