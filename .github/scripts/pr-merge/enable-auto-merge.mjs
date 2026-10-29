@@ -44,8 +44,7 @@
 //   one added after admission refuses for a person
 //   (`untrusted-provenance`). Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
 //   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
-//   merge.max-verify-fails heads or the pass followed every one, and the
-//   spec is unchanged and trusted. A
+//   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
 //   read that fails, or a line without the link's answer, refuses. Only the
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request
@@ -751,28 +750,10 @@ async function liftBlocked(github, repo, number, options) {
 // A reason as the comment's fenced block carries it.
 const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
 
-// The lanes' verifier refusals that only a new pr-verify pass clears
-// (babysit_verify_evidence.py), and when each clears.
-const PASS_CLEARS = Object.freeze({
-  "verify:repeated-fail": "pr-verify passes a head pushed after its last FAIL",
-  "verify:too-old": "pr-verify passes this head",
-});
-
-// What clears a lanes' refusal: a new pass for the PASS_CLEARS codes the
-// reason names, else the lanes on their own.
-function laneClears(reason) {
-  const waits = Object.entries(PASS_CLEARS)
-    .filter(([code]) => String(reason).includes(`(${code}`))
-    .map(([, when]) => when);
-  return waits.length === 0
-    ? "The lanes clear this reason on their own; the next scheduled run judges it again."
-    : `This reason clears once ${waits.join(" and ")}; the next scheduled run judges it again.`;
-}
-
 export function refusalBody(person, reason, head, label, since = null, partial = false) {
   const who = person
     ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
-    : laneClears(reason);
+    : "The lanes clear this reason on their own; the next scheduled run judges it again.";
   return [
     ...(person ? [ATTEND_QUEUE_MARKER] : []),
     REFUSAL_MARKER,

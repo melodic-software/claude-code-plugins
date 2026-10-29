@@ -701,7 +701,6 @@ class AnsweredTest(unittest.TestCase):
             self.written()[str(PR)]["expiresAt"], "2026-10-16T12:30:00+00:00"
         )
         # A pull request already too old stays so: the hour holds.
-        self.world.repository["pullRequest"]["createdAt"] = "2026-07-27T00:00:00Z"
         self.fresh = MISSING | {"refusal": "verify:too-old"}
         self.answers_out.unlink()
         self.run_main()

@@ -1518,8 +1518,8 @@ or its head, the gate's config and code on the default branch, and the rung cap.
 statuses do not move `updatedAt`, so that is never the key alone. Only `risk:MED`, `risk:HIGH` and
 the `verify:` refusals `fail`, `earlier-fail`, `repeated-fail`, `missing`, `too-old`,
 `spec-changed` and `untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
-is not. Neither is a pull request in the merge queue, nor `verify:missing`, `verify:earlier-fail`,
-`verify:repeated-fail` or `verify:too-old` while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
+is not. Neither is a pull request in the merge queue, nor `verify:missing` or `verify:earlier-fail`
+while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
@@ -1559,7 +1559,7 @@ after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed
 `issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
 issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
-heads or the pass followed every one, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
+heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
@@ -1779,7 +1779,7 @@ record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploade
 `enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
 (`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
 `linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
-it lists artifacts (an unread config or commit list) reaches `merge-holds.mjs`
+it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
 with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
 names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
 run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
@@ -2153,15 +2153,11 @@ other artifact with such a name is ignored. The resolver and the gate each hold 
 dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
 head:
 
-- created more than 80 days ago refuses (`verify:too-old`) unless the items below allow it on a
-  pass, or refuse it for a person: artifacts last at most 90 days in this repository (the retention
-  maximum and its setting), so an older verdict may be gone, and any that is gone predates every
-  listed pass;
+- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
+  repository (the retention maximum and its setting), so an older verdict may be gone;
 - counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
-  request, tied as in the item after next, refuse (`verify:repeated-fail`), a `fail` at the head
-  included, until the head has no counted `fail` and counted passes whose runs were all created
-  after every counted `fail` run at those heads (each time read fresh): the fix loop has ended in
-  a pass, and the items below decide. A value that is not a count of 1 or more, an empty or
+  request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
+  says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
   non-scalar one included, is 1, so any earlier `fail` holds. Before a `fail` at the head or a
   pass decides, counted `fail` verdicts of other pull requests in this repository, open or closed,
   for its linked issues count too, at their own heads, so a new pull request for the same issue,
@@ -2283,11 +2279,9 @@ exists (#7711).
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
 `verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two clear
-only when pr-verify passes a head pushed after the last `fail`, so the cap holds while fails keep
-coming, and address-feedback's and fix-ci's own round caps bound the pushes the verifier judges
-again; `enable-auto-merge.mjs` names that pass in its comment instead of saying the lanes clear
-them. While `merge.report-only` is
+([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
+so such a pull request never merges unattended, and address-feedback's own round cap bounds the
+fix rounds on it. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,

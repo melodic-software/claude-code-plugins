@@ -322,11 +322,10 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
 // marker on its own line, the head named on the next, the reason fenced.
 // The run's clock, and so the time a lane comment first noted its head.
 const NOW = "2026-10-23T10:00:00.000Z";
-const LANES_CLEAR = "The lanes clear this reason on their own; the next scheduled run judges it again.";
-const laneNote = (reason, since = NOW, clears = LANES_CLEAR) =>
+const laneNote = (reason, since = NOW) =>
   [
     "<!-- babysit-merge-risk -->",
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. ${clears}`,
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. The lanes clear this reason on their own; the next scheduled run judges it again.`,
     "",
     "```text",
     reason,
@@ -451,17 +450,8 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the cap a
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    // No lane acts on these two: the comment names the pass that clears each.
-    {
-      method: "POST",
-      path: `${ISSUES}/3/comments`,
-      body: { body: laneNote(refusing("verify:repeated-fail"), NOW, "This reason clears once pr-verify passes a head pushed after its last FAIL; the next scheduled run judges it again.") },
-    },
-    {
-      method: "POST",
-      path: `${ISSUES}/4/comments`,
-      body: { body: laneNote(refusing("verify:too-old"), NOW, "This reason clears once pr-verify passes this head; the next scheduled run judges it again.") },
-    },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });

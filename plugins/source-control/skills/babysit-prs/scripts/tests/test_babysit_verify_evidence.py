@@ -1317,12 +1317,10 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
     `merge.max-verify-fails`, at their own heads."""
 
     @staticmethod
-    def sibling_fails(
-        *shas: str, number: int = SIBLING, at: str = AFTER_PASS
-    ) -> FakeGitHub:
+    def sibling_fails(*shas: str, number: int = SIBLING) -> FakeGitHub:
         """A pass at the head, and FAILs of pull request `number` (branch
-        feat/old) at `shas`, judged at `at` (after the pass unless given)."""
-        runs = {i: judged(i, at) for i in range(2, 2 + len(shas))}
+        feat/old) at `shas`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
         fake = passing(
             *(artifact(named(sha, "fail", number), i) for i, sha in zip(runs, shas)),
             runs=runs,
@@ -1339,10 +1337,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
 
-    def test_a_pass_judged_after_their_fails_clears_the_cap(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS, at=OLDER_START)
-        self.assertIsNone(read(fake).refusal)
-
     def test_two_there_and_one_here_refuse(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
         fake.artifacts.append(artifact(named(EARLIER, "fail"), 9))
@@ -1350,7 +1344,7 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
-        # Not verify:fail: the cap holds until a pass follows every FAIL.
+        # Not verify:fail: a fix round whose push could never merge.
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
         fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
         fake.runs[9] = judged(9, OLDER_START)
@@ -1397,14 +1391,11 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
     same issue does not reset the count, and no record is downloaded."""
 
     @staticmethod
-    def sibling_fails(
-        *shas: str, suffix: str = "-i7", at: str = AFTER_PASS
-    ) -> FakeGitHub:
+    def sibling_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
         """PR 41 links issue 7 by a `Refs:` line and has a counted pass at
         the head judged as a slice; PR 40 (branch feat/other, closed) linked
-        it the same way and FAILed at `shas` after the pass (at `at`), each
-        named with `suffix`."""
-        runs = {i: judged(i, at) for i in range(2, 2 + len(shas))}
+        it the same way and FAILed at `shas`, each named with `suffix`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
         fake = passing(
             *(
                 artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
@@ -1474,14 +1465,11 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
     name with no issues keeps the rule above."""
 
     @staticmethod
-    def named_fails(
-        *shas: str, suffix: str = "-i7", at: str = AFTER_PASS
-    ) -> FakeGitHub:
+    def named_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
         """A pass at PR 41's head (closing issue 7), and FAILs of PR 40
         (branch feat/other, not among issue 7's closing pull requests) at
-        `shas` after the pass (at `at`), each named with the feat/other
-        digest and `suffix`."""
-        runs = {i: judged(i, at) for i in range(2, 2 + len(shas))}
+        `shas`, each named with the feat/other digest and `suffix`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
         fake = passing(
             *(
                 artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
@@ -1618,42 +1606,25 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
 
 class RepeatedFailsHoldForTheLanes(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
-    pull request hold it while they keep coming, for the lanes with no label
-    (owner rule 2026-10-27); a pass at a head with no FAIL, judged after
-    every FAIL, ends the hold, and fewer FAILs leave the pass to decide."""
+    pull request hold it, never to merge unattended, whatever a later pass
+    says (owner decision 2026-10-21), for the lanes with no label (owner rule
+    2026-10-27); fewer leave the pass to decide."""
 
     @staticmethod
-    def failed_at(*shas: str, at: str = AFTER_PASS) -> FakeGitHub:
+    def failed_at(*shas: str) -> FakeGitHub:
         """A pass at the head (run 1) and a FAIL tied to the pull request at
-        each of `shas`, every one judged at `at` (after the pass unless
-        given)."""
-        runs = {i: judged(i, at) for i in range(2, 2 + len(shas))}
+        each of `shas`, every one judged before the pass."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
         return passing(
             *(artifact(named(sha, "fail"), i) for i, sha in zip(runs, shas)),
             runs=runs,
         )
 
-    def test_fails_at_three_heads_after_the_pass_refuse(self) -> None:
+    def test_fails_at_three_heads_refuse_despite_a_later_pass(self) -> None:
         evidence = read(self.failed_at(EARLIER, IN_PR, UNRELATED))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
         self.assertIn("3", evidence.detail or "")
-
-    def test_a_pass_judged_after_every_fail_clears_the_cap(self) -> None:
-        # The fix loop ended in a pass on a head newer than its last FAIL.
-        fake = self.failed_at(EARLIER, IN_PR, UNRELATED, at=OLDER_START)
-        self.assertIsNone(read(fake).refusal)
-
-    def test_one_fail_after_the_pass_keeps_the_cap(self) -> None:
-        fake = self.failed_at(EARLIER, IN_PR, at=OLDER_START)
-        fake.artifacts.append(artifact(named(UNRELATED, "fail"), 4))
-        fake.runs[4] = judged(4, AFTER_PASS)
-        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
-
-    def test_a_fail_run_with_no_time_keeps_the_cap(self) -> None:
-        fake = self.failed_at(EARLIER, IN_PR, UNRELATED, at=OLDER_START)
-        fake.runs[4] = judged(4, None)
-        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
         # A listing that does not read refuses rather than letting the pass
@@ -1666,36 +1637,34 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
     def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
         # Artifacts last 90 days here; a pull request is refused
         # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
-        # expired FAIL never lifts the cap of a pull request still judged
-        # without a pass.
+        # expired FAIL never lifts the cap of a pull request still judged.
         self.assertLess(ve.TOO_OLD_DAYS, 90)
-        expired = FakeGitHub(
-            [
+        expired = passing(
+            *(
                 artifact(named(sha, "fail"), i, expired=True)
                 for i, sha in zip((2, 3, 4), (EARLIER, IN_PR, UNRELATED))
-            ],
-            {i: judged(i, OLDER_START) for i in (2, 3, 4)},
+            ),
+            runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
         )
         evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
         self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertFalse(evidence.needs_human)
 
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
-        self.assertIsNone(read(self.failed_at(EARLIER, IN_PR, at=OLDER_START)).refusal)
+        self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
 
     def test_fails_at_one_head_count_once(self) -> None:
-        # Every FAIL after the pass: two heads stay under the cap.
         fake = self.failed_at(EARLIER, IN_PR)
         # A second FAIL at IN_PR, under another number, tied by the commit.
         fake.artifacts.append(artifact(named(IN_PR, "fail", 99), 4))
-        fake.runs[4] = judged(4, AFTER_PASS)
+        fake.runs[4] = judged(4, OLDER_START)
         evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertIsNone(evidence.refusal)
         self.assertEqual(len([v for v in evidence.verdicts if v.verdict == "fail"]), 3)
 
     def test_a_fail_at_the_head_that_reaches_the_cap_is_repeated_fail(self) -> None:
-        # The third failing head is held by the cap, not verify:fail: no pass
-        # at a FAILed head ends it.
+        # The third failing head is refused for good, not sent to a fourth
+        # fix round.
         fake = self.failed_at(EARLIER, IN_PR, HEAD)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
@@ -1708,12 +1677,11 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_the_reader_takes_its_cap_from_the_setting(self) -> None:
-        # Under the cap, the FAILs after the pass are earlier FAILs.
         fake = self.failed_at(EARLIER, IN_PR)
         for cap, expected in (
             (2, "verify:repeated-fail"),
             (1, "verify:repeated-fail"),
-            (3, "verify:earlier-fail"),
+            (3, None),
         ):
             with self.subTest(cap=cap):
                 with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
@@ -1906,29 +1874,10 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
 
 
 class AnOldPullRequestIsRefused(unittest.TestCase):
-    OLD = "2026-07-27T23:00:00Z"
-
-    def test_older_than_80_days_without_a_pass_is_too_old(self) -> None:
-        for fake in (
-            FakeGitHub([], {}),
-            FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)}),
-        ):
-            with self.subTest(artifacts=fake.artifacts):
-                evidence = read(fake, pull(created_at=self.OLD))
-                self.assertEqual(evidence.refusal, "verify:too-old")
-                self.assertFalse(evidence.needs_human)
-
-    def test_a_pass_at_the_head_clears_too_old(self) -> None:
-        self.assertIsNone(read(passing(), pull(created_at=self.OLD)).refusal)
-
-    def test_a_person_refusal_is_not_hidden_by_too_old(self) -> None:
-        fake = passing()
-        fake.records[named(HEAD, "pass")] = record(
-            linked_issues=[{**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}]
-        )
-        evidence = read(fake, pull(created_at=self.OLD))
-        self.assertEqual(evidence.refusal, "verify:untrusted-spec")
-        self.assertTrue(evidence.needs_human)
+    def test_older_than_80_days_is_too_old(self) -> None:
+        evidence = read(passing(), pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:too-old")
+        self.assertFalse(evidence.needs_human)
 
     def test_79_days_is_judged(self) -> None:
         self.assertIsNone(

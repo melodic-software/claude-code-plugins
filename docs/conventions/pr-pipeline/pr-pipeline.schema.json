@@ -1098,7 +1098,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 3,
-          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, held for the lanes with no label until a pass at a head with no fail, judged after every fail, ends it (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, held for the lanes with no label, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
         },
         "verify-cache": {
           "type": "string",
