@@ -456,3 +456,10 @@ export function createRateLimitLatch({
 
 // The process-wide latch every helper shares by default.
 export const rateLimitLatch = createRateLimitLatch();
+
+// latch with its guard pinned to token: a client on a second token keeps its
+// readings under token and plans to token's limits.api entry (entryOf), not
+// API_BUDGET_TOKEN's, while sharing latch's stops.
+export function budgetLatch(token, latch = rateLimitLatch) {
+  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+}

@@ -50,6 +50,10 @@
 # CHECK_SKILL_SKIP_MARKDOWNLINT=1 skips check 6 (markdownlint) for callers with
 # no Node toolchain.
 #
+# CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 (the skill's scripts/*.test.sh)
+# for callers whose test tier runs those suites itself, such as
+# scripts/check-affected.sh without --tests.
+#
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
@@ -1315,7 +1319,9 @@ fi
 
 # --- Check 7: scripts/*.test.sh pass where present -------------------------
 
-if [[ -d "$SKILL_DIR/scripts" ]]; then
+if [[ "${CHECK_SKILL_SKIP_SCRIPT_TESTS:-}" == "1" ]]; then
+  note "script tests skipped (CHECK_SKILL_SKIP_SCRIPT_TESTS=1)"
+elif [[ -d "$SKILL_DIR/scripts" ]]; then
   SKILL_TOPLEVEL="$("${GIT_UNSET[@]}" git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
   while IFS= read -r test_sh; do

@@ -1,30 +1,19 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block a bare `gh pr create` / `gh pr edit` whose PR BODY
-# would fail the consuming repository's own PR-contract CI gate.
+# carries a negated closing reference.
 #
-# WHY IT EXISTS — CI reports a body missing any of the five requirements with
-# an advisory comment and label, one CI round trip after the PR is already
-# open; nothing else checks the contract at authoring time. `/source-control:pull-request
-# create` runs the equivalent pre-create gate (skills/pull-request/reference/
-# create.md §2.4.2); this hook covers the calls that never go through the skill.
+# WHY IT EXISTS — a negated closer (`does not close #N`) still closes the issue
+# on merge, because GitHub's closing-keyword parser ignores the negation, and CI
+# reports it only one round trip after the PR is already open. This hook covers
+# the calls that never go through `/source-control:pull-request create`.
 #
-# WHAT IT ENFORCES — the five requirements of the linkage contract, mirrored.
-# The semantics were ported from the reusable
-# melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml
-# validator, which is RETIRED (deleted in ci-workflows#569, released as
-# v0.23.0); the live artifact carrying the same contract is that repo's
-# `.github/actions/pr-contract` composite step, which consumers run inside
-# their own `ci-status` job. After stripping HTML comments (terminated ones,
-# then an unterminated `<!--` swallowing the rest — both, in that order,
-# exactly as the validator does), the body must carry
-#   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
-#       `owner/repo#N`), a non-closing `Refs: #N` / `Relates to: #N` marker on
-#       its own line, OR the literal `No linked issue` / `No related issue:`;
-#       and no negated closing reference (`does not close #N`) anywhere, which
-#       GitHub's negation-blind parser would still close on merge;
-#   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
-#       `## Verification`, `## Related` — where a DEEPER heading (`### …`) is
-#       that section's content, not its terminator.
+# WHAT IT ENFORCES — no negated closing reference anywhere in the body, judged
+# as the consuming repository's `.github/actions/pr-contract` composite step
+# (melodic-software/ci-workflows) judges it, after stripping HTML comments
+# (terminated ones, then an unterminated `<!--` swallowing the rest) and masking
+# Markdown code. The rest of that contract (a closing line and non-empty
+# `## Summary`, `## Fix`, `## Verification` and `## Related` sections) is
+# advisory in CI, so a body missing any of it is allowed.
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
 # runs only when one of the repo's `.github/workflows/*.yml` / `*.yaml` files
@@ -79,9 +68,10 @@
 # invocation carrying `--repo`/`-R` or following a directory change; and four
 # residuals, each a MISS or a contrivance, never a false block:
 #   - the validator strips a comment span spanning a line break and JOINS what
-#     surrounds it, so `## Rel<!--\n-->ated` is a heading to CI and two lines
-#     here. Reproducing it needs whole-body rather than per-line stripping, and
-#     the shape does not occur in a real body.
+#     surrounds it, so `does not <!--` then `-->close` on the next line is a
+#     negated closer to CI and an un-negated one here. Reproducing it needs
+#     whole-body rather than per-line stripping, and the shape does not occur
+#     in a real body.
 #   - `env -S` operands are re-parsed with the Bash tokenizer, not env's own
 #     split-string grammar (which has its own escape and `${VAR}` rules). The
 #     two agree on every ordinary command line; a contrived operand exploiting
@@ -101,7 +91,7 @@
 #
 # Kill switch: pr_body_linkage_gate_enabled userConfig option.
 #
-# BLOCKING: exits 2 naming the missing half(s) plus the line to add.
+# BLOCKING: exits 2 naming each negated closer plus the `Refs: #N` line to use.
 
 set -uo pipefail
 
@@ -224,7 +214,7 @@ emit_tel() {
 }
 
 # --- Body validation ----------------------------------------------------------
-# The validator core (comment stripping, keyword/Related judging) is shared
+# The validator core (comment stripping, negated-closer judging) is shared
 # with the MCP-surface sibling pr-linkage-mcp-gate.sh; the annotated functions
 # live in pr-linkage-validator.sh, sourced so a drift fix against the upstream
 # ci-workflows validator lands on every surface at once.
@@ -614,7 +604,7 @@ check_segment() {
     # A body flag with no following word is a malformed command gh rejects on
     # its own; there is no body to judge. An explicitly EMPTY value is a
     # different case — the word is present, and gh would open a PR with a blank
-    # body the gate rejects — so it stays judged.
+    # body — so it stays judged.
     --body)
       ((have_next)) || return 0
       body_flag="body"

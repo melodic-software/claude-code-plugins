@@ -336,6 +336,8 @@ jobs:
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
+          # The listing, for post-merge-dispatch's cap bypass.
+          printf '%s\n' "$runs" >"$RUNNER_TEMP/cover-runs.json"
           since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
           recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
           if [ -n "$recent" ]; then
@@ -346,9 +348,61 @@ jobs:
             echo "uncovered=true" >>"$GITHUB_OUTPUT"
           fi
 
+      # The cap gives way for the lane's own merges (merge.full-run-cap-bypass,
+      # default true): the lane arms nothing past merge.max-in-flight until a
+      # full run verifies the merges in flight, so a batch that lands inside
+      # the cap would wait it out before its one run. bypass=true when the
+      # post-merge check that judged (exit 0 or 5) lists an unverified lane
+      # merge with no dispatch run under way for it, and the cover listing
+      # holds no non-cancelled run created at or after the merge on a commit
+      # that contains it. A run at a commit this checkout lacks is newer than
+      # the checkout, so it counts as cover; a merge the checkout lacks, or
+      # older than the oldest listed run, is skipped. The dispatch then starts
+      # one run of main's tip for the whole batch, and the next tick finds it
+      # in the listing. pr-require-checks.yml's main-dispatch concurrency
+      # group keeps a burst to one run going and one waiting.
+      - name: Find lane merges no full run covers
+        id: bypass
+        if: >-
+          steps.cover.outputs.capped == 'true'
+          && contains(fromJSON('["0","5"]'), steps.post-merge.outputs.code)
+        run: |
+          set -euo pipefail
+          if [ "$(yq '.merge."full-run-cap-bypass"' .base/docs/conventions/pr-pipeline.yaml)" = false ]; then
+            echo "::notice::merge.full-run-cap-bypass is false: the cap holds"
+            exit 0
+          fi
+          report=$RUNNER_TEMP/post-merge.json runs=$RUNNER_TEMP/cover-runs.json
+          [ -f "$report" ] && [ -f "$runs" ] || exit 0
+          oldest=$(jq -r 'map(.created) | min // ""' "$runs")
+          uncovered=()
+          while IFS=$'\t' read -r number sha at; do
+            [[ $number =~ ^[1-9][0-9]*$ && $sha =~ ^[0-9a-f]{40}$ && $at =~ ^[0-9T:-]+Z$ ]] || continue
+            git -C .base cat-file -e "$sha^{commit}" 2>/dev/null || continue
+            [[ -n $oldest && ! $at < $oldest ]] || continue
+            covered=''
+            while IFS=$'\t' read -r run_sha created; do
+              [[ $created < $at ]] && continue
+              if ! git -C .base cat-file -e "$run_sha^{commit}" 2>/dev/null ||
+                git -C .base merge-base --is-ancestor "$sha" "$run_sha"; then
+                covered=1
+                break
+              fi
+            done < <(jq -r '.[] | [.sha, .created] | @tsv' "$runs")
+            [ -n "$covered" ] || uncovered+=("#$number")
+          done < <(jq -r '.autoMerges[]? | select(.verified != true)
+            | select((.pending // []) | any(.[]; . == "dispatch-run-pending")
+              and all(.[]; (startswith("dispatch-run-in-progress:") or startswith("attribution-pending:")) | not))
+            | [.number, .mergeCommit, .mergedAt] | @tsv' "$report")
+          if [ "${#uncovered[@]}" -gt 0 ]; then
+            echo "::notice::no full run covers lane merge(s) ${uncovered[*]}; one run of main's tip starts inside the cap (merge.full-run-cap-bypass)"
+            echo "bypass=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # The same body as dispatch-full-run's step of this name; see there.
       # It also starts main's tip when no full run covers it and none started
-      # within the cap, and starts nothing within the cap.
+      # within the cap, and starts nothing within the cap unless the step
+      # above found lane merges no full run covers.
       # WAIT_CAP: of the 15 minutes, the whole job took 97-127 s on the last
       # ten scheduled runs read on 2026-10-23 (the post-merge check 81-111 s
       # of it). Add 180 s here, the re-run step's POST waits (up to 30 s) and
@@ -362,8 +416,8 @@ jobs:
           steps.kill.outputs.proceed == 'true'
           && steps.mode.outputs.live == 'true'
           && steps.cover.outputs.rate-limited != 'true'
-          && steps.cover.outputs.capped != 'true'
-          && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true')
+          && (steps.cover.outputs.capped != 'true' || steps.bypass.outputs.bypass == 'true')
+          && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true' || steps.bypass.outputs.bypass == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -2392,6 +2446,8 @@ jobs:
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
+          # The listing, for post-merge-dispatch's cap bypass.
+          printf '%s\n' "$runs" >"$RUNNER_TEMP/cover-runs.json"
           since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
           recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
           if [ -n "$recent" ]; then
