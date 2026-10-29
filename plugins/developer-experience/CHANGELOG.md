@@ -3,6 +3,14 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-29
+
+### Added
+
+- Eval cases `s1-branch-start-plan` and `s4-migrator-plan`, ported from scenarios S1 and S4 of the eval scenario sources on the converged fixtures. Each grades the plan turn: build-cli fires and makes no Write or Edit call and runs no shell command that writes or deletes a file before the user says yes, and in S4 the plan asks which backup format to use and recommends neither, an `llm` grader whose samples are the labeled S4 item 10 set. ([#9953](https://github.com/melodic-software/claude-code-plugins/issues/9953))
+
+- Eval cases `s3-script-cleanup` and `s6-tool-inventory`, ported from scenarios S3 and S6 of the eval scenario sources onto the shared fixtures in their converged state. Each grades the scenario's answer key, file citations and other judge items with `llm` graders, and its read-only items with free graders: no `Write`, no `Edit`, and no `rm` or `git rm`, including one inside a compound shell command. A further grader records whether `/developer-experience:audit-tools` ran. ([#9966](https://github.com/melodic-software/claude-code-plugins/issues/9966))
+
 ## [0.2.2] - 2026-10-29
 
 ### Added
