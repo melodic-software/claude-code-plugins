@@ -84,3 +84,10 @@ Never hand-edit `~/.claude/settings.json`:
 
 That write is user-scope only. A project-scope map is inspected with `--report-project` and never
 rewritten. See [sync.md](sync.md).
+
+It prints one line. `normalized moved=K keys=N` is a reorder that moved K of the N keys, K being the
+fewest keys the reorder moves, so one appended key reads `moved=1` at any N. `--check` prints
+`would-normalize moved=K keys=N` and exits `1`. A map already in order prints
+`already-sorted keys=N`. A `--file` path that does not exist prints `missing-file keys=0` and exits
+`0`: nothing is written, and it is never reported as `already-sorted`. The report renders it as
+`Normalized: skipped, no user settings file` (`Would normalize:` in audit).

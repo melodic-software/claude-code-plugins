@@ -866,11 +866,11 @@ stops for a hold only at the push job's label and draft re-read. Every path and 
 | Clean merge, committed and pushed | push | `clean-merge` on `resolve-conflicts` | empty | success `apply-conflict-patch` |
 | A later merge reaches another tree | model call or push | none | empty | failure |
 | Head moved since the select job | push | `superseded-sha` | empty | neutral `apply-conflict-patch` |
-| Empty patch, or a conflicted path left with markers | push | `awaiting-human` | `unresolved-conflict` | neutral `apply-conflict-patch` |
+| Empty patch, or a conflicted path left with markers | push | `lane-stopped` | `unresolved-conflict` | neutral `apply-conflict-patch` |
 | The scan refused the model's output (leak-scan block, oversize patch) | conflict-scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
-| A model edit outside the conflicted set | push | `awaiting-human` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
+| A model edit outside the conflicted set | push | `lane-stopped` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
 | A model edit a refusal names | push | `awaiting-human` | `conflict-patch-protected-path` / `conflict-patch-invalid` | neutral `apply-conflict-patch` |
-| A `.github/workflows/` change that is not the base's own | push | `awaiting-human` | `workflow-staged` | neutral `apply-conflict-patch` |
+| A `.github/workflows/` change that is not the base's own | push | `lane-stopped` | `workflow-staged` | neutral `apply-conflict-patch` |
 | Hold label or draft set during the run | push | `awaiting-human` | empty | neutral `apply-conflict-patch` |
 | Resolved, committed and pushed | push | none | empty | success `apply-conflict-patch` |
 
@@ -1087,12 +1087,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      round, so the reply job skips `finding-stands` (when nothing escalates), and the dispatcher's
      half-hourly sweep dispatches the head again, within the select job's round cap and three
      such skips per head; `human` posts nothing and escalates
-     `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`; no
-     verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
+     `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`
+     (a `security` question on a security-review `SUGGESTION` escalates `feedback-unadjudicated`
+     instead); no verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
      adjudication is not adjudicated again: any reply but `VALID` on it escalates
      `feedback-stood-open`. A thread no adjudicator may judge goes elsewhere: a pr-verify note
      left open escalates `feedback-verifier-open`, a thread a trusted person directed, or an
-     `INCORRECT` reply on a security-review, CRITICAL or unknown-lane finding, escalates
+     `INCORRECT` reply on a CRITICAL, unknown-lane or person-rated security-review finding
+     ([below](#the-adjudicator)), escalates
      `feedback-disputed`, and an `UNCERTAIN` or `VALID-defer` reply on one escalates
      `feedback-uncertain`. A thread or head that changed after the lane's reply, or a failed
      write, escalates `feedback-partial`. One round records one reason: one held for a person
@@ -1136,14 +1138,22 @@ trusted person directed (a fix request, or a reply after an escalation) stays th
 reply that leaves it open escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none), or a listed review
+a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
+the security-review lane and whose rating is below `IMPORTANT` (`SUGGESTION`; this repository
+counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
 decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
-and the round skips `finding-stands`. A CRITICAL finding, a security-review finding and one
-whose lane its root comment does not name go to a person: an `INCORRECT` reply on one escalates
+and the round skips `finding-stands`. A CRITICAL finding, a security-review finding rated
+`IMPORTANT` or `CRITICAL` or unrated, and one
+whose lane its root comment does not name go to a person. The rating is the lane's own line
+(`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
+the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
+so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
+reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
 and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
@@ -1272,7 +1282,10 @@ warns of a [classifier gap](README.md#classifier-gaps).
      select job's; a scan that refused an oversize patch escalates `dependency-fix-not-landed`,
      and any other case `dependency-invalid`. The dispatcher dispatches a head whose newest
      verdict job skipped `no-model-turn` again on its next run, a limit stop aside; the round cap
-     bounds those retries;
+     bounds those retries. `dependency-invalid` routes to a failing status, not a person
+     (`escalation-routes.json`): the verdict check skips `lane-stopped`, and the dispatcher
+     dispatches that head again until `limits.limit-stops-per-head` such stops stand on it. Every
+     other `dependency-*` reason holds for a person;
    - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
      started at the reviewed head (its issue or marker is there), which resumes. `merge`,
      `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the

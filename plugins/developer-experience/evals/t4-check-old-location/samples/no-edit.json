@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "AGENTS.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "CLAUDE.md",
+            "old_string": "# tarnquill project notes\n",
+            "new_string": "@AGENTS.md\n\n# tarnquill project notes\n"
+          }
+        }
+      ]
+    }
+  ]
+}

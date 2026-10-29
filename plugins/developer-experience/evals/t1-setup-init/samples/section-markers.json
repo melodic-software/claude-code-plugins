@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.2.2\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for a type and a message. No flag skips the prompts.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/ProcessRunner.cs` runs a child process.\n\n## CLI contract\n<!-- developer-experience: source=default -->\nNew and changed commands follow the contract of /developer-experience:build-cli. Existing commands are described under Tools as they are now.\n\n## Not yet\n- `tq commit` gains a `--yes` flag.\n",
+      "why": "every section marked, Not yet unmarked"
+    },
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq env check`: checks required tools.\n\n### Notes\nPlain prose under a level-3 heading.\n\n## Not yet",
+      "why": "a level-3 heading needs no marker, and Not yet ends the file"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "no conventions file, or an empty one"},
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n- `tq env check`: checks required tools.\n",
+      "why": "Tools has no marker"
+    },
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq env check`: checks required tools.\n\n## Secrets\n\n<!-- developer-experience: source=default -->\nNew and changed tools read secrets from environment variables, stdin or a file the caller names, never from a flag value.\n",
+      "why": "near miss: a blank line between the heading and its marker"
+    },
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=team -->\n- `tq env check`: checks required tools.\n",
+      "why": "near miss: a marker with an unknown source"
+    },
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq env check`: checks required tools.\n\n## Not yet: later\n- `tq commit` gains a `--yes` flag.\n",
+      "why": "near miss: a heading that only starts with Not yet"
+    },
+    {
+      "answer": "# Developer tooling conventions\n\n## Platforms",
+      "why": "an unmarked heading at the end of the file"
+    }
+  ]
+}

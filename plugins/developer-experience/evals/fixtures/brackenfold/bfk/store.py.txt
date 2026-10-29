@@ -1,0 +1,11 @@
+"""Read the account store (data/accounts.jsonl, one JSON record per line)."""
+
+import json
+from pathlib import Path
+
+DATA = Path(__file__).resolve().parent.parent / "data" / "accounts.jsonl"
+
+
+def load_accounts(path=DATA):
+    with open(path, encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]

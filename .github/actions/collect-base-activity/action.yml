@@ -329,12 +329,11 @@ runs:
           case "$1" in
             ai-slop:audit)
               scripts=$lane/plugins/ai-slop/skills/audit/scripts
-              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
+              # digest-guard.sh is the fix flow's concurrent-edit guard; from
+              # this staged copy it writes only under $lane/scratch.
+              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh digest-guard.sh; do
                 allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
               done
-              # The fix flow's concurrent-edit guard digests each file into
-              # a state file under the scratch directory.
-              allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
               # The user-scope target reads the runner's own config.
               denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
               ;;

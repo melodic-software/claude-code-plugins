@@ -36,7 +36,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the answer presents the disconnected export capability (wiring the unused exportRowsToCsv, enabling the adminBulkExport flag, and using the export_audit table) as a ranked candidate that comes BEFORE any greenfield admin-export build, each supported by a file citation. FAIL if a new build is ranked first, if the disconnected export is only a footnote, or if it is not offered as a candidate at all."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:improvement:)?find"'

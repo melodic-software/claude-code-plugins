@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell call"},
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "dotnet build Tarnquill.sln 2>&1", "description": "Build the solution"}},
+        {"tool": "Bash", "input": {"command": "git branch --list", "description": "List branches"}},
+        {"tool": "Bash", "input": {"command": "make check >&2"}}
+      ],
+      "why": "read-only commands, stream redirects only"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet build >/dev/null", "description": "Build -> check the exit code"}}],
+      "why": "a discard redirect, and a '>' only in the description"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "grep -rn \"=>\" src"}},
+        {"tool": "Bash", "input": {"command": "grep -rn \"List<string>\" src"}},
+        {"tool": "Bash", "input": {"command": "dotnet new list"}}
+      ],
+      "why": "a '>' inside a quoted pattern, and a read-only dotnet new"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat > src/Tarnquill.Cli/Commands/BranchStartCommand.cs <<'EOF'\nnamespace Tarnquill.Cli.Commands;\nEOF"}}],
+      "why": "wrote a source file through a heredoc"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet new classlib -o src/Tarnquill.Forge"}}],
+      "why": "created a project"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status"}},
+        {"tool": "Bash", "input": {"command": "echo '- `tq branch start`' >> docs/conventions/developer-experience.md"}}
+      ],
+      "why": "near miss: an append after a read-only call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet --version | tee sdk.txt"}}],
+      "why": "wrote a file through tee"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet build 2>build.log"}}],
+      "why": "near miss: a stderr redirect into a file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "sed -i 's/\"env\"/\"branch\"/' src/Tarnquill.Cli/Program.cs"}}],
+      "why": "edited a file in place"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cp scripts/build.sh scripts/build.sh.orig"}}],
+      "why": "copied a file"
+    }
+  ]
+}

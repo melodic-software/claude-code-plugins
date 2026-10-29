@@ -7,7 +7,8 @@ description: >
   revoking the token, unless the broker's effect, permissions, lane, activity
   and repository equal what this job resolved; with `pr-workflow-change-ok` a
   `workflow-modified` refusal of a workflow file the PR changes skips instead
-  of failing. In `check` mode it asks the
+  of failing, and with `kill-switch-ok` a `kill-switch` refusal skips with a
+  notice. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
   and fails red on anything but an allow. Contract:
   docs/conventions/pr-pipeline/pr-run-activity.md, run job step 6 and the
@@ -88,6 +89,17 @@ inputs:
       work. Any other denial still fails red. Default `false`.
     required: false
     default: "false"
+  kill-switch-ok:
+    description: >-
+      `true` ends the step green, with a notice, no token and the
+      `skip-reason` output `kill-switch`, when the broker answers 403 with
+      reason `kill-switch`: a kill switch turned on after this run read its
+      variables, a designed stop. Every step that uses the token must run
+      only when the `token` output is set, and every job that depends on this
+      one must skip on `skip-reason`. Any other denial still fails red.
+      `token` mode only. Default `false`.
+    required: false
+    default: "false"
   pr-workflow-change-ok:
     description: >-
       `true` ends the step green, with no token and the `skip-reason` output
@@ -129,7 +141,8 @@ outputs:
     value: ${{ steps.request.outputs.failure-reason }}
   skip-reason:
     description: >-
-      `workflow-modified` when `pr-workflow-change-ok` skipped the activity; empty otherwise.
+      `workflow-modified` when `pr-workflow-change-ok` skipped the activity,
+      `kill-switch` when `kill-switch-ok` did; empty otherwise.
     value: ${{ steps.request.outputs.skip-reason }}
 
 runs:
@@ -154,6 +167,7 @@ runs:
         ISSUES: ${{ inputs.issues }}
         ACTIONS: ${{ inputs.actions }}
         SUPERSEDED_OK: ${{ inputs.superseded-ok }}
+        KILL_SWITCH_OK: ${{ inputs.kill-switch-ok }}
         PR_WORKFLOW_CHANGE_OK: ${{ inputs.pr-workflow-change-ok }}
         HEAD_SHA: ${{ inputs.head-sha }}
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
@@ -180,6 +194,10 @@ runs:
         [[ $LANE =~ $name && $ACTIVITY =~ $name ]] || fail "the lane and activity must be kebab-case names"
         SUPERSEDED_OK=${SUPERSEDED_OK:-false}
         [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
+        KILL_SWITCH_OK=${KILL_SWITCH_OK:-false}
+        [[ $KILL_SWITCH_OK == true || $KILL_SWITCH_OK == false ]] || fail "kill-switch-ok must be true or false"
+        # A check allow is the exit code itself, so a check may never end green on a refusal.
+        [[ $KILL_SWITCH_OK == false || $MODE == token ]] || fail "kill-switch-ok needs token mode"
         PR_WORKFLOW_CHANGE_OK=${PR_WORKFLOW_CHANGE_OK:-false}
         [[ $PR_WORKFLOW_CHANGE_OK == true || $PR_WORKFLOW_CHANGE_OK == false ]] ||
           fail "pr-workflow-change-ok must be true or false"
@@ -332,6 +350,15 @@ runs:
             msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
             echo "::warning::$msg"
             printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The broker reads the kill switches live; this run's vars were read
+          # when it was queued, so a switch turned on since reaches it here.
+          if [[ $KILL_SWITCH_OK == true && $status == 403 && $reason == kill-switch ]]; then
+            msg="lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest"
+            echo "::notice::$msg"
+            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
+            echo "skip-reason=kill-switch" >>"$GITHUB_OUTPUT"
             exit 0
           fi
           # The refusal does not say whether the PR or the default branch

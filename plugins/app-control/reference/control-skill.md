@@ -10,6 +10,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 ## Contents
 
 - Hub
+- The Ready command
 - Writing the Capture section
 - Feature files
 - Shared items
@@ -30,7 +31,7 @@ plugin) holds four sections, an optional `## Gotchas`, and an index:
 | Section | Holds |
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
-| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
+| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
@@ -48,6 +49,19 @@ Below them, an index with one line per feature file, in this form:
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
 the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
+
+## The Ready command
+
+Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
+it must exit non-zero when the thing it checks is wrong. A listing (`docker ps`, `kubectl get pods`)
+exits 0 when its filter matches nothing and it prints no rows, and exits 0 just the same when it
+prints another app's row. A `kubectl get` that names an object (`kubectl get deploy/shop`) is not
+a listing: it exits non-zero when the object is missing. End each listing with `grep -q` on the row the app's own instance prints,
+never with the listing alone. A Ready with a url placeholder runs without a shell
+([Environments](#environments)), where `|` and `&&` are plain arguments: put the listing check in a
+`cli/` command or a script that exits non-zero itself, and name that from Ready.
+`/app-control:map check` reports a Ready command whose last stage is a bare listing, and map's
+proof runs Ready once with the app stopped to show it exits non-zero.
 
 ## Writing the Capture section
 

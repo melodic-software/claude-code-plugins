@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:build-cli"}}],
+      "why": "the skill fired on the request"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "data/accounts.jsonl"}},
+        {"tool": "Skill", "input": {"skill": "developer-experience:build-cli", "args": "accounts v1 to v2 migrator"}}
+      ],
+      "why": "fired after a read, with arguments"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "build-cli"}}],
+      "why": "the skill name without the plugin prefix"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}],
+      "why": "near miss: the other developer-experience skill"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "bfk/store.py"}}],
+      "why": "read the store without the skill"
+    }
+  ]
+}

@@ -48,7 +48,7 @@ expect "the git-hook entry is a report-only pre-commit entry" "pre-commit false"
 
 # --- The manifest lists the plugin's tools ------------------------------------
 expect "manifest: declares exactly actionlint and node" "actionlint,node" "$(jq -r '.requires | map(.id) | join(",")' "$MANIFEST")"
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
 
 # --- SessionStart probe honors actionlint_enabled ------------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
@@ -70,7 +70,8 @@ PG_ARGS=()
 while IFS= read -r pg_arg; do
   # shellcheck disable=SC2016 # the placeholder is matched literally, as Claude Code substitutes it
   PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+# tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
 
 # run_probe <value|__unset__> -> run the row with actionlint_enabled set to <value> (or unset)
 run_probe() {

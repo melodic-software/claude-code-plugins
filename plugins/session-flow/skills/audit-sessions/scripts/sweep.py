@@ -8,6 +8,8 @@
              [--format json|md] [--write-report] [--judged FILE] [--session ID ...]
     sweep.py --data-dir D --excerpts|--correction-candidates [--since ...] [--until ...] [--scope ...] [--state-key K]
              [--session ID ...]
+    sweep.py --data-dir D --tickets PATTERN [--branch NAME] [--since ...] [--until ...] [--scope ...] [--state-key K]
+             [--format json|md]
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
@@ -39,6 +41,14 @@ from every interactive session in scope and window, and the drift check still re
 The machine-wide and per-ticket metrics do not describe one session, so they are marked
 `not_applicable` and raise no finding. It refuses `--write-report`, so the kept reports stay
 machine or project ones.
+
+`--tickets PATTERN` prints, instead of the report, a per-key rollup of the interactive sessions in
+scope and window (schema `audit-sessions.tickets/v1`), for the skill's `ticket` action. A session's
+key is the pattern's first match in its custom title, generated title, branches, then working
+directory; a reused worktree's directory can name an older ticket, so it comes last. Per key: the
+sessions, their summed output tokens, the first-start-to-last-end span (a session-side proxy, not
+cycle time), the distinct linked PRs, and the gaps between consecutive sessions. `--branch NAME`
+keeps only the key the pattern matches in NAME. It refuses `--session` and `--write-report`.
 """
 
 from __future__ import annotations
@@ -56,6 +66,8 @@ from pathlib import Path
 import census
 
 SCHEMA = "audit-sessions.sweep/v1"
+TICKETS_SCHEMA = "audit-sessions.tickets/v1"
+SPAN_LABEL = "session-side proxy, not cycle time"
 RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
 # Placeholders collect.py stores in place of a path; neither names one file.
 PLACEHOLDERS = {"<suppressed>", "<too-long>"}
@@ -561,6 +573,102 @@ def judged_section(turns: list[dict], verdicts: dict[str, dict], scope: str, cat
     }
 
 
+def _epoch(value: object) -> float | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+
+
+def first_match(pattern: re.Pattern, texts: list[object]) -> str | None:
+    for text in texts:
+        match = pattern.search(text) if isinstance(text, str) else None
+        if match and match.group(0):
+            return match.group(0)
+    return None
+
+
+def ticket_key(record: dict, pattern: re.Pattern) -> str | None:
+    keys = record.get("link_keys") if isinstance(record.get("link_keys"), dict) else {}
+    branches = record.get("branches") if isinstance(record.get("branches"), list) else []
+    return first_match(pattern, [keys.get("custom_title"), keys.get("ai_title"), *branches, record.get("cwd")])
+
+
+def ticket_row(key: str, members: list[dict]) -> dict:
+    """Sessions in start order; a gap runs from the latest end so far to the next start, never below 0."""
+    timed = []
+    for r in members:
+        times = r.get("time") if isinstance(r.get("time"), dict) else {}
+        start = _epoch(times.get("start"))
+        timed.append((start, _epoch(times.get("end")) or start, r))
+    timed.sort(key=lambda t: (t[0] is None, t[0] or 0, t[2]["session_id"]))
+    gaps, latest = [], None
+    for start, end, _ in timed:
+        if start is None:
+            continue
+        if latest is not None:
+            gaps.append(round(max(0.0, start - latest)))
+        latest = end if latest is None else max(latest, end)
+    starts = [start for start, _, _ in timed if start is not None]
+    prs = {(p.get("repo"), p.get("number")) for r in members for p in r.get("prs") or [] if isinstance(p, dict)}
+    return {
+        "key": key,
+        "sessions": [r["session_id"] for _, _, r in timed],
+        "output_tokens": sum(_get(r, "tokens", side, "output") or 0 for r in members for side in ("main", "sub")),
+        "span_s": round(latest - min(starts)) if starts else None,
+        "prs": len(prs),
+        "gaps_s": gaps,
+    }
+
+
+def ticket_data(records: list[dict], pattern: re.Pattern, branch: str | None) -> dict:
+    groups: dict[str, list[dict]] = {}
+    for r in records:
+        if (key := ticket_key(r, pattern)) is not None:
+            groups.setdefault(key, []).append(r)
+    data = {"pattern": pattern.pattern, "span_label": SPAN_LABEL, "unkeyed": len(records) - sum(map(len, groups.values()))}
+    if branch is not None:
+        data["branch_key"] = first_match(pattern, [branch])
+        groups = {k: v for k, v in groups.items() if k == data["branch_key"]}
+    data["tickets"] = [ticket_row(key, groups[key]) for key in sorted(groups)]
+    return data
+
+
+def _hours(seconds: float | None) -> str:
+    return "n/a" if seconds is None else f"{seconds / 3600:.1f}"
+
+
+def tickets_md(data: dict) -> str:
+    window = data["window"]
+    span = f"{window['since'] or 'start'} to {window['until'] or 'now'}"
+    lines = [
+        f"# Ticket rollup ({data['scope']})",
+        "",
+        f"Sessions: {window['sessions']} ({span}); {data['unkeyed']} with no key matching {markdown_code(data['pattern'])};"
+        f" {window['automated_set_aside']} automated set aside",
+    ]
+    if "branch_key" in data:
+        lines[-1] += "; branch key: " + (markdown_code(data["branch_key"]) if data["branch_key"] else "none")
+    lines += ["", f"Span runs from the first session's start to the last one's end: a {data['span_label']}.", ""]
+    if not data["tickets"]:
+        return "\n".join(lines + ["No session has a matching key."]) + "\n"
+    lines += ["| Key | Sessions | Output tokens | Span (h) | PRs | Gaps between sessions (h) |", "|---|---|---|---|---|---|"]
+    for t in data["tickets"]:
+        gaps = ", ".join(_hours(g) for g in t["gaps_s"]) or "none"
+        lines.append(f"| {markdown_code(t['key'])} | {len(t['sessions'])} | {_fmt(t['output_tokens'])} | {_hours(t['span_s'])} | {t['prs']} | {gaps} |")
+    return "\n".join(lines) + "\n"
+
+
+def _pattern(value: str) -> re.Pattern:
+    try:
+        return re.compile(value)
+    except re.error as exc:
+        raise argparse.ArgumentTypeError(f"not a regular expression: {exc}") from exc
+
+
 def emit(fmt: str, status: str, summary: str, data: dict, code: int) -> int:
     if fmt == "md" and status != "error":
         sys.stdout.write(render_md(data))
@@ -594,6 +702,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--excerpts", action="store_true", help="print stored typed-turn excerpts as JSON lines")
     mode.add_argument("--correction-candidates", action="store_true", help="print the excerpts with a turn_id for the judge")
     mode.add_argument("--judged", help="the judge's verdict file, merged as a separate unranked section")
+    mode.add_argument("--tickets", type=_pattern, help="print a per-key rollup, keys matched by this regular expression")
+    parser.add_argument("--branch", help="with --tickets, only the key this pattern matches in the branch name")
     parser.add_argument("--session", nargs="+", action="extend", help="only these session ids")
     try:
         args = parser.parse_args(argv)
@@ -605,6 +715,10 @@ def main(argv: list[str] | None = None) -> int:
         return emit("json", "error", "--judged findings quote excerpts, so --judged refuses --write-report", {}, 2)
     if args.session and args.write_report:
         return emit("json", "error", "--session reports are not kept, so --session refuses --write-report", {}, 2)
+    if args.tickets is not None and (args.session or args.write_report):
+        return emit("json", "error", "--tickets refuses --session and --write-report", {}, 2)
+    if args.branch is not None and args.tickets is None:
+        return emit("json", "error", "--branch needs --tickets", {}, 2)
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
         return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
     data_dir = Path(args.data_dir)
@@ -636,6 +750,16 @@ def main(argv: list[str] | None = None) -> int:
         # Typed turns come from people: an automated session's turns are a script's.
         keys = CANDIDATE_KEYS if args.correction_candidates else EXCERPT_KEYS
         return print_turns([r for r in scoped if census.session_class(r) != "automated"], keys)
+    if args.tickets is not None:
+        data = ticket_data(population, args.tickets, args.branch)
+        window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
+        data.update(scope=scope, window={**window, "sessions": len(population), "automated_set_aside": len(scoped) - len(population)})
+        if args.format == "md":
+            sys.stdout.write(tickets_md(data))
+        else:
+            summary = f"{len(data['tickets'])} keys over {len(population)} sessions"
+            print(json.dumps({"schema": TICKETS_SCHEMA, "status": "pass", "summary": summary, "data": data}, indent=2))
+        return 0
     drift = census.drift(
         records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor
     )
