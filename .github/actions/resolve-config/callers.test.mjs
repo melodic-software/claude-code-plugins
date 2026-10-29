@@ -6854,6 +6854,55 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
 });
 
+// --- lane transcripts: every model leg keeps its transcript, sealed ---
+
+// The read runner's model job uploads nothing (the test above). The write
+// runner's skill job holds id-token: write while the skill can rewrite any
+// file a later step would run, so no step runs staged code after it there.
+// The mutation audit's mutants run as the runner user and can rewrite code a
+// later step in that job runs, so an upload there would run tampered code
+// holding the runtime token; the token scan there runs with an empty env and
+// absolute paths for the same reason.
+const TRANSCRIPT_EXEMPT = new Set([
+  "pr-run-activity-read.yml#run",
+  "pr-run-activity-write.yml#run",
+  "post-merge-test-mutation.yml#audit",
+]);
+const isLauncher = (step) => /^(melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli|anthropics\/claude-code-action)@/.test(String(step.uses ?? ""));
+const isTranscriptUpload = (step) => /\/upload-lane-transcript$/.test(String(step.uses ?? ""));
+
+test("every model leg is followed by a sealed transcript upload of its own execution file, under a job id unique in its workflow", () => {
+  let legs = 0;
+  for (const file of workflowFiles()) {
+    const ids = new Map();
+    for (const [jobId, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const steps = job.steps ?? [];
+      const uploads = steps.filter(isTranscriptUpload);
+      if (TRANSCRIPT_EXEMPT.has(`${file}#${jobId}`)) {
+        assert.deepEqual(uploads, [], `${file}#${jobId}: exempt, so it uploads no transcript`);
+        continue;
+      }
+      for (const [at, step] of steps.entries()) {
+        if (!isLauncher(step)) continue;
+        legs++;
+        const output = new RegExp(`steps\\.${step.id}\\.outputs\\.execution[-_]file`);
+        const upload = steps.slice(at + 1).find((s) => isTranscriptUpload(s) && output.test(s.with?.["execution-file"] ?? ""));
+        assert.ok(upload, `${file}#${jobId} ${step.id}: no transcript upload reads its execution file`);
+        assert.equal(upload.with["public-key"], "${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}", `${file}#${jobId} ${step.id}`);
+        assert.match(String(upload.if), /^always\(\)/, `${file}#${jobId} ${step.id}: runs after a failed leg`);
+        assert.equal(upload["continue-on-error"], true, `${file}#${jobId} ${step.id}: never changes the lane's outcome`);
+      }
+      for (const upload of uploads) {
+        const key = upload.with["job-id"].replaceAll("${{ github.job }}", jobId);
+        assert.ok(!ids.has(key), `${file}: job-id ${key} is in ${ids.get(key)} and ${jobId}`);
+        ids.set(key, jobId);
+        if (job.strategy?.matrix) assert.match(key, /matrix\./, `${file}#${jobId}: a matrix job's job-id names its matrix value`);
+      }
+    }
+  }
+  assert.ok(legs >= 13, `only ${legs} model legs found`);
+});
+
 // request-lane-token's kill-switch-ok ends a kill-switch refusal green with no
 // token, so nothing after it may run on success() alone: every later step is
 // gated, a step that reads the token runs only when it is set, and a job that
