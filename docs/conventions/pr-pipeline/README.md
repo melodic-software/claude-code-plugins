@@ -939,6 +939,9 @@ the rules that only tighten in
   reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
   `findings:claude-review`, `findings:claude-security-review`, `cost-finding`). Every other MEDIUM reason
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
+  `no-patch:` is only an image, font or PDF; any other file the files API sends no patch for (a
+  script with a NUL byte that git calls binary, an over-size patch) no review read, so it holds for
+  a person as `unreviewed-patch:<path>`.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
@@ -1005,21 +1008,42 @@ the rules that only tighten in
   - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
-    `.github/scripts/pr-merge/`. On a pull
+    `.github/scripts/pr-merge/`. And the review's own surface (owner direction 2026-10-28): the
+    review callers and `pr-review-main.yml` with `.github/scripts/pr-review-main/**`, which run the
+    review itself and set the counts the gate reads, and each workflow that holds a credential
+    beyond its job's `GITHUB_TOKEN`: a secret other than `GITHUB_TOKEN`, a lane token
+    (`request-lane-token`), or an OIDC token (`id-token: write`), `pr-merge.yml` and
+    `pr-unblock.yml` among them (owner decision Q11 (A), 2026-10-28: a job token dies with its job
+    and cannot push to main past branch protection, while an App key or PAT outlives the run). So
+    is ci-status, `pr-require-checks.yml`, which posts the required status and runs the hold step,
+    named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
+    can dispatch those credentialed workflows, `intake-reenter.yml` and
+    `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
+    patch hold, so a model verdict alone never clears it. 23 workflows are gated.
+    `scripts/sync-hold-floor.py` derives these rows from the workflow files with
+    `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
+    gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
+    only is off the gate: the main-run review binds it, and a gained write scope, trigger, secret
+    or model leg holds by its patch. Also what changes
+    what agents may do unattended or what later reviews judge against: `**/.claude/**` and
+    `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
+    commands, rules, output styles and memory, under owner decision Q11, which supersedes the
+    2026-10-22 direction for rules), `docs/conventions/instruction-exception-register/**` and
+    `docs/conventions/untrusted-content/**` (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
+    `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
     (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
-    lane changing its own powers is still merged by a person. The token-scope files and the lift
+    lane changing its own powers is still merged by a person. The review's own surface above
+    never takes this lift (`babysit_risk._NO_AUTHOR_LIFT` and every workflow row), so it always
+    waits for a person. The token-scope files and the lift
     and hold-table code and the scripts that apply the holds are `trust`, never `gate`, so they
     never take this lift: agents commit as the trusted owner, so a pull request that widens a lane
     token's scope, widens the lift, drops a floor row or weakens a hold waits for a person.
-  - `enforcement`, a clean security review clears it: `.github/workflows/pr-merge.yml` and
-    `.github/workflows/pr-require-checks.yml` (owner direction 2026-10-27: a workflow-file pull
-    request needs no person unless its security review finds a HIGH or CRITICAL issue), and every
-    other module the floored scripts
+  - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
     reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
@@ -1035,23 +1059,63 @@ the rules that only tighten in
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
     binds to the head with no open finding, then merges with no person; ci-status leaves it to
-    the gate. When the pull request also changes a lane source, the review can never bind at that
-    head, so it scores `review-path-unbindable:<glob>`, which a person clears. A lane source is a
+    the gate. A lane source is a
     path the head's checkout feeds or forges its own review from (`LANE_SOURCE_PREFIXES` and
-    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A changed workflow file is
+    `readonly_workflow` in `babysit_review_evidence.py` state the rule). A pull request that
+    changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
     (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
-    workflow stays a lane source, and so do `pr-merge.yml` and `pr-require-checks.yml` whatever
-    their content, so a person clears any change to either. The `merge` and
+    workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
     `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
     that read; without it no workflow change clears. A comment by a lane author
     (`github-actions[bot]` or the Claude App) binds only while its last editor is its own author:
     anyone with write access can edit a comment, so one edited by another identity unbinds the
     review as `comment-edited`. The edit is read before the body, so an edit that removes the
     lane footer or the marker line still unbinds.
+
+  **Main-run review.** The pull_request review lanes run the head's copy of their callers and post
+  as `github-actions[bot]`, which any write-token workflow a head adds can also post as, so for a
+  pull request that changes a lane source no comment, marker or pull_request run counts.
+  `.github/workflows/pr-review-main.yml` reviews it instead: it runs on `pr-require-checks`'
+  completion through `workflow_run`, so its definition is main's, gates the trigger as pr-verify
+  does, and for a pull request whose changed files include a lane source runs both lanes on the
+  head's diff as data, each lane's criteria and the standards copied from main, with a read-only
+  token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
+  git would call binary is shown as text, and a patch that still holds a binary file or is over
+  300000 bytes gets no verdict. The diff is split into parts one Read returns whole (15000 bytes
+  and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when the
+  run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
+  line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
+  the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
+  `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
+  whole diff) for a person as `long-line-review:<path>`,
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff
+  uses `--no-renames`, so a renamed file is reviewed whole. A verdict binds only when the head
+  also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
+  cancelled before it recorded binds nothing. Each
+  lane uploads `verdict.json` as
+  `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
+  with no model posts its counts as the check run `pr-review-main: <lane>` (titled
+  `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head; it posts nothing else.
+  The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
+  file, event `workflow_run`, on the default branch of this repository with a head the branch
+  holds, and the verdict names that lane, pull request and tree. As with pr-verify's FAIL, a
+  finding counts whatever the run's conclusion; the lane binds only when a counted verdict from a
+  completed, successful run names the pinned head, with the most findings, and the most CRITICAL
+  ones, that any counted review of that tree reported, so a re-run, a failed run or an empty
+  commit never clears one. The security lane also keeps any CRITICAL finding its pull_request review left
+  open, and the most CRITICAL findings any `pr-review-main: claude-security-review` check run
+  records on any head of the pull request (its commits and the heads force pushes replaced), so a
+  whitespace push whose new tree reviews clean cannot re-roll one away. Check runs were chosen
+  over a comment because the checks API has no delete: a pull_request workflow's token can delete
+  an artifact or a comment, not a check run, and a forged one can only add a hold. A count that
+  cannot be read leaves the lane unbound. With no such verdict the lanes stay unbound (`lane-source-changed`), a lane's reason, and a
+  floor `enforcement` path beside it waits for that review. Each lane runs one leg on the reviews
+  role's API key and leaves a lane record (`report-lane-outcome`); a run that leaves no verdict
+  leaves the lanes unbound until the next push.
 
   `merge.diff-check.denied-paths` (empty here) joins the person classes.
   `test_merge_holds_sync.py` derives the JS and Python import closures and requires them on the
@@ -1092,15 +1156,27 @@ the rules that only tighten in
     standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
-    on any other repository every one, and any added `windows` or `macos` line;
+    on any other repository every one, and any added `windows` or `macos` line. A `runs-on`
+    expression that names a matrix key or an input (`${{ matrix.os }}`, `${{ inputs.runner }}`)
+    counts each value that key or the input's `default:` and `options:` gain in the same file;
   - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
-    (a schedule runs billed minutes), a `timeout-minutes` or `leg-timeout-minutes` the patch
-    adds above every one it removes in a workflow whose head text uses one of the model actions
-    below or could not be read, or an artifact `retention-days` the patch adds above every one
-    it removes, or above GitHub's
+    (a schedule runs billed minutes), a raised timeout as below, or an artifact
+    `retention-days` the patch adds above every one it removes, or above GitHub's
     [90-day default](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
     when it removes none (storage past the free quota);
   - a workflow or pipeline file with no patch.
+
+  Off a public repository, a raised timeout is a `timeout-minutes` or `leg-timeout-minutes`. In a
+  workflow whose head text uses one of the model actions below, or could not be read, it is one
+  the patch adds above every one it removes once equal values cancel, so a value removed and
+  re-added on another job hides nothing, or one set to an expression. In a workflow whose head text uses a model action or a
+  local `uses: ./` workflow or action, it is also, head text against base text at each job's key
+  path (a step's timeouts compared among its job's steps), block or flow style, one raised, set
+  to an expression, added above the highest number already at its path, a `timeout-minutes` set
+  where none was above GitHub's
+  [360-minute default](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
+  or one removed from a job or step the head still has, so that default or the action's own
+  applies. A `leg-timeout-minutes` set where none was is a cap, not a raise.
 
   Cost means only what can bill. Model usage under a subscription or prepaid credit does not, so
   a `--model` or `--max-turns` flag reports nothing; nor do hosted minutes or artifact storage on
@@ -1110,13 +1186,35 @@ the rules that only tighten in
   `description:` or `title:` value, or that only edits trailing comments on the same lines in
   place. Flow style, quoted keys and new list items count.
 
-  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
-  `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
-  gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
-  case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
-  each counted against the lines it removes so a moved line or a repin is not new. These widen
-  what a credential or an agent can reach, not only spend, so a person clears them and no cost
-  decision does.
+  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
+  `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
+  in a `${{ }}` expression outside a string, such as `${{ secrets }}` or
+  `contains(secrets, 'X')`, or in an `if:` value without `${{ }}`, job or step level, quoted or a
+  block scalar; every `${{` starts a fresh read, and an expression whose string is
+  still open where its read ends counts as one) scores HIGH as
+  `secret-exposure-review`, and a workflow or composite action patch that gains a `uses:` of
+  `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line
+  invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`, each counted against
+  the lines it removes, an expression split across a folded scalar read whole, so a moved line or
+  a repin is not new; so does a composite action file with no patch to read, unless it is deleted,
+  re-moded, or renamed from another composite action, with no line added. The secrets
+  reference is also read from the head text against the base text, so a workflow with no patch is
+  not skipped. A workflow whose token gains a write scope scores HIGH as
+  `permission-widening-review`: base and head are parsed (PyYAML; without it, the text alone) and
+  each job's write scopes compared, a job left with no `permissions:` of its own or at the top level
+  counting as a gain because it runs on the repository default, an added file compared against
+  none, and unread text, a repeated key or an alias holding. One that gains a `pull_request_target`,
+  `workflow_run`, `issues`, `issue_comment`, `pull_request_review`, `pull_request_review_comment`,
+  `discussion`, `discussion_comment` or `repository_dispatch` trigger scores HIGH as
+  `privileged-trigger-review`. These widen what a
+  credential, an agent or a write token can reach, not only spend, so a person clears them and no
+  cost decision does.
+
+  Accepted: a `secrets` reference moved within one file is net zero and does not hold. Other new
+  triggers, a removed `concurrency` or job `if:` guard, matrix growth and `max-parallel`, a
+  non-Claude model action, and paths outside the ones above (a workflow in a subdirectory of
+  `.github/workflows/`, `Pulumi.yml`, ARM templates, `*.tf.json`) are left to the review lanes'
+  cost hold, which holds for a real charge (`pr-review-hosted.yml`).
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as

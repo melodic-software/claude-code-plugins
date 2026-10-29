@@ -44,8 +44,10 @@
 # so no background fetch can satisfy the lease on the pusher's behalf; a
 # no-expected-value lease paired with --force-if-includes; a lease
 # cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
-# clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
-# recovers deleted refs, and sanctioned skill flows issue it inline).
+# clean -n (dry run), path-scoped checkout/restore, `branch -D` (reflog
+# recovers deleted refs, and sanctioned skill flows issue it inline), and a
+# plain reset --hard or clean -f in a repository under the system temp
+# directory (repo_is_temp_scratch states the exact shape).
 #
 # Per-repo/per-user allow-list: the guardrails `block_dangerous_git_allow`
 # userConfig option is a comma-separated list of the form tokens and sink-shape
@@ -232,6 +234,7 @@ block() {
 # on the allow list.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block_clean_force() {
+  repo_is_temp_scratch && return 0
   block "clean-force" \
     "BLOCKED: git clean with a force flag permanently deletes untracked files." \
     "Preview with git clean -n"
@@ -386,7 +389,8 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # re-measured from a description that undersells it.
 #
 # Resolved at most once per option set and only on the rare path that sees a hex
-# expectation — the guard shells out nowhere else. The result is assigned by a
+# expectation; the guard's one other subprocess is repo_is_temp_scratch's probe,
+# on the reset --hard and clean -f paths. The result is assigned by a
 # plain call, never through `$(…)`: a command substitution runs the function in
 # a SUBSHELL, so the cache would be discarded and a command carrying many lease
 # expectations would spawn one git per expectation.
@@ -424,6 +428,75 @@ repo_oid_width() {
     _repo_oid_width_key=""
     ;;
   esac
+}
+
+# Does this segment's reset --hard or clean -f run in a disposable repository
+# under the system temp directory? Agents create scratch repositories there and
+# reset or clean them, and that work goes with the temp tree anyway (#9779).
+#
+# Only the plainest shape qualifies, so the probe measures the repository git
+# will touch: the Bash tool, and a command that is one plain git invocation,
+# git its own command word (no assignment prefix, wrapper or alias), with no
+# `-c`/`--config`/`--config-env` global (`core.worktree` moves the work tree)
+# and no separator, quote, escape, expansion, grouping, redirection, glob or
+# comment character anywhere in it. This guard follows no `cd`, so a second
+# statement (`c\d <repo> && git reset --hard`, `export GIT_DIR=…; git …`) would
+# leave the probe in the payload cwd while git runs elsewhere. Then git itself,
+# from the locating options the width probe replays, must place both the work
+# tree's top level and the common git directory (a linked worktree's sits with
+# its main repository) under a temp root (hook::under_temp_root), and HOME must
+# not sit under one, since a temp root at HOME or above would admit every
+# repository. /var/tmp is one of hook::under_temp_root's roots, but it outlives
+# a reboot by design, so a repository there is no disposable scratch unless
+# TMPDIR, TMP or TEMP names it (temp_root_persists). Anything else, including a
+# probe that fails, keeps the block.
+#
+# Reads $gi, $sub_idx, $w and $git_locating_opts from the calling check_segment
+# frame. Cached per option set like the width probe, by a plain call.
+#
+# temp_root_persists <path>: whether <path> sits under /var/tmp and under none
+# of TMPDIR, TMP and TEMP.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+temp_root_persists() {
+  local p="${1%/}/" t
+  case "$p" in
+  /var/tmp/* | /private/var/tmp/*) ;;
+  *) return 1 ;; # not under /var/tmp
+  esac
+  for t in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}"; do
+    [[ -n "$t" && "$p" == "${t%/}"/* ]] && return 1
+  done
+  return 0
+}
+_temp_scratch_key=""
+_temp_scratch=1
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+repo_is_temp_scratch() {
+  local j key out top common unsafe=$'[][;&|\n\r$\\\\\'"`(){}<>*?#]'
+  [[ "$TOOL_NAME" == "Bash" && -n "${HOME:-}" ]] || return 1
+  [[ "$COMMAND" =~ $unsafe ]] && return 1
+  ((gi == 0 && HOOK_ALIAS_DEPTH == 0)) || return 1
+  for ((j = gi + 1; j < sub_idx; j++)); do
+    case "${w[j]}" in
+    -c* | --config*) return 1 ;;
+    *) ;;
+    esac
+  done
+  key="${git_locating_opts[*]}"
+  [[ "$key" == "$_temp_scratch_key" ]] && return "$_temp_scratch"
+  _temp_scratch_key="$key"
+  _temp_scratch=1
+  # `exec` for the same reason as the width probe: one process, not two.
+  out="$(exec git "${git_locating_opts[@]}" rev-parse --path-format=absolute \
+    --show-toplevel --git-common-dir 2>/dev/null)" || return 1
+  out="${out//$'\r'/}"
+  top="${out%%$'\n'*}"
+  common="${out#*$'\n'}"
+  [[ -n "$top" && -n "$common" && "$common" != "$out" && "$common" != *$'\n'* ]] || return 1
+  hook::under_temp_root "$top" && hook::under_temp_root "$common" || return 1
+  temp_root_persists "$top" || temp_root_persists "$common" && return 1
+  hook::under_temp_root "$HOME" && return 1
+  _temp_scratch=0
 }
 
 # Reads $git_locating_opts from the calling check_segment frame.
@@ -1068,7 +1141,7 @@ check_segment() {
         ((k++))
         continue
       fi
-      abbrev_match "hard" "$x" 1 && block "reset-hard" \
+      abbrev_match "hard" "$x" 1 && ! repo_is_temp_scratch && block "reset-hard" \
         "BLOCKED: git reset --hard discards uncommitted work." \
         "Commit or stash first (git stash push -u), or use git reset --keep"
     done

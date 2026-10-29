@@ -147,7 +147,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -506,7 +508,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -867,7 +871,9 @@ jobs:
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the

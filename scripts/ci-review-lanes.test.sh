@@ -114,7 +114,7 @@ fi
 # An exempt author's pull request, which no review lane reads, still fails on
 # the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
 # `*`. The security review's own files in hold-paths are scrutiny only.
-want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
   ok "the exempt-author hold patterns are the trust-gate paths"

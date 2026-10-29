@@ -54,7 +54,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
+import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -429,7 +429,10 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // refinement comment by the lanes App (`laneAppId`), the newest and only
 // while unedited (admit.mjs refinementSpec) and created before the pull
 // request, so nothing the App posts once a lane run has the issue becomes
-// spec (`specText`). Other Bot and App text is left out even where
+// spec (`specText`), with the body's done-when items that refinement lists
+// as checks a person runs (`person_checks`, admit.mjs personChecks under the
+// issue lane's `webHosts`); a split refinement whose record does not stand is
+// left out. Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
 // admission's `task-list` (admit.mjs splitChildBody, its one home).
@@ -437,7 +440,7 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head.
-export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList) {
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -514,17 +517,26 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     specText: issues.map((issue) => {
       const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
       const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
+      // Under admission's guards and web hosts (admit.mjs personChecks).
+      const checks = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList, webHosts);
+      // A split refinement whose record does not stand reaches the verifier
+      // in no form, so its prose names no item a person runs; a split drafts
+      // no criteria (refine.mjs validateOutput), so nothing else goes with it.
+      const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
-        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
+        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
+        // The body's done-when items that refinement lists as checks a
+        // person runs (admit.mjs personChecks), each as written.
+        ...(checks.length > 0 && { person_checks: checks.map((n) => taskItems(issue.body, taskList)[n - 1].text) }),
       };
     }),
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -586,7 +598,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     // This PR's plain FAIL stands unless it now links issues a FAIL name
     // carries, which differ from the none or too many the FAIL recorded, and
     // only trusted people changed the link since. A failed read keeps it.
-    specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList).catch(() => null);
+    specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts).catch(() => null);
     const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
     if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
       return skip("already-judged");
@@ -596,7 +608,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
       return skip("already-judged");
     }
   }
-  specRead ??= await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
+  specRead ??= await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts);
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
@@ -704,6 +716,9 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     // Admission's task-list marker, from the checkout this script runs from
     // (main's, in pr-verify.yml): a split sub-issue counts only by it.
     taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],
+    // The issue lane's web hosts, which pr-verify.yml reads from main's
+    // pr-pipeline.yaml as admission does (resolve-config issueLaneWebHostsFromBase).
+    webHosts: webHostsFrom(env.ISSUE_LANE_WEB_HOSTS),
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
   });
