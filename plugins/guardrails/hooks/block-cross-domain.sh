@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook: deny a Bash or PowerShell call, from a session in one of
-# this machine's identity domains, that names a path of another.
+# this machine's identity domains, that names a path of another, and, from any
+# session, one that writes the machine's git identity.
 #
 # An identity domain is a set of trees one identity owns, with its own git
 # author, gh and az config directories and remote owners. THE MAP names each
@@ -32,12 +33,15 @@
 # (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). An unknown key or any
 # other shape makes the map malformed. Only this host's roots (OSTYPE: msys,
 # cygwin and win32 read `windows`, darwin `macos`, every other host `linux`),
-# the owners, the markers and the gh and az config directories are used here;
-# the other keys are validated and kept for the rules that read them.
+# the owners, the markers, the gh and az config directories and the identity
+# files are used here; the other keys are validated and kept for the rules that
+# read them.
 #
 # WHAT A CALL COSTS. Each step leaves at the first that settles the call:
 #   1. the kill switch, before any source;
-#   2. no map file: exit 0, having read and parsed nothing;
+#   2. no map file: no domain and no step 3 or 4, so only the GIT IDENTITY
+#      WRITES rule below can deny, and a call its prefilter misses leaves at
+#      step 5 with no trace and no telemetry;
 #   3. the map, compiled by jq into CACHE (identity-domains.cache beside it)
 #      once per change of its bytes or of HOME and read back with builtins
 #      otherwise, so a steady call starts no process; a malformed map is
@@ -47,14 +51,18 @@
 #   5. the prefilter: the command text, lowercased with `\` read as `/` and
 #      its quotes dropped, is tested for each path and marker, and, from a cwd
 #      in a domain of a map with a gh or az config directory, for the word `gh`
-#      or `az`. A command that names none leaves here, before it is parsed;
+#      or `az`, and, from every cwd, for both `git` and `config` or the last
+#      name of an identity file the map lists. A command that names none
+#      leaves here, before it is parsed;
 #   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
 #      and redirection targets are tested the same way; on PowerShell the text
-#      as a whole, parsed only for the identity positions below;
+#      as a whole, parsed only for the identity positions and identity writes
+#      below;
 #   7. the decision: from a cwd in a domain, a path of another domain named in
 #      step 6 denies the call, a read as much as a write, as does a gh or az
 #      call that breaks the CONFIG DIRECTORIES rule below. A marker never
-#      denies here, and from a neutral cwd nothing is denied.
+#      denies here. From every cwd, neutral included, an identity write denies
+#      the call; from a neutral cwd nothing else is denied.
 #
 # A domain's PATHS are its roots and, for each owner, the owner's directory
 # below $HOME/src/github.com and $HOME/worktrees/github.com. A text NAMES a
@@ -105,10 +113,35 @@
 # as HOME and, on Windows, a `/c/`, `/cygdrive/c/` or `/mnt/c/` prefix read as
 # `c:/`.
 #
+# GIT IDENTITY WRITES. From every cwd, in a domain or neutral, and on a host
+# with no map, a call is denied that writes the machine's git identity:
+#   - `git config` with `--global`, `--system` or `--file <identity file>`
+#     (`-f`, `--file=`) that sets, adds, replaces or unsets user.email,
+#     user.signingkey, user.useConfigOnly, credential.helper (and its
+#     credential.<url>.helper form), core.sshCommand, core.hooksPath or an
+#     includeIf key, in the old form or after `set` or `unset`; one that
+#     renames or removes the user, core, credential or an includeIf section;
+#     and `--edit` or `edit`, which may touch every key;
+#   - a shell write to an identity file: an output redirection to it (the
+#     targets of `&>`, `&>>` and `>|`, which the parse splits at the `&` or
+#     `|`, are read from the folded text); an operand of tee, touch, truncate,
+#     rm, unlink, shred, mv or a PowerShell writer (Set-Content, Add-Content,
+#     Out-File, Clear-Content, Remove-Item, New-Item, Move-Item, Rename-Item,
+#     Tee-Object and their aliases); the destination of cp, install, ln,
+#     rsync, scp (not a `host:path` one) or Copy-Item; a file sed or perl
+#     edits in place; dd's `of=`.
+# An IDENTITY FILE is a `<name>.gitconfig` file anywhere, one directly in HOME
+# whose name starts with `.gitconfig`, and each of the map's
+# identity_files with every path below it, compared as CONFIG DIRECTORIES
+# compares a directory. Reads pass: `--get` and the other `--get-*` forms,
+# `-l`/`--list`, `config get`, `config list`, the old form with a key and no
+# value, and a command that only reads an identity file (`cat`, a cp source).
+#
 # Steps 4, 6 and 7 feed the telemetry envelope: `cwd` is domain or neutral,
 # `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, identity-deny, config-deny, or map-malformed (whose cwd
-# is always neutral), and `status` is blocked for a denied call, else ok. The envelope
+# named), other-domain, identity-deny, config-deny, identity-write-deny, or
+# map-malformed (whose cwd is always neutral), and `status` is blocked for a
+# denied call, else ok. The envelope
 # names no domain; `subject` is the command word, as in every guard's. The
 # path deny reason, on the model's channel, names the cwd's domain and the
 # others.
@@ -131,6 +164,16 @@
 #   - an export inside a subshell or a pipeline, which counts for later
 #     commands, and `export NAME` with no value after a bare `NAME=value`,
 #     which does not
+#   - an identity write inside a `bash -c` or `sh -c` operand, through a git
+#     alias (`git -c alias.c=config c --global ...`), after a wrapper option
+#     that takes a value (`sudo -u <user> tee`), by a redirection with no
+#     command word (`> ~/.gitconfig` alone), by a copy into a directory that
+#     leaves the file's name out, across a PowerShell backtick line
+#     continuation, or to git's XDG global file (`~/.config/git/config`),
+#     which is no identity file here; and, the other way, an `&>` or `>|`
+#     with an identity file after it inside quoted text, which denies
+#   - a map that is malformed, or a missing jq with a map, which turns the
+#     whole guard off, the identity-write rule included
 #
 # TEST HOOK. GUARDRAILS_CROSS_DOMAIN_TRACE=1 writes one stderr line per step a
 # call reaches (`block-cross-domain: trace <step>`).
@@ -154,11 +197,11 @@ source "$_HOOK_SELF/abort-boundary.sh"
 # only chosen status: this guard never blocks by exit code.
 guard::abort_boundary block-cross-domain PreToolUse open 0
 
-# No map, nothing to do: leave before the library is parsed.
-BCD_MAP="${CLAUDE_PLUGIN_DATA:-}"
-[[ -n "$BCD_MAP" ]] || exit 0
-BCD_MAP="${BCD_MAP%/}/identity-domains.json"
-[[ -f "$BCD_MAP" ]] || exit 0
+# Empty when there is no map: then no domain, and only the identity-write rule.
+BCD_MAP=""
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" && -f "${CLAUDE_PLUGIN_DATA%/}/identity-domains.json" ]]; then
+  BCD_MAP="${CLAUDE_PLUGIN_DATA%/}/identity-domains.json"
+fi
 
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -169,7 +212,7 @@ start=${EPOCHREALTIME:-}
 hook::buffer_stdin_to INPUT || exit 0
 
 # The map is compiled by jq. Without it: one notice per session, then allow.
-hook::require jq PreToolUse guardrails "$INPUT"
+[[ -z "$BCD_MAP" ]] || hook::require jq PreToolUse guardrails "$INPUT"
 
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
@@ -187,7 +230,7 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=3
+BCD_FORMAT=4
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
@@ -219,10 +262,15 @@ BCD_GH_SET=""
 BCD_GH=""
 BCD_AZ_SET=""
 BCD_AZ=""
+BCD_WRITES=0
+BCD_IDFILES=()
+BCD_IDFILE_NAMES=()
+BCD_WRITE_DENY=()
 
 # The compiler: the map's raw text and HOME in, one line per record out:
-# `marker`, `gh` and `az` records, then this host's `root` records and each
-# owner's two `owner` directories below HOME, longest first
+# `marker`, `gh` and `az` records, one `idfile` record per identity file with
+# an empty domain, then this host's `root` records and each owner's two `owner`
+# directories below HOME, longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
 # rejected map yields no partial set. The reason names keys, never values.
@@ -274,6 +322,7 @@ def compile($os; $home):
   | .domains | object("domains")
   | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]
   | map(select(.kind != "root" and .kind != "owner"))
+    + [$files[] | {kind: "idfile", d: "", v: .}]
     + (map(select(.kind == "root" or .kind == "owner"))
       | sort_by(.v | gsub("[\\\\/]+"; "/") | sub("/$"; "") | sub("^/(cygdrive|mnt)/"; "/") | length) | reverse)
   | map("\(.kind)\t\(.d)\t\(.v)");
@@ -494,6 +543,7 @@ bcd::segment() {
   fi
   ((BCD_IDENTITY)) && bcd::identity "$@"
   ((BCD_CONFIG)) && bcd::config "$@"
+  ((BCD_WRITES)) && bcd::writes "$@"
   return 0
 }
 
@@ -823,6 +873,246 @@ bcd::config_deny() {
   exit 0
 }
 
+# bcd::write_prefilter: whether the folded command text could hold an identity
+# write: both `git` and `config`, or the last name of a listed identity file.
+bcd::write_prefilter() {
+  local n
+  [[ "$BCD_SUBJECT" == *git* && "$BCD_SUBJECT" == *config* ]] && return 0
+  for n in ${BCD_IDFILE_NAMES[@]+"${BCD_IDFILE_NAMES[@]}"}; do
+    [[ -n "$n" && "$BCD_SUBJECT" == *"$n"* ]] && return 0
+  done
+  return 1
+}
+
+# bcd::is_idfile <word>: whether the word names an identity file (GIT IDENTITY
+# WRITES).
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::is_idfile() {
+  local p s
+  bcd::dir_to p "$1"
+  [[ "${p##*/}" == ?*.gitconfig ]] && return 0
+  if [[ "${p##*/}" == .gitconfig* && "$p" == */* ]]; then
+    [[ -n "$BCD_HOME_FOLD" && "${p%/*}" == "$BCD_HOME_FOLD" ]] && return 0
+    # shellcheck disable=SC2016  # spellings matched as text, never expanded
+    for s in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
+      [[ "${p%/*}" == "$s" ]] && return 0
+    done
+  fi
+  for s in ${BCD_IDFILES[@]+"${BCD_IDFILES[@]}"}; do
+    [[ -n "$s" && ("$p" == "$s" || "$p" == "$s"/*) ]] && return 0
+  done
+  return 1
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::write_found() { # <what the command writes, as written>
+  local p
+  for p in ${BCD_WRITE_DENY[@]+"${BCD_WRITE_DENY[@]}"}; do
+    [[ "$p" == "$1" ]] && return 0
+  done
+  BCD_WRITE_DENY+=("$1")
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::write_word() { # <command word or operator> <operand>
+  bcd::is_idfile "$2" && bcd::write_found "$1 $2"
+  return 0
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::identity_key() { # <config key>
+  case "${1,,}" in
+  user.email | user.signingkey | user.useconfigonly | credential.helper | credential.*.helper | \
+    core.sshcommand | core.hookspath | includeif.*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::identity_section() { # <config section>
+  case "${1,,}" in
+  user | core | credential | credential.* | includeif.*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# bcd::inplace_flag <sed|perl> <word>: whether the option word edits in place:
+# an `i` among its bundled letters before one that takes a value (`-pi.bak`,
+# `-Ei`; not `-Mstrict` or `-ne`).
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::inplace_flag() {
+  local flag=$2 stop=efl k c
+  [[ "$flag" == --in-place* ]] && return 0
+  [[ "$flag" == -[!-]* ]] || return 1
+  [[ "$1" == perl ]] && stop=eEMmIxCl0
+  for ((k = 1; k < ${#flag}; k++)); do
+    c=${flag:k:1}
+    [[ "$c" == i ]] && return 0
+    [[ "$stop" == *"$c"* ]] && return 1
+  done
+  return 1
+}
+
+# bcd::text_redirs: the targets of `&>`, `&>>` and `>|`, read from the folded
+# text, since the parse splits each of them at its `&` or `|`.
+bcd::text_redirs() {
+  local t=$BCD_SUBJECT re='(&>>?|>[|])[[:space:]]*([^[:space:];&|<>()]+)(.*)$'
+  while [[ "$t" =~ $re ]]; do
+    bcd::write_word "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    t=${BASH_REMATCH[3]}
+  done
+}
+
+# bcd::git_config_write: the identity write of the segment's `git config`, from
+# hook::git_invocation's words.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::git_config_write() {
+  local -a g=("${HOOK_GITINV_WORDS[@]}") pos=()
+  local n=${#HOOK_GITINV_WORDS[@]} j=$((HOOK_GITINV_SUB_IDX + 1)) w scope="" action="" key
+  for ((; j < n; j++)); do
+    w=${g[j]}
+    case "$w" in
+    --global | --system) scope=$w ;;
+    -f | --file)
+      j=$((j + 1))
+      bcd::is_idfile "${g[j]-}" && scope="$w ${g[j]}"
+      ;;
+    --file=*) bcd::is_idfile "${w#--file=}" && scope=$w ;;
+    --blob | --type | --default | --comment | --value | --url) j=$((j + 1)) ;;
+    --get | --get-all | --get-regexp | --get-urlmatch | --get-color | --get-colorbool | -l | --list) return 0 ;;
+    -e | --edit | --unset | --unset-all | --add | --replace-all | --rename-section | --remove-section) action=$w ;;
+    --)
+      pos+=("${g[@]:j+1}")
+      break
+      ;;
+    -*) ;;
+    *) pos+=("$w") ;;
+    esac
+  done
+  [[ -n "$scope" ]] || return 0
+  case "${pos[0]-}" in
+  get | list) return 0 ;;
+  set | unset | edit | rename-section | remove-section)
+    action=${pos[0]}
+    pos=("${pos[@]:1}")
+    ;;
+  *) ;;
+  esac
+  case "$action" in
+  -e | --edit | edit)
+    bcd::write_found "git config $scope $action"
+    return 0
+    ;;
+  --rename-section | --remove-section | rename-section | remove-section)
+    for key in ${pos[@]+"${pos[@]}"}; do
+      bcd::identity_section "$key" && bcd::write_found "git config $scope $action $key"
+    done
+    return 0
+    ;;
+  # The old form with a key and no value reads it.
+  "") ((${#pos[@]} >= 2)) || return 0 ;;
+  *) ;;
+  esac
+  key=${pos[0]-}
+  bcd::identity_key "$key" && bcd::write_found "git config $scope ${action:+$action }$key"
+  return 0
+}
+
+# bcd::writes <words...>: the identity writes of one segment, into
+# BCD_WRITE_DENY.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::writes() {
+  local -a w=("$@")
+  local n=$# i=0 k op t cmd="" dest="" named=0 inplace=0
+  for ((k = 0; k < ${#HOOK_SEG_REDIR_OP[@]}; k++)); do
+    op=${HOOK_SEG_REDIR_OP[k]}
+    t=${HOOK_SEG_REDIR_TARGET[k]-}
+    case "$op" in
+    '>&') [[ "$t" =~ ^([0-9]+|-)$ ]] && continue ;;
+    '>'* | '<>') ;;
+    *) continue ;;
+    esac
+    bcd::write_word "$op" "$t"
+  done
+  if hook::git_invocation "$@" && [[ "${HOOK_GITINV_SUB,,}" == config ]]; then
+    bcd::git_config_write
+  fi
+  while ((i < n)); do
+    case "${w[i]}" in
+    if | then | elif | else | do | while | until | '{' | '!' | time | command | exec | nohup | sudo | doas | env | */env | -* | [A-Za-z_]*=*) ;;
+    *)
+      cmd=${w[i]##*/}
+      break
+      ;;
+    esac
+    i=$((i + 1))
+  done
+  cmd=${cmd,,}
+  cmd=${cmd%.exe}
+  case "$cmd" in
+  tee | touch | truncate | rm | unlink | shred | mv | set-content | add-content | out-file | clear-content | \
+    remove-item | new-item | move-item | rename-item | tee-object | ac | clc | ni | ri | del | erase | mi | move | ren | rni)
+    for ((k = i + 1; k < n; k++)); do bcd::write_word "$cmd" "${w[k]}"; done
+    ;;
+  cp | install | ln | rsync | scp | copy-item | cpi | copy)
+    # The last operand, unless an option names the destination: `-t` for cp,
+    # install and ln (rsync's `-t` is --times), and PowerShell's -Destination
+    # by any prefix it accepts, with a space or a colon.
+    for ((k = i + 1; k < n; k++)); do
+      t=${w[k],,}
+      case "$cmd:$t" in
+      cp:-t | install:-t | ln:-t | cp:--target-directory | install:--target-directory | ln:--target-directory | \
+        copy-item:-des* | cpi:-des* | copy:-des*)
+        named=1
+        if [[ "$t" == -des*:?* ]]; then
+          bcd::write_word "$cmd" "${w[k]#*:}"
+        else
+          k=$((k + 1))
+          bcd::write_word "$cmd" "${w[k]-}"
+        fi
+        ;;
+      *:--target-directory=*)
+        named=1
+        bcd::write_word "$cmd" "${w[k]#*=}"
+        ;;
+      *:-*) ;;
+      *) dest=${w[k]} ;;
+      esac
+    done
+    # A `host:path` destination of scp or rsync is another machine's file.
+    [[ ("$cmd" == scp || "$cmd" == rsync) && "$dest" =~ ^[^/]{2,}: ]] && dest=""
+    ((named)) || [[ -z "$dest" ]] || bcd::write_word "$cmd" "$dest"
+    ;;
+  sed | perl)
+    for ((k = i + 1; k < n; k++)); do
+      bcd::inplace_flag "$cmd" "${w[k]}" && inplace=1
+    done
+    if ((inplace)); then
+      for ((k = i + 1; k < n; k++)); do
+        [[ "${w[k]}" == -* ]] || bcd::write_word "$cmd" "${w[k]}"
+      done
+    fi
+    ;;
+  dd)
+    for ((k = i + 1; k < n; k++)); do
+      [[ "${w[k]}" == of=* ]] && bcd::write_word "$cmd" "${w[k]#of=}"
+    done
+    ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# bcd::write_deny: the PreToolUse deny naming each identity write, then exit 0.
+bcd::write_deny() {
+  local p list="" reason
+  for p in "${BCD_WRITE_DENY[@]}"; do list+="${list:+; }$p"; done
+  hook::json_escape_to reason "guardrails block-cross-domain: denied. This command writes this machine's git identity ($list). The global, system and identity-file values of user.email, user.signingkey, user.useConfigOnly, credential.helper, core.sshCommand, core.hooksPath and includeIf, and the identity files themselves (~/.gitconfig*, *.gitconfig and the domain map's identity_files), decide which identity every repository on this machine commits and pushes as, so no session writes them, from any directory. Set a value for this repository alone with git config --local, or ask the user to make the change. To turn the guard off, set block_cross_domain_enabled to false."
+  bcd::emit_tel identity-write-deny blocked
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  exit 0
+}
+
 bcd::classify_cwd() {
   local cwd r i best=0
   [[ -n "$BCD_CWD_RAW" ]] || return 0
@@ -838,7 +1128,7 @@ bcd::classify_cwd() {
 
 [[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
 [[ -n "$BCD_HOME" ]] && bcd::fold_to BCD_HOME_FOLD "$BCD_HOME"
-bcd::load
+[[ -z "$BCD_MAP" ]] || bcd::load
 [[ "${BCD_RECORDS[0]-}" == invalid"$BCD_TAB"* ]] && bcd::malformed "${BCD_RECORDS[0]#invalid"$BCD_TAB"}"
 
 for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
@@ -859,6 +1149,11 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
     bcd::dir_to BCD_VAL "$BCD_VAL"
     BCD_CONF_DIR+=("$BCD_VAL")
     ;;
+  idfile)
+    bcd::dir_to BCD_VAL "$BCD_VAL"
+    BCD_IDFILES+=("$BCD_VAL")
+    BCD_IDFILE_NAMES+=("${BCD_VAL##*/}")
+    ;;
   *) ;; # a kind a newer guard writes: CACHE is keyed by BCD_FORMAT, so none reaches here
   esac
 done
@@ -875,13 +1170,17 @@ if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
   *) ;;
   esac
 fi
-if ((BCD_PATHS == 0 && BCD_CONFIG == 0)); then
+bcd::write_prefilter && BCD_WRITES=1
+if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_WRITES == 0)); then
+  # With no map this is nearly every call on every host: it leaves untraced.
+  [[ -n "$BCD_MAP" ]] || exit 0
   bcd::trace prefilter-miss
   bcd::emit_tel prefilter-miss
   exit 0
 fi
 ((BCD_PATHS)) && bcd::trace prefilter-hit
 ((BCD_CONFIG)) && bcd::trace config-hit
+((BCD_WRITES)) && bcd::trace write-hit
 
 # Identity positions are read only from a cwd in a domain, and only when the
 # text names another domain's marker.
@@ -899,11 +1198,13 @@ if [[ "$TOOL_NAME" == Bash ]]; then
   BCD_NAMED=" "
   BCD_DENY=()
   hook::bash_parse_segments "$COMMAND" bcd::segment
-elif ((BCD_IDENTITY || BCD_CONFIG)); then
+elif ((BCD_IDENTITY || BCD_CONFIG || BCD_WRITES)); then
   bcd::trace identity-parse
   BCD_PATHS=0
   hook::bash_parse_segments "${COMMAND//\\//}" bcd::segment
 fi
+((BCD_WRITES)) && bcd::text_redirs
+((${#BCD_WRITE_DENY[@]})) && bcd::write_deny
 ((${#BCD_IDENTITY_DENY[@]})) && bcd::identity_deny
 ((${#BCD_CONFIG_DENY[@]})) && bcd::config_deny
 
