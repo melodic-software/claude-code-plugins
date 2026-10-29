@@ -4230,13 +4230,10 @@ jobs:
             echo "The cost hold stays for a person: $1."
             exit 0
           }
-          # Each answer is kept for the later steps' pr_read of the same args.
+          # Every read is live, as this step acts on it; each answer is kept
+          # for the later steps' pr_read of the same args.
           read_api() {
-            local attempt out file
-            if file=$(pr_read_file "$@") && [ -f "$file" ]; then
-              cat "$file"
-              return 0
-            fi
+            local attempt out
             for attempt in 1 2 3; do
               # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
               if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
