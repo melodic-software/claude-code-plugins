@@ -87,8 +87,10 @@ const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
   .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?![\\w-])`, "i")]);
-// A reason that names a security concern, even inside a word.
-const SECURITY_WORD = /security|vuln|inject|credential|secret|token|exfiltrat|malicious/i;
+// A reason that names a security concern, even inside a word; the short
+// acronyms (XSS, RCE, CVE) only as whole words, so "source" names none.
+const SECURITY_WORD =
+  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|backdoor|exploit|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 // The routes that end the lane's work on the issue rather than bring it back:
 // a security mention after one of their codes still reaches a person (owner
 // decision 2026-10-29). A wait or retry code comes back to the lane anyway.

@@ -24,8 +24,8 @@ const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?
 // default branch and closes the issue: a pull request (`#<n>`) merged into
 // the default branch, or a commit SHA the default branch contains (the
 // compare from it is ahead or identical), merged or committed after the issue
-// opened, whose commit message closes the issue (closesIssue). A pull request
-// is read by its merge commit, which a squash fills from the body, since its
+// opened and after it was last reopened, whose commit message closes the
+// issue (closesIssue). A pull request is read by its merge commit, which a squash fills from the body, since its
 // title and body stay editable after the merge. Lane pull requests carry
 // `Closes #N`, so nothing else counts: a release commit once closed an issue
 // it never touched (run 40844966342). A read that fails, or a reason that
@@ -44,7 +44,7 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
   }
   const issue = await github("GET", `${repo}/issues/${issueNumber}`).catch(() => null);
   const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
-  const opened = Date.parse(issue?.created_at);
+  const opened = Math.max(Date.parse(issue?.created_at), await lastReopened(github, repo, issueNumber));
   if (!Number.isFinite(opened) || typeof base !== "string" || base === "") {
     return false;
   }
@@ -76,6 +76,29 @@ export async function doneEvidence(github, repo, reason, issueNumber) {
     }
   }
   return false;
+}
+
+// When issue `issueNumber` was last reopened (-Infinity when never), so work
+// merged before a person reopened it is no evidence; NaN when its events do
+// not read whole within EVENT_PAGES pages, which fails the check closed.
+const EVENT_PAGES = 10;
+async function lastReopened(github, repo, issueNumber) {
+  let last = -Infinity;
+  for (let page = 1; page <= EVENT_PAGES; page += 1) {
+    const events = await github("GET", `${repo}/issues/${issueNumber}/events?per_page=100&page=${page}`).catch(() => null);
+    if (!Array.isArray(events)) {
+      return Number.NaN;
+    }
+    for (const event of events) {
+      if (event?.event === "reopened") {
+        last = Math.max(last, Date.parse(event.created_at));
+      }
+    }
+    if (events.length < 100) {
+      return last;
+    }
+  }
+  return Number.NaN;
 }
 
 // report-outcome's close marker, alone or after its escalation line.

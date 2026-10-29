@@ -2145,6 +2145,7 @@ test("closedByTrusted counts the lanes App's already-done close only while its e
       "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [] } } } } },
       "GET /repos/o/r/issues/77/comments?per_page=100&page=1": [{ user: APP, body: closeBody(stop) }],
       "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [],
+      "GET /repos/o/r/issues/77/events?per_page=100&page=1": [],
       "GET /repos/o/r": { default_branch: "main" },
       "GET /repos/o/r/pulls/5": { merged_at: "2026-10-20T00:00:00Z", base: { ref: "main" }, merge_commit_sha: mergeSha },
       [`GET /repos/o/r/commits/${mergeSha}`]: { commit: { message } },

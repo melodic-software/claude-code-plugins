@@ -3537,9 +3537,11 @@ test("main closes an already-done issue only when its cited commit is on the def
 });
 
 // doneEvidence against a fake client: each route answers its path, and a path
-// no route names fails the read, as a GitHub error would.
+// no route names fails the read, as a GitHub error would. An issue never
+// reopened answers its event list empty unless a route says otherwise.
+const NO_EVENTS = [/\/issues\/77\/events\?per_page=100&page=1$/, []];
 const evidenceClient = (routes) => async (method, path) => {
-  const route = routes.find(([pattern]) => pattern.test(path));
+  const route = [...routes, NO_EVENTS].find(([pattern]) => pattern.test(path));
   if (method !== "GET" || !route) {
     throw new Error(`no route for ${method} ${path}`);
   }
@@ -3641,6 +3643,25 @@ test("doneEvidence tries each pull request the reason cites", async () => {
   ]);
   assert.equal(await doneEvidence(github, "/repos/o/r", "already-done: duplicate of #50, fixed by #60", 77), true);
   assert.equal(await doneEvidence(github, "/repos/o/r", "already-done: duplicate of #50, #51 and #52, fixed by #60", 77), false, "past the first three numbers");
+});
+
+// Security review on #10978: a person who reopened the issue after the cited
+// merge said the work is not done, so that merge proves nothing; work merged
+// after the reopen does, and an event list that does not read proves nothing.
+test("doneEvidence takes only work merged after the issue was last reopened", async () => {
+  const reason = "already-done: #5 shipped it";
+  const pull = (events) =>
+    evidenceClient([
+      [/\/repos\/o\/r$/, { default_branch: "main" }],
+      [/\/pulls\/5$/, { merged_at: "2026-10-29T14:07:27Z", merge_commit_sha: MERGE_SHA, base: { ref: "main" } }],
+      [new RegExp(`/commits/${MERGE_SHA}$`), { commit: { message: "fix: tidy (#5)\n\nCloses #77" } }],
+      [/\/issues\/77\/events\?/, events],
+      EVIDENCE_ISSUE,
+    ]);
+  const reopen = (at) => ({ event: "reopened", created_at: at });
+  assert.equal(await doneEvidence(pull([reopen("2026-10-29T15:00:00Z")]), "/repos/o/r", reason, 77), false, "reopened after the merge");
+  assert.equal(await doneEvidence(pull([reopen("2026-10-20T00:00:00Z"), { event: "closed", created_at: "2026-10-21T00:00:00Z" }]), "/repos/o/r", reason, 77), true, "reopened before the merge");
+  assert.equal(await doneEvidence(pull(null), "/repos/o/r", reason, 77), false, "an unreadable event list");
 });
 
 test("doneEvidence proves nothing when a read fails", async () => {

@@ -3005,10 +3005,11 @@ const closeComment = (stop, words, user = LANES_APP) => ({
   ].join("\n"),
 });
 const APP_CLOSED = { number: 77, state: "closed", closed_by: LANES_APP };
-const appCloseRoutes = ({ comments = [closeComment("already-done", "already-done: ＃5 shipped it")], message = "fix: tidy (#5)\n\nCloses #77", merged = true } = {}) => ({
+const appCloseRoutes = ({ comments = [closeComment("already-done", "already-done: ＃5 shipped it")], message = "fix: tidy (#5)\n\nCloses #77", merged = true, events = [] } = {}) => ({
   "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } },
   "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
   "GET /repos/o/r/issues/77": { number: 77, created_at: "2026-10-01T00:00:00Z" },
+  "GET /repos/o/r/issues/77/events?per_page=100&page=1": events,
   "GET /repos/o/r": { default_branch: "main" },
   "GET /repos/o/r/pulls/5": { merged_at: merged ? "2026-10-20T00:00:00Z" : null, base: { ref: "main" }, merge_commit_sha: MERGE_SHA },
   [`GET /repos/o/r/commits/${MERGE_SHA}`]: { commit: { message } },
@@ -3026,6 +3027,17 @@ const routeClient = (routes, failOn = "") => async (method, path) => {
 
 test("isTrustedClose: the lanes App's already-done close counts when its merged pull request still closes the issue", async () => {
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
+});
+
+// Security review on #10978: a person who reopens an issue after the cited
+// merge says the work is not done, so the App's later close on that same
+// merge counts for nothing; a reopen before the merge changes nothing.
+test("isTrustedClose: the lanes App's already-done close counts for nothing when the issue was reopened after the cited merge", async () => {
+  const reopened = (at) => [{ event: "reopened", created_at: at }];
+  const close = (routes, failOn) => isTrustedClose(routeClient(routes, failOn), "o/r", APP_CLOSED, new Set(), isLanesApp);
+  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-25T00:00:00Z") })), false);
+  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-10T00:00:00Z") })), true);
+  assert.equal(await close(appCloseRoutes(), "GET /repos/o/r/issues/77/events?per_page=100&page=1"), false, "an unreadable event list");
 });
 
 test("isTrustedClose: the lanes App's already-done close counts for nothing once its evidence no longer verifies", async () => {
