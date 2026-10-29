@@ -532,10 +532,10 @@ eight isolation subshells (the guards are sourced into the dispatcher's shell
 and `exit` is a function there), the `$(declare -f)` copy of `hook::jq_fields`,
 the `printf | jq` process substitution that primed the fields (the library now
 proves the common payload's fields with builtins and runs jq only when it
-cannot), and the seven telemetry-subject captures. Decisions: byte-identical
-rc, stdout and stderr against 0.33.11 over the perf baseline's 17-command
-corpus in both tool modes (34 cases) and over every command harvested from the
-eight guard suites.
+cannot), and the seven telemetry-subject captures. Every decision is
+byte-identical to 0.33.11 in exit code, stdout and stderr, over the perf
+baseline's 17-command corpus in both tool modes (34 cases) and over every
+command harvested from the eight guard suites.
 
 **0.32.20, forks with no exec in `block-dangerous-git`.** 2026-09-06, Linux CI
 host. A PATH shim counts execs, and a fork that never execs is invisible to
