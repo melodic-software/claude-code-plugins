@@ -1107,6 +1107,20 @@ class TestNamedTunnelLease(ShareCase):
         self.assertEqual((code, out["tunnel"]), (0, "named"), err)
         self.assertEqual(tunnel.read(self.d)["connector"], ours)
 
+    def test_a_crashed_cloudflared_of_this_session_still_listed_is_not_another_machine(self):
+        ours = "0b0b0b0b-0000-4000-8000-00000000000b"
+        cf = FakeCloudflare(self)
+        environ = env(FAKE_CF_ARGS=str(self.args), FAKE_CF_CONNECTOR=ours, SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
+        args = ["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api)]
+        code, first, err = share(self.d, *args, environ=environ)
+        self.assertEqual((code, first["tunnel"]), (0, "named"), err)
+        cf.connections = [connector(ours)]  # the list still shows the connector of the cloudflared about to die
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        code, out, err = share(self.d, *args, environ=environ)
+        self.assertEqual((code, out["tunnel"], out["guestUrl"]), (0, "named", first["guestUrl"]), err)
+        self.assertNotIn("tunnelFallback", out)
+
     def test_a_running_named_tunnel_keeps_serving_when_its_api_token_file_turns_unusable(self):
         cf = FakeCloudflare(self)
         code, first, err = self.ensure(cf)

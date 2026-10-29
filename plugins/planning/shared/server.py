@@ -1552,7 +1552,7 @@ class App:
         api_file = rec.get("apiTokenFile") or ""
         if hostname:
             own = live if live and tunnel.config(live)[0] == hostname else None
-            why, sure = share_cli.lease(hostname, token_file, api_file, self.guest_port, own)
+            why, sure = share_cli.lease(hostname, token_file, api_file, self.guest_port, own, rec)
             if why and not sure:
                 raise tunnel.TunnelDown(f"named tunnel {hostname} not restarted: {why}")
             if why:
@@ -1560,7 +1560,7 @@ class App:
                 return tunnel.ensure(self.dir, self.guest_port)
         live = tunnel.ensure(self.dir, self.guest_port, hostname, token_file, fields={"apiTokenFile": api_file} if hostname else None)
         if hostname and api_file:
-            why, sure = share_cli.confirm(hostname, token_file, api_file, self.guest_port, live)
+            why, sure = share_cli.confirm(hostname, token_file, api_file, self.guest_port, live, rec)
             if why:
                 if not sure:
                     detached.stop(live["pid"], live["marker"], live["processStart"])  # the record stays, so the watch retries

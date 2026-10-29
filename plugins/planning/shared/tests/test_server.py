@@ -22,7 +22,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import CLOSED_ORIGIN, FAKE, FIXTURES, WINDOWS, FakeCloudflare, call, free_edge, share, tmpdir, wait_for
+from support import CLOSED_ORIGIN, FAKE, FIXTURES, WINDOWS, FakeCloudflare, call, connector, free_edge, share, tmpdir, wait_for
 
 import detached
 import server
@@ -477,6 +477,32 @@ class TestTunnelSwitch(ServerCase):
         self.assertFalse(self.app.tunnel_up)
         self.assertGreater(self.app._next_tunnel_try, time.monotonic())
         self.assertEqual(tunnel.read(self.d)["pid"], rec["pid"])
+
+    def test_a_routed_named_tunnel_comes_back_through_the_connector_check_and_the_route(self):
+        """With an API token file in the record, the restart lists the tunnel's connectors and sets the route; a run token
+        is base64 of {"a", "t", "s"} (TunnelToken in cloudflared's connection/connection.go)."""
+        account, tunnel_id = "fedcba9876543210fedcba9876543210", "c0ffee00-0000-4000-8000-000000000001"
+        run_token = tmpdir(self) / "run.token"
+        run_token.write_text(base64.b64encode(json.dumps({"a": account, "t": tunnel_id, "s": "c2VjcmV0"}).encode()).decode(), encoding="utf-8")
+        api = run_token.parent / "api.token"
+        api.write_text("fake-api-token-for-tests", encoding="utf-8")
+        for f in (run_token, api):
+            os.chmod(f, 0o600)
+        for others, kind in (([], "named"), ([connector("0a0a0a0a-0000-4000-8000-00000000000a")], "quick")):
+            with self.subTest(kind=kind):
+                tunnel.stop(self.d)
+                rec = tunnel.ensure(self.d, self.port, self.NAMED, str(run_token), fields={"apiTokenFile": str(api)})
+                detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+                cf = FakeCloudflare(self, connections=others)
+                self.app.watch_tunnel, self.app._next_tunnel_try = True, 0
+                with mock.patch.dict(os.environ, {"SHARED_LEASE_ORIGIN": cf.url, "SHARED_CF_API": cf.url}):
+                    self.app.sync_tunnel()
+                now = tunnel.alive(self.d)
+                self.assertEqual("named" if tunnel.config(now)[0] else "quick", kind)
+                if kind == "named":
+                    self.assertEqual(cf.config["ingress"][0], {"hostname": self.NAMED, "service": f"http://127.0.0.1:{self.port}"})
+                else:
+                    self.assertEqual(cf.puts, [])
 
     def test_status_names_the_named_tunnel(self):
         self.switch()

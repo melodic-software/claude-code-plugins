@@ -378,13 +378,14 @@ def tunnel_api(token_file, api_file):
 
 
 def others_up(token, base, mine, ours_up):
-    """The tunnel's connectors with an open connection that are not this session's cloudflared, whose Connector ID is
-    `mine`; when that is unknown and ours runs, one connector is taken as ours. Each item's `id` and its conns'
+    """The tunnel's connectors with an open connection that are not this session's: `mine` holds the Connector IDs its
+    cloudflared runs, or ran, as (each process logs a new one, so a list that still shows a crashed one of ours is not
+    another machine). With none known while ours runs, one connector is taken as ours. Each item's `id` and its conns'
     `client_id` name the connector (the connections list reference, cfdns.py's docstring)."""
     result, _ = cfdns.request(token, "GET", base + "/connections")
     up = [c for c in result or [] if isinstance(c, dict) and any(isinstance(x, dict) for x in c.get("conns") or [])]
     if mine:
-        return [c for c in up if mine not in {c.get("id")} | {x.get("client_id") for x in c["conns"] if isinstance(x, dict)}]
+        return [c for c in up if not mine & ({c.get("id")} | {x.get("client_id") for x in c["conns"] if isinstance(x, dict)})]
     return up[1:] if ours_up else up
 
 
@@ -398,14 +399,19 @@ def remote_config(token, base):
     return config if isinstance(config, dict) else {}
 
 
-def route(hostname, token_file, api_file, port, own=None):
+def ours(*recs):
+    """The Connector IDs these records of this session's tunnel name."""
+    return {r["connector"] for r in recs if r and r.get("connector")}
+
+
+def route(hostname, token_file, api_file, port, own=None, before=None):
     """Before this machine runs the named tunnel: refuse when another machine's connector is connected, then point
     <hostname>'s ingress rule at this guest port, keeping the rest of the tunnel's configuration (GET, merge, and a PUT
-    only on a change). `own`: this session's running cloudflared record for the tunnel. (why not, certain) or (None,
-    True); an API failure is uncertain."""
+    only on a change). `own`: this session's running cloudflared record for the tunnel; `before`: its last record for
+    it, running or not. (why not, certain) or (None, True); an API failure is uncertain."""
     try:
         token, base = tunnel_api(token_file, api_file)
-        others = others_up(token, base, (own or {}).get("connector"), bool(own))
+        others = others_up(token, base, ours(own, before), bool(own))
         if others:
             return crowded(len(others)), True
         config = remote_config(token, base)
@@ -417,14 +423,14 @@ def route(hostname, token_file, api_file, port, own=None):
     return None, True
 
 
-def confirm(hostname, token_file, api_file, port, rec):
+def confirm(hostname, token_file, api_file, port, rec, before=None):
     """After this machine started the named tunnel (`rec`): no other connector came up meanwhile and <hostname>'s rule
     still names this port, so of two machines that started together neither keeps serving on the other's route.
     (why not, certain) or (None, True). A machine that connects or writes the route after this check is not seen
     (README "The lease")."""
     try:
         token, base = tunnel_api(token_file, api_file)
-        others = others_up(token, base, rec.get("connector"), True)
+        others = others_up(token, base, ours(rec, before), True)
         if others:
             return f"{crowded(len(others))} as it started here", True
         rules = [r for r in remote_config(token, base).get("ingress") or [] if isinstance(r, dict) and str(r.get("hostname") or "").lower() == hostname and not r.get("path")]
@@ -436,7 +442,7 @@ def confirm(hostname, token_file, api_file, port, rec):
     return None, True
 
 
-def lease(hostname, token_file, api_file, port, own=None):
+def lease(hostname, token_file, api_file, port, own=None, before=None):
     """Whether this machine may start the named tunnel to `port` now: the link probe (skipped while `own`, this session's
     cloudflared record for it, still runs), then with an API token file the connectors and the route. (why not,
     certain) or (None, True)."""
@@ -444,7 +450,7 @@ def lease(hostname, token_file, api_file, port, own=None):
         why, sure = link_holder(hostname)
         if why:
             return why, sure
-    return route(hostname, token_file, api_file, port, own) if api_file else (None, True)
+    return route(hostname, token_file, api_file, port, own, before) if api_file else (None, True)
 
 
 def creation(d, a, resumed):
@@ -523,8 +529,9 @@ def bring_up(d, a):
     with detached.locked(d / LOCK):
         resumed = (d / "state.json").exists()
         hostname, token_file, api_file, fallback = named_config(d, a)
-        own = tunnel.alive(d) if hostname else None
-        own = own if own and tunnel.config(own)[0] == hostname else None  # this session already serves the link
+        before = tunnel.read(d) if hostname else None
+        before = before if before and tunnel.config(before)[0] == hostname else None  # its last record for the link
+        own = tunnel.alive(d) if before else None  # this session already serves the link
         settled = bool(own and fallback)
         if settled:  # its files matter only at cloudflared's next start, so the running link stays
             print(f"named tunnel {hostname}: {fallback}; its running tunnel keeps serving this session", file=sys.stderr)
@@ -578,14 +585,14 @@ def bring_up(d, a):
         if type(port) is not int:  # a tunnel to no port would replace one that works
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
         if api_file and not settled and not (own and own.get("port") == port):
-            fallback = route(hostname, token_file, api_file, port, own)[0]
+            fallback = route(hostname, token_file, api_file, port, own, before)[0]
             if fallback:
                 hostname, token_file = "", ""
         rec, down, kept = None, None, None
         try:
             rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url), fields={"apiTokenFile": api_file} if hostname else None)
             if hostname and api_file and not settled and not (own and own.get("pid") == rec["pid"]):
-                fallback = confirm(hostname, token_file, api_file, port, rec)[0]
+                fallback = confirm(hostname, token_file, api_file, port, rec, before)[0]
                 if fallback:  # ended at once, never kept as a retired tunnel: it may be serving another machine's route
                     hostname = ""
                     rec = tunnel.ensure(d, port)
