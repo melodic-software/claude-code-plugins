@@ -243,20 +243,24 @@ boundaries, since each plugin registers its own `hooks.json`. `async: true` woul
 check's findings off the turn they belong to.
 
 - **Basis:** "When an event fires, its matching hooks run in parallel"
-  ([hooks docs](https://code.claude.com/docs/en/hooks)), so a closed-gate row adds one parallel
-  node start and does not set the Stop wall. A 2026-10-20 `/performance:go-faster` run on a loaded
-  Windows host (5 to 10 concurrent sessions) timed 104 Stop samples per hook: these rows cost 283
-  to 378 ms p50 and 991 to 1,472 ms p95 each, which is a node cold start under contention. The run
-  captured no S, so these figures have no S conversion. The same run's 125 Stops measured the wall
-  at p50 576 ms and p95 2,072 ms. Two rows that did real work set it at measurement time,
-  disk-hygiene's destructive-guard audit
+  ([hooks docs](https://code.claude.com/docs/en/hooks)), so a closed-gate row adds one node start
+  that runs beside the other Stop hooks, not after them. A 2026-10-20 `/performance:go-faster` run
+  on a loaded Windows host (5 to 10 concurrent sessions) timed 104 Stop samples per hook: these
+  rows cost 283 to 378 ms p50 and 991 to 1,472 ms p95 each, which is a node cold start under
+  contention. The run captured no S, so these figures have no S conversion. The same run's 125
+  Stops measured the wall at p50 576 ms and p95 2,072 ms. The run attributes the p95 to two rows
+  that did real work, disk-hygiene's destructive-guard audit
   ([#8771](https://github.com/melodic-software/claude-code-plugins/issues/8771)) and harness-ops'
   hook-failure audit, which has run with `async: true` since
-  [#8772](https://github.com/melodic-software/claude-code-plugins/issues/8772).
+  [#8772](https://github.com/melodic-software/claude-code-plugins/issues/8772). It recorded no
+  per-Stop breakdown, so a gated row's tail may still set the wall on some Stops. That tail is the
+  shared cost of concurrent node cold starts on a loaded host, which no change to one row below
+  its floor removes.
 - **Scope:** a row only while its gate is closed. A consumer who enables an end-of-turn option
   pays that check's own work on every Stop, and Rule 1 applies to that work.
 - **Recheck trigger:** the hooks docs stop running an event's matching hooks in parallel, or a
-  gated Stop row starts a process before its gate.
+  gated Stop row starts a process before its gate, or a per-Stop breakdown shows gated rows
+  setting the wall.
 
 ## Rules
 
