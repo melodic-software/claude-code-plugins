@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-10-29
+
+### Changed
+
+- **`diagnose`, `plan`, `run-e2e` and `write` cite the gather-block convention.** The dated record
+  for why git reads stay out of the pre-compute block now links the repository's gather-block
+  convention, at the same heading, instead of a reference file inside the source-control plugin's
+  worktree skill.
+
 ## [1.4.0] - 2026-10-28
 
 ### Added

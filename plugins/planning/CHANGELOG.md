@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.123.0] - 2026-10-29
+
+### Added
+
+- **The shared interview lane tells Claude how to add live prototypes.** The ops table lists `add-live`, the prototype question text covers a variant's `live: {id, path}` link, and a prototype routes to `/prototype:explore-directions`, whose manifest the lane applies as screenshots, HTML snapshots and live builds, then asks as a question in the next round. A live link reaches guests only after the owner's Approve, and `add-live` is refused `live-off` while the live tier is off.
+
+### Changed
+
+- **`supersede` and `resolve` read their text from a file.** `supersede --proposes TEXT` is now `--proposes-file P`, and `resolve reconfirm --note TEXT` is now `--note-file N`. Neither command accepts an abbreviated option, so an old `--proposes` or `--note` is rejected instead of being read as a file name.
+
+### Removed
+
+- **`round.py` takes no page text on its command line.** The `reply`, `revise`, `note-reply`, `record-terminal`, `archive`, `reconfirm` and `group` commands are gone; each is an `apply` op, and calling one of the old commands is refused with a pointer to `round.sh --dir DATA_DIR apply --file OPS`. `add` reads the question only from `--file` and drops its text flags (`--short`, `--title`, `--rec`, `--facts`, `--basis`, `--waits-on`, `--commit`, `--alt`); `--id`, `--group`, `--stage`, `--round`, `--depends`, `--follow-up-of`, `--supersedes` and `--waiting` still override its fields.
+
 ## [0.122.0] - 2026-10-28
 
 ### Added
