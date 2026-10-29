@@ -1200,6 +1200,35 @@ class WorkflowPrivilegeHolds(_Finding):
         result = _cost([wf], public=True, cost_decision=DECISION)
         self.assertHeld(result, SECRET_EXPOSURE_CODE)
 
+    def test_a_secret_after_a_hash_in_quotes_or_a_block_scalar_holds(self):
+        steps = READ_ONLY + "    steps:\n"
+        for added in (
+            '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(added):
+                wf = _file(
+                    WORKFLOW,
+                    has_patch=False,
+                    patch=None,
+                    contents=(steps, steps + added),
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertHeld(result, SECRET_EXPOSURE_CODE)
+        for comment in (
+            "      # ${{ secrets.DEPLOY }}\n",
+            "      - run: echo a # ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(comment):
+                wf = _file(
+                    WORKFLOW,
+                    has_patch=False,
+                    patch=None,
+                    contents=(steps, steps + comment),
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertNotHeld(result, SECRET_EXPOSURE_CODE)
+
 
 class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
     """The same holds where PyYAML is not installed: the raw-text reading."""

@@ -3,6 +3,37 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.21.3] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+- `babysit_risk.py` no longer drops workflow text after a space and `#` inside a quoted string or a block scalar (`run: |`). `gated_workflow` and the permission, trigger and secret backstops used to cut every line at its first space-and-`#`, so a `${{ secrets.X }}` after `echo "a #b` or after a shell comment in a `run:` block went unseen. Such a workflow now counts as a `gate` path, and adding one holds as `secret-exposure-review`. A real YAML comment still counts for nothing.
+
+## [3.21.2] - 2026-10-29
+
+### Changed
+
+- `/source-control:pull-request create` merges the base into the branch before it pushes and opens the draft when the open state resolves to `ready` and `ready`'s `base-merge` step would run, including under `create --pushed` when the worker's branch is behind. `ready`'s base merge then finds nothing to push, so the PR no longer starts a `synchronize` CI run between the `opened` and `ready_for_review` runs. A `draft` state keeps the old behavior.
+
+## [3.21.1] - 2026-10-29
+
+### Changed
+
+- `comments --ci` records `INCORRECT` on a security-review `manifest dependencies: flag` when each entry is a bare name of another plugin in the repository's own `.claude-plugin/marketplace.json` and the flagged plugin cannot work without it. The reply cites, for each entry, a line in the flagged plugin, outside a `## Next` section, that invokes `/<entry>:`. When any entry is optional (presence-gated, with a fallback), it records `UNCERTAIN`.
+
 ## [3.21.0] - 2026-10-29
 
 ### Added

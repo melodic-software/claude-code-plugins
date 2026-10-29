@@ -53,6 +53,13 @@ export const DEFAULT_MAX_ROUNDS = 2;
 // PR still drawing findings after it is not converging, and more rounds only
 // spend usage).
 export const FRESH_FIXER_ROUNDS = 1;
+// The fresh fixer round's brief, the thread file's `retry.brief`: fixed text,
+// never anything a head, a finding or a model wrote. The read runner adds it
+// to the skill's preamble (collect-base-activity).
+export const FRESH_ROUND_BRIEF =
+  "The lane's capped review rounds left these findings open, and this run is their one fresh fixer round before the lane stops. " +
+  "Fix each finding in the code it names. Never weaken, skip or delete a test, assertion or check to close a finding. " +
+  "A security finding rated IMPORTANT or above that this round leaves open goes to a person.";
 // How the round marker and the neutral checks show the count.
 export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
@@ -156,33 +163,46 @@ export function severityOf(body) {
   return SECURITY_SEVERITIES.includes(rating) ? rating : null;
 }
 // Whether a security-review lane comment is one a person decides: rated at or
-// above SECURITY_PERSON_SEVERITY, or with no rating it can read (fail closed).
-export const securityNeedsPerson = (body) => {
+// above `floor` (SECURITY_PERSON_SEVERITY unless given), or with no rating it
+// can read (fail closed).
+export const securityNeedsPerson = (body, floor = SECURITY_PERSON_SEVERITY) => {
   const severity = severityOf(body);
-  return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(SECURITY_PERSON_SEVERITY);
+  return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(floor);
 };
 
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
+const isDirected = (thread) => thread.comments.some((comment) => comment.direction === true);
 
 // Past the round cap, the threads only a person may still decide: a security
-// lane finding a person decides (securityNeedsPerson), a verifier note a
-// trusted person directed, and a finding whose lane no footer pr-review-cli
-// appended names: only on a github-actions[bot] root (`rootAuthorId`) is the
-// footer the reusable's, never model text. The code lane's finding, a
-// security lane finding rated below SECURITY_PERSON_SEVERITY and an undirected
-// verifier note go to a fresh fixer: a round cap is a lane bound, and
-// pr-verify's FAIL already holds the merge and judges the next head afresh.
-export const needsPerson = (thread, rootAuthorId) => {
+// lane finding rated at or above `floor` or unrated (securityNeedsPerson), a
+// verifier note or listed review bot's finding a trusted person directed, a
+// listed bot's finding on a head the security-review lane held as CRITICAL
+// (keepThreads' `security` state; the bot's own badge decides nothing), and a
+// finding whose lane no footer pr-review-cli appended names: only on a
+// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
+// never model text. A listed bot is matched on its account id (keepThreads'
+// `listed`, from pr-pipeline.yaml review-threads.reviewer-ids). The code
+// lane's finding, a listed bot's other findings, a security lane finding
+// rated below `floor` and an undirected verifier note go to a fresh fixer: a
+// round cap is a lane bound, and pr-verify's FAIL already holds the merge and
+// judges the next head afresh.
+export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERITY) => {
   if (isVerifierNote(thread)) {
-    return thread.comments.some((comment) => comment.direction === true);
+    return isDirected(thread);
   }
   const root = thread.comments[0];
-  if (rootAuthorId !== MARKER_AUTHOR_ID || root?.author !== "reviewer") {
+  if (root?.author !== "reviewer") {
+    return true;
+  }
+  if (root.listed === true) {
+    return root.security === "held" || isDirected(thread);
+  }
+  if (rootAuthorId !== MARKER_AUTHOR_ID) {
     return true;
   }
   const lane = laneOf(root.body);
-  return lane === "claude-security-review" ? securityNeedsPerson(root.body) : lane !== "claude-review";
+  return lane === "claude-security-review" ? securityNeedsPerson(root.body, floor) : lane !== "claude-review";
 };
 
 // Round markers the lanes App posted; any other author's copy is ignored.
@@ -701,6 +721,7 @@ export async function select({
   // The most automatic rounds a PR gets: the cap and the fresh fixer's round.
   const bound = maxRounds + FRESH_FIXER_ROUNDS;
   let worked = kept;
+  let retry;
   if (rounds >= maxRounds) {
     // Past the cap, a trusted person with write access who asked for a fix
     // after the newest round grants one more round, for the threads they
@@ -719,22 +740,32 @@ export async function select({
       }),
     );
     if (worked.length === 0) {
-      // Otherwise a thread only a person decides (needsPerson) still goes to
-      // one; every other finding goes to a fresh fixer: one more round, a
-      // new session like every round, reading only the thread file and the
-      // PR head. Once that round has run, no automatic round ever runs
-      // again, and the head fails: feedback-verifier-open when only verifier
-      // notes are left, feedback-not-converging otherwise. A PR a person
-      // gated also goes to a person: only a fresh fix request lifts their
-      // hold.
-      if (gated || kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
+      // Otherwise a PR a person gated goes to a person: only a fresh fix
+      // request lifts their hold. So does a thread only a person decides
+      // (needsPerson) short of a security finding rated IMPORTANT: that one
+      // is a code fix first. Every other finding goes to a fresh fixer: one
+      // more round with FRESH_ROUND_BRIEF, a new session like every round,
+      // reading only the thread file and the PR head. Once that round has
+      // run, no automatic round ever runs again: an IMPORTANT security
+      // finding it was given (opened by its end, `since`; an unreadable time
+      // counts as given) and left open goes to a person, and otherwise the
+      // head fails: feedback-verifier-open when only verifier notes are left,
+      // feedback-not-converging otherwise.
+      const rootOf = (thread) => rows.get(thread.root_comment_id);
+      const spent = rounds >= bound;
+      const given = (thread) => !(Date.parse(rootOf(thread)?.created_at ?? "") > since);
+      const holds = (thread) =>
+        needsPerson(thread, rootOf(thread)?.user?.id, SECURITY_SEVERITIES.at(-1)) ||
+        (spent && given(thread) && needsPerson(thread, rootOf(thread)?.user?.id));
+      if (gated || kept.some(holds)) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }
-      if (rounds >= bound) {
+      if (spent) {
         const escalationReason = kept.every(isVerifierNote) ? "feedback-verifier-open" : "feedback-not-converging";
         return { decision: "escalate", escalationReason, rounds, maxRounds: bound, threads: kept };
       }
       worked = kept;
+      retry = { brief: FRESH_ROUND_BRIEF };
     }
   }
   for (const thread of worked) {
@@ -755,7 +786,7 @@ export async function select({
     // escalation that lets this activity work put the label on.
     humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
     reviewedHeads: [...heads].sort(),
   };
 }

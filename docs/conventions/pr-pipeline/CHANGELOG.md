@@ -1,5 +1,45 @@
 # Changelog for the PR pipeline convention
 
+## [7.6.2] - 2026-10-29
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+## [7.6.1] - 2026-10-29
+
+### Fixed
+
+- At the address-feedback round cap, a finding from a review bot listed in
+  `review-threads.reviewer-ids` (such as `chatgpt-codex-connector[bot]`) is a bot finding: it goes
+  to the fresh fixer round instead of a person. It still goes to a person when a trusted person
+  directed it, or when the security-review lane held its head as `CRITICAL`.
+- A security-review finding rated `IMPORTANT` at the round cap is a code fix first: it gets the
+  fresh fixer round, and goes to a person only when that round was given it and left it open. A
+  `CRITICAL` or unrated security finding still goes to a person at once.
+- The fresh fixer round's thread file carries a fixed `retry.brief` (fix each finding in code;
+  never weaken a test or check to close one), which the read runner adds to the skill's preamble.
+
+## [7.6.0] - 2026-10-29
+
+### Changed
+
+- pr-unblock settles a security-review `manifest dependencies: flag` rated below `CRITICAL` without a person when the lane's `INCORRECT` reply holds up. `hardRequire` in `adjudicate-feedback.mjs` reads the flagged `plugins/<p>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` at the PR head. It checks that the plugin is a marketplace entry, that each `dependencies` entry is a bare name of another entry with a `./` source in this repository, that the dependency adds nothing Claude Code runs at the PR's base and head (a manifest of metadata and `userConfig` only, a marketplace entry of listing fields only, and no `hooks/`, `.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`), and that the lane cited a line of the plugin's skills, agents or commands, outside a `## Next` section, where `/<entry>:` starts a token with no gate, condition, fallback or negation word within two lines, in a file that already holds such an unguarded call at the PR's base, so the call-site evidence is read at both the base and the head. The reply job then posts a fixed reply naming those lines and resolves the thread. Such a flag takes no adjudicator slot, and one the check does not settle escalates `feedback-disputed`: a cross-marketplace, object-form (versioned) or externally sourced entry, a dependency that ships hooks, servers, monitors, executables or dependencies of its own, an optional collaborator or a failed read. A `CRITICAL` or unrated flag, an `UNCERTAIN` or `VALID-defer` reply and every other security-review finding route as before.
+
+### Fixed
+
+- A pr-review-main run whose first attempt failed before any lane's verdict write started (every
+  credential leg stopped) is now re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is, so a lane-source pull request no longer waits for its next push to be
+  reviewed from main.
+
 ## [7.5.3] - 2026-10-29
 
 ### Added
