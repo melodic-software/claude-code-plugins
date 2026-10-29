@@ -220,6 +220,15 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 
 ### 2.4.1 Push and assemble PR body
 
+**Merge the base first when the PR will go ready.** Resolve §2.4.3's open state before the push
+(its `config-root.sh classify` call included); it reads nothing the push changes. When it is
+`ready` and `ready`'s `base-merge` step would run ([ready-for-review.md](ready-for-review.md),
+"Read which pre-flip steps run"), fetch `$REMOTE/$DEFAULT_BRANCH` again and, when the branch is
+behind it, merge it in the way §2.5.2's local fallback does: a merge, never a rebase, with
+conflicts routed to `/source-control:resolve-conflicts`, and stop as `ready` does. The draft then
+opens on a head that contains the base, so §2.5.2 pushes nothing and the PR starts one CI run
+fewer. A `draft` state skips this.
+
 ```bash
 # Push via push-branch.sh, which resolves the push remote (resolve-remote.sh
 # --push), so a triangular fork checkout pushes to the fork. --dir names the
@@ -649,7 +658,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
-- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
+- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base merge: when it applies and `$BRANCH` is behind `$BASE`, merge in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`, `$BASE` resolved as the §2.4.3 bullet below says, before the merge) and push it with `push-branch.sh --dir "$WT"`.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
 - **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base merge and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
 
