@@ -1,6 +1,6 @@
 {
   "protected-path-conflict": { "activity": "resolve-conflicts", "route": "hold", "why": "a conflicted path is a workflow, submodule config or a settings file, which the lane does not resolve" },
-  "workflow-staged": { "activity": "resolve-conflicts", "route": "hold", "why": "the merge stages a change under .github/workflows/, which the lane does not push" },
+  "workflow-staged": { "activity": "resolve-conflicts", "route": "fail", "why": "the merge stages the pull request's own .github/workflows/ changes together with the base's, which the lane token cannot push, so a session merges main by hand" },
   "unexpected-path-staged": { "activity": "resolve-conflicts", "route": "fail", "why": "the conflict resolution changes a path outside the conflicted ones, which the lane does not push" },
   "repeat-cap": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane has resolved conflicts on this branch as many times in a row as its cap allows" },
   "unresolved-conflict": { "activity": "resolve-conflicts", "route": "fail", "why": "the lane could not resolve every conflict" },
@@ -25,7 +25,7 @@
   "feedback-question-design": { "activity": "address-feedback", "route": "hold", "why": "an adjudicator found that a disputed review finding turns on a design choice, which a person decides" },
   "feedback-question-security": { "activity": "address-feedback", "route": "hold", "why": "an adjudicator found that a disputed review finding turns on a security judgment, which a person decides" },
   "dependency-round-cap": { "activity": "review-dependency", "route": "hold", "why": "the lane has reviewed this dependency update as many rounds as its cap allows" },
-  "dependency-invalid": { "activity": "review-dependency", "route": "hold", "why": "the dependency review verdict did not pass validation, so the lane acted on none of it" },
+  "dependency-invalid": { "activity": "review-dependency", "route": "fail", "why": "the dependency review verdict did not pass validation, so the lane acted on none of it" },
   "dependency-fix-not-landed": { "activity": "review-dependency", "route": "hold", "why": "the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but the versions in npm or pip manifest and lock files outside .github/)" },
   "dependency-security-close": { "activity": "review-dependency", "route": "hold", "why": "the dependency review would close a security update, which the lane never closes" },
   "dependency-escalate": { "activity": "review-dependency", "route": "hold", "why": "the dependency review found a risk the lane does not decide alone" },

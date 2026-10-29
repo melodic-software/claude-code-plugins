@@ -2470,7 +2470,9 @@ def lane_risk_refusal(
             # An approval of an earlier head carries over merges that bring
             # only the base's changes.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
-                merge_policy.carried_lifters(repo, pr, reviews, trusted)
+                merge_policy.carried_lifters(
+                    repo, pr, reviews, trusted, list(config.denied_paths)
+                )
             )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing
             lifted = False

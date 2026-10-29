@@ -94,6 +94,7 @@ import {
   pushRefusal,
   WEB_FLOW_ID,
 } from "./dependency-classify.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
 export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
@@ -564,7 +565,9 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
-    writeFileSync(env.SKIP_REASON_FILE, "awaiting-human\n");
+    // lane-stopped for a reason routed to a failing status, which
+    // dependency-dispatch.mjs releases for a same-head retry.
+    writeFileSync(env.SKIP_REASON_FILE, `${stopSkip(escalationReason)}\n`);
   } else if (skipReason) {
     writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);
   }
