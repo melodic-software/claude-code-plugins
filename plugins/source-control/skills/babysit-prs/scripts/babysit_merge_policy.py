@@ -390,8 +390,21 @@ def _split_repo(repo: str) -> tuple[str, str]:
 def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | None, Any]:
     """(status, payload): 200 and the JSON on success; on failure the status gh
     reported, or None when it named none. `env` overrides gh's environment."""
+    return _gh_api(["api", endpoint], env)
+
+
+def _get_pages(
+    endpoint: str, env: Mapping[str, str] | None = None
+) -> tuple[int | None, Any]:
+    """`_get` of every page of `endpoint`, one payload entry per page: gh's
+    `--paginate` follows each answer's Link rel="next", a cursor included, so
+    it reads an endpoint that ignores `page`. A failure on any page fails it."""
+    return _gh_api(["api", endpoint, "--paginate", "--slurp"], env)
+
+
+def _gh_api(args: list[str], env: Mapping[str, str] | None) -> tuple[int | None, Any]:
     try:
-        proc = gh_capture(["api", endpoint], **({"env_overrides": env} if env else {}))
+        proc = gh_capture(args, **({"env_overrides": env} if env else {}))
     except (RuntimeError, ValueError, OSError):
         return None, None
     if proc.returncode != 0:
@@ -2423,17 +2436,15 @@ def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
 def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     """Why the head branch's push history shows a lane run missing before a
     decision made at `at`, else None (merge-holds.mjs `unranHead`, and
-    ci-status's cost-hold step). `activity` is one page of the repository
-    activity API for the branch, newest first, which deleting a run leaves;
-    `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-    `at`. Every head the branch moved to after its last push of `decided`
-    before `at` needs a run of every lane: with one deleted, an older notice
-    would become the decided head (#10437). No push of `decided` before `at`
-    or a full page, which may not reach it, keeps the hold too."""
+    ci-status's cost-hold step). `activity` is the repository activity API for
+    the branch read to its end (`branch_activity`), newest first, which
+    deleting a run leaves; `ran` lists, per REVIEW_LANES entry, the heads of
+    its runs started before `at`. Every head the branch moved to after its
+    last push of `decided` before `at` needs a run of every lane: with one
+    deleted, an older notice would become the decided head (#10437). No push
+    of `decided` before `at` keeps the hold too."""
     if not is_json_array(activity):
         return "the branch's push history is unreadable"
-    if len(activity) >= 100:
-        return "the branch's push history fills a page"
     if (
         not is_json_array(ran)
         or len(ran) != len(REVIEW_LANES)
@@ -2538,12 +2549,31 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     if decided is None:
         return None
     ref = quote(f"refs/heads/{branch}", safe="")
-    status, activity = _get(
+    status, pages = _get_pages(
         f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100", env
     )
     if status != 200:
         raise PolicyReadError("the head branch's push history is unreadable")
+    activity = branch_activity(pages)
     return decided if unran_head(activity, ran, decided, at) is None else None
+
+
+ACTIVITY_PAGES = 50
+
+
+def branch_activity(pages: Any) -> list[Any] | None:
+    """The head branch's activity from `_get_pages`' one entry per page, newest
+    first, read to its end (merge-holds.mjs `branchActivity`): the API keeps a
+    branch name's history across deletions, so a name recreated for each sync
+    fills any one page. A page that is no list gives None (`unran_head`'s
+    unreadable); more than ACTIVITY_PAGES pages raises."""
+    if not is_json_array(pages) or not all(is_json_array(page) for page in pages):
+        return None
+    if len(pages) > ACTIVITY_PAGES:
+        raise PolicyReadError(
+            f"the branch's push history runs past {ACTIVITY_PAGES} pages"
+        )
+    return [move for page in pages for move in page]
 
 
 def same_net_change(decided: Any, current: Any) -> bool:

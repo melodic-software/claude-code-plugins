@@ -7,6 +7,7 @@ every change since is a base merge (owner decisions Q17 c and Q18 d on
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 import unittest
 from datetime import datetime, timedelta
@@ -140,17 +141,24 @@ class Lanes:
         self.reads: list[str] = []
         self.envs: list[Any] = []
 
+    def get_pages(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        """The activity as `gh api --paginate --slurp` gives it: one entry
+        per page of 100."""
+        self.reads.append(endpoint)
+        assert endpoint == (
+            "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
+            "&direction=desc&per_page=100"
+        ), endpoint
+        self.envs.append(env)
+        if self.unreadable == "activity":
+            return 404, None
+        if not isinstance(self.activity, list):
+            return 200, [self.activity]
+        moves = self.activity
+        return 200, [moves[i : i + 100] for i in range(0, max(len(moves), 1), 100)]
+
     def get(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
         self.reads.append(endpoint)
-        if "/activity?" in endpoint:
-            assert endpoint == (
-                "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
-                "&direction=desc&per_page=100"
-            ), endpoint
-            self.envs.append(env)
-            return (
-                (404, None) if self.unreadable == "activity" else (200, self.activity)
-            )
         if "/git/ref/heads/" in endpoint:
             return (404, None) if self.unreadable == "ref" else (200, {"object": {"sha": TIP}})
         if endpoint.endswith(f"...{TIP}"):
@@ -233,7 +241,7 @@ class CostDecision(unittest.TestCase):
         self.reads = lanes.reads
 
         def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-            if "/compare/" in endpoint or "/activity?" in endpoint or "/git/ref/" in endpoint:
+            if "/compare/" in endpoint or "/git/ref/" in endpoint:
                 return lanes.get(endpoint, env)
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
@@ -246,6 +254,7 @@ class CostDecision(unittest.TestCase):
 
         with (
             mock.patch.object(policy, "_get", side_effect=get),
+            mock.patch.object(policy, "_get_pages", side_effect=lanes.get_pages),
             mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
             mock.patch.object(policy, "_graphql", side_effect=graphql),
         ):
@@ -619,19 +628,73 @@ class CostDecision(unittest.TestCase):
             _push(new, "2026-10-22T11:10:00Z"), _push(OLD, "2026-10-22T12:30:00Z")
         )
         self.assertIsNone(carried([], back, head=OLD))
-        # No push of the decided head before the decision, a full page that may
-        # not reach it, or a read that fails keeps the hold.
+        # No push of the decided head before the decision, or a read that
+        # fails, keeps the hold.
         self.assertIsNone(carried(both, [_push(new, "2026-10-22T11:10:00Z")]))
         self.assertIsNone(carried(both, [_push(OLD, "2026-10-22T12:30:00Z")]))
-        full = _newest_first(
-            [_push(new, f"2026-10-22T12:10:{i:02d}Z") for i in range(59)]
-            + [_push(new, f"2026-10-22T12:11:{i:02d}Z") for i in range(40)]
-            + [_push(OLD, "2026-10-22T10:25:00Z")]
-        )
-        self.assertIsNone(carried(both, full))
-        self.assertEqual(carried(both, full[1:]), LINK)
         self.assertIsNone(carried(both, pushed, unreadable="activity"))
         self.assertIsNone(carried(both, {"message": "Not Found"}))
+
+    # A branch name recreated for each sync (chore/standards-sync, #10990)
+    # keeps its whole history in the activity API, so the decided head's push
+    # can sit past the first page of 100.
+    def test_the_head_branchs_push_history_is_read_past_its_first_page(self) -> None:
+        new = "1" * 40
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+
+        def carried(activity: Any, **change: Any) -> str | None:
+            return self.decide(
+                runs=[_run(OLD)], compares=same, activity=activity, **change
+            )
+
+        # 149 pushes after the decision, then the decided head: 150 entries.
+        after = [
+            _push(new, f"2026-10-22T12:{10 + i // 60:02d}:{i % 60:02d}Z")
+            for i in range(149)
+        ]
+        long = _newest_first([*after, _push(OLD, "2026-10-22T10:25:00Z")])
+        self.assertEqual(len(long), 150)
+        self.assertEqual(carried(long), LINK)
+        # A push with no lane run between the decided head and the decision,
+        # as entry 119, on the second page, keeps the hold.
+        gap = _newest_first(
+            [
+                *after[:118],
+                _push(new, "2026-10-22T11:10:00Z"),
+                _push(OLD, "2026-10-22T10:25:00Z"),
+            ]
+        )
+        self.assertEqual(gap[118]["timestamp"], "2026-10-22T11:10:00Z")
+        self.assertIsNone(carried(gap))
+        # A read that fails on a later page fails the whole paginated read.
+        self.assertIsNone(carried(long, unreadable="activity"))
+
+    def test_branch_activity_joins_the_pages_and_fails_closed(self) -> None:
+        self.assertEqual(
+            policy.branch_activity([[{"id": 1}], [{"id": 2}]]), [{"id": 1}, {"id": 2}]
+        )
+        # A page that is no list is unreadable, as unran_head names it.
+        self.assertIsNone(policy.branch_activity([[], {"message": "Not Found"}]))
+        self.assertIsNone(policy.branch_activity(None))
+        # Fifty pages are read; a fifty-first is refused.
+        self.assertEqual(len(policy.branch_activity([[{"id": i}] for i in range(50)])), 50)
+        with self.assertRaisesRegex(policy.PolicyReadError, "runs past 50 pages"):
+            policy.branch_activity([[{"id": i}] for i in range(51)])
+
+    def test_get_pages_reads_every_page_and_fails_on_any(self) -> None:
+        endpoint = "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+        ok = subprocess.CompletedProcess([], 0, stdout='[[{"id":1}],[{"id":2}]]', stderr="")
+        with mock.patch.object(policy, "gh_capture", return_value=ok) as gh:
+            self.assertEqual(policy._get_pages(endpoint), (200, [[{"id": 1}], [{"id": 2}]]))
+        self.assertEqual(gh.call_args.args[0], ["api", endpoint, "--paginate", "--slurp"])
+        # gh exits nonzero when a later page fails, whatever it printed first.
+        failed = subprocess.CompletedProcess(
+            [], 1, stdout='[{"id":1}]', stderr="gh: Server Error (HTTP 502)"
+        )
+        with mock.patch.object(policy, "gh_capture", return_value=failed):
+            status, pages = policy._get_pages(endpoint)
+        self.assertNotEqual(status, 200)
+        self.assertIsNone(pages)
 
     def test_unran_head_names_the_first_head_pushed_since_with_no_run_of_every_lane(
         self,
@@ -745,12 +808,13 @@ class CostDecision(unittest.TestCase):
             lanes = Lanes(runs, changed)
 
             def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
-                if any(k in endpoint for k in ("/compare/", "/activity?", "/git/ref/")):
+                if any(k in endpoint for k in ("/compare/", "/git/ref/")):
                     return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 
             with (
                 mock.patch.object(policy, "_get", side_effect=get),
+                mock.patch.object(policy, "_get_pages", side_effect=lanes.get_pages),
                 mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
                 mock.patch.object(
                     policy, "_graphql", return_value={"node": {"lastEditedAt": None}}

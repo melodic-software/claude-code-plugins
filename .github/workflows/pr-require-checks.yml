@@ -4447,10 +4447,14 @@ jobs:
             | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
           # The decided head stands only while the head branch's push history
           # shows a run of every lane on each head pushed since it before the
-          # decision (the base's unranHead; one page, as merge-holds.mjs reads it).
+          # decision (the base's unranHead). The history is read to its end, as
+          # merge-holds.mjs reads it: gh follows the Link cursor, and a page
+          # that is no list leaves null, which unranHead names unreadable.
           if [ -n "$decided" ]; then
-            read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+            activity=$(read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" --paginate) ||
               keep "the head branch's push history is unreadable"
+            jq -cs 'if length > 0 and all(type == "array") then add else null end' <<<"$activity" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+              keep "the head branch's push history does not parse"
             printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
             jq '.comment.created_at' <<<"$chosen" >"$RUNNER_TEMP/cost-hold-decided-at.json" || keep "the decisions do not parse"
