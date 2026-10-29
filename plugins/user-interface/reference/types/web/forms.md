@@ -322,7 +322,8 @@ request twice.
 
 A button with no pressed state feels unresponsive, and on touch (where hover doesn't exist) it gives
 no feedback at all until the action completes. Make buttons feel pressable with a subtle scale on
-`:active`, never below `0.95`; lower reads as exaggerated. Recipe: `press-feedback`.
+`:active`; how far it scales, and how far is too far, is the `motion` concern's (`press`). Recipe:
+`press-feedback`.
 
 Hunt for: the shared `Button` component with `:hover` but no `:active`.
 

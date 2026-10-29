@@ -19,6 +19,8 @@ commit). Files read, by `git hash-object` blob SHA at the pin:
 `skills/good-css/SKILL.md` and its generated `references/` were read for structure; the skill does
 not ship, wrap or depend on them.
 
+`motion.md` and `show-and-hide.md` also carry recipes from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`, `popover-that-scales-from-its-trigger`, `popover-inside-a-modal`); their provenance is `docs/upstream/aiforui-course.md`, not this record.
+
 - **Pointer**: when re-auditing the techniques, fetch
   <https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md> live and diff it against the pin
   (<https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main>).
@@ -125,7 +127,7 @@ spellings, so the spell check is off for the table.
 | 30 | `form-feedback-with-user-invalid` | Interaction | `interaction.md` | Kevin Powell, Improve forms with :user-valid and :user-invalid, 2025-02-20, and Use these CSS features instead of JavaScript, 2026-09-23 |
 | 31 | `textarea-that-grows-with-its-content` | Interaction | `interaction.md` | Jhey Tompkins, @jh3yy on X, 2026-10-01 |
 | 32 | `opt-in-motion` | Motion | `motion.md` | Josh W. Comeau, Accessible Animations in React with "prefers-reduced-motion" · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07 |
-| 33 | `motion-tokens` | Motion | `motion.md` | Emil Kowalski, emil-design-eng skill and 7 Practical Animation Tips |
+| 33 | `motion-tokens` | Motion | `motion.md` | Emil Kowalski, emil-design-eng skill and 7 Practical Animation Tips. Superseded in part: the permanent-exit `--ease-in` curve, the `page` role and the exit factor follow `docs/upstream/aiforui-course.md` |
 | 34 | `transition-a-custom-property-with-property` | Motion | `motion.md` | Stripe, on the stripe.com home page and its sales contact page |
 | 35 | `shadow-change-that-fades-and-does-not-repaint` | Motion | `motion.md` | Stripe, on its resource cards · Tobias Ahlin, How to animate box-shadow, for the older form of the idea |
 | 36 | `cross-document-view-transitions` | Motion | `motion.md` | Jen Simmons and James Craig, Two lines of Cross-Document View Transitions code you can use on every website today, 2025-05-21 · Bramus Van Damme, Cross-document view transitions for multi-page applications |
