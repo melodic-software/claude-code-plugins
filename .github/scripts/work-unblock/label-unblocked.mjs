@@ -565,11 +565,14 @@ async function admit({ github, repo, number, gate, deferred, confirmed = false }
 }
 
 // Parks a ready issue a merged Refs pull request may have done (admit.mjs
-// mergedRefsAfter, `pulls`) as intake's admission refuses one: status:
-// confirmed before status: ready and admission-deferred come off (`lower`, its
-// labels lowercased), then admit.mjs's comment naming the pull requests.
+// mergedRefsAfter, `pulls`): admit.mjs's comment naming the pull requests
+// first, then status: confirmed before status: ready and admission-deferred
+// come off (`lower`, its labels lowercased). The comment goes first because
+// intake-reenter lifts status: confirmed only beside it: a failed write
+// leaves the issue queued, for the next sweep, never parked with no way out.
 async function parkDone({ github, repo, number, lower, pulls }) {
   const base = `/repos/${repo}/issues/${number}`;
+  await sayWhy(github, repo, base, await paginate(github, `${base}/comments`), refusalText(doneReason(pulls)));
   await github("POST", `${base}/labels`, { labels: [CONFIRMED] });
   if (lower.includes(READY)) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
@@ -577,7 +580,6 @@ async function parkDone({ github, repo, number, lower, pulls }) {
   if (lower.includes(DEFERRED_LABEL)) {
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
   }
-  await sayWhy(github, repo, base, await paginate(github, `${base}/comments`), refusalText(doneReason(pulls)));
   console.log(`label-unblocked: #${number} parked for a done-check: merged Refs pull request ${pulls.map((n) => `#${n}`).join(", ")}`);
 }
 

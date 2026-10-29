@@ -3258,12 +3258,32 @@ test("the sweep parks a deferred issue a merged Refs pull request may have done,
   assert.deepEqual(writes(calls), [
     labeled(25),
     undeferred(25),
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
     `POST /repos/${REPO}/issues/26/labels {"labels":["status: confirmed"]}`,
     `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
     undeferred(26),
-    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
     labeled(27),
     undeferred(27),
+  ]);
+});
+
+// intake-reenter lifts status: confirmed only beside the admission comment.
+test("a failed done-check comment leaves the deferred issue queued for the next sweep, not parked", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred({ failOn: (method, path) => method === "POST" && path === `/repos/${REPO}/issues/26/comments` });
+  assert.equal(await sweep({ github }, PAUSING), 1);
+  assert.ok(!writes(calls).some((call) => call.startsWith(`POST /repos/${REPO}/issues/26/labels`) || call.startsWith(`DELETE /repos/${REPO}/issues/26/`)), writes(calls).join("\n"));
+});
+
+test("an issue whose last blocker closed is parked, not labeled, when a merged Refs pull request may have done it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = world({ ...oneDependentWorld(["status: ready"]), done: { 20: doneNode([41], 20) } });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.equal(doneReads(calls).length, 1);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/20/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    `POST /repos/${REPO}/issues/20/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/20/labels/status%3A%20ready`,
   ]);
 });
 
