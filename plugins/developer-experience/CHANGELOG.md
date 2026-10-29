@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-29
+
+### Added
+
+- Shared eval fixtures under `evals/fixtures/`: the `tarnquill` (.NET) and `brackenfold` (Python) repositories from the eval scenario sources, and `seed.sh`, which seeds either one in the bare, conventions-only or converged state (or, for `tarnquill`, legacy) into a workspace and commits it on `main`. The fixture case `fx-seed-every-state` seeds all seven states and checks the conventions file each copy's `AGENTS.md` names. ([#9943](https://github.com/melodic-software/claude-code-plugins/issues/9943))
+
 ## [0.2.1] - 2026-10-24
 
 ### Added
