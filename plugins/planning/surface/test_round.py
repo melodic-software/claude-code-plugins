@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
-"""Tests for round.py V1: schema validation, refusals and warnings, --affects, apply, archive,
+"""Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
 Every test drives round.py through its CLI (`sys.executable round.py ...`) in a temporary data dir.
@@ -680,15 +680,15 @@ class TestRefusals(DirCase):
 
 
 class TestAffects(DirCase):
-    """R2: --affects on recommendation changes; AC11 guard with --force."""
+    """R2: affects on recommendation changes; AC11 guard with force."""
 
     def test_reply_rec_without_affects_is_refused(self):
         out = self.op_refused("reply", id="Q1", rec="New.")
-        self.assertIn("--affects", out)
+        self.assertIn("`affects`", out)
 
     def test_revise_rec_without_affects_is_refused(self):
         out = self.op_refused("revise", id="Q1", rec="New.")
-        self.assertIn("--affects", out)
+        self.assertIn("`affects`", out)
 
     def test_reply_rec_stores_affects_on_the_history_line(self):
         rc, out, err = self.op(
@@ -873,13 +873,13 @@ class TestRecAlternativeCollision(DirCase):
             )
             self.assertIn("Q1", out)
             self.assertIn("(a)", out)
-            self.assertIn("--alt", out)
+            self.assertIn("`alternatives` in the same op", out)
 
     def test_revise_rec_colliding_with_an_alternative_is_refused(self):
         out = self.op_refused(
             "revise", id="Q1", rec="No", affects="none", keepAlternatives=True
         )
-        self.assertIn("revise --alt", out)
+        self.assertIn("`alternatives` in the same revise op", out)
 
     def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
         rc, out, err = self.op(
@@ -916,7 +916,7 @@ class TestRecReviewsAlternatives(DirCase):
             with self.subTest(op=name):
                 out = self.op_refused(name, **self.REC)
                 self.assertIn("Q1", out)
-                self.assertIn("--keep-alternatives", out)
+                self.assertIn("keepAlternatives", out)
                 self.assertIn("keepAlternatives", out)
 
     def test_revise_with_alternatives_records_both_changes(self):
@@ -1838,7 +1838,7 @@ class TestApply(DirCase):
             ]
         }
         out = self.assert_refused("apply", "--file", self.file("ops.json", ops))
-        self.assertIn("--affects", out)
+        self.assertIn("`affects`", out)
 
     def test_unknown_op_is_refused(self):
         ops = {"ops": [{"op": "explode", "id": "Q1"}]}

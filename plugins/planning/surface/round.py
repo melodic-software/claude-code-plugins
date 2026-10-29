@@ -315,7 +315,7 @@ def split_alt(s):
         return alt
     key, sep, text = s.partition(":")
     if not sep:
-        sys.exit(f"--alt needs key:text, got {s!r}")
+        sys.exit(f"an alternative needs key:text or {{key, text}}, got {s!r}")
     return {"key": key.strip(), "text": text.strip()}
 
 
@@ -384,7 +384,8 @@ def guard_revision(d, doc, qid, seq, force):
 def require_affects(qid, affects):
     if affects is None:
         sys.exit(
-            f"refused: a recommendation change on {qid} needs --affects <id,...>|none (R2)"
+            f"refused: a recommendation change on {qid} needs `affects`: the ids it "
+            'affects, or "none" (R2)'
         )
 
 
@@ -393,13 +394,13 @@ def require_alt_review(qid, alts, keep):
     checked against it (R-I)."""
     if alts is not None and keep:
         sys.exit(
-            f"refused: {qid} takes --alt or --keep-alternatives, not both (keepAlternatives)"
+            f"refused: {qid} takes `alternatives` or `keepAlternatives`, not both"
         )
     if alts is None and not keep:
         sys.exit(
             f"refused: a recommendation change on {qid} needs its alternatives reviewed: pass "
-            "revised ones (--alt, `alternatives`) or --keep-alternatives "
-            "(`keepAlternatives: true`) after checking the current ones against it (R-I)"
+            "revised ones (`alternatives`) or `keepAlternatives: true` after checking the "
+            "current ones against it (R-I)"
         )
 
 
@@ -501,7 +502,7 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
             )
     if q.get("group") and q["group"] not in {g["id"] for g in doc["groups"]}:
         sys.exit(
-            f"unknown group in {q['id']}: {q['group']} (add it with: round.py group)"
+            f"unknown group in {q['id']}: {q['group']} (add it with a group op)"
         )
     defaulted = "stage" not in q
     if defaulted:
@@ -865,8 +866,8 @@ def warn_stale_summaries(doc, qs):
         added = [i for i in group_members(doc, gid) if i not in g["summaryOf"]]
         if added:
             warn(
-                f"group {gid} summary predates {len(added)} question{'' if len(added) == 1 else 's'}; refresh it with: "
-                f"round.py group {gid} --summary ..."
+                f"group {gid} summary predates {len(added)} question{'' if len(added) == 1 else 's'}; refresh it with "
+                f'a group op: {{"op": "group", "id": "{gid}", "summary": ...}}'
             )
 
 
@@ -960,7 +961,7 @@ def op_propose(d, doc, a):
         sys.exit(f"duplicate id: {a.id} (refused; nothing was written)")
     if a.group is not None:
         if a.group not in {g["id"] for g in doc["groups"]}:
-            sys.exit(f"unknown group in {a.id}: {a.group} (add it with: round.py group)")
+            sys.exit(f"unknown group in {a.id}: {a.group} (add it with a group op)")
         q["group"] = a.group
     if a.fromSeq is not None:
         events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
@@ -1261,7 +1262,7 @@ def op_reply(d, doc, a):
     if a.resolution is not None:
         if a.rec:
             sys.exit(
-                "refused: reply takes --rec or --resolution, not both (a revised "
+                "refused: reply takes `rec` or `resolution`, not both (a revised "
                 "recommendation sets the own answer aside)"
             )
         set_resolution(d, q, a.resolution)
@@ -1287,7 +1288,7 @@ def op_reply(d, doc, a):
     if (a.alt is not None or a.keepAlternatives) and not a.rec:
         sys.exit(
             f"refused: reply on {a.id} takes alternatives or keepAlternatives only with "
-            "rec; use revise --alt"
+            "rec; use a revise op with `alternatives`"
         )
     if a.rec:
         require_accepted(d, q, "a recommendation")
@@ -1299,7 +1300,7 @@ def op_reply(d, doc, a):
             a.id,
             a.rec,
             q.get("alternatives") if alts is None else alts,
-            "pass revised alternatives in the same op (--alt)",
+            "pass revised `alternatives` in the same op",
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
         set_aside_own(snapshot, doc, q)
@@ -1388,7 +1389,7 @@ def op_revise(d, doc, a):
             a.id,
             q.get("recommendation") if a.rec is None else a.rec,
             q.get("alternatives") if alts is None else alts,
-            "pass revised alternatives in the same op (revise --alt)",
+            "pass revised `alternatives` in the same revise op",
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     warn_branch_source_links(a.id, a.facts)
@@ -1439,8 +1440,8 @@ def op_revise(d, doc, a):
             g = next((x for x in doc["groups"] if x["id"] == gid), None)
             if g and "summaryOf" in g and g["summaryOf"] != group_members(doc, gid):
                 warn(
-                    f"group {gid} summary predates moving {a.id}; refresh it with: "
-                    f"round.py group {gid} --summary ..."
+                    f"group {gid} summary predates moving {a.id}; refresh it with "
+                    f'a group op: {{"op": "group", "id": "{gid}", "summary": ...}}'
                 )
     if not changed and not moved and not regroup:
         sys.exit("nothing to revise")
@@ -1513,10 +1514,10 @@ def op_record_terminal(d, doc, a):
     capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "hedged":
         if not (a.text or "").strip():
-            sys.exit("refused: --decision hedged needs --text: the condition")
+            sys.exit('refused: decision "hedged" needs `text`: the condition')
         capped("record-terminal condition", a.text, LINE_CAP)
     if a.decision == "alt" and not a.alt:
-        sys.exit("--alt KEY required with --decision alt")
+        sys.exit('`alt` KEY required with decision "alt"')
     if a.decision == "alt":
         try:
             check_alt(q, "alt", a.alt)
