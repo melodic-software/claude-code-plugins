@@ -130,6 +130,11 @@ const GUARD_LINES = 2;
 // commands; an eval case, a changelog or a script is no call site.
 const callSite = (dir, path) => new RegExp(`^plugins/${dir.replace(/\./g, "\\.")}/(skills|agents|commands)/([A-Za-z0-9_@+.-]+/)*[A-Za-z0-9_@+.-]+\\.md$`).test(path) && !/\/evals\//.test(path);
 const firstContentLine = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, "")).find((line) => line.trim() !== "") ?? "";
+// Whether line `at` of `lines` invokes `/<dependency>:` with no GUARDED word
+// within GUARD_LINES of it.
+const unguardedCall = (lines, at, dependency) =>
+  lines[at]?.includes(`/${dependency}:`) === true && !GUARDED.test(lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n"));
+const linesOf = (file) => (typeof file === "string" ? file.split("\n") : []);
 
 // Whether a thread is a security-review lane flag on a plugin manifest's
 // `dependencies`, rated below CRITICAL: the one security-review finding
@@ -165,19 +170,24 @@ const parseObject = (text) => {
 // also add the plugin it trusts; and `evidence` (the lane's path:line list)
 // cites, for each one, a line of the flagged plugin's skills, agents or
 // commands that invokes `/<name>:` with no GUARDED word within GUARD_LINES of
-// it. Returns {sites}, the cited line per dependency, or {why}.
+// it at `sha`, in a file that at `baseSha` already holds such a line, so the
+// call-site evidence is read at both the base and the head and the PR cannot
+// supply it alone. Returns {sites}, the cited line per dependency, or {why}.
 // `getText(path, ref)` reads a file, null when absent.
 export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
   if (!SHA.test(String(baseSha ?? ""))) {
     return { why: "the PR's base commit is unknown" };
   }
   const read = new Map();
-  const text = (file) => {
-    if (!read.has(file)) {
-      read.set(file, getText(file, sha));
+  const at = (ref) => (file) => {
+    const key = `${ref}:${file}`;
+    if (!read.has(key)) {
+      read.set(key, getText(file, ref));
     }
-    return read.get(file);
+    return read.get(key);
   };
+  const text = at(sha);
+  const baseText = at(baseSha);
   const dir = PLUGIN_MANIFEST.exec(path ?? "")?.[1];
   const manifest = dir ? parseObject(await text(path)) : null;
   const plugins = parseObject(await text(MARKETPLACE))?.plugins;
@@ -189,7 +199,7 @@ export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
   if (!Array.isArray(dependencies) || dependencies.length === 0) {
     return { why: "the manifest lists no dependencies" };
   }
-  const basePlugins = parseObject(await getText(MARKETPLACE, baseSha))?.plugins;
+  const basePlugins = parseObject(await baseText(MARKETPLACE))?.plugins;
   const baseEntries = Array.isArray(basePlugins) ? basePlugins.filter((entry) => entry !== null && typeof entry === "object") : [];
   const sites = [];
   for (const dependency of dependencies) {
@@ -204,19 +214,25 @@ export async function hardRequire({ getText, sha, baseSha, path, evidence }) {
       return { why: `${dependency} is not an entry of ${MARKETPLACE} at the PR base with the source ${source}` };
     }
     let site = null;
+    // The first cited file whose head line holds up but whose base does not.
+    let baseMiss = null;
     for (const cited of evidence) {
       const match = PATH_LINE.exec(cited);
       if (!match || DOT_SEGMENT.test(match[1]) || !callSite(dir, match[1])) {
         continue;
       }
-      const file = await text(match[1]);
-      const lines = typeof file === "string" ? file.split("\n") : [];
-      const at = Number(match[2]) - 1;
-      const near = lines.slice(Math.max(0, at - GUARD_LINES), at + GUARD_LINES + 1).join("\n");
-      if (lines[at]?.includes(`/${dependency}:`) && !GUARDED.test(near)) {
+      if (!unguardedCall(linesOf(await text(match[1])), Number(match[2]) - 1, dependency)) {
+        continue;
+      }
+      const baseLines = linesOf(await baseText(match[1]));
+      if (baseLines.some((_, line) => unguardedCall(baseLines, line, dependency))) {
         site = cited;
         break;
       }
+      baseMiss ??= match[1];
+    }
+    if (site === null && baseMiss !== null) {
+      return { why: `${dependency}: no line of ${baseMiss} at the PR base invokes /${dependency}: with no gate, fallback or negation within ${GUARD_LINES} lines` };
     }
     if (site === null) {
       return { why: `no skill, agent or command line the lane cited in plugins/${dir}/ invokes /${dependency}: with no gate, fallback or negation within ${GUARD_LINES} lines` };
@@ -420,7 +436,7 @@ export function hardRequireReply(path, sites, headSha) {
     FINDING_ANSWERED,
     "**pr-unblock / adjudicate-feedback: hard requires on this marketplace's plugins, resolved**",
     "",
-    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists, here and at the PR's base, with the same source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
+    `At \`${headSha}\`, each \`dependencies\` entry in \`${path}\` is a bare name of another plugin \`${MARKETPLACE}\` lists, here and at the PR's base, with the same source in this repository, and the lane cited a line in the plugin that invokes each one with no presence gate or fallback on it, in a file whose text at the PR's base already holds such a call. The security-review lane rated this flag below CRITICAL, so it is settled without a person.`,
     "",
     evidenceLine(sites),
   ].join("\n");
@@ -465,7 +481,7 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   FINDING_STANDS_SKIP as below so the sweep dispatches the head again;
 // - an INCORRECT reply on a dependencyFlag thread: when hardRequire settles
 //   it at the PR head (`headSha`, which headMoved checks before the reply)
-//   against the marketplace at the PR's base, the fixed hardRequireReply, then the thread is resolved (left open, as LEFT_OPEN,
+//   against the marketplace and the cited call sites at the PR's base, the fixed hardRequireReply, then the thread is resolved (left open, as LEFT_OPEN,
 //   where the lanes App cannot resolve it), with no verdict and no person;
 //   otherwise feedback-disputed;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a

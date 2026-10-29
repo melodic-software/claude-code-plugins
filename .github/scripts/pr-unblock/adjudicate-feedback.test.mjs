@@ -651,8 +651,8 @@ test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own
 // A security-review flag on a plugin manifest's `dependencies` (the #10049
 // shape: planning -> work-items), rated IMPORTANT. The script checks the
 // manifest and the marketplace at the adjudicated head itself, the marketplace
-// at the PR's base, and the lane's cited call site, before it settles the flag
-// without a person.
+// at the PR's base, and the lane's cited call site at both the head and the
+// base, before it settles the flag without a person.
 const FLAG_PATH = "plugins/planning/.claude-plugin/plugin.json";
 const SITE = "plugins/planning/skills/wayfind/SKILL.md:2";
 const GUARDED_SITE = "plugins/planning/skills/wayfind/SKILL.md:6";
@@ -693,10 +693,12 @@ const FLAG_FILES = {
   "plugins/work-items/skills/track/SKILL.md": "Run `/work-items:track add` for each item.\n",
 };
 
-// The PR's base, where the marketplace must already list each dependency.
+// The PR's base, where the marketplace must already list each dependency and
+// each cited call-site file must already invoke it unguarded.
 const BASE = "d".repeat(40);
-const settleFlag = async ({ files = FLAG_FILES, baseMarketplace = FLAG_FILES[MARKETPLACE], baseSha = BASE, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
+const settleFlag = async ({ files = FLAG_FILES, baseFiles = FLAG_FILES, baseMarketplace = FLAG_FILES[MARKETPLACE], baseSha = BASE, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
   const posts = [];
+  const logs = [];
   let resolved = false;
   const result = await settleDisputes({
     headSha,
@@ -710,8 +712,7 @@ const settleFlag = async ({ files = FLAG_FILES, baseMarketplace = FLAG_FILES[MAR
           throw new Error("GET returned 502");
         }
         if (ref === BASE) {
-          assert.equal(file, MARKETPLACE, "only the marketplace is read at the PR base");
-          return baseMarketplace;
+          return file === MARKETPLACE ? baseMarketplace : baseFiles[file] ?? null;
         }
         assert.equal(ref, headSha ?? HEAD, "files are read at the PR head");
         return files[file] ?? null;
@@ -736,9 +737,9 @@ const settleFlag = async ({ files = FLAG_FILES, baseMarketplace = FLAG_FILES[MAR
       return true;
     },
     escalationReason: "",
-    log: () => {},
+    log: (line) => logs.push(line),
   });
-  return { result, posts, resolved };
+  return { result, posts, resolved, logs };
 };
 
 test("dependencyFlag takes only a non-CRITICAL security-review flag on a plugin manifest's dependencies", () => {
@@ -822,4 +823,26 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
   const hooks = await settleFlag({ body: FLAG.replace("manifest dependencies:", "manifest hooks:") });
   assert.deepEqual(hooks.result, { escalationReason: "feedback-disputed", skipReason: "" });
   assert.deepEqual(hooks.posts, []);
+});
+
+test("hardRequire reads the cited call site at the PR base as well as the head", async () => {
+  const WAYFIND = "plugins/planning/skills/wayfind/SKILL.md";
+  const withBase = (text) => ({ ...FLAG_FILES, [WAYFIND]: text });
+  const baseWhy = `work-items: no line of ${WAYFIND} at the PR base invokes /work-items: with no gate, fallback or negation within 2 lines`;
+  for (const [label, baseFiles] of [
+    ["the cited file is absent at the base", { ...FLAG_FILES, [WAYFIND]: undefined }],
+    ["the call line was added only at the head", withBase(["# wayfind", "", "## Sync", ""].join("\n"))],
+    ["the base line carries a guard word", withBase(["# wayfind", "", "", "", "Run `/work-items:track add` if installed.", ""].join("\n"))],
+  ]) {
+    const { result, posts, resolved, logs } = await settleFlag({ baseFiles });
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" }, label);
+    assert.deepEqual(posts, [], label);
+    assert.equal(resolved, false, label);
+    assert.ok(logs.some((line) => line.includes(baseWhy)), label);
+  }
+  // An unguarded call line at both base and head settles, wherever it sits at the base.
+  const settled = await settleFlag({ baseFiles: withBase(["# wayfind", "", "", "", "", "Write each item through `/work-items:track add`.", ""].join("\n")) });
+  assert.deepEqual(settled.result, { escalationReason: "", skipReason: "" });
+  assert.equal(settled.resolved, true);
+  assert.deepEqual(settled.posts, [hardRequireReply(FLAG_PATH, [SITE], HEAD)]);
 });

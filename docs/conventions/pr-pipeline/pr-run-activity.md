@@ -1168,7 +1168,10 @@ entry whose `source` is a `./` path in this repository; and the lane cited, for 
 of a `.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case) that invokes
 `/<entry>:` with no gate, fallback or negation word (`installed`, `enabled`, `available`,
 `fallback`, `otherwise`, `optional`, `not`, `never` and the like) within two lines of it: a hard
-require ([plugin philosophy](../../plugin-philosophy.md)). Anything else, a failed read included,
+require ([plugin philosophy](../../plugin-philosophy.md)). The call-site evidence is read at both
+the base and the head: the cited line holds up at the head, and the cited file already exists at
+the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
+its own call site. Anything else, a failed read included,
 escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
 A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
