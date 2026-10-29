@@ -3209,8 +3209,9 @@ test("an issue already deferred is not labeled admission-deferred again", async 
 // A deferred issue, number 25, whose one blocker is closed; `deferredBy`
 // added its admission-deferred label (the lanes App by default).
 const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [], closing = [] } = {}) =>
+const deferredWorld = ({ labels = ["admission-deferred", "status: ready"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [], closing = [], specs = {} } = {}) =>
   world({
+    specs,
     openLanePrs,
     timeline: { 25: timeline },
     closing: { 25: closing },
@@ -3225,11 +3226,10 @@ const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", qu
 test("the sweep re-admits a deferred issue only when the lanes App or a listed human added admission-deferred", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(line));
-  for (const actor of [LANES_BOT, OWNER]) {
-    const trusted = deferredWorld({ events: [deferredAdd(actor)] });
-    assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
-    assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)], actor.login);
-  }
+  // A listed human's add is a person's mark, which the markedWorld tests cover.
+  const trusted = deferredWorld({ events: [deferredAdd(LANES_BOT)] });
+  assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
+  assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)]);
   // A stranger's label, or a stranger's newer re-add after the App's: left
   // as is, with nothing written, and reported as a warning.
   const stranger = { id: 999999, login: "drive-by", type: "User" };
@@ -3397,6 +3397,70 @@ test("the sweep keeps a held deferred issue deferred and drops the deferral of o
     assert.equal(await sweep({ github: gone.github }, PAUSING), 0);
     assert.deepEqual(writes(gone.calls), [undeferred(25)], JSON.stringify(options));
   }
+});
+
+// A deferred issue is re-admitted on its deferral only while nothing it was
+// deferred without has changed since (admit.mjs deferralLapsed).
+const editedSpec = (lastEditedAt) => ({ body: "", author: { __typename: "User", databaseId: OWNER.id }, editor: { __typename: "User", databaseId: OWNER.id }, lastEditedAt, comments: [] });
+const SECURITY_REASON = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
+const EDITED_REASON = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+const staleWrites = (reason, status) => [
+  `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reason)}` })}`,
+  `POST /repos/${REPO}/issues/25/labels {"labels":["${status}"]}`,
+  `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+  undeferred(25),
+];
+
+test("the sweep keeps a deferred issue deferred while do-not-merge, needs-human or the untrusted-provenance hold is on it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const label of ["do-not-merge", "needs-human", "work-class: untrusted-provenance"]) {
+    const held = deferredWorld({ labels: ["admission-deferred", "status: ready", label] });
+    assert.equal(await sweep({ github: held.github }, PAUSING), 0);
+    assert.deepEqual(writes(held.calls), [], label);
+  }
+  // The hold class stands when someone unlisted took its label off.
+  const stranger = { id: 999999, login: "drive-by", type: "User" };
+  const removed = { event: "unlabeled", label: { name: "work-class: untrusted-provenance" }, actor: stranger, created_at: "2026-10-16T09:00:00Z" };
+  const unheld = deferredWorld({ events: [deferredAdd(LANES_BOT), removed] });
+  assert.equal(await sweep({ github: unheld.github }, PAUSING), 0);
+  assert.deepEqual(writes(unheld.calls), []);
+});
+
+test("the sweep drops the deferral of a deferred issue that lost status: ready, without labeling it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const lost = deferredWorld({ labels: ["admission-deferred"] });
+  assert.equal(await sweep({ github: lost.github }, PAUSING), 0);
+  assert.deepEqual(writes(lost.calls), [undeferred(25)]);
+});
+
+test("a deferred issue already agent-ready only loses admission-deferred, whatever changed since", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const running = deferredWorld({ labels: ["admission-deferred", "status: ready", "agent-ready"], specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
+  assert.equal(await sweep({ github: running.github }, PAUSING), 0);
+  assert.deepEqual(writes(running.calls), [undeferred(25)]);
+});
+
+test("the sweep refuses a deferred issue that gained area: security since its deferral, at status: needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const labels = ["admission-deferred", "status: ready", "area: security"];
+  const added = (at) => ({ event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: at });
+  const after = deferredWorld({ labels, events: [deferredAdd(LANES_BOT), added("2026-10-16T09:00:00Z")] });
+  assert.equal(await sweep({ github: after.github }, PAUSING), 0);
+  assert.deepEqual(writes(after.calls), staleWrites(SECURITY_REASON, "status: needs-decision"));
+  // On it before the deferral, the admission it was deferred from judged it.
+  const before = deferredWorld({ labels, events: [added("2026-10-16T07:00:00Z"), deferredAdd(LANES_BOT)] });
+  assert.equal(await sweep({ github: before.github }, PAUSING), 0);
+  assert.deepEqual(writes(before.calls), [labeled(25), undeferred(25)]);
+});
+
+test("the sweep refuses a deferred issue whose body was edited since its deferral, at status: confirmed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const after = deferredWorld({ specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
+  assert.equal(await sweep({ github: after.github }, PAUSING), 0);
+  assert.deepEqual(writes(after.calls), staleWrites(EDITED_REASON, "status: confirmed"));
+  const before = deferredWorld({ specs: { 25: editedSpec("2026-10-16T07:00:00Z") } });
+  assert.equal(await sweep({ github: before.github }, PAUSING), 0);
+  assert.deepEqual(writes(before.calls), [labeled(25), undeferred(25)]);
 });
 
 test("at the queued cap a run the WIP cap skipped is still re-fired: runs are never paced", async () => {
@@ -3700,6 +3764,20 @@ test("a person's mark the admission rules skip loses admission-deferred with a c
     `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed and status: ready not added since")}` })}`,
     undeferred(25),
   ]);
+});
+
+test("a person's mark on an issue whose body was edited or that gained area: security after the mark is refused", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const edited = markedWorld({ specs: { 25: { ...editedSpec("2026-10-16T09:00:00Z"), body: markedIssue(MARKED).body } } });
+  assert.equal(await sweep({ github: edited.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: needs-decision"));
+  const security = markedWorld({ labels: [...MARKED, "area: security"], extraEvents: [labelAdd("area: security", OWNER, "2026-10-16T09:00:00Z")] });
+  assert.equal(await sweep({ github: security.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(security.calls), staleWrites(SECURITY_REASON, "status: needs-decision"));
+  // A hold decide refuses on gets the person the admission comment.
+  const held = markedWorld({ labels: [...MARKED, "do-not-merge"] });
+  assert.equal(await sweep({ github: held.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(held.calls), staleWrites("it carries do-not-merge", "status: needs-decision"));
 });
 
 // A stranded agent-ready issue: no hold, no open lane PR, no marker since its
