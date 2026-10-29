@@ -640,7 +640,10 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
     ["a marker download that failed", { SCAN_REFUSED_DIR: "/nonexistent", SCAN_REFUSED_READ: "failure" }, fakeApi(), "dependency-invalid"],
   ]) {
     const result = await outcome(mainFiles({ verdict: null, env }), api);
-    assert.deepEqual([result.escalation, result.skip], [want, "awaiting-human"], why);
+    // dependency-invalid ends in a failing status and a same-head retry
+    // (lane-stopped); dependency-fix-not-landed holds for a person.
+    const skip = want === "dependency-invalid" ? "lane-stopped" : "awaiting-human";
+    assert.deepEqual([result.escalation, result.skip], [want, skip], why);
     assert.equal(result.comments.length, 1, `${why}: the round counts`);
   }
   // An empty marker directory is no refusal.

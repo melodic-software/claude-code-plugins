@@ -177,15 +177,15 @@ test("the action emits each named token, the call count as an api-calls notice t
     });
     assert.equal(
       out,
-      "::notice title=api-calls::lanes-app=0 not-modified=0\n" +
+      "::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0\n" +
         `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "::notice title=api-calls::github-token=2 not-modified=1\n",
+        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n",
     );
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      "api-calls lanes-app=0 not-modified=0\n" +
+      "api-calls lanes-app=0 not-modified=0 graphql=0\n" +
         `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "api-calls github-token=2 not-modified=1\ngithub-token-cost=28\n",
+        "api-calls github-token=2 not-modified=1 graphql=0\ngithub-token-cost=28\n",
     );
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "costs=github-token-cost=28\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
@@ -203,13 +203,13 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     assert.equal(
       out,
       `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "::notice title=api-calls::github-token=2 not-modified=1\n",
+        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n",
     );
     // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
     assert.equal(
       execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
-      "::notice title=api-calls::github-token=0 not-modified=0\n",
+      "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n",
     );
   }));
 
@@ -372,7 +372,7 @@ test("gh guard: a -i call is counted in api-calls, and a 304 as not-modified", (
       'gh api -i repos/o/r >/dev/null\ngh api -i -H "If-None-Match: x" repos/o/r >/dev/null || true\napi_budget_emit_calls github-token',
     );
     assert.equal(out.calls.length, 2);
-    assert.equal(out.stdout, "::notice title=api-calls::github-token=1 not-modified=1\n");
+    assert.equal(out.stdout, "::notice title=api-calls::github-token=1 not-modified=1 graphql=0\n");
   }));
 
 // A gh that plays $RUNNER_TEMP/script, one `<where> <text>` line each: `o`
@@ -429,7 +429,7 @@ test("gh guard: a paginated call of three pages counts three requests, with stdo
       [...request("https://api.github.com/repos/o/r/labels?per_page=20"), "o 20", ...request(`${LABELS}&page=2`), "o 20", ...request(`${LABELS}&page=3`), "o 9"],
       "api --paginate repos/o/r/labels --jq length",
     );
-    assert.equal(wrapped.stdout, "20\n20\n9\nrc=0\n::notice title=api-calls::github-token=3 not-modified=0\n");
+    assert.equal(wrapped.stdout, "20\n20\n9\nrc=0\n::notice title=api-calls::github-token=3 not-modified=0 graphql=0\n");
     assert.equal(bare.stdout, "20\n20\n9\nrc=0\n");
     assert.equal(wrapped.stderr, "");
     // A page line is a request, never a reading: no api-budget notice.
@@ -449,7 +449,7 @@ test("gh guard: a call that is not gh api counts its requests and drops the git 
       ],
       "run list --limit 1 --json databaseId",
     );
-    assert.equal(wrapped.stdout, "[]\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0\n");
+    assert.equal(wrapped.stdout, "[]\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
     assert.equal(wrapped.stderr, bare.stderr);
   }));
 
@@ -475,7 +475,7 @@ test("gh guard: a failing call keeps gh's stderr byte for byte and its status", 
     );
     assert.equal(bare.stderr.endsWith("gh: Not Found (HTTP 404)"), true);
     assert.equal(wrapped.stderr, bare.stderr);
-    assert.equal(wrapped.stdout, "rc=1\n::notice title=api-calls::github-token=1 not-modified=0\n");
+    assert.equal(wrapped.stdout, "rc=1\n::notice title=api-calls::github-token=1 not-modified=0 graphql=0\n");
   }));
 
 test("gh guard: a header-read call counts each request once, a 304 still as not-modified, and a download host not at all", () =>
@@ -483,17 +483,31 @@ test("gh guard: a header-read call counts each request once, a 304 still as not-
     const head304 = "o HTTP/2.0 304 Not Modified";
     // One request, read from its header block: one call, not two.
     let out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/r"), head304, "o ", "x 1"], 'api -i -H "If-None-Match: x" repos/o/r').wrapped;
-    assert.equal(out.stdout.split("\n").at(-2), "::notice title=api-calls::github-token=0 not-modified=1");
+    assert.equal(out.stdout.split("\n").at(-2), "::notice title=api-calls::github-token=0 not-modified=1 graphql=0");
     // A redirect the header block does not show is a second request.
     out = wrappedAndBare(dir, [...request("https://api.github.com/repos/o/old"), ...request("https://api.github.com/repositories/1"), "o HTTP/2.0 200 OK", "o ", "o {}"], "api repos/o/old").wrapped;
-    assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0\n");
+    assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
     // A download redirect leaves GitHub's API, so it spends nothing there.
     out = wrappedAndBare(
       dir,
       [...request("https://api.github.com/repos/o/r/actions/runs/1/logs"), ...request("https://results-receiver.actions.githubusercontent.com/x")],
       "run view 1 --log",
     ).wrapped;
-    assert.equal(out.stdout, "rc=0\n::notice title=api-calls::github-token=1 not-modified=0\n");
+    assert.equal(out.stdout, "rc=0\n::notice title=api-calls::github-token=1 not-modified=0 graphql=0\n");
+  }));
+
+test("gh guard: a GraphQL request is counted among the requests and again as graphql, from a request line or a reading", () =>
+  withDir((dir) => {
+    // gh pr view: one GraphQL request, one REST request.
+    let out = wrappedAndBare(dir, [...request("https://api.github.com/graphql"), ...request("https://api.github.com/repos/o/r/pulls/7"), "o {}"], "pr view 7 --json number").wrapped;
+    assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=2 not-modified=0 graphql=1\n");
+    // gh api graphql, read from its header block: one reading whose resource is graphql.
+    out = wrappedAndBare(
+      dir,
+      [...request("https://api.github.com/graphql"), "o HTTP/2.0 200 OK", "o X-Ratelimit-Resource: graphql", "o ", "o {}"],
+      "api graphql -f query=x",
+    ).wrapped;
+    assert.equal(out.stdout, "{}\nrc=0\n::notice title=api-calls::github-token=1 not-modified=0 graphql=1\n");
   }));
 
 test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
@@ -759,10 +773,10 @@ test("the action writes the content-creation notice after the token lines", () =
         TOKENS: "github-token",
       },
     });
-    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
+    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      `api-calls github-token=0 not-modified=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`,
+      `api-calls github-token=0 not-modified=0 graphql=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`,
     );
   }));
 
