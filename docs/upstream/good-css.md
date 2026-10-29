@@ -3,7 +3,7 @@
 Single source of truth for everything in this marketplace derived from
 [vojtaholik/good-css](https://github.com/vojtaholik/good-css), MIT, a curated list of modern CSS
 techniques for agents. The `user-interface` plugin's `/user-interface:write-css` skill absorbed its
-47 techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
+techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
 in skill files, where it is agent-facing noise.
 
 **Pinned upstream state:** `main@92d436ba1937d1b1407c47e35abb3e199eaace2e` (committed 2026-10-10,
@@ -64,6 +64,7 @@ is ours; upstream has no configuration surface.
 - **"References"** and the per-entry `Borrowed from:`, `Background:`, `Docs:` and `Source:` credit
   lines: credits are recorded in the table below, never in skill files.
 - **The is-agentic check**: no check, record or dependency for is-agentic.com.
+- **`whole-card-clickable-from-one-link`** (technique 28): replaced by the course rule in [`aiforui-course.md`](aiforui-course.md) (LX1). A card takes a distinct link; a stretched link survives only as a labeled carve-out for tiles no one selects text in, without the `:has()` ring or the z-index lift.
 - The site, specimen harness, `scripts/build-skill.js` and the plugin manifest: presentation and
   packaging only.
 
@@ -92,10 +93,10 @@ spellings, so the spell check is off for the table.
 
 | # | Upstream slug | Upstream section | Our reference file | Credits |
 |---|---|---|---|---|
-| 1 | `the-reset` | Foundations | `foundations.md` | Travis Arnold, @souporserious on X, 2025-04-02, "2025 CSS Reset" · Ayomidé Daniel, @aydahnizzy on X, 2025-10-10, for the font rules · `text-wrap: pretty` on everything is a house rule · Kevin Powell, 3 modern CSS properties to add to your reset, 2026-04-02, for `svh` and the gutter · Emil Kowalski, mobile-native skill, for the touch rules · Chris Coyier, The Downsides of scrollbar-gutter: stable, 2025-12-03 · Ahmad Shadeed, Defensive CSS, for `overflow-wrap` and the `flex: none` rule |
+| 1 | `the-reset` | Foundations | `foundations.md` | Travis Arnold, @souporserious on X, 2025-04-02, "2025 CSS Reset" · Ayomidé Daniel, @aydahnizzy on X, 2025-10-10, for the font rules · `text-wrap: pretty` on everything is a house rule · Kevin Powell, 3 modern CSS properties to add to your reset, 2026-04-02, for `svh` and the gutter · Emil Kowalski, mobile-native skill, for the touch rules · Chris Coyier, The Downsides of scrollbar-gutter: stable, 2025-12-03 · Ahmad Shadeed, Defensive CSS, for `overflow-wrap` and the `flex: none` rule. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 2 | `logical-properties` | Foundations | `foundations.md` | Ahmad Shadeed, Digging Into CSS Logical Properties, 2021-03-10 |
 | 3 | `oklch-color` | Foundations | `foundations.md` | Andrey Sitnik and Travis Turner (Evil Martians), OKLCH in CSS: why we moved from RGB and HSL · Björn Ottosson, A perceptual color space for image processing |
-| 4 | `one-set-of-color-tokens-for-light-and-dark` | Foundations | `foundations.md` | IP, @ipwanciu on X, 2025-10-30 |
+| 4 | `one-set-of-color-tokens-for-light-and-dark` | Foundations | `foundations.md` | IP, @ipwanciu on X, 2025-10-30. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 5 | `fluid-sizes-with-clamp` | Foundations | `foundations.md` | Kyrylo Silin, @kyrylo on X, 2026-05-10 · James Gilyead and Trys Mudford, Utopia · Adrian Roselli, Responsive Type and Zoom · Maxwell Barvian, Addressing Accessibility Concerns With Using Fluid Type, 2023-11-07, for the 2.5 limit |
 | 6 | `one-fluid-scale-for-type-and-space` | Foundations | `foundations.md` | James Gilyead, Designing with fluid type scales, 2020-02-01, for the two scales · Trys Mudford, CSS-only fluid modular type scales, 2020-02-02, and Fluid custom properties, 2020-02-03 · James Gilyead, Designing with a fluid space palette, 2021-03-16, for space pairs. Utopia prints one finished `clamp()` per step from a calculator, because CSS had no powers in 2020. With `pow()` the browser does that math. |
 | 7 | `content-grid-with-breakouts` | Layout | `layout.md` | Kevin Powell, A new approach to container and wrapper classes, 2023-11-09 · Ryan Mulligan, Layout Breakouts with CSS Grid · Stephanie Eckles, SmolCSS breakout grid |
@@ -115,10 +116,10 @@ spellings, so the spell check is off for the table.
 | 21 | `tabular-numbers` | Text and media | `text-and-media.md` | Rauno Freiberg, Web Interface Guidelines · Vercel Web Interface Guidelines |
 | 22 | `label-centered-on-its-letters-with-text-box` | Text and media | `text-and-media.md` | Stripe, which ships it on its buttons at stripe.com. There the button is a flex container, so the declaration has no effect and uneven padding does the centering. The first rule above is the fix. |
 | 23 | `icon-sized-by-the-text-beside-it` | Text and media | `text-and-media.md` | Andy Bell, How I build a button component, 2024-09-18, for `cap` and `flex: none`, and LH units are cool, 2023-12-13 · Heydon Pickering and Andy Bell, The Icon, Every Layout |
-| 24 | `one-focus-ring-with-focus-visible` | Interaction | `interaction.md` | Stephanie Eckles, Modern CSS Upgrades To Improve Accessibility, 2021-04-09, and Smol Focus Styles · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07 |
-| 25 | `hover-styles-only-where-hover-exists` | Interaction | `interaction.md` | Emil Kowalski, mobile-native skill and emil-design-eng skill · Rauno Freiberg, Web Interface Guidelines |
+| 24 | `one-focus-ring-with-focus-visible` | Interaction | `interaction.md` | Stephanie Eckles, Modern CSS Upgrades To Improve Accessibility, 2021-04-09, and Smol Focus Styles · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 25 | `hover-styles-only-where-hover-exists` | Interaction | `interaction.md` | Emil Kowalski, mobile-native skill and emil-design-eng skill · Rauno Freiberg, Web Interface Guidelines. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 26 | `press-feedback` | Interaction | `interaction.md` | Emil Kowalski, emil-design-eng skill and mobile-native skill |
-| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list. |
+| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list.. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 28 | `whole-card-clickable-from-one-link` | Interaction | `interaction.md` | Heydon Pickering, Cards, for the stretched `::after` · Stripe, for moving the focus ring to the card with `:has()` |
 | 29 | `has-for-parent-and-page-state` | Interaction | `interaction.md` | Jen Simmons, Using :has() as a CSS Parent Selector and much more, 2022-08-18 · Josh W. Comeau, The Undeniable Utility Of CSS :has, 2024-09-09 · Chris Coyier, Scroll-Locked Dialogs, 2024-02-19 |
 | 30 | `form-feedback-with-user-invalid` | Interaction | `interaction.md` | Kevin Powell, Improve forms with :user-valid and :user-invalid, 2025-02-20, and Use these CSS features instead of JavaScript, 2026-09-23 |
@@ -135,10 +136,10 @@ spellings, so the spell check is off for the table.
 | 41 | `reveal-with-clip-path` | Show and hide | `show-and-hide.md` | Stripe, in the navigation menu on stripe.com. The `visibility` part was added for this list. |
 | 42 | `carousel-on-native-scroll` | Scroll and viewport | `scroll-and-viewport.md` | Steve Sewell, Build buttery smooth carousels with pure CSS like Nike. This version swaps his `scrollIntoView()` for `scrollBy()`, which can only scroll the carousel and never the page. |
 | 43 | `scroll-area-between-a-fixed-header-and-footer` | Scroll and viewport | `scroll-and-viewport.md` | Ahmad Shadeed, Defensive CSS, the tips Scrollbars on demand, Scrollbar gutter, Scroll chaining and Minimum content size in flexbox. He gives the four declarations one by one, and the panel around them is added here. |
-| 44 | `styles-that-apply-only-when-a-scroller-overflows` | Scroll and viewport | `scroll-and-viewport.md` | Stripe, in the navigation on stripe.com · Bramus Van Damme, Detect if an element can scroll or not with only CSS |
+| 44 | `styles-that-apply-only-when-a-scroller-overflows` | Scroll and viewport | `scroll-and-viewport.md` | Stripe, in the navigation on stripe.com · Bramus Van Damme, Detect if an element can scroll or not with only CSS. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 45 | `anchor-targets-that-clear-a-sticky-header` | Scroll and viewport | `scroll-and-viewport.md` | Kevin Powell, Stop fixed navigations covering content on scroll, 2022-06-02, and Use these CSS features instead of JavaScript, 2026-09-23 |
-| 46 | `no-rubber-band-bounce-on-desktop` | Scroll and viewport | `scroll-and-viewport.md` | wits, @witsdev on X, 2026-09-30, describing how Vercel gates it behind `pointer: fine` · Jhey Tompkins, @jh3yy on X, for the `any-pointer` version · Emil Kowalski, mobile-native skill, for the inner containers |
-| 47 | `content-clear-of-the-notch` | Scroll and viewport | `scroll-and-viewport.md` | Emil Kowalski, mobile-native skill |
+| 46 | `no-rubber-band-bounce-on-desktop` | Scroll and viewport | `scroll-and-viewport.md` | wits, @witsdev on X, 2026-09-30, describing how Vercel gates it behind `pointer: fine` · Jhey Tompkins, @jh3yy on X, for the `any-pointer` version · Emil Kowalski, mobile-native skill, for the inner containers. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 47 | `content-clear-of-the-notch` | Scroll and viewport | `scroll-and-viewport.md` | Emil Kowalski, mobile-native skill. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 
 <!-- spellchecker:on -->
 

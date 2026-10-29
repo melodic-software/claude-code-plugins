@@ -11,7 +11,7 @@ memory.
 | Key | What it changes in this skill | Where it can be set |
 |---|---|---|
 | `css.browser_target` | the target when there is no `--target` and no project browserslist | every layer; userConfig `css_browser_target` |
-| `css.techniques.disable` | technique slugs (as marked in the topic references) never used | files only; lists add up across layers |
+| `css.techniques.disable` | technique slugs (as marked in the topic references) never used; a slug no topic reference carries disables nothing | files only; lists add up across layers |
 | `css.rules.disable` | always-on rule ids turned off; the review script suppresses their findings | files only; lists add up across layers |
 | `css.important` | when `!important` may appear: `avoid`, `utilities-only`, `allow` | every layer; userConfig `css_important` |
 | `css.layer` | the layer new CSS goes in when the project has no layer system | every layer; userConfig `css_layer` |

@@ -137,9 +137,9 @@ on the last line. Long-form body text gets neither: `balance` stops past a line 
 sets (the pointer in `typography/line-behavior.md`), and balancing a full paragraph burns horizontal
 space for no reading benefit.
 
-The `the-reset` recipe in `/user-interface:write-css` sets `text-wrap: pretty` on `:root`, and
-long-form text inherits it, against this rule. That conflict is open; do not cite the reset as the
-recipe for this rule until it is settled.
+`pretty` is the exception for long-form text: MDN says it "is intended for body copy where good
+typography is favored over performance", so the `the-reset` recipe in `/user-interface:write-css`
+sets it on `:root` and long-form text inherits it. Recipe: `the-reset`.
 
 **Audit: Suggestion.** A heading with no `text-wrap: balance`, or a single orphaned word on a
 heading's or a short block's last line.

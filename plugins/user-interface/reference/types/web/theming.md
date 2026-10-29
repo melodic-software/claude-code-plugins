@@ -140,7 +140,7 @@ the variables and let the theme flip do the work:
 
 Which instruction wins: the project's existing theme mechanism first. With none, the
 `/user-interface:write-css` recipe `one-set-of-color-tokens-for-light-and-dark` (one set of
-`light-dark()` tokens switched through `color-scheme`, never redefined) wins over the value swap
+`light-dark()` tokens switched through `color-scheme`) wins over the value swap
 shown above. Which step each role takes in the dark theme is the `color` concern. This rule keeps
 one thing whatever the mechanism: the flip happens once, at the theme root, never per component.
 
