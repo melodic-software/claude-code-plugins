@@ -531,8 +531,10 @@ const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
 const CRITICAL_COUNT = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
 const HOLD_LANE = /^<!-- claude-lane-hold lane=([a-z-]+) /;
 const HOLD_CRITERIA = / criteria=([a-z,-]+) -->$/;
-// The most files GitHub's compare lists; a listing that long may be cut short.
+// The most files GitHub lists for a commit; a listing that long may be cut short.
 const COMPARE_FILES = 300;
+// The most fix commits whose files a critical-security clear reads (judgment).
+const FIX_COMMITS = 20;
 const LANE_TAG = /^\s*`?claude-lane: ([\w-]+)`?\s*$/m;
 const REVIEW_THREAD_PAGES = 10;
 const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -726,21 +728,48 @@ export function holdsSince(timeline, lifted) {
   };
 }
 
-// Why the pushes from held head `held` to `head` fix nothing a hold could
-// name, or null: only merges moved it, the compare does not read whole, or a
-// critical-security hold's lane left no CRITICAL inline finding at `held` in
-// a file changed since.
-async function heldCauseUnchanged({ github, repo, head, threads }, held, critical) {
-  const compare = await github("GET", `/repos/${repo}/compare/${held}...${head}`);
+// The commits a compare lists, or null when it does not read whole.
+async function compareCommits(github, repo, from, to) {
+  const compare = await github("GET", `/repos/${repo}/compare/${from}...${to}`);
   const commits = compare?.commits;
-  if (!Array.isArray(commits) || commits.length === 0 || commits.length !== compare.total_commits || !Array.isArray(compare.files) || compare.files.length >= COMPARE_FILES) {
-    return `the compare from ${held} to ${head} did not read whole`;
+  return Array.isArray(commits) && commits.length === compare.total_commits && commits.every((commit) => SHA.test(String(commit?.sha))) ? commits : null;
+}
+
+// Why the pushes from held head `held` to `head` fix nothing a hold could
+// name, or null. Only the pull request's own commits since `held` count (not
+// reachable from the base branch, so an `Update branch` brings in none), and
+// one of them must not be a merge. A critical-security hold's lane must have
+// left a CRITICAL inline finding at `held`, each in a file one of those
+// commits changed. A listing that does not read whole keeps the hold.
+async function heldCauseUnchanged({ github, repo, base, head, threads }, held, critical) {
+  const since = await compareCommits(github, repo, held, head);
+  const own = await compareCommits(github, repo, base, head);
+  if (since === null || own === null) {
+    return `the commits from ${held} or ${base} to ${head} did not read whole`;
   }
-  if (commits.every((commit) => !Array.isArray(commit?.parents) || commit.parents.length > 1)) {
-    return `only merge commits moved the head off ${held}`;
+  const mine = new Set(own.map((commit) => commit.sha));
+  const fixes = since.filter((commit) => mine.has(commit.sha) && Array.isArray(commit.parents) && commit.parents.length === 1);
+  if (fixes.length === 0) {
+    return `no commit of the pull request's own but merges moved the head off ${held}`;
   }
-  const changed = new Set(compare.files.map((file) => file?.filename));
-  for (const { lane } of critical.filter((hold) => hold.sha === held)) {
+  const holds = critical.filter((hold) => hold.sha === held);
+  if (holds.length === 0) {
+    return null;
+  }
+  if (fixes.length > FIX_COMMITS) {
+    return `more than ${FIX_COMMITS} commits moved the head off ${held}`;
+  }
+  const changed = new Set();
+  for (const { sha } of fixes) {
+    const files = (await github("GET", `/repos/${repo}/commits/${sha}`))?.files;
+    if (!Array.isArray(files) || files.length >= COMPARE_FILES) {
+      return `the files of ${sha} did not read whole`;
+    }
+    for (const file of files) {
+      changed.add(file?.filename);
+    }
+  }
+  for (const { lane } of holds) {
     const findings = threads.filter((thread) => thread.lane === lane && thread.commit === held && thread.severity.includes("CRITICAL"));
     if (findings.length === 0) {
       return `the critical-security hold at ${held} has no CRITICAL inline ${lane} finding there`;
@@ -814,7 +843,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
     return { reason: findings };
   }
   for (const held of new Set(shas)) {
-    const unchanged = await heldCauseUnchanged({ github, repo, head, threads }, held, critical);
+    const unchanged = await heldCauseUnchanged({ github, repo, base: pull.base.ref, head, threads }, held, critical);
     if (unchanged !== null) {
       return { reason: unchanged };
     }
@@ -858,7 +887,30 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
       console.log(`stale-review-hold: no removal of ${label} since it went on is recorded`);
       return 1;
     }
-    const evidence = await staleHoldEvidence({ github, checks: github, reader: github, repo, number, pull, timeline, lifted, trusted, head: cleared, until: Math.min(...removed) });
+    // Judged as the App saw it: the timeline, review comments and reviews up
+    // to the removal, whose actor ci-status checked is the lanes App.
+    const until = Math.min(...removed);
+    const removal = timeline.find((item) => item.event === "unlabeled" && same(item.label?.name, label) && Date.parse(item.created_at) === until);
+    const seen = timeline.filter((item) => !(Date.parse(item.created_at ?? item.submitted_at ?? "") > until));
+    const asOf = (entries) => entries.filter((entry) => !(entry.at > until));
+    const stop =
+      standingStop({ timeline: seen, lifted, since, bot: removal?.actor?.login ?? "", label }) ??
+      ((speaker) => (speaker === undefined ? null : spokeReason(speaker, label)))(
+        personSince(
+          asOf(
+            reviewEntries({
+              comments: await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`),
+              reviews: await paginate(github, `/repos/${repo}/pulls/${number}/reviews`),
+            }),
+          ),
+          since,
+        ),
+      );
+    if (stop !== null) {
+      console.log(`stale-review-hold: the hold stands at ${cleared}: ${stop}`);
+      return 1;
+    }
+    const evidence = await staleHoldEvidence({ github, checks: github, reader: github, repo, number, pull, timeline: seen, lifted, trusted, head: cleared, until });
     if (evidence.reason !== undefined) {
       console.log(`stale-review-hold: the hold stands at ${cleared}: ${evidence.reason}`);
       return 1;
@@ -875,18 +927,28 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
 const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
 // A label a review lane added: what to clear as STALE_HOLD, or { reason }
 // saying why nothing is.
-async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
+// Why something besides the review-lane holds keeps the label, from the
+// timeline, or null: check-signed-commits' hold, a lanes App (`bot`) marker
+// other than an address-feedback round's or a clear's since the label went
+// on, or a person who spoke since. clear-escalations and ci-status's recheck
+// both run it.
+function standingStop({ timeline, lifted, since, bot, label }) {
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
-    return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
+    return "check-signed-commits holds it: a lane commit could not be verified";
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
   const foreign = foreignMarker(appComments, since, (line) => line === ROUND_MARKER);
   if (foreign !== undefined) {
-    return { reason: `a lanes App comment since ${label} went on carries a marker: ${foreign.slice(0, 120)}` };
+    return `a lanes App comment since ${label} went on carries a marker: ${foreign.slice(0, 120)}`;
   }
   const speaker = personSince(timeline.flatMap(spoken), since);
-  if (speaker !== undefined) {
-    return { reason: spokeReason(speaker, label) };
+  return speaker === undefined ? null : spokeReason(speaker, label);
+}
+
+async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
+  const stop = standingStop({ timeline, lifted, since, bot, label });
+  if (stop !== null) {
+    return { reason: stop };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
@@ -1145,16 +1207,19 @@ export async function main({ env = process.env, github, checks, verify, reader }
           console.log(`clear-escalations: #${number} kept: ${spokeReason(speaker, label)}`);
           continue;
         }
+        // A stale hold is judged again before the comment and again before
+        // the delete: a hold a lane wrote since (the label already on, so no
+        // labeled event) or a moved head keeps it, with no comment saying
+        // the label came off.
+        const recheck = async () => (result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result }) : null);
+        let moved = await recheck();
         // The comment first: a failed removal is retried by the next sweep,
         // which finds the comment and posts no second one.
         const base = `/repos/${repo}/issues/${number}`;
-        if (!result.explained) {
+        if (moved === null && !result.explained) {
           await github("POST", `${base}/comments`, { body: clearedComment(result.recorded, result.head, result.why, label) });
+          moved = await recheck();
         }
-        // A stale hold is judged again just before the delete: a hold a lane
-        // wrote since (the label already on, so no labeled event) or a moved
-        // head keeps it.
-        const moved = result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result }) : null;
         if (moved !== null) {
           console.log(`clear-escalations: #${number} kept: ${moved}`);
           continue;

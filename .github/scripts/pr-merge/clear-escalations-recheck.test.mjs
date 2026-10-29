@@ -68,7 +68,7 @@ const pushes = [
 ];
 
 // One token answers every read, as ci-status's job token does.
-function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes } = {}) {
+function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [] } = {}) {
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
@@ -77,7 +77,7 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
       return { number: 7, state: "open", base: { ref: "main", sha: MAIN }, head: { sha: head, ref: "feat/x", repo: { full_name: REPO } } };
     }
     if (method === "GET" && route === `/repos/${REPO}/issues/7/timeline`) {
-      return path.endsWith("page=1") ? timeline : [];
+      return path.endsWith("page=1") ? [...timeline, ...extra] : [];
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${MAIN}...${HEAD}`) {
       return { files: [{ filename: "plugins/x/y.py" }] };
@@ -86,7 +86,19 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
       return activity;
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
-      return { total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py" }] };
+      return { total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }] };
+    }
+    if (method === "GET" && route === `/repos/${REPO}/compare/main...${HEAD}`) {
+      return { total_commits: 2, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }] };
+    }
+    if (method === "GET" && route === `/repos/${REPO}/commits/${HEAD}`) {
+      return { sha: HEAD, files: [{ filename: "plugins/x/y.py" }] };
+    }
+    if (method === "GET" && /^\/repos\/[^/]+\/[^/]+\/pulls\/7\/comments\?since=[^&]+$/.test(route)) {
+      return path.endsWith("page=1") ? threadComments : [];
+    }
+    if (method === "GET" && route === `/repos/${REPO}/pulls/7/reviews`) {
+      return [];
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequest: { reviewThreads: { nodes: threads, pageInfo: { hasNextPage: false } } } } } };
@@ -171,4 +183,27 @@ test("ci-status's recheck fails when the cleared head was not the head as the Ap
   const { code, log } = await run(world({ head: LATER, activity: moved }), { ...ENV, HEAD_SHA: LATER });
   assert.equal(code, 1);
   assert.match(log, /no trusted push alone moved the head off the held head/);
+});
+
+// The rest of the App's predicate, at the removal (thread PRRT_kwDOTCGFQM6xqn0Y):
+// a marker comment the App wrote outside clear-escalations proves nothing.
+test("ci-status's recheck fails on a signed-commits hold, another App marker or a person speaking before the removal", async () => {
+  for (const [extra, why] of [
+    [[commented(ACTIONS_BOT, "<!-- check-signed-commits hold -->\nA lane commit is not verified.", "2026-10-18T11:30:00Z")], "check-signed-commits holds it"],
+    [[commented(APP, "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nHeld.", "2026-10-18T11:30:00Z")], "a lanes App comment since needs-human went on carries a marker"],
+    [[commented(PERSON, "Do not merge this yet.", "2026-10-18T11:30:00Z")], "kyle-sexton commented or reviewed after needs-human went on"],
+  ]) {
+    const { code, log } = await run(world({ extra }));
+    assert.equal(code, 1, why);
+    assert.match(log, new RegExp(why));
+  }
+  const reply = { user: PERSON, created_at: "2026-10-18T11:30:00Z", updated_at: "2026-10-18T11:30:00Z", body: "Keep this held." };
+  const { code, log } = await run(world({ threadComments: [reply] }));
+  assert.equal(code, 1);
+  assert.match(log, /kyle-sexton commented or reviewed after needs-human went on/);
+});
+
+test("ci-status's recheck ignores a person who spoke only after the removal", async () => {
+  const { code, log } = await run(world({ extra: [commented(PERSON, "Thanks.", "2026-10-18T12:30:00Z")] }));
+  assert.equal(code, 0, log);
 });

@@ -70,8 +70,10 @@ const codeThread = thread(false, { __typename: "Bot", login: "github-actions" },
 // The held CRITICAL finding: inline at OLD on the file the person's fix changed, now resolved.
 const heldFinding = () => securityThread("severity: CRITICAL", true, "plugins/x/y.py", OLD);
 const baseThreads = () => [securityThread("severity: SUGGESTION"), heldFinding(), codeThread];
-// The compare from the held head to the head: the person's one fix commit.
-const baseHeldCompare = () => ({ total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }], files: [{ filename: "plugins/x/y.py" }] });
+// The compare from the held head to the head: the person's one fix commit;
+// from main to the head: the pull request's own commits, the held head and the fix.
+const baseHeldCompare = () => ({ total_commits: 1, commits: [{ sha: HEAD, parents: [{ sha: OLD }] }] });
+const baseOwnCompare = () => ({ total_commits: 2, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }] });
 
 const completeNotice = (lane, scope = "scope=whole") => ({
   annotation_level: "notice",
@@ -88,7 +90,7 @@ const baseLanes = () => ({
 const push = (actor, sha, at) => ({ activity_type: "push", actor, after: sha, timestamp: at });
 const basePushes = () => [push(PERSON, HEAD, "2026-10-18T11:00:00Z"), push(PERSON, OLD, "2026-10-18T09:50:00Z"), { activity_type: "branch_creation", actor: PERSON, after: "e".repeat(40), timestamp: "2026-10-18T08:00:00Z" }];
 
-function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }], heldCompare = baseHeldCompare() } = {}) {
+function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }], heldCompare = baseHeldCompare(), ownCompare = baseOwnCompare(), fixFiles = [{ filename: "plugins/x/y.py" }] } = {}) {
   const calls = [];
   // `later` answers the reads after the first judgment: { head, timeline }.
   const seen = { pull: 0, timeline: 0 };
@@ -117,6 +119,12 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
       return heldCompare;
+    }
+    if (method === "GET" && route === `/repos/${REPO}/compare/main...${HEAD}`) {
+      return ownCompare;
+    }
+    if (method === "GET" && route === `/repos/${REPO}/commits/${HEAD}`) {
+      return { sha: HEAD, files: fixFiles };
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { repository: { pullRequest: { reviewThreads: { nodes: threads, pageInfo: { hasNextPage: false } } } } } };
@@ -237,7 +245,8 @@ test("an open code-lane thread at CRITICAL or IMPORTANT keeps the hold, and so d
   await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or IMPORTANT");
 });
 
-test("a hold written, or a head pushed, after the judgment and before the delete keeps the label", async () => {
+// A kept label gets no comment saying it came off (threads PRRT_kwDOTCGFQM6xqa-M, PRRT_kwDOTCGFQM6xqmzn).
+test("a hold written, or a head pushed, after the judgment keeps the label with no clear comment", async () => {
   const after = (later) => world({ later });
   for (const [w, why] of [
     [after({ timeline: [...baseTimeline(), hold(HEAD, "2026-10-18T11:50:00Z")] }), "a review lane wrote a hold since it was judged"],
@@ -245,10 +254,7 @@ test("a hold written, or a head pushed, after the judgment and before the delete
   ]) {
     const { code, log } = await run(w);
     assert.equal(code, 0);
-    assert.deepEqual(
-      w.writes().map(({ method }) => method),
-      ["POST"],
-    );
+    assert.deepEqual(w.writes(), []);
     assert.match(log, new RegExp(`#7 kept: ${why}`));
   }
 });
@@ -265,13 +271,26 @@ test("a critical-security hold stays for a person when its lane left no CRITICAL
 });
 
 test("a critical-security hold stays when no push since the held head changed the held finding's file", async () => {
-  await assertKept(world({ heldCompare: { ...baseHeldCompare(), files: [{ filename: "plugins/x/other.py" }] } }), `plugins/x/y.py, which holds a CRITICAL finding at ${OLD}, is unchanged since then`);
+  await assertKept(world({ fixFiles: [{ filename: "plugins/x/other.py" }] }), `plugins/x/y.py, which holds a CRITICAL finding at ${OLD}, is unchanged since then`);
 });
 
 test("the hold stays when only merges moved the head off the held head, or the compare does not read whole", async () => {
   const merge = { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] };
-  await assertKept(world({ heldCompare: { ...baseHeldCompare(), commits: [merge] } }), `only merge commits moved the head off ${OLD}`);
-  await assertKept(world({ heldCompare: { ...baseHeldCompare(), total_commits: 2 } }), `the compare from ${OLD} to ${HEAD} did not read whole`);
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), commits: [merge] } }), `no commit of the pull request's own but merges moved the head off ${OLD}`);
+  await assertKept(world({ heldCompare: { ...baseHeldCompare(), total_commits: 2 } }), `the commits from ${OLD} or main to ${HEAD} did not read whole`);
+});
+
+// An Update branch once main has moved: the compare from the held head lists
+// main's own single-parent commits beside the merge (threads
+// PRRT_kwDOTCGFQM6xqaIb, PRRT_kwDOTCGFQM6xqa-F, PRRT_kwDOTCGFQM6xqn0R).
+test("an Update branch that brings in main's commits, even ones changing the held file, lifts no hold", async () => {
+  const mainCommit = { sha: "9".repeat(40), parents: [{ sha: MAIN }] };
+  const merge = { sha: HEAD, parents: [{ sha: OLD }, { sha: mainCommit.sha }] };
+  const heldCompare = { total_commits: 2, commits: [mainCommit, merge] };
+  const ownCompare = { total_commits: 2, commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, merge] };
+  await assertKept(world({ heldCompare, ownCompare }), `no commit of the pull request's own but merges moved the head off ${OLD}`);
+  const gate = commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-security-review sha=${OLD} criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-security-review`, "2026-10-18T10:00:02Z");
+  await assertKept(world({ heldCompare, ownCompare, timeline: [baseTimeline()[0], gate, summary()] }), `no commit of the pull request's own but merges moved the head off ${OLD}`);
 });
 
 test("a hold other than critical-security needs no inline finding at the held head", async () => {
