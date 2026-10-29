@@ -89,8 +89,7 @@ regardless, and an existing install keeps its setting when the catalog default c
 
 The shell suites here are spawn-bound, and Git Bash on Windows pays roughly
 140 ms per process spawn against roughly 3 ms on Linux, so running every
-`**/*.test.sh` locally is an hours-long wall on a Windows box and nobody does
-it. Run the suites that actually cover your change instead:
+`**/*.test.sh` locally takes hours on a Windows box, so nobody does it. Run the suites that actually cover your change instead:
 
 ```shell
 scripts/affected-tests.sh                 # list the suites covering your diff vs origin/main
@@ -173,7 +172,7 @@ suite's result, so a leg's log shows the time each suite took.
 ### Local pre-flight for hygiene gates
 
 Several hygiene findings only show up after a push because the **gate name in CI is not the
-local command**. The gap is discoverability, not a missing runner: every gate below has a local form.
+local command**. The gap is discoverability, not a missing runner, because every gate below has a local form.
 
 | CI gate / step id | Local command | Notes |
 |---|---|---|
