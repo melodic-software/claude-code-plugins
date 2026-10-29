@@ -15,3 +15,4 @@ bump: minor
 - Those review-surface `gate` rows (the gated workflows, the main-run review's scripts, the agent settings and instruction files) never take a trusted author's gate-path lift; a person approves them.
 - The main-run review reads its diff in parts one Read returns whole, and writes a verdict only when every part was read whole.
 - Without PyYAML, a mapping-form `issues:` trigger under `on:` holds as `privileged-trigger-review`.
+- `**/.claude/hooks/**` is a `gate` floor path outside the author lift: a hook that settings already registers changes what lanes run.

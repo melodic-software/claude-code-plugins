@@ -343,6 +343,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
   [".github/scripts/pr-review-main/**", "gate"],
   ["**/.claude/settings*.json", "gate"],
+  ["**/.claude/hooks/**", "gate"],
   ["**/.mcp.json", "gate"],
   ["**/CLAUDE.md", "gate"],
   ["**/CLAUDE.local.md", "gate"],

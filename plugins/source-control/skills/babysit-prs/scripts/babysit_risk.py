@@ -250,7 +250,8 @@ class RiskResult:
 #   gains a write scope, a privileged trigger or a secret holds by its patch
 #   instead (`_workflow_privilege_gains`, `secret-exposure-review`). And
 #   what changes what agents may do unattended or what later reviews judge
-#   against: Claude Code settings (hooks, permission allows), `.mcp.json`,
+#   against: Claude Code settings (hooks, permission allows) and the hook
+#   scripts under `.claude/hooks/`, `.mcp.json`,
 #   `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and the synced standards. Those
 #   review-surface rows (`_NO_AUTHOR_LIFT`) never take the author lift.
 # - `enforcement`: the ci-status workflow, the rest of the
@@ -350,6 +351,8 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
     (".github/scripts/pr-review-main/**", "gate"),
     ("**/.claude/settings*.json", "gate"),
+    # A hook settings already registers runs in every later lane.
+    ("**/.claude/hooks/**", "gate"),
     ("**/.mcp.json", "gate"),
     ("**/CLAUDE.md", "gate"),
     ("**/CLAUDE.local.md", "gate"),
@@ -419,6 +422,7 @@ _NO_AUTHOR_LIFT = frozenset(
     {
         ".github/scripts/pr-review-main/**",
         "**/.claude/settings*.json",
+        "**/.claude/hooks/**",
         "**/.mcp.json",
         "**/CLAUDE.md",
         "**/CLAUDE.local.md",

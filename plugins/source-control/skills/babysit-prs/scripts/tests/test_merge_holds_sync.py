@@ -262,7 +262,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 98)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 99)
         self.assertEqual(len(risk.REVIEW_FLOOR), 41)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
@@ -297,6 +297,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         surface = {
             ".github/scripts/pr-review-main/**",
             "**/.claude/settings*.json",
+            "**/.claude/hooks/**",
             "**/.mcp.json",
             "**/CLAUDE.md",
             "**/CLAUDE.local.md",
@@ -334,7 +335,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
-        self.assertEqual(len(risk.HIGH_FLOOR), 57)
+        self.assertEqual(len(risk.HIGH_FLOOR), 58)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

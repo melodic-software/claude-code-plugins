@@ -281,6 +281,7 @@ jobs:
         .github/scripts/work-resolve-issue/stop-routes.mjs
         .github/scripts/pr-review-main/**
         **/.claude/settings*.json
+        **/.claude/hooks/**
         **/.mcp.json
         **/CLAUDE.md
         **/CLAUDE.local.md
