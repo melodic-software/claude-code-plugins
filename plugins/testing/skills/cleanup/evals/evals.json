@@ -177,6 +177,17 @@
       ]
     },
     {
+      "id": "cannot_fail_only_offered_on_empty_mapping",
+      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.md to .claude/mutation-testing.md, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
+      "expected_output": "Passes step 0 and records with /mutation-testing:audit --exercised Shop.Tests, which ends as no mapping: scope empty because WiringTests reaches AddShop only through the BuildProvider helper and PriceOf only through IPriceFeed. Cleanup names that result as the reason the gated batch cannot run and offers cannot-fail-only mode. With no answer, it stops there: no skeptic runs, no test is deleted, and nothing is committed.",
+      "files": [
+        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
+        "evals/fixtures/cleanup-dotnet/EXPECTED.md"
+      ]
+    },
+    {
       "id": "dotnet_gate_runs",
       "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.md to .claude/mutation-testing.md and Shop.Tests/PriceFeedTests.cs.fixture to Shop.Tests/PriceFeedTests.cs, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
       "expected_output": "Passes step 0 and records with /mutation-testing:audit --exercised Shop.Tests --max 100 --record-mutants .work/testing-cleanup/shop.tests/before.tsv. Every test-set run is dotnet test with the Shop.Tests/Shop.Tests.csproj line dotnet-test-selection.sh prints, a --filter naming the PriceFeedTests and WiringTests classes; dotnet test never runs without a project. The record holds PriceFeed constructor mutants in Shop/ServiceRegistration.cs with a non-empty K0. Treats Shop/ServiceRegistration.cs as a production file of the PriceFeedTests tests, though PriceFeedTests.cs has no using for it, so a rewrite there is not gate-blind. Applies no deletion, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop.tests/after.tsv, compares the two records mutant by mutant, and reports `Gate: pass`. Commits nothing.",
