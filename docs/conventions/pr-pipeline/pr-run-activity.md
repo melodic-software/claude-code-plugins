@@ -1139,8 +1139,8 @@ reply that leaves it open escalates `feedback-disputed` with no adjudication. On
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
 a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
-the security-review lane and whose one `severity:` line is below `IMPORTANT` (`SUGGESTION`; this
-repository counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+the security-review lane and whose rating is below `IMPORTANT` (`SUGGESTION`; this repository
+counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
 listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
@@ -1148,9 +1148,12 @@ decides nothing, and it is adjudicated only once the security-review lane review
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
 and the round skips `finding-stands`. A CRITICAL finding, a security-review finding rated
-`IMPORTANT` or `CRITICAL` or with no single known rating (none, an unknown word, or two that
-differ) and one
-whose lane its root comment does not name go to a person: an `INCORRECT` reply on one escalates
+`IMPORTANT` or `CRITICAL` or unrated, and one
+whose lane its root comment does not name go to a person. The rating is the lane's own line
+(`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
+the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
+so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
+reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
 and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each

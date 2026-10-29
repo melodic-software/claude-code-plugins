@@ -883,7 +883,9 @@ test("at the cap, a SUGGESTION security lane finding goes to a fresh fixer; an I
   assert.equal(fresh.decision, "proceed");
   assert.equal(fresh.escalationReason, undefined);
   assert.deepEqual(fresh.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
-  for (const body of [LANE_FINDING, LANE_FINDING.replace("IMPORTANT", "CRITICAL"), LANE_FINDING.replace("severity: IMPORTANT\n", ""), LANE_FINDING.replace("IMPORTANT", "HIGHISH")]) {
+  const fencedOnly = "**x**\n\n```\nseverity: SUGGESTION\n```\n\nclaude-lane: claude-security-review";
+  const midBody = "**x**\n\nquoted:\nseverity: SUGGESTION\nmore text\n\nclaude-lane: claude-security-review";
+  for (const body of [LANE_FINDING, LANE_FINDING.replace("IMPORTANT", "CRITICAL"), LANE_FINDING.replace("severity: IMPORTANT\n", ""), LANE_FINDING.replace("IMPORTANT", "HIGHISH"), fencedOnly, midBody]) {
     const result = await capped({ roots: [body] });
     assert.equal(result.decision, "escalate", body.split("\n")[0]);
     assert.equal(result.escalationReason, "feedback-round-cap");

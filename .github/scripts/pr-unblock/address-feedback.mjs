@@ -105,13 +105,50 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 // lowest one a person decides: this repository counts IMPORTANT as HIGH.
 export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
 export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
-const SEVERITY_LINE = /^[ \t]*severity:[ \t]*([A-Za-z]+)[ \t]*$/gim;
-// A comment's one rating, upper-cased, or null when it has none, an unknown
-// one, or two that differ.
+// Any line shaped like a rating, wherever it sits; the lane's own line is
+// unindented, outside a fence, and the comment's first line or the last one
+// above its `claude-lane:` footer (blank lines skipped).
+const SEVERITY_SHAPED = /^[ \t>]*severity:/i;
+const SEVERITY_LINE = /^severity:[ \t]*([A-Za-z]+)[ \t]*$/i;
+const FENCE = /^[ \t]*(```|~~~)/;
+// A lane comment's one rating, upper-cased, or null (unrated, so a person
+// decides) unless the body holds exactly one rating-shaped line and it is the
+// lane's own: unindented, outside any fenced block, and the first non-blank
+// line or the last non-blank line above the lane footer. A rating quoted from
+// the pull request (fenced, indented, `>`-quoted or mid-body) never supplies
+// it, and any second rating-shaped line voids it.
 export function severityOf(body) {
-  const found = new Set([...String(body ?? "").matchAll(SEVERITY_LINE)].map((match) => match[1].toUpperCase()));
-  const [only] = found;
-  return found.size === 1 && SECURITY_SEVERITIES.includes(only) ? only : null;
+  const lines = String(body ?? "")
+    .split("\n")
+    .map((line) => line.replace(/\r$/, ""));
+  const content = [];
+  let fence = null;
+  for (const line of lines) {
+    const open = FENCE.exec(line)?.[1];
+    if (fence === null && open) {
+      fence = open;
+      content.push({ line, fenced: true });
+      continue;
+    }
+    if (fence !== null) {
+      if (open === fence) {
+        fence = null;
+      }
+      content.push({ line, fenced: true });
+      continue;
+    }
+    content.push({ line, fenced: false });
+  }
+  const shaped = content.filter(({ line }) => SEVERITY_SHAPED.test(line));
+  if (shaped.length !== 1 || shaped[0].fenced) {
+    return null;
+  }
+  const nonBlank = content.filter(({ line }) => line.trim() !== "");
+  const footer = nonBlank.length > 0 && laneOf(nonBlank.at(-1).line) !== null;
+  const positions = [nonBlank[0], footer ? nonBlank.at(-2) : undefined];
+  const match = positions.includes(shaped[0]) ? SEVERITY_LINE.exec(shaped[0].line) : null;
+  const rating = match?.[1].toUpperCase();
+  return SECURITY_SEVERITIES.includes(rating) ? rating : null;
 }
 // Whether a security-review lane comment is one a person decides: rated at or
 // above SECURITY_PERSON_SEVERITY, or with no rating it can read (fail closed).
