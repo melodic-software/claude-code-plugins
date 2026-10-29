@@ -6,7 +6,8 @@ Classifier cases build store records in memory; the CLI cases read the synthetic
 and unknown blocks only), and the collector case ingests the hand-written
 `drift/usage/proj-u/usage-0001.jsonl`: msg_M's second record carries usage merged from a cumulative
 message_delta (input and cache counts up), msg_D dips on input and recovers on its last record, and
-msg_R's last record is below its first on input tokens. The bundled
+msg_R's last record is below its first on input tokens. The denial-kind and subagent-file cases
+collect transcripts they write under `tmp_path`. The bundled
 `reference/canaries.json` is checked for shape.
 """
 
@@ -286,6 +287,75 @@ def test_collector_counts_only_a_last_record_below_an_earlier_one(data_dir, copy
     assert record["census"]["2.0.9|model-s"]["invariant:usage_regress"] == 1
     tokens = record["tokens"]["main"]
     assert (tokens["input"], tokens["cache_read"], tokens["cache_creation"]) == (8 + 5 + 4, 1500 * 3, 350)
+
+
+def write_transcript(path: Path, version: str, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = (
+        json.dumps({"sessionId": path.stem, "version": version, "timestamp": f"2026-09-30T10:00:{i:02d}Z", **r})
+        for i, r in enumerate(records)
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def denied(n: int, kind: str) -> dict:
+    return {"type": "user", "uuid": f"u-{n}", "toolDenialKind": kind, "message": {"role": "user", "content": "denied"}}
+
+
+def agent_call(tool: str) -> dict:
+    block = {"type": "tool_use", "id": "toolu_A1", "name": tool, "input": {"prompt": "look"}}
+    return {"type": "assistant", "uuid": "a-1", "message": {"id": "msg_A", "role": "assistant", "model": "model-s", "content": [block]}}
+
+
+def agent_result(is_error: bool) -> dict:
+    block = {"type": "tool_result", "tool_use_id": "toolu_A1", "content": "done", "is_error": is_error}
+    return {"type": "user", "uuid": "u-r", "message": {"role": "user", "content": [block]}}
+
+
+def collect(data_dir: Path, root: Path) -> dict[str, dict]:
+    collected = run_cli("collect.py", "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
+    assert collected.returncode == 0, collected.stderr
+    stored = census.store_dir(data_dir).glob("p-*/*.json")
+    return {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in stored}
+
+
+def test_drift_cli_reports_a_denial_kind_first_seen_in_the_newest_version(tmp_path, data_dir, canaries_file):
+    root = tmp_path / "projects"
+    write_transcript(root / "proj-d" / "deny-0001.jsonl", "1.0.1", [denied(1, "rule")])
+    write_transcript(root / "proj-d" / "deny-0002.jsonl", "1.0.2", [denied(1, "rule"), denied(2, "fresh")])
+    collect(data_dir, root)
+    result = run_cli(
+        "collect.py", "drift", "--data-dir", str(data_dir), "--min-count", "1", "--versions", "1",
+        "--session-floor", "1", "--canaries", str(canaries_file),
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    new = [c for c in envelope(result)["data"]["changes"] if c["class"] == "new" and c["key"].startswith("denial_kind:")]
+    assert [(c["key"], c["first_seen_version"]) for c in new] == [("denial_kind:fresh", "1.0.2")]
+
+
+@pytest.mark.parametrize("tool", ["Agent", "Task"])
+def test_collector_counts_a_returned_agent_call_without_a_subagent_file(tmp_path, data_dir, tool):
+    root = tmp_path / "projects"
+    write_transcript(root / "proj-g" / "gap-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
+    write_transcript(root / "proj-g" / "kept-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
+    write_transcript(root / "proj-g" / "kept-0001" / "subagents" / "agent-a1.jsonl", "2.0.9", [denied(1, "rule")])
+    # A rejected or failed call and one with no result yet leave no subagent file by design.
+    write_transcript(root / "proj-g" / "failed-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(True)])
+    write_transcript(root / "proj-g" / "open-0001.jsonl", "2.0.9", [agent_call(tool)])
+    write_transcript(root / "proj-g" / "solo-0001.jsonl", "2.0.9", [denied(1, "rule")])
+    records = collect(data_dir, root)
+    missing = {s: sum(row.get("invariant:subagent_files_missing", 0) for row in r["census"].values()) for s, r in records.items()}
+    assert missing == {"gap-0001": 1, "kept-0001": 0, "failed-0001": 0, "open-0001": 0, "solo-0001": 0}
+    assert records["gap-0001"]["census"]["2.0.9|model-s"]["invariant:subagent_files_missing"] == 1
+
+
+def test_bundled_subagent_gap_canary_degrades_the_subagent_count():
+    canaries = [c for c in census.load_canaries(census.BUNDLED_CANARIES)["canaries"] if c["key"] == "invariant:subagent_files_missing"]
+    assert [c["expect"] for c in canaries] == ["absent"]
+    held = [rec("a", {"1.0.2|m": {"record_type:assistant": 30, "invariant:subagent_files_missing": 2}})]
+    gaps = [rec("a", {"1.0.2|m": {"record_type:assistant": 30, "invariant:subagent_files_missing": 20}})]
+    assert drift(held, canaries)["degraded_metrics"] == []
+    assert drift(gaps, canaries)["degraded_metrics"] == ["subagents.count"]
 
 
 @pytest.fixture
