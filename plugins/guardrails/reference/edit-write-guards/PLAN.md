@@ -67,8 +67,8 @@ census payload) no longer reaches hardcoded-path-check's `git rev-parse` or
 clean first, and every branch after it allows clean content. The secret oracle
 decides clean content in the parent shell (`secrets::any_match`), so the capture
 subshell runs only on a hit. What remains is the launcher (node, its fork,
-bash), the secret `grep -E` with its process substitution, and, for a target
-under a temp root as the census writes, one `cd -P` subshell. The process
+bash), the secret oracle's grep with its process substitution, and, for a
+target under a temp root as the census writes, one path-resolving subshell. The process
 substitution stays: a here-string deadlocks at the pipe-size boundary
 (lib/path-detection/hardcoded-path-patterns.sh). Replacing the grep with a
 builtin was not attempted, nor anything for PostToolUse:Write, so the floor for
