@@ -90,7 +90,9 @@ added or changed: where did its expected value come from? It answers FLAG (the v
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG; it never
 applies anything. The judge runs on a model class other than the one that wrote the tests, with
 `hooks/test-judge-prompt.md` as its prompt, and each quote must appear verbatim in the repository
-before a verdict is shown. `/source-control:pull-request` prep runs it when this plugin is
+before a verdict is shown. Tests of one shape (the same body apart from the name, in otherwise
+identical files) are judged once and share the verdict. A proposed diff that changes only
+comments or blank lines turns its FLAG into UNKNOWN. `/source-control:pull-request` prep runs it when this plugin is
 installed and enabled, and otherwise reports
 `judge pass not run: testing plugin not installed or not enabled`. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
