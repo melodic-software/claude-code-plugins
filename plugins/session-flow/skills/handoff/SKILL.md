@@ -380,7 +380,11 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   requested, or a `/goal` active in this session), a second railed goal region under its own
   `Type /goal` instruction line, placed first when the user asked for the fresh goal and second
   when the goal is only carried over, its condition holding no `/goal` line and ending in the
-  same `Read @` directive line; a below-the-rails note re-arming EVERY surviving loop, one
+  same `Read @` directive line; a condition tying proof to this conversation warned about above
+  the region's instruction line, its text unchanged, and a goal met at recorded commits or files
+  with only the user's decisions left given no region and a below-rail note listing the decisions
+  (engine doc, "Check the condition before emitting the region"); a below-the-rails note
+  re-arming EVERY surviving loop, one
   `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
   doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE**, the rails prompt and its below-rail notes follow these ticks as
@@ -416,7 +420,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - [ ] Self-contained resume prompt between dashed rails. Remaining-work bullets inline
 - [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
   instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
-  region bullet under "Emit the copy/paste resume prompt"); a below-the-rails note covering EVERY
+  region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
+  and the met-goal omission applied as on the full path; a below-the-rails note covering EVERY
   surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
   loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
