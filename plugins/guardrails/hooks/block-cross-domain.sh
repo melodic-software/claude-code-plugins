@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# PreToolUse hook: classify a Bash or PowerShell call against this machine's
-# identity domains.
+# PreToolUse hook: deny a Bash or PowerShell call, from a session in one of
+# this machine's identity domains, that names a path of another.
 #
 # An identity domain is a set of trees one identity owns, with its own git
 # author, gh and az config directories and remote owners. THE MAP names each
-# domain's roots and markers; this guard classifies the session cwd into a
-# domain or neutral and finds the domains a command names.
+# domain's roots, owners and markers; this guard classifies the session cwd
+# into a domain or neutral, finds the domains a command names, and denies the
+# call when the cwd is in a domain and the command names another domain's path.
 #
 # THE MAP. ${CLAUDE_PLUGIN_DATA}/identity-domains.json, machine-local and never
 # tracked. Its keys follow docs/conventions/plugin-option-naming:
@@ -30,34 +31,42 @@
 # non-empty one-line string; a root is absolute and below a filesystem root
 # (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). An unknown key or any
 # other shape makes the map malformed. Only this host's roots (OSTYPE: msys,
-# cygwin and win32 read `windows`, darwin `macos`, every other host `linux`)
-# and the markers are used here; the other keys are validated and kept for the
-# rules that read them.
+# cygwin and win32 read `windows`, darwin `macos`, every other host `linux`),
+# the owners and the markers are used here; the other keys are validated and
+# kept for the rules that read them.
 #
 # WHAT A CALL COSTS. Each step leaves at the first that settles the call:
 #   1. the kill switch, before any source;
 #   2. no map file: exit 0, having read and parsed nothing;
 #   3. the map, compiled by jq into CACHE (identity-domains.cache beside it)
-#      once per change of its bytes and read back with builtins otherwise, so a
-#      steady call starts no process; a malformed map is reported to the user
-#      once per session and the call is allowed unchecked;
-#   4. the cwd, classified into the domain whose root holds it (the longest
-#      root wins), else neutral;
-#   5. the prefilter: the command text, lowercased with `\` read as `/`, is
-#      tested for each root and marker. A command that names none leaves here,
-#      before it is parsed;
+#      once per change of its bytes or of HOME and read back with builtins
+#      otherwise, so a steady call starts no process; a malformed map is
+#      reported to the user once per session and the call is allowed unchecked;
+#   4. the cwd, classified into the domain whose path holds it (the longest
+#      path wins), else neutral;
+#   5. the prefilter: the command text, lowercased with `\` read as `/` and
+#      its quotes dropped, is tested for each path and marker. A command that
+#      names none leaves here, before it is parsed;
 #   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
 #      and redirection targets are tested the same way; on PowerShell the text
-#      as a whole, parsed only for the identity positions below.
+#      as a whole, parsed only for the identity positions below;
+#   7. the decision: from a cwd in a domain, a path of another domain named in
+#      step 6 denies the call, a read as much as a write. A marker never denies
+#      here, and from a neutral cwd nothing is denied.
 #
-# A text NAMES a root or marker when it holds it with no letter, digit, `.`,
-# `_` or `-` right before or after it: the root /x/work names neither
-# /x/workshop nor /y/x/work. A root is also named in its MSYS form on Windows
-# (`/c/x` for `C:/x`) and, below $HOME, after `~`, `$HOME`, `${HOME}`,
-# `$env:HOME`, `$env:USERPROFILE` or `%USERPROFILE%`. A path below two nested
-# roots names the domain of the inner one only; every other root and every
-# marker a text names counts. Text is compared in any case, so on Linux a path
-# that differs from a root only in case names it too.
+# A domain's PATHS are its roots and, for each owner, the owner's directory
+# below $HOME/src/github.com and $HOME/worktrees/github.com. A text NAMES a
+# path or marker when it holds it with no letter, digit, `.`, `_` or `-` right
+# before or after it: the root /x/work names neither /x/workshop nor
+# /y/x/work. `\` reads as `/` and a run of separators as one, so `C:\x`,
+# `C:\\x` and `C:/x` are one spelling. A path on a drive is also named in its
+# other drive forms (`C:/x`, `/c/x`, `/cygdrive/c/x`, `/mnt/c/x`, where a
+# Windows root `/c/x` and a `/cygdrive/c` or `/mnt/c` root on any host are on
+# drive C) and, below $HOME, after `~`, `$HOME`, `${HOME}`, `$env:HOME`,
+# `$env:USERPROFILE` or `%USERPROFILE%`. A path below two nested paths names
+# the domain of the inner one only; every other path and every marker a text
+# names counts. Text is compared in any case, so on Linux a path that differs
+# from a root only in case names it too.
 #
 # IDENTITY POSITIONS. From a cwd in a domain, a command whose prefilter named
 # another domain's marker is denied when a word in an identity position names
@@ -79,15 +88,18 @@
 # same marker in any other word (a commit message, an `echo`) is allowed. The
 # deny is a PreToolUse permissionDecision document on stdout.
 #
-# Steps 4 and 6 feed the telemetry envelope: `cwd` is domain or neutral, and
+# Steps 4, 6 and 7 feed the telemetry envelope: `cwd` is domain or neutral,
 # `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, identity-deny (status blocked), or map-malformed (whose
-# cwd is always neutral). The envelope names no domain; `subject` is the
-# command word, as in every guard's.
+# named), other-domain, identity-deny, or map-malformed (whose cwd is always
+# neutral), and `status` is blocked for a denied call, else ok. The envelope
+# names no domain; `subject` is the command word, as in every guard's. The
+# path deny reason, on the model's channel, names the cwd's domain and the
+# others.
 #
 # DECLARED GAPS. The guard reads command text: a deterrent, not a sandbox.
 #   - a computed path: a variable, a substitution, or a path spelled in pieces
-#     (`"/x/wo"rk`)
+#     the prefilter cannot join (`/x/wo\rk`); quoted pieces (`"/x/wo"rk`) are
+#     joined
 #   - a script run by name, whose own commands the guard never sees, and a
 #     heredoc body, which the parse skips even when a shell runs it
 #     (`bash <<'EOF'`)
@@ -102,7 +114,8 @@
 #
 # Kill switch: block_cross_domain_enabled userConfig option.
 #
-# Every exit is 0, an internal error included: a deny is the stdout document.
+# Every exit is 0, an internal error included: a deny is the decision in the
+# stdout document, and an internal error allows the call.
 
 set -uo pipefail
 
@@ -151,25 +164,28 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=1
+BCD_FORMAT=2
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
+BCD_HOME=""
 BCD_RECORDS=()
 BCD_ROOT=()
 BCD_ROOT_DOMAIN=()
 BCD_NEEDLE=()
 BCD_NEEDLE_DOMAIN=()
-BCD_NEEDLE_ROOT=()
+BCD_NEEDLE_PATH=()
 BCD_NAMED=" "
+BCD_DENY=()
 BCD_SUBJECT=""
 BCD_FOREIGN_MARKER=0
 BCD_IDENTITY=0
 BCD_OWN_MARKERS=$'\n'
-BCD_DENY=()
+BCD_IDENTITY_DENY=()
 
-# The compiler: the map's raw text in, one line per record out: `marker`
-# records, then this host's `root` records longest first
+# The compiler: the map's raw text and HOME in, one line per record out:
+# `marker` records, then this host's `root` records and each owner's two
+# `owner` directories below HOME, longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
 # rejected map yields no partial set. The reason names keys, never values.
@@ -192,7 +208,7 @@ def absolute($os):
   if $os == "windows"
   then test("^[A-Za-z]:[\\\\/]+[^\\\\/]") or (test("^/[^/]") and (test("^/[A-Za-z][\\\\/]*$") | not))
   else test("^/[^/]") end;
-def domain($d; $os):
+def domain($d; $os; $home):
   if ($d | test("\\A[A-Za-z0-9_.-]+\\z")) | not
   then fail("a domain name holds a character other than a letter, digit, dot, underscore or hyphen")
   else . end
@@ -207,21 +223,25 @@ def domain($d; $os):
       | list("domains.\($d).roots.\($o)")
       | if absolute($o) then select($o == $os)
         else fail("domains.\($d).roots.\($o) holds a path that is not absolute below a filesystem root") end] as $roots
-  | ($roots[] | {kind: "root", d: $d, v: .}), ($markers[] | {kind: "marker", d: $d, v: .});
-def compile($os):
+  | ($roots[] | {kind: "root", d: $d, v: .}), ($markers[] | {kind: "marker", d: $d, v: .}),
+    (if $home == "" then empty
+     else $owners[] | {kind: "owner", d: $d, v: "\($home)/src/github.com/\(.)"},
+       {kind: "owner", d: $d, v: "\($home)/worktrees/github.com/\(.)"} end);
+def compile($os; $home):
   only("the map"; ["domains", "identity_files", "shared_exceptions", "messages"])
   | if has("domains") | not then fail("the map has no domains") else . end
   | [optional("identity_files"; list("identity_files"))] as $files
   | [optional("shared_exceptions"; list("shared_exceptions"))] as $shared
   | [optional("messages"; object("messages") | to_entries[] | .key as $k | .value | line("messages.\($k)"))] as $messages
   | .domains | object("domains")
-  | [to_entries[] | .key as $d | .value | domain($d; $os)]
+  | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]
   | map(select(.kind == "marker"))
-    + (map(select(.kind == "root")) | sort_by(.v | sub("[\\\\/]+$"; "") | length) | reverse)
+    + (map(select(.kind != "marker"))
+      | sort_by(.v | gsub("[\\\\/]+"; "/") | sub("/$"; "") | sub("^/(cygdrive|mnt)/"; "/") | length) | reverse)
   | map("\(.kind)\t\(.d)\t\(.v)");
 (try [fromjson] catch null) as $doc
 | if $doc == null then ["invalid\tit is not valid JSON"]
-  else try ($doc[0] | compile($os))
+  else try ($doc[0] | compile($os; $home))
     catch (if type == "object" and has("bcd") then ["invalid\t" + (.bcd | oneline | .[0:300])]
       else ["invalid\tit cannot be read"] end)
   end
@@ -233,7 +253,7 @@ bcd::trace() {
   printf 'block-cross-domain: trace %s\n' "$1" >&2
 }
 
-bcd::emit_tel() { # <form> [status, default ok]
+bcd::emit_tel() { # <form> [<status>, default ok]
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local subject data cwd=neutral
@@ -260,7 +280,10 @@ bcd::malformed() {
 bcd::compile() {
   local out rc=0 tmp
   bcd::trace map-compile
-  out=$(exec jq -r -R -s --arg os "$BCD_OS" "$BCD_COMPILE" 2>/dev/null <<<"$BCD_MAP_RAW") || rc=$?
+  # On Windows the MSYS runtime would rewrite a POSIX HOME (`/home/<user>`)
+  # into a Windows path on its way to the native jq; HOME reaches it as written.
+  out=$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' exec jq -r -R -s --arg os "$BCD_OS" --arg home "$BCD_HOME" \
+    "$BCD_COMPILE" 2>/dev/null <<<"$BCD_MAP_RAW") || rc=$?
   if ((rc != 0)); then
     BCD_RECORDS=("invalid${BCD_TAB}jq exited $rc reading it")
     return 0
@@ -277,7 +300,7 @@ bcd::compile() {
 }
 
 # bcd::load: BCD_RECORDS for the map as it is now, from CACHE when its key is
-# this map's bytes under this format and host, else from the compiler.
+# this map's bytes under this format, host and HOME, else from the compiler.
 bcd::load() {
   local -a cache=()
   BCD_MAP_RAW=""
@@ -290,7 +313,7 @@ bcd::load() {
     BCD_RECORDS=("invalid${BCD_TAB}it is over 64 KiB")
     return 0
   fi
-  BCD_KEY="block-cross-domain cache $BCD_FORMAT $BCD_OS"$'\n'"$BCD_MAP_RAW"
+  BCD_KEY="block-cross-domain cache $BCD_FORMAT $BCD_OS $BCD_HOME"$'\n'"$BCD_MAP_RAW"
   [[ -f "$BCD_CACHE" ]] && mapfile -d '' -t cache 2>/dev/null <"$BCD_CACHE"
   if ((${#cache[@]})) && [[ "${cache[-1]}" == "$BCD_KEY" ]]; then
     bcd::trace map-cached
@@ -321,26 +344,36 @@ bcd::fold_to() {
   printf -v "$1" '%s' "$__bcd_t"
 }
 
-bcd::add_needle() { # <domain> <folded text> <1 for a root, 0 for a marker>
+bcd::add_needle() { # <domain> <folded text> <1 for a path, 0 for a marker>
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
   BCD_NEEDLE_DOMAIN+=("$1")
-  BCD_NEEDLE_ROOT+=("$3")
+  BCD_NEEDLE_PATH+=("$3")
 }
 
-# bcd::add_root <domain> <root as the map spells it>: the root for the cwd and
-# every spelling of it a command can name.
+# bcd::add_root <domain> <root or owner directory as spelled>: the path for the
+# cwd and every spelling of it a command can name.
 bcd::add_root() {
-  local c n rest p
+  local c n rest drive="" p
   bcd::norm_to c "$2"
   BCD_ROOT+=("$c")
   BCD_ROOT_DOMAIN+=("$1")
   bcd::fold_to n "$2"
   bcd::add_needle "$1" "$n" 1
   if [[ "$n" =~ ^([a-z]):(/.*)$ ]]; then
-    bcd::add_needle "$1" "/${BASH_REMATCH[1]}${BASH_REMATCH[2]}" 1
+    drive=${BASH_REMATCH[1]}
+    rest=${BASH_REMATCH[2]}
+  elif [[ "$n" =~ ^/(cygdrive|mnt)/([a-z])(/.*)$ ]]; then
+    drive=${BASH_REMATCH[2]}
+    rest=${BASH_REMATCH[3]}
   elif [[ "$BCD_OS" == windows && "$n" =~ ^/([a-z])(/.*)$ ]]; then
-    bcd::add_needle "$1" "${BASH_REMATCH[1]}:${BASH_REMATCH[2]}" 1
+    drive=${BASH_REMATCH[1]}
+    rest=${BASH_REMATCH[2]}
+  fi
+  if [[ -n "$drive" ]]; then
+    for p in "$drive:" "/$drive" "/cygdrive/$drive" "/mnt/$drive"; do
+      [[ "$p$rest" == "$n" ]] || bcd::add_needle "$1" "$p$rest" 1
+    done
   fi
   if [[ -n "$BCD_HOME" && "$c" == "$BCD_HOME"/?* ]]; then
     bcd::fold_to rest "${c#"$BCD_HOME"}"
@@ -351,11 +384,17 @@ bcd::add_root() {
   fi
 }
 
-bcd::named() { [[ "$BCD_NAMED" == *" $1 "* ]] || BCD_NAMED+="$1 "; }
+# bcd::named <domain> <1 when a path names it>: add the domain to BCD_NAMED,
+# and to BCD_DENY when a path names it from a cwd in another domain.
+bcd::named() {
+  [[ "$BCD_NAMED" == *" $1 "* ]] || BCD_NAMED+="$1 "
+  (($2)) && [[ -n "$BCD_CWD_DOMAIN" && "$1" != "$BCD_CWD_DOMAIN" && " ${BCD_DENY[*]-} " != *" $1 "* ]] || return 0
+  BCD_DENY+=("$1")
+}
 
-# bcd::names <folded text>: add to BCD_NAMED each domain whose marker or root
-# the text names. The needles come markers first, then roots longest first, and
-# a root that names its domain spends its text: an outer root that text holds
+# bcd::names <folded text>: add to BCD_NAMED each domain whose marker or path
+# the text names. The needles come markers first, then paths longest first, and
+# a path that names its domain spends its text: an outer path that text holds
 # (a nested pair) is not named by it, while one named elsewhere in the text is.
 bcd::names() {
   local t="$1" n i
@@ -366,14 +405,22 @@ bcd::names() {
     "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
     *) continue ;;
     esac
-    bcd::named "${BCD_NEEDLE_DOMAIN[i]}"
-    if ((BCD_NEEDLE_ROOT[i])); then
+    bcd::named "${BCD_NEEDLE_DOMAIN[i]}" "${BCD_NEEDLE_PATH[i]}"
+    if ((BCD_NEEDLE_PATH[i])); then
       t=${t//"$n"/ }
     elif [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]]; then
       BCD_FOREIGN_MARKER=1
     fi
   done
   return 0
+}
+
+# bcd::deny: the decision, as a PreToolUse document on stdout. The exit stays 0.
+bcd::deny() {
+  local d others="" esc
+  for d in "${BCD_DENY[@]}"; do others+="${others:+, }'$d'"; done
+  hook::json_escape_to esc "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command names a path the domain map gives to another domain ($others). Reading a path there is denied too. Run the command from a session in that domain. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}}'
 }
 
 # The parse callback: every argv word and redirection target of one segment.
@@ -395,7 +442,7 @@ bcd::foreign_marker() {
   local t n i
   bcd::fold_to t "$1"
   for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
-    ((BCD_NEEDLE_ROOT[i] == 0)) || continue
+    ((BCD_NEEDLE_PATH[i] == 0)) || continue
     [[ "${BCD_NEEDLE_DOMAIN[i]}" != "$BCD_CWD_DOMAIN" ]] || continue
     n=${BCD_NEEDLE[i]}
     [[ "$t" == *"$n"* && "$BCD_OWN_MARKERS" != *$'\n'"$n"$'\n'* ]] || continue
@@ -413,10 +460,10 @@ bcd::foreign_marker() {
 bcd::check() {
   local p
   bcd::foreign_marker "$2" || return 0
-  for p in ${BCD_DENY[@]+"${BCD_DENY[@]}"}; do
+  for p in ${BCD_IDENTITY_DENY[@]+"${BCD_IDENTITY_DENY[@]}"}; do
     [[ "$p" == "$1" ]] && return 0
   done
-  BCD_DENY+=("$1")
+  BCD_IDENTITY_DENY+=("$1")
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
@@ -477,7 +524,7 @@ bcd::git_config() {
 }
 
 # bcd::identity <words...>: the identity positions of one segment, into
-# BCD_DENY.
+# BCD_IDENTITY_DENY.
 # shellcheck disable=SC2329  # also invoked by hook::bash_parse_segments
 bcd::identity() {
   local -a w=("$@") g=()
@@ -546,10 +593,11 @@ bcd::identity() {
   return 0
 }
 
-# bcd::deny: the PreToolUse deny naming each identity position, then exit 0.
-bcd::deny() {
+# bcd::identity_deny: the PreToolUse deny naming each identity position, then
+# exit 0.
+bcd::identity_deny() {
   local p list="" reason
-  for p in "${BCD_DENY[@]}"; do list+="${list:+, }$p"; done
+  for p in "${BCD_IDENTITY_DENY[@]}"; do list+="${list:+, }$p"; done
   hook::json_escape_to reason "BLOCKED by guardrails block-cross-domain: this session's directory is in one identity domain, and this command puts another domain's identity marker in an identity position ($list). Run it from a session in that domain's tree, or turn the guard off with the block_cross_domain_enabled option."
   bcd::emit_tel identity-deny blocked
   hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
@@ -569,18 +617,17 @@ bcd::classify_cwd() {
   done
 }
 
+[[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
 bcd::load
 [[ "${BCD_RECORDS[0]-}" == invalid"$BCD_TAB"* ]] && bcd::malformed "${BCD_RECORDS[0]#invalid"$BCD_TAB"}"
 
-BCD_HOME=""
-[[ -n "${HOME:-}" ]] && bcd::norm_to BCD_HOME "$HOME"
 for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
   BCD_KIND=${BCD_REC%%"$BCD_TAB"*}
   BCD_REC=${BCD_REC#*"$BCD_TAB"}
   BCD_DOM=${BCD_REC%%"$BCD_TAB"*}
   BCD_VAL=${BCD_REC#*"$BCD_TAB"}
   case "$BCD_KIND" in
-  root) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  root | owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
   marker)
     bcd::fold_to BCD_VAL "$BCD_VAL"
     bcd::add_needle "$BCD_DOM" "$BCD_VAL" 0
@@ -592,6 +639,7 @@ done
 bcd::classify_cwd
 
 bcd::fold_to BCD_SUBJECT "$COMMAND"
+BCD_SUBJECT=${BCD_SUBJECT//[\"\']/}
 bcd::names "$BCD_SUBJECT"
 if [[ "$BCD_NAMED" == " " ]]; then
   bcd::trace prefilter-miss
@@ -605,7 +653,7 @@ bcd::trace prefilter-hit
 if [[ -n "$BCD_CWD_DOMAIN" ]] && ((BCD_FOREIGN_MARKER)); then
   BCD_IDENTITY=1
   for ((BCD_I = 0; BCD_I < ${#BCD_NEEDLE[@]}; BCD_I++)); do
-    if ((BCD_NEEDLE_ROOT[BCD_I] == 0)) && [[ "${BCD_NEEDLE_DOMAIN[BCD_I]}" == "$BCD_CWD_DOMAIN" ]]; then
+    if ((BCD_NEEDLE_PATH[BCD_I] == 0)) && [[ "${BCD_NEEDLE_DOMAIN[BCD_I]}" == "$BCD_CWD_DOMAIN" ]]; then
       BCD_OWN_MARKERS+="${BCD_NEEDLE[BCD_I]}"$'\n'
     fi
   done
@@ -614,12 +662,13 @@ fi
 if [[ "$TOOL_NAME" == Bash ]]; then
   bcd::trace parse
   BCD_NAMED=" "
+  BCD_DENY=()
   hook::bash_parse_segments "$COMMAND" bcd::segment
 elif ((BCD_IDENTITY)); then
   bcd::trace identity-parse
   hook::bash_parse_segments "${COMMAND//\\//}" bcd::identity
 fi
-((${#BCD_DENY[@]})) && bcd::deny
+((${#BCD_IDENTITY_DENY[@]})) && bcd::identity_deny
 
 if [[ "$BCD_NAMED" == " " ]]; then
   BCD_FORM=not-named
@@ -628,5 +677,11 @@ elif [[ "$BCD_NAMED" == " $BCD_CWD_DOMAIN " ]]; then
 else
   BCD_FORM=other-domain
 fi
-bcd::emit_tel "$BCD_FORM"
+if ((${#BCD_DENY[@]})); then
+  bcd::trace deny
+  bcd::deny
+  bcd::emit_tel "$BCD_FORM" blocked
+else
+  bcd::emit_tel "$BCD_FORM"
+fi
 exit 0
