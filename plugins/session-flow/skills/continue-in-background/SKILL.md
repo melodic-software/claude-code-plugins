@@ -75,7 +75,12 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
    a `/goal` is active in this session) → the save-point's goal region holds the condition the
    launch arms. A checkable done condition the user states in this invocation ("done when …")
    is a fresh-goal request: it lands here, with no draft and no confirmation round. When the goal is active here, the report tells the user to run `/goal clear` in
-   this session, which otherwise keeps starting turns after the STOP.
+   this session, which otherwise keeps starting turns after the STOP. When the engine doc's
+   condition check ("Check the condition before emitting the region") warns that the condition
+   is conversation-bound, or omits the region because the goal is already met, that condition is
+   not launched: redraft it with `/planning:draft-goal-condition` and take case 2, or take
+   case 3 when no checkable condition is left. Either way the report still advises `/goal clear`
+   for the goal active here.
 2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition`
    and write the save-point with it as a fresh goal; its on-screen goal region is the display.
    Then ask the user to confirm the launch, and launch only on a yes: the request made over that
@@ -358,7 +363,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   unknown, no launch, same fallback
 - [ ] Completion condition settled: an applying goal used (an active one → `/goal clear` advised
   in the report), or one drafted with `/planning:draft-goal-condition`, shown as the goal region,
-  and launched only on the user's yes to it; none → no launch, the message saying how to supply
+  and launched only on the user's yes to it; a conversation-bound or already-met goal never
+  launched as it stands, only redrafted (case 2) or left unlaunched (case 3); none → no launch, the message saying how to supply
   one, fallback to `/clear`-then-paste
 - [ ] Background agent launched (`claude --bg --name … --permission-mode auto`), the payload being
   `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
