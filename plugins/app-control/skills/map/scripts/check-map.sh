@@ -300,7 +300,8 @@ ready_commands() {
 LISTING_RE='^((docker|podman|nerdctl)[[:space:]]+(ps|container[[:space:]]+(ls|list|ps)|compose[[:space:]]+ps)|docker-compose[[:space:]]+ps|kubectl[[:space:]]+get|systemctl[[:space:]]+list-units)([[:space:]]|$)'
 # A `kubectl get` that names an object (`deploy/shop`, `pod shop-db-0`, `-f shop.yaml`) exits 1 when
 # the object is missing, so only a get of resource types alone is a listing. A flag below takes the
-# next word as its value, so that word is not a resource type.
+# next word as its value, so that word is not a resource type. The answer is set in `named` (1 or
+# 0) rather than returned, so the call needs no condition that would turn errexit off inside it.
 KUBECTL_VALUE_FLAGS=' -n -l -o -L -s -v --namespace --selector --output --field-selector --label-columns
   --sort-by --context --kubeconfig --cluster --user --server --template --chunk-size --request-timeout
   --as --as-group --as-uid --token --cache-dir --certificate-authority --client-certificate --client-key
@@ -308,6 +309,7 @@ KUBECTL_VALUE_FLAGS=' -n -l -o -L -s -v --namespace --selector --output --field-
 kubectl_names_object() { # <last stage>
   local -a words
   local w types=0 skip=0
+  named=1
   read -r -a words <<<"$1"
   for w in "${words[@]:2}"; do
     if ((skip)); then
@@ -321,7 +323,7 @@ kubectl_names_object() { # <last stage>
     *) types=$((types + 1)) ;;
     esac
   done
-  ((types > 1))
+  named=$((types > 1))
 }
 while IFS= read -r cmd; do
   # Empty quoted text, so a `|` inside a --format string is not a stage, then keep the last stage.
@@ -329,7 +331,10 @@ while IFS= read -r cmd; do
   last="$(printf '%s\n' "$cmd" | sed -E "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g; s/.*(&&|\|\||;|\|)//")"
   last="$(trim "$last")"
   [[ "$last" =~ $LISTING_RE ]] || continue
-  if [[ "$last" == kubectl* ]] && kubectl_names_object "$last"; then continue; fi
+  if [[ "$last" == kubectl* ]]; then
+    kubectl_names_object "$last"
+    if ((named)); then continue; fi
+  fi
   finding ready-listing SKILL.md "$(trim "$cmd"): ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
 done < <(ready_commands "$dir/SKILL.md")
 
