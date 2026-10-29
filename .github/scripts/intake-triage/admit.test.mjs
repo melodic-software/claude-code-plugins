@@ -684,6 +684,23 @@ describe("decide", () => {
       }
     });
 
+    // docs/conventions/loop-lane/README.md:331-338: model usage under the
+    // Claude subscriptions is not cost; a plan or seat change and a paid
+    // purchase are.
+    test("holds only for a charge the owner's cost list names", () => {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
+      for (const [body, words] of [
+        ["This needs a plan or seat change.", "seat"],
+        ["This needs a paid subscription purchase.", "subscription"],
+        ["Create a new Azure subscription for the lane.", "subscription"],
+      ]) {
+        const result = decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }) }));
+        assert.equal(result.hold, true);
+        assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
+      }
+    });
+
     test("an issue that names no charge is still admitted", () => {
       assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe sweep deletes runs older than a week.` }) })), { verdict: "admit", reasons: [] });
     });
