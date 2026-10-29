@@ -22,7 +22,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import FAKE, FIXTURES, WINDOWS, call, share, tmpdir, wait_for
+from support import CLOSED_ORIGIN, FAKE, FIXTURES, WINDOWS, FakeCloudflare, call, free_edge, share, tmpdir, wait_for
 
 import detached
 import server
@@ -361,7 +361,8 @@ class TestTunnelSwitch(ServerCase):
         super().setUp()
         # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
         probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
-        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe})
+        lease = {"SHARED_LEASE_ORIGIN": free_edge(), "SHARED_CF_API": CLOSED_ORIGIN}  # the link free, the API off the network
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe, **lease})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(tunnel.stop, self.d)
@@ -450,6 +451,32 @@ class TestTunnelSwitch(ServerCase):
         self.assertNotEqual(tunnel.alive(self.d)["pid"], rec["pid"])
         code, _, out = self.state(self.quick, self.guest)
         self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def exit_named(self, edge):
+        """Switch to the named tunnel, end its cloudflared, and run the watch's restart with the link answering `edge`."""
+        self.switch()
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        with mock.patch.dict(os.environ, {"SHARED_LEASE_ORIGIN": FakeCloudflare(self, edge=edge).url}):
+            self.app.sync_tunnel()
+        return rec
+
+    def test_a_named_tunnel_another_session_took_meanwhile_comes_back_as_a_quick_one(self):
+        rec = self.exit_named((404, b'{"error": "not-found"}'))
+        now = tunnel.alive(self.d)
+        self.assertNotEqual(now["pid"], rec["pid"])
+        self.assertEqual(tunnel.config(now), ("", ""))
+        self.assertEqual((self.app.public_url, self.app.tunnel_up), (now["url"], True))
+        self.assertRegex(now["url"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com$")
+
+    def test_a_named_tunnel_whose_link_answers_uncertainly_is_not_restarted_and_retried_later(self):
+        rec = self.exit_named((502, b"Bad gateway"))
+        self.assertIsNone(tunnel.alive(self.d))
+        self.assertEqual(tunnel.config(tunnel.read(self.d)), (self.NAMED, str(self.token)))
+        self.assertFalse(self.app.tunnel_up)
+        self.assertGreater(self.app._next_tunnel_try, time.monotonic())
+        self.assertEqual(tunnel.read(self.d)["pid"], rec["pid"])
 
     def test_status_names_the_named_tunnel(self):
         self.switch()

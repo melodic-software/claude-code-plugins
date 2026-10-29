@@ -36,6 +36,7 @@ renames `--token-file`, or a release changes that log line.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -56,6 +57,9 @@ LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
 BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
 READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first connection to Cloudflare
+# The id Cloudflare's connections list names this cloudflared by, logged before its first connection
+# (prepareTunnelConfig in cmd/cloudflared/tunnel/configuration.go, as of 2026-10-29; recheck when a release changes it).
+CONNECTOR = re.compile(r"Generated Connector ID: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
 RETIRE_SECONDS = 600.0  # judgment: how long the old address keeps answering after a switch, so open pages move
@@ -328,6 +332,10 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
     rec = {**(fields or {}), "pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     if hostname:
         rec.update(hostname=hostname, tokenFile=token_file)
+        with contextlib.suppress(OSError):
+            m = CONNECTOR.search(log.read_text(encoding="utf-8", errors="replace"))
+            if m:
+                rec["connector"] = m.group(1)
     if retired_entry:
         rec["retired"] = retired_entry
     _write(d, rec, path)
@@ -339,15 +347,19 @@ def _retire_seconds():
     return float(os.environ.get("SHARED_RETIRE_SECONDS") or RETIRE_SECONDS)
 
 
-def ensure(data_dir, port, hostname="", token_file="", verify=None):
+def ensure(data_dir, port, hostname="", token_file="", verify=None, fields=None):
     """The running tunnel to `port` with this hostname and token file ("" for a quick tunnel), reattached or started;
     raises TunnelDown. A switch from a running tunnel to the same port at another address happens only once
     `verify(new url)` returns None (server.py's probe); the old tunnel then stays up as the record's `retired`. With no
-    `verify` the old tunnel is ended instead, so no page is ever sent to an address nothing checked."""
+    `verify` the old tunnel is ended instead, so no page is ever sent to an address nothing checked. `fields`: kept in
+    the record beside the tunnel's (share.py's apiTokenFile)."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = alive(d, held=True)
         if rec and rec.get("port") == port and config(rec) == (hostname, token_file):
+            if fields and any(rec.get(k) != v for k, v in fields.items()):
+                rec.update(fields)
+                _write(d, rec)
             return rec
         if hostname and rec and rec.get("port") == port and rec["url"] == f"https://{hostname}":
             _end(rec)  # the same address with another token file: nothing to move to
@@ -357,13 +369,13 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None):
         if rec and not keep:
             _end(rec)
         if not keep:  # a restart at the same address: the tunnel retired before keeps its grace time
-            return _start(d, port, hostname, token_file, retired_entry=old)
+            return _start(d, port, hostname, token_file, retired_entry=old, fields=fields)
         if verify is None:
             _end(keep)
-            new = _start(d, port, hostname, token_file)
+            new = _start(d, port, hostname, token_file, fields=fields)
         else:
             entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
-            new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify)
+            new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify, fields=fields)
         if old and detached.alive(*_identity(old)):
             _end(old)  # one retired tunnel at a time, ended only once the switch has landed
         return new

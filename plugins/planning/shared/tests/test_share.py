@@ -19,13 +19,11 @@ import socket
 import stat
 import subprocess
 import sys
-import threading
 import unittest
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-from support import SHARE, WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
+from support import NO_CONNECTOR_PAGE, SHARE, WINDOWS, FakeCloudflare, ShareCase, call, connector, env, outside_cloudflared, share, tmpdir, wait_for
 
 import detached
 import share as share_cli
@@ -921,46 +919,6 @@ class TestNamedTunnel(ShareCase):
         self.assertIn("cannot move", err)
 
 
-class FakeCloudflare:
-    """Cloudflare on 127.0.0.1, as share.py meets it: the tunnel's hostname, which answers the lease probe with
-    `edge` (status, body), and the API's tunnel configuration route, which records each PUT. Canned answers: with no
-    connector Cloudflare answers HTTP 530 (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-530/,
-    a 1XXX code in the body) and error 1033 is the no-healthy-cloudflared one
-    (https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1033/);
-    the API's envelope (`success`, `errors`, `result`) is its reference's."""
-
-    def __init__(self, case, edge=(530, b"<html><title>Cloudflare Tunnel error | example.com | Cloudflare</title>Error 1033</html>"), api_status=200):
-        self.edge, self.api_status, self.puts, self.probes = edge, api_status, [], []
-        fake = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *args):
-                pass
-
-            def answer(self, code, body, kind="application/json"):
-                self.send_response(code)
-                self.send_header("Content-Type", kind)
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def do_GET(self):
-                fake.probes.append((self.headers.get("Host"), self.path))
-                self.answer(*fake.edge, kind="text/html")
-
-            def do_PUT(self):
-                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
-                fake.puts.append((self.path, self.headers.get("Authorization"), body))
-                ok = fake.api_status == 200
-                doc = {"success": ok, "errors": [] if ok else [{"code": 10000, "message": "Authentication error"}], "result": {} if ok else None}
-                self.answer(fake.api_status, json.dumps(doc).encode())
-
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        case.addCleanup(lambda: (self.server.shutdown(), self.server.server_close()))
-        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
-
-
 class TestNamedTunnelLease(ShareCase):
     """The lease and the route: before this machine runs the named tunnel, share.py asks https://H itself, and with
     --tunnel-api-token-file it points the tunnel's ingress at this session's guest port (README "A stable guest link").
@@ -1073,6 +1031,116 @@ class TestNamedTunnelLease(ShareCase):
         self.assertIn(f"must name http://127.0.0.1:{port};", err)
         self.assertEqual(cf.puts, [])
 
+    def test_another_machines_connector_refuses_the_route_and_falls_back(self):
+        cf = FakeCloudflare(self, connections=[connector("0a0a0a0a-0000-4000-8000-00000000000a")])
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertEqual(out["tunnelFallback"], "another machine runs its tunnel (1 other connector connected)")
+        self.assertEqual(cf.puts, [])
+        self.assertNotIn("run --token-file", " ".join(self.cf_runs()))
+
+    def test_a_connector_with_no_open_connection_is_not_counted(self):
+        cf = FakeCloudflare(self, connections=[{"id": "0a0a0a0a-0000-4000-8000-00000000000a", "conns": []}])
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+
+    def test_the_route_changes_only_this_hostnames_service(self):
+        # Hand-built from the configurations get reference: two other hostnames, a per-rule and a tunnel-wide
+        # originRequest, warp-routing, and the catch-all.
+        access = {"access": {"required": True, "teamName": "team", "audTag": ["aud1"]}}
+        before = {
+            "ingress": [
+                {"hostname": "wiki.example.com", "service": "http://127.0.0.1:3000", "originRequest": access},
+                {"hostname": self.HOST, "service": "http://127.0.0.1:8765", "originRequest": access},
+                {"hostname": self.HOST, "path": "/static", "service": "http://127.0.0.1:9000"},
+                {"service": "http_status:404"},
+            ],
+            "originRequest": {"connectTimeout": 10},
+            "warp-routing": {"enabled": True},
+        }
+        cf = FakeCloudflare(self, config=json.loads(json.dumps(before)))
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+        after = json.loads(json.dumps(before))
+        after["ingress"][1]["service"] = f"http://127.0.0.1:{self.guest_port()}"
+        self.assertEqual([p[2] for p in cf.puts], [{"config": after}])
+
+    def test_a_missing_rule_goes_in_before_the_catch_all(self):
+        other = {"hostname": "wiki.example.com", "service": "http://127.0.0.1:3000"}
+        cf = FakeCloudflare(self, config={"ingress": [other, {"service": "http_status:404"}]})
+        code, _, err = self.ensure(cf)
+        self.assertEqual(code, 0, err)
+        want = [other, {"hostname": self.HOST, "service": f"http://127.0.0.1:{self.guest_port()}"}, {"service": "http_status:404"}]
+        self.assertEqual(cf.puts[0][2], {"config": {"ingress": want}})
+
+    def test_a_route_already_naming_the_port_is_not_written(self):
+        port = free_port()
+        rules = [{"hostname": self.HOST, "service": f"http://127.0.0.1:{port}"}, {"service": "http_status:404"}]
+        cf = FakeCloudflare(self, config={"ingress": rules})
+        environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
+        code, out, err = share(self.d, "ensure-running", "--guest-port", str(port), "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
+        self.assertEqual((code, out["tunnel"], cf.puts), (0, "named", []), err)
+
+    def test_a_connector_that_came_up_while_this_one_started_ends_it(self):
+        ours, theirs = "0b0b0b0b-0000-4000-8000-00000000000b", "0a0a0a0a-0000-4000-8000-00000000000a"
+        cf = FakeCloudflare(self, connections=[[], [connector(ours), connector(theirs)]])
+        environ = env(FAKE_CF_ARGS=str(self.args), FAKE_CF_CONNECTOR=ours, SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertEqual(out["tunnelFallback"], "another machine runs its tunnel (1 other connector connected) as it started here")
+        self.assertEqual(len(self.cf_runs()), 2)  # the named run, then the quick one
+        self.assertIsNone(tunnel.retired(self.d))  # the named tunnel ended at once, not kept serving
+
+    def test_a_route_another_machine_rewrote_while_this_one_started_ends_it(self):
+        cf = FakeCloudflare(self)
+        cf.raced = {"ingress": [{"hostname": self.HOST, "service": "http://127.0.0.1:1"}, {"service": "http_status:404"}]}
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+        self.assertIn("its route names http://127.0.0.1:1, not port", out["tunnelFallback"])
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_this_sessions_own_connector_is_not_another_machine(self):
+        ours = "0b0b0b0b-0000-4000-8000-00000000000b"
+        cf = FakeCloudflare(self, connections=[[], [connector(ours)]])
+        environ = env(FAKE_CF_ARGS=str(self.args), FAKE_CF_CONNECTOR=ours, SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+        self.assertEqual(tunnel.read(self.d)["connector"], ours)
+
+    def test_a_running_named_tunnel_keeps_serving_when_its_api_token_file_turns_unusable(self):
+        cf = FakeCloudflare(self)
+        code, first, err = self.ensure(cf)
+        self.assertEqual((code, first["tunnel"]), (0, "named"), err)
+        if WINDOWS:
+            self.api.unlink()
+        else:
+            os.chmod(self.api, 0o644)
+        code, out, err = self.ensure(cf)
+        self.assertEqual((code, out["tunnel"], out["guestUrl"], out["shareChanged"]), (0, "named", first["guestUrl"], False), err)
+        self.assertNotIn("tunnelFallback", out)
+        self.assertIn("its running tunnel keeps serving this session", err)
+        self.assertEqual(len(self.cf_runs()), 1)
+
+    def test_a_routed_session_run_again_without_the_flags_stays_routed(self):
+        cf = FakeCloudflare(self)
+        code, first, err = self.ensure(cf)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(tunnel.read(self.d)["apiTokenFile"], str(self.api))
+        code, out, err = share(self.d, "ensure-running", environ=env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url))
+        self.assertEqual((code, out["tunnel"], out["guestUrl"]), (0, "named", first["guestUrl"]), err)
+        self.assertNotIn("set tunnel_api_token_file", err)
+
+    def test_token_files_may_start_with_a_tilde_and_resolve_under_home(self):
+        cf = FakeCloudflare(self)
+        home = self.root  # both files sit there: tunnel.token and api.token
+        args = ["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", "~/tunnel.token", "--tunnel-api-token-file", "~/api.token"]
+        environ = env(FAKE_CF_ARGS=str(self.args), SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url, HOME=str(home), USERPROFILE=str(home))
+        code, out, err = share(self.d, *args, environ=environ)
+        self.assertEqual((code, out["tunnel"]), (0, "named"), err)
+        self.assertEqual(self.cf_runs(), [f"tunnel --no-autoupdate run --token-file {home / 'tunnel.token'}"])
+        self.assertEqual(tunnel.read(self.d)["apiTokenFile"], str(home / "api.token"))
+        self.assertEqual(cf.puts[0][1], f"Bearer {self.API_TEXT}")
+
     def test_without_the_api_token_the_guest_port_stays_fixed(self):
         cf = FakeCloudflare(self)
         if not socket_free(share_cli.NAMED_PORT):
@@ -1080,6 +1148,62 @@ class TestNamedTunnelLease(ShareCase):
         code, out, err = self.ensure(cf, api=False)
         self.assertEqual((code, out["tunnel"], self.guest_port()), (0, "named", share_cli.NAMED_PORT), err)
         self.assertEqual(cf.puts, [])
+
+
+class TestLinkHolder(unittest.TestCase):
+    """share.link_holder, in this process: only Cloudflare's no-connector page (HTTP 530 saying Error 1033, the page
+    support.NO_CONNECTOR_PAGE was cut from) leaves the link free; an interview server's 404 not-found holds it for
+    certain; every other answer, and every failure to ask, holds it uncertainly (README "The lease")."""
+
+    HOST = "interview.example.com"
+
+    def holder(self, edge=None, origin=None):
+        if edge is not None:
+            origin = FakeCloudflare(self, edge=edge).url
+        with mock.patch.dict(os.environ, {"SHARED_LEASE_ORIGIN": origin}):
+            return share_cli.link_holder(self.HOST)
+
+    def test_the_no_connector_page_is_free(self):
+        self.assertEqual(self.holder((530, NO_CONNECTOR_PAGE)), (None, True))
+
+    def test_another_interview_session_holds_it_for_certain(self):
+        self.assertEqual(self.holder((404, b'{"error": "not-found"}')), (f"another interview session already serves https://{self.HOST}", True))
+
+    def test_other_answers_hold_it_uncertainly(self):
+        cases = {
+            "another 530 error": (530, NO_CONNECTOR_PAGE.replace(b"1033", b"1016")),
+            "1033 only outside the Error heading": (530, b"<html>Error 1016 <script>properties:{errorCode: 1033 }</script> ray 10330</html>"),
+            "a 1033 page with another status": (502, NO_CONNECTOR_PAGE),
+        }
+        for why, edge in cases.items():
+            with self.subTest(why=why):
+                self.assertEqual(self.holder(edge), (f"https://{self.HOST} answers HTTP {edge[0]}, which does not show the link free", False))
+
+    def test_a_refused_connection_holds_it_uncertainly(self):
+        why, sure = self.holder(origin="http://127.0.0.1:1")
+        self.assertFalse(sure)
+        self.assertIn("cannot be told", why)
+
+    def test_a_dns_failure_holds_it_uncertainly(self):
+        conn = mock.Mock()
+        conn.request.side_effect = socket.gaierror(-2, "Name or service not known")
+        with mock.patch.object(share_cli, "lease_target", return_value=conn):
+            self.assertEqual(share_cli.link_holder(self.HOST), (f"whether another machine serves https://{self.HOST} cannot be told ([Errno -2] Name or service not known)", False))
+
+    def test_a_timeout_holds_it_uncertainly(self):
+        silent = socket.socket()
+        silent.bind(("127.0.0.1", 0))
+        silent.listen()  # accepts the connection and never answers
+        self.addCleanup(silent.close)
+        with mock.patch.object(share_cli, "LEASE_SECONDS", 0.3):
+            why, sure = self.holder(origin=f"http://127.0.0.1:{silent.getsockname()[1]}")
+        self.assertEqual((why, sure), (f"whether another machine serves https://{self.HOST} cannot be told (timed out)", False))
+
+    def test_an_exception_with_no_message_is_named_by_its_type(self):
+        conn = mock.Mock()
+        conn.request.side_effect = TimeoutError()
+        with mock.patch.object(share_cli, "lease_target", return_value=conn):
+            self.assertEqual(share_cli.link_holder(self.HOST), (f"whether another machine serves https://{self.HOST} cannot be told (TimeoutError)", False))
 
 
 def socket_free(port):

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import threading
 import os
 import re
 import shutil
@@ -13,6 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -113,11 +115,96 @@ def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
     return proc, url
 
 
-CLOSED_ORIGIN = "http://127.0.0.1:1"  # a loopback port nothing listens on: the lease probe finds the link free, off the network
+# Cloudflare's answer at a tunnel hostname with no connector: HTTP 530 and this page, cut down from the one a stopped
+# quick tunnel's hostname returned on 2026-10-29 (its title and heading; the hostname changed). Error 530 and error 1033:
+# https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-530/,
+# https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1033/
+NO_CONNECTOR_PAGE = (
+    b"<!DOCTYPE html><html><head><title>Cloudflare Tunnel error | interview.example.com | Cloudflare</title></head><body>\n"
+    b'<h1 class="inline-block md:block mr-2 md:mb-2 font-light text-60 md:text-3xl text-black-dark leading-tight"\n'
+    b'                    >\n                        <span data-translate="error">Error</span>\n                        <span>1033</span>\n'
+    b"                    </h1>\n<script>properties:{errorCode: 1033 }</script></body></html>"
+)
+
+
+class FakeCloudflare:
+    """Cloudflare on 127.0.0.1, as share.py meets it: the tunnel's hostname, which answers the lease probe with `edge`
+    (status, body), and the API's tunnel routes under /accounts/: GET connections answers `connections` (a list, or
+    a list of lists taken one per call, the last repeating), GET configurations answers `config`, and a PUT records
+    itself and replaces `config`. The API envelope (`success`, `errors`, `result`) and the item shapes are the
+    references' (connections list and configurations get/update under
+    https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/)."""
+
+    def __init__(self, case=None, edge=(530, NO_CONNECTOR_PAGE), api_status=200, connections=(), config=None):
+        self.edge, self.api_status, self.puts, self.probes, self.api_gets = edge, api_status, [], [], []
+        self.connections, self.config = list(connections), config
+        self.raced = None  # set: what GET configurations answers once a PUT landed, as if another machine wrote after it
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def answer(self, code, body, kind="application/json"):
+                self.send_response(code)
+                self.send_header("Content-Type", kind)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def api(self, result):
+                ok = fake.api_status == 200
+                doc = {"success": ok, "errors": [] if ok else [{"code": 10000, "message": "Authentication error"}], "result": result if ok else None}
+                self.answer(fake.api_status, json.dumps(doc).encode())
+
+            def do_GET(self):
+                if not self.path.startswith("/accounts/"):
+                    fake.probes.append((self.headers.get("Host"), self.path))
+                    return self.answer(*fake.edge, kind="text/html")
+                fake.api_gets.append(self.path)
+                if self.path.endswith("/connections"):
+                    lists = fake.connections
+                    if lists and isinstance(lists[0], list):
+                        return self.api(lists.pop(0) if len(lists) > 1 else lists[0])
+                    return self.api(lists)
+                config = fake.raced if fake.raced is not None and fake.puts else fake.config
+                return self.api({"config": config, "source": "cloudflare", "version": 1})
+
+            def do_PUT(self):
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+                fake.puts.append((self.path, self.headers.get("Authorization"), body))
+                if fake.api_status == 200:
+                    fake.config = body["config"]
+                self.api({"config": fake.config})
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        if case is not None:
+            case.addCleanup(lambda: (self.server.shutdown(), self.server.server_close()))
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+
+def connector(cid, ip="192.0.2.20"):
+    """One item of the connections list: a cloudflared with one open connection."""
+    return {"id": cid, "conns": [{"client_id": cid, "colo_name": "fake01", "origin_ip": ip, "is_pending_reconnect": False}], "run_at": "2026-10-29T00:00:00Z"}
+
+
+_FREE = []
+
+
+def free_edge():
+    """The loopback origin every test's lease probe goes to unless it names its own: no connector, so the link is free,
+    off the network."""
+    if not _FREE:
+        _FREE.append(FakeCloudflare())
+    return _FREE[0].url
+
+
+CLOSED_ORIGIN = "http://127.0.0.1:1"  # a loopback port nothing listens on: an API call there fails, off the network
 
 
 def env(**extra):
-    out = dict(os.environ, SHARED_CLOUDFLARED=FAKE, SHARED_TUNNEL_SECONDS="10", SHARED_LEASE_ORIGIN=CLOSED_ORIGIN)
+    out = dict(os.environ, SHARED_CLOUDFLARED=FAKE, SHARED_TUNNEL_SECONDS="10", SHARED_LEASE_ORIGIN=free_edge(), SHARED_CF_API=CLOSED_ORIGIN)
     out.update({k: v for k, v in extra.items() if v is not None})
     for k in [k for k, v in extra.items() if v is None]:
         out.pop(k, None)
