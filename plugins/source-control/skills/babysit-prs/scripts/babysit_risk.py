@@ -1166,6 +1166,34 @@ def _trigger_tokens(line: str) -> list[str]:
     return _TRIGGER_NAME.findall(on[1]) if on else []
 
 
+_ON_BLOCK = re.compile(r"^(\s*)['\"]?on['\"]?\s*:\s*$")
+_BLOCK_KEY = re.compile(r"^(\s*)['\"]?([\w-]+)['\"]?\s*:")
+
+
+def _on_block_keys(lines: list[str]) -> list[str]:
+    """The keys directly under a block `on:`, so a mapping-form trigger is
+    read even when its name (`issues`) is also a permissions scope."""
+    keys: list[str] = []
+    on: int | None = None
+    child: int | None = None
+    for line in lines:
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if on is not None and indent <= on:
+            on = child = None
+        if on is None:
+            block = _ON_BLOCK.match(line)
+            if block:
+                on = len(block[1])
+            continue
+        child = indent if child is None else child
+        key = _BLOCK_KEY.match(line)
+        if key and indent == child:
+            keys.append(key[2])
+    return keys
+
+
 def _code_lines(lines: list[str]) -> list[str]:
     """Lines with YAML comments dropped: a whole-line comment, or the text
     after ` #`."""
@@ -1197,6 +1225,7 @@ def _text_privileges(text: str | None) -> tuple[Counter[str], int, set[str]]:
     )
     keys = sum(1 for line in lines if _PERMISSIONS_KEY.match(line))
     triggers = {t for line in lines for t in _trigger_tokens(line)}
+    triggers |= set(_on_block_keys(lines)) & PRIVILEGED_TRIGGERS
     return grants, keys, triggers
 
 

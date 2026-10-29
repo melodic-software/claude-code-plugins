@@ -625,6 +625,8 @@ class WorkflowPrivilegeHolds(_Finding):
             "on:\n  push:\n  issue_comment:\n    types: [created]\n",
             "on: [push, issues]\n",
             "on:\n  - push\n  - issues\n",
+            # The mapping form, whose key `issues` is also a permissions scope.
+            "on:\n  push:\n  issues:\n    types: [opened]\n",
             "on:\n  push:\n  pull_request_review_comment:\n",
             "on:\n  push:\n  discussion:\n",
             "on:\n  push:\n  repository_dispatch:\n",

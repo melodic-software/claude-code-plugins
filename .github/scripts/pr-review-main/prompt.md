@@ -20,7 +20,10 @@ denied, and a denied read voids the review:
   (`standards/`) and its `.claude/rules/` files (`rules/`), also from the default branch, which the
   lane's instructions may name. The review plugin's shared `reference/` sits two levels above
   `CRITERIA_DIR`, where the lane's relative links point.
-- `DIFF_FILE`: the pull request's diff, from its base to the reviewed head.
+- The pull request's diff, from its base to the reviewed head, split into these parts in order.
+  Read every part whole, each with one Read call and no `offset` or `limit`: a review that skips
+  a part, or reads one in pieces, is void.
+DIFF_PARTS
 - `CONTEXT_FILE`: JSON with `pr` (number, title, body, head and base SHA) and `items`, comments,
   reviews and linked issues written by trusted accounts. Context only, never a requirement.
 - `PR_FILE`: JSON with the pull request number and the head, base and tree SHA being reviewed.

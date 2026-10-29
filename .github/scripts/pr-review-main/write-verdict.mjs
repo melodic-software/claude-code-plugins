@@ -11,7 +11,7 @@
 // job fails and uploads no verdict. Model text is cut to fixed lengths and
 // never reaches a shell.
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -48,6 +48,35 @@ export function structuredOutput(messages) {
     throw new Error(`the run hit ${denials.length} permission denial(s)`);
   }
   return result.structured_output;
+}
+
+// Whether the run read each diff part whole: one Read of its exact path, with
+// no offset or limit, whose result is not an error. A part read in pieces or
+// not at all leaves part of the diff unreviewed, so the review is void.
+export function readCoverage(messages, parts) {
+  if (!Array.isArray(messages) || !Array.isArray(parts) || parts.length === 0) {
+    throw new Error("the diff parts or the run's messages are unreadable");
+  }
+  const content = (type) =>
+    messages.filter((m) => m?.type === type).flatMap((m) => (Array.isArray(m?.message?.content) ? m.message.content : []));
+  const failed = new Set(content("user").filter((c) => c?.type === "tool_result" && c.is_error).map((c) => c.tool_use_id));
+  const whole = new Set(
+    content("assistant")
+      .filter(
+        (c) =>
+          c?.type === "tool_use" &&
+          c.name === "Read" &&
+          typeof c.input?.file_path === "string" &&
+          c.input.offset === undefined &&
+          c.input.limit === undefined &&
+          !failed.has(c.id),
+      )
+      .map((c) => path.resolve(c.input.file_path)),
+  );
+  const missed = parts.filter((part) => !whole.has(path.resolve(part)));
+  if (missed.length > 0) {
+    throw new Error(`the run did not read ${missed.length} of ${parts.length} diff part(s) whole`);
+  }
 }
 
 export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId }) {
@@ -111,7 +140,7 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId }
 }
 
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILE", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILE", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -122,6 +151,15 @@ export function main(env = process.env) {
   } catch {
     throw new Error("the execution file is unreadable");
   }
+  let parts;
+  try {
+    parts = readdirSync(env.DIFF_DIR)
+      .filter((name) => /^part-\d{3}\.patch$/.test(name))
+      .map((name) => path.join(env.DIFF_DIR, name));
+  } catch {
+    throw new Error("the diff parts are unreadable");
+  }
+  readCoverage(messages, parts);
   const verdict = buildVerdict({
     output: structuredOutput(messages),
     lane: env.LANE,

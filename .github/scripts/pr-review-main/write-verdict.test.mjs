@@ -3,13 +3,13 @@
 // output and the job's own reads, and nothing written on doubt.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { artifactName, buildVerdict, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, main, readCoverage, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -68,11 +68,34 @@ test("the artifact name is the one the merge gate looks up", () => {
   assert.equal(artifactName("claude-review", 42, TREE), python.stdout.trim());
 });
 
+const read = (id, file, extra = {}) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Read", input: { file_path: file, ...extra } }] } });
+const failed = (id) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, is_error: true }] } });
+
+test("a verdict counts only when every diff part was read whole", () => {
+  const parts = ["/d/diff/part-001.patch", "/d/diff/part-002.patch"];
+  assert.doesNotThrow(() => readCoverage([read("a", parts[0]), read("b", parts[1])], parts));
+  const voids = {
+    "a part never read": [read("a", parts[0])],
+    "a part read from an offset": [read("a", parts[0]), read("b", parts[1], { offset: 500 })],
+    "a part read with a limit": [read("a", parts[0]), read("b", parts[1], { limit: 10 })],
+    "a read that failed": [read("a", parts[0]), read("b", parts[1]), failed("b")],
+    "another tool on the path": [read("a", parts[0]), { type: "assistant", message: { content: [{ type: "tool_use", id: "b", name: "Grep", input: { file_path: parts[1] } }] } }],
+  };
+  for (const [name, messages] of Object.entries(voids)) {
+    assert.throws(() => readCoverage(messages, parts), /did not read 1 of 2/, name);
+  }
+  assert.throws(() => readCoverage([read("a", parts[0])], []), /unreadable/);
+});
+
 test("main writes verdict.json and the name output", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
     const execution = path.join(dir, "execution.json");
-    writeFileSync(execution, JSON.stringify([{ type: "result", structured_output: { findings: [finding("CRITICAL")], summary: "s" }, permission_denials: [] }]));
+    const parts = path.join(dir, "diff");
+    mkdirSync(parts);
+    writeFileSync(path.join(parts, "part-001.patch"), "+x\n");
+    const result = { type: "result", structured_output: { findings: [finding("CRITICAL")], summary: "s" }, permission_denials: [] };
+    writeFileSync(execution, JSON.stringify([read("r1", path.join(parts, "part-001.patch")), result]));
     const output = path.join(dir, "output");
     writeFileSync(output, "");
     main({
@@ -84,6 +107,7 @@ test("main writes verdict.json and the name output", () => {
       TREE_SHA: TREE,
       GITHUB_RUN_ID: "9",
       VERDICT_DIR: path.join(dir, "verdict"),
+      DIFF_DIR: parts,
       GITHUB_OUTPUT: output,
     });
     const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));

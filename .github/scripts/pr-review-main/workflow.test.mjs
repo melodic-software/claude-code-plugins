@@ -3,7 +3,10 @@
 // never the head, the model reads only its data directory, and the verdict is
 // uploaded once, after it is written, under the name the writer chose.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 
 const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
@@ -62,6 +65,29 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
+test("the diff is split into parts one read returns whole, and a longer line gets no verdict", () => {
+  const diff = step("Write the diff");
+  const awk = diff.match(/LC_ALL=C (awk -v .*?' "\$DATA\/diff\.patch")/s)[1];
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-split-"));
+  try {
+    const run = (text) => {
+      rmSync(path.join(dir, "diff"), { recursive: true, force: true });
+      mkdirSync(path.join(dir, "diff"));
+      writeFileSync(path.join(dir, "diff.patch"), text);
+      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, DATA: dir, PART_BYTES: "10", PART_LINES: "2" } });
+    };
+    // 5 lines of 4 bytes: 2 lines per part at most, so 3 parts, in order.
+    assert.equal(run("aaa\nbbb\nccc\nddd\neee\n").status, 0);
+    const parts = readdirSync(path.join(dir, "diff")).sort();
+    assert.deepEqual(parts, ["part-001.patch", "part-002.patch", "part-003.patch"]);
+    assert.equal(parts.map((p) => readFileSync(path.join(dir, "diff", p), "utf8")).join(""), "aaa\nbbb\nccc\nddd\neee\n");
+    // A 13-byte line is longer than a 10-byte part.
+    assert.notEqual(run("aaaaaaaaaaaa\n").status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("each leg leaves a lane record", () => {
   const report = step("Report the review's outcome");
   assert.match(report, /report-lane-outcome@[0-9a-f]{40}/);
@@ -91,7 +117,7 @@ test("the model reads its data directory alone", () => {
   for (const denied of ["Read(./.base/**)", "Bash", "Write", "Edit", "WebFetch", "Agent", "mcp__*"]) {
     assert.ok(review.includes(`            ${denied}\n`), denied);
   }
-  for (const placeholder of ["LANE_NAME", "CRITERIA_DIR", "STANDARDS_DIR", "DIFF_FILE", "CONTEXT_FILE", "PR_FILE"]) {
+  for (const placeholder of ["LANE_NAME", "CRITERIA_DIR", "STANDARDS_DIR", "DIFF_PARTS", "CONTEXT_FILE", "PR_FILE"]) {
     assert.ok(prompt.includes(placeholder), placeholder);
     assert.ok(step("Write the prompt and schema").includes(`prompt=\${prompt//${placeholder}/`), placeholder);
   }

@@ -163,6 +163,12 @@ jobs:
           # About 75k tokens of patch: room in the lane's turn budget to read
           # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size with its line
+          # numbers comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -178,11 +184,29 @@ jobs:
             echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
             exit 1
           fi
+          # Parts the reviewer reads whole, each named in the prompt; the
+          # verdict counts only when every part was read whole
+          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
+          # no verdict.
+          mkdir "$DATA/diff"
+          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+            { len = length($0) + 1
+              if (len > maxb) exit 3
+              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+              print > f; b += len; l++ }' "$DATA/diff.patch"; then
+            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          rm "$DATA/diff.patch"
+          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+            echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
           echo "tree=$tree" >>"$GITHUB_OUTPUT"
-          echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
         if: steps.diff.outcome == 'success'
@@ -266,7 +290,9 @@ jobs:
           prompt=${prompt//LANE_NAME/$LANE}
           prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
           prompt=${prompt//STANDARDS_DIR/$DATA/standards}
-          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
+          prompt=${prompt//DIFF_PARTS/$parts}
           prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
           prompt=${prompt//PR_FILE/$DATA/pr.json}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
@@ -347,6 +373,7 @@ jobs:
           BASE_SHA: ${{ steps.gate.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
+          DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
 
       - name: Upload the verdict
