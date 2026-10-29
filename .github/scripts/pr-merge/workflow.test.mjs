@@ -303,7 +303,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
     assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
-    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0\n");
+    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -522,9 +522,10 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
 // A node step whose only token is the job token and whose script builds a
 // createGitHub client keeps each answer's reading under github-token (the
 // client's rate guard writes it when API_BUDGET_TOKEN names the bucket), or
-// the job-end notice counts nothing. A step whose script calls nothing needs
-// no bucket, so none is asked of it.
-test("every createGitHub step that calls GitHub with the job token alone names API_BUDGET_TOKEN github-token", () => {
+// the job-end notice counts nothing; one that also holds the lane token names
+// lanes-app and the github-token override. A step whose script calls nothing
+// needs no bucket, so none is asked of it.
+test("every createGitHub step that calls GitHub with the job token names the bucket its calls go to", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const unnamed = [];
   const needless = [];
@@ -534,11 +535,21 @@ test("every createGitHub step that calls GitHub with the job token alone names A
     for (const step of body.split(/\n {6}- name: /).slice(1)) {
       const name = step.split("\n")[0];
       const script = /\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\/(\S+\.mjs)/.exec(step)?.[1];
-      if (!script || !step.includes("${{ github.token }}") || step.includes("${{ steps.lane-token.outputs.token }}")) {
+      if (!script || !step.includes("${{ github.token }}")) {
         continue;
       }
       const calls = readFileSync(new URL(`../../../${script}`, import.meta.url), "utf8").includes("createGitHub(");
       const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+      // A step that also holds the lane token as its GH_TOKEN counts that
+      // token's calls under lanes-app and the job token's under the override
+      // (rate-guard.mjs budgetToken).
+      if (step.includes("${{ steps.lane-token.outputs.token }}")) {
+        const override = /\n {10}API_BUDGET_OVERRIDE_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+        if (calls && (bucket !== "lanes-app" || override !== "github-token")) {
+          unnamed.push(`${id}: ${name}`);
+        }
+        continue;
+      }
       if (calls && (bucket ?? jobBucket) !== "github-token") {
         unnamed.push(`${id}: ${name}`);
       }
@@ -648,8 +659,8 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         encoding: "utf8",
         env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
       });
-      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0$/m);
-      assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0$/m);
+      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+      assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0$/m);
     } finally {
       server.close();
       rmSync(dir, { recursive: true, force: true });
