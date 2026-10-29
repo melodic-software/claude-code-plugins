@@ -20,6 +20,18 @@
     {
       "answer": "Run `/app-control:drive capture`, passing `--kind cpu`.",
       "why": "punctuation after the closing backtick"
+    },
+    {
+      "answer": "Run /app-control:drive capture without --kind heap; pass --kind cpu instead.",
+      "why": "heap negated before the cpu kind"
+    },
+    {
+      "answer": "Run `/app-control:drive capture`. Pass `--kind cpu`.",
+      "why": "a period after the closing backtick"
+    },
+    {
+      "answer": "Run `/app-control:drive capture` (`--kind cpu`).",
+      "why": "the kind in parentheses"
     }
   ],
   "fail": [
@@ -49,6 +61,10 @@
     {
       "answer": "Run /app-control:drive capture --kind heap, not --kind cpu.",
       "why": "the first kind on the command is heap"
+    },
+    {
+      "answer": "Run /app-control:drive capture without --kind cpu; use --kind heap.",
+      "why": "cpu negated, heap chosen"
     }
   ]
 }
