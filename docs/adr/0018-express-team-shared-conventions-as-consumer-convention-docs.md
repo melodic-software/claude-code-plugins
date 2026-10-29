@@ -83,7 +83,7 @@ constraints below.
   requirement, the WARN-visible dual-read exception, and ratification of the no-no-op-`apply` rule
   the Phase 1b convergence applied).
 - The mechanism ships next as its own PR (schema and validator fixtures, helper and tests and sync
-  registration, owner doc `docs/conventions/retired-conventions/`, audit-pass sweep lane, the
+  registration, owner doc `docs/contracts/retired-conventions/`, audit-pass sweep lane, the
   pointer-line resolver helper). Until it lands, no surface migrates.
 - `plugin-quality`'s `.claude/plugin-quality.md` is the pilot surface, verified in a consumer repo
   with a populated pre-existing AGENTS.md, a pre-existing overlay file (must WARN), and an

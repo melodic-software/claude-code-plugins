@@ -14,15 +14,15 @@ Thumbs.db
 .claude/observability/
 .observability/
 .claude/worktrees/
-# loop-lane escalation records (docs/conventions/loop-lane/README.md §2 — signal, not storage)
+# loop-lane escalation records (docs/contracts/loop-lane/README.md §2 — signal, not storage)
 .claude/lane-escalations/
-# source-control convention personal overlay (docs/conventions/config-cascade/README.md
+# source-control convention personal overlay (docs/contracts/config-cascade/README.md
 # "Overlay naming" — the recursive form covers a flat .claude/source-control.local.md and any
 # future folder-form overlay in one line; the plugin's own docs still show the narrower
 # .claude/*.local.* form, tracked separately as "overlay spelling drift")
 .claude/**/*.local.*
 CLAUDE.local.md
-# personal overlays in the convention home (docs/conventions/config-cascade/README.md
+# personal overlays in the convention home (docs/contracts/config-cascade/README.md
 # "Overlay naming and the consumer .gitignore")
 docs/conventions/**/*.local.*
 

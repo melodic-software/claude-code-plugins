@@ -18,7 +18,7 @@ platform point links the upstream section, listed in
 [cloud-sessions.md](cloud-sessions.md), to read live. The environment itself was verified live
 on 2026-08-14 from a cloud session inside it. Results are in
 [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
-Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
+Recheck trigger, per the [upstream-drift convention](contracts/upstream-drift/README.md): a
 repo changes its toolchain pins (`global.json`, `.node-version`, `.python-version`, lockfiles)
 or its `.claude/` config; or `melodic-software/standards`
 `components/cloud-environment/setup.sh` changes (that file owns

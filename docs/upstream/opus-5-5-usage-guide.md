@@ -40,7 +40,7 @@ their own session are filed as issues (see [Decisions and follow-ups](#decisions
 
 ## Row schema
 
-Each row is an [upstream-drift](../conventions/upstream-drift/README.md#required-parts) record. The
+Each row is an [upstream-drift](../contracts/upstream-drift/README.md#required-parts) record. The
 **Topic** column names the guide item in our words, with an ID other files cite; **Ours** and
 **Verdict** are our decision. No row restates the guide. Shared for every row:
 

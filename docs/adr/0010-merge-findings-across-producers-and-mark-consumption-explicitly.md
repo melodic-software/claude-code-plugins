@@ -24,7 +24,7 @@ multi-file handling. Two conforming producers on one branch means the later time
 earlier producer's findings are never applied: no error, no warning, and the run reports success.
 A detector running after a full review would shadow the entire review.
 
-This is the green-with-hidden-findings class that `docs/conventions/liveness-assertion/README.md:58`
+This is the green-with-hidden-findings class that `docs/contracts/liveness-assertion/README.md:58`
 exists to prevent, and it fails silently rather than loudly, which is why it is decided before the
 second producer ships rather than after.
 
