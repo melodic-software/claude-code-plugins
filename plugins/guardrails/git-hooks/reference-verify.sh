@@ -23,7 +23,10 @@
 # The ranges come from the check lib: one per pushed ref, a new branch from its
 # merge-base with the remote's default branch, a deletion skipped. A hook
 # manager that keeps stdin from this script leaves the lib's fallback: the
-# current branch against its upstream. A range whose tip merged the default
+# current branch against its upstream. Whichever way it came, a range's base
+# then moves up to the nearest of the remote's tracking refs between it and
+# the tip (nearest_pushed_base), so a new branch stacked on a pushed branch is
+# judged only on what it adds to that branch. A range whose tip merged the default
 # branch is narrowed to the lines the branch itself adds (narrow_to_branch).
 # Each range is checked on its own, in
 # that range's tip: the checkout when HEAD is the tip and the tree is clean,
@@ -138,6 +141,22 @@ narrow_to_branch() {
     "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges"
 }
 
+# nearest_pushed_base: moves BASE to the commit of a tracking ref of $remote
+# that the tip holds and that holds BASE, the one fewest commits behind the tip.
+# Those commits are on the remote already, so they are not judged again.
+nearest_pushed_base() {
+  local r n best="" min=0
+  while IFS= read -r r; do
+    [[ "$r" != "$BASE" ]] || continue
+    n="$(git rev-list --count "$r..$TIP" 2>/dev/null)" || continue
+    if [[ -z "$best" ]] || ((n < min)); then
+      best="$r"
+      min="$n"
+    fi
+  done < <(git for-each-ref --merged="$TIP" --contains="$BASE" --format='%(objectname)' "refs/remotes/$remote/" 2>/dev/null)
+  [[ -z "$best" ]] || BASE="$best"
+}
+
 # main_base_for_range: sets MAIN_BASE for the current BASE..TIP, empty unless
 # the default branch's merge-base is not already behind BASE.
 main_base_for_range() {
@@ -237,6 +256,7 @@ else
   remote="${CHECKS_ARGS%% *}"
   [[ -n "$remote" ]] || remote=origin
   while read -r BASE TIP <&3; do
+    nearest_pushed_base
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
     main_base_for_range
     if tip_is_checkout; then

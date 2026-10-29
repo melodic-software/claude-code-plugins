@@ -4,10 +4,11 @@
 # pushed commits add, blocks with "<path>:<line>: <message>"; the same text on an
 # unchanged line, in a file type the verifiers do not read, or in an eval
 # suite's samples/ folder (recorded model output), does not; a new
-# branch ranges from its merge-base with the remote's default branch, a pushed
-# branch that merged main is judged only on its own lines, and a
-# deletion checks nothing; the failure names the way out (decline the entry;
-# the skip key covers only a missing jq); --worktree covers uncommitted files;
+# branch ranges from its merge-base with the remote's default branch, or from a
+# pushed branch it is stacked on, a pushed branch that merged main is judged
+# only on its own lines, and a deletion checks nothing; the failure names the
+# way out (decline the entry; the skip key covers only a missing jq);
+# --worktree covers uncommitted files;
 # and the plugin's vendored installer wires the entry as a pre-push hook, so
 # `git commit` does not run it and `git push` does.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh
@@ -320,6 +321,26 @@ commit_all topic
 expect "a new branch ranges from its merge-base with origin's default branch" "1|run.sh:3: $FLAG_FINDING" \
   "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 expect "a branch deletion checks nothing" "0|" "$(push_check refs/heads/topic "$ZERO" "$BASE")"
+
+# A new branch stacked on a pushed branch is judged only on what it adds to that
+# branch: the pushed branch's files are not verified again.
+new_repo
+git -C "$REPO" checkout -q -b phase1
+printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/phase1.sh"
+commit_all phase1
+git -C "$REPO" checkout -q -b phase2
+printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/phase2.sh"
+commit_all phase2
+expect "a new branch on an unpushed branch verifies that branch's files too" "1|phase1.sh:1: ${FLAG_FINDING/in run.sh/in phase1.sh}" \
+  "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
+git -C "$REPO" push -q --no-verify origin phase1 2>/dev/null
+expect "a new branch stacked on a pushed branch does not verify that branch's files" "0|" \
+  "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/phase2.sh"
+commit_all phase2-bogus
+expect "a new stacked branch is judged on the lines it adds" "1|phase2.sh:1: ${FLAG_FINDING/in run.sh/in phase2.sh}" \
+  "$(push_check refs/heads/phase2 "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
+git -C "$REPO" checkout -q main
 
 # A pushed branch that merged main: only the lines the branch itself adds are
 # judged, never the ones the merge brought in from the default branch.
