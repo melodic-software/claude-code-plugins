@@ -186,7 +186,7 @@ expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
-  rm -f "$TMP_ROOT/pr-files.json"
+  rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
