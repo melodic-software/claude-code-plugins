@@ -3,6 +3,8 @@ draft toggle and the recovery of a draft a toggle left behind."""
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -69,6 +71,95 @@ class Wanted(unittest.TestCase):
 
     def test_low(self) -> None:
         self.assertFalse(wr.wanted(None, result(), (CLEAN,)))
+
+
+# A `review-path:` hold (owner decision Q26 option B) stands while the bound
+# security review counts any open finding (babysit_risk.security_review_clean),
+# as pull request #10908's did with no CRITICAL one among them.
+PATH = risk.Reason("review-path:.github/x.mjs", risk.Risk.HIGH, ".github/x.mjs")
+BELOW = risk.LaneEvidence("claude-security-review", True, None, 2, True, 0)
+
+
+class WantedForAReviewPath(unittest.TestCase):
+    def test_open_findings_below_critical_a_whole_review_closes(self) -> None:
+        self.assertTrue(wr.wanted(None, result(PATH), (CLEAN, BELOW)))
+
+    def test_findings_a_whole_review_cannot_close(self) -> None:
+        stuck = risk.LaneEvidence("claude-security-review", True, None, 2, False, 0)
+        self.assertFalse(wr.wanted(None, result(PATH), (CLEAN, stuck)))
+
+    def test_no_open_finding_or_an_unbound_review_is_no_whole_review_s(self) -> None:
+        clean = risk.LaneEvidence("claude-security-review", True, None, 0, True, 0)
+        unbound = risk.LaneEvidence("claude-security-review", False, "x", None, True)
+        for lane in (clean, unbound):
+            with self.subTest(lane=lane):
+                self.assertFalse(wr.wanted(None, result(PATH), (CLEAN, lane)))
+
+    def test_a_critical_finding_beside_it(self) -> None:
+        both = risk.LaneEvidence("claude-security-review", True, None, 2, True, 1)
+        self.assertTrue(wr.wanted(None, result(PATH, HIGH), (CLEAN, both)))
+
+    def test_another_holding_reason_beside_it(self) -> None:
+        other = risk.Reason("high-path:.github/**", risk.Risk.HIGH, ".github/y")
+        self.assertFalse(wr.wanted(None, result(PATH, other), (CLEAN, BELOW)))
+
+
+class RequestCommand(unittest.TestCase):
+    """`request` and `toggle`, which enable-auto-merge.mjs runs for a lanes
+    App pull request: the gate's caps on the prior reasons comment read from
+    stdin, then the draft toggle once the record is written."""
+
+    def run_cli(self, argv: list[str], stdin: str = "") -> tuple[int, Any]:
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "stdin", io.StringIO(stdin)),
+            contextlib.redirect_stdout(out),
+        ):
+            code = wr.main(argv)
+        return code, json.loads(out.getvalue())
+
+    def request(self, prior: str, **patches: Any) -> tuple[int, Any]:
+        argv = ["request", "--repo", "o/r", "--identity", "lanes[bot]"]
+        argv += ["--head", HEAD, "--node-id", "PR_1"]
+        with (
+            mock.patch.object(
+                wr, "lane_toggles", return_value=patches.get("toggles", 0)
+            ),
+            mock.patch.object(wr, "limits", return_value=patches.get("limits")),
+        ):
+            return self.run_cli(argv, prior)
+
+    def test_a_first_request_answers_its_record_line(self) -> None:
+        code, answer = self.request("<!-- babysit-merge-risk -->\nreasons")
+        self.assertEqual(code, 0)
+        self.assertEqual(wr.records(answer["line"])[0][0], HEAD)
+
+    def test_a_head_already_recorded_answers_nothing(self) -> None:
+        line = wr.record_line(HEAD, datetime(2026, 10, 29, tzinfo=UTC))
+        self.assertEqual(self.request(f"reasons\r\n\r\n{line}\r\n"), (0, None))
+
+    def test_the_caps_and_limits_answer_why_not(self) -> None:
+        old = "\n".join(
+            wr.record_line(c * 40, datetime(2026, 10, 1, tzinfo=UTC)) for c in "cd"
+        )
+        cases = {
+            "two records": ({"prior": old}, "toggle-cap:2"),
+            "two lane conversions": ({"toggles": 2}, "toggle-cap:2"),
+            "an unread timeline": ({"toggles": None}, "toggle-cap:unread"),
+            "this sweep spent": ({"limits": "sweep-limit"}, "sweep-limit"),
+        }
+        for name, (patches, skipped) in cases.items():
+            with self.subTest(name):
+                _, answer = self.request(patches.pop("prior", "reasons"), **patches)
+                self.assertEqual(answer, {"toggled": False, "skipped": skipped})
+
+    def test_toggle_reports_and_fails_on_a_stranded_draft(self) -> None:
+        argv = ["toggle", "--node-id", "PR_1"]
+        with mock.patch.object(wr, "toggle", return_value={"toggled": True}):
+            self.assertEqual(self.run_cli(argv), (0, {"toggled": True}))
+        stranded = {"toggled": False, "error": "stranded-draft: mark-ready failed"}
+        with mock.patch.object(wr, "toggle", return_value=stranded):
+            self.assertEqual(self.run_cli(argv), (1, stranded))
 
 
 class Record(unittest.TestCase):

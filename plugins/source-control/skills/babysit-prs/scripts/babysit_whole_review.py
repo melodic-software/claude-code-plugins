@@ -63,6 +63,8 @@ MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
+# The lane whose clean review clears a `review-path:` hold.
+SECURITY_LANE = "claude-security-review"
 CONVERT = (
     "mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id})"
     " { pullRequest { isDraft } } }"
@@ -108,21 +110,62 @@ def wanted(
     lanes: Sequence[babysit_risk.LaneEvidence],
 ) -> bool:
     """Every other gate passed (`reason` is None), the only reasons holding
-    the score are open findings, and a clean whole review would close each
-    lane's."""
+    the score are open findings and `review-path:` holds, and a clean whole
+    review would close each lane's. A `review-path:` hold stands while the
+    security lane's bound review counts an open finding of any tier
+    (`babysit_risk.security_review_clean`), so that lane must be one a whole
+    review clears."""
     held_by = babysit_risk.holding(risk)
     if reason is not None or not held_by:
         return False
-    if not all(r.code in FINDING_CODES for r in held_by):
+    path = babysit_risk.REVIEW_PATH_PREFIX
+    if not all(r.code in FINDING_CODES or r.code.startswith(path) for r in held_by):
         return False
     codes = {r.code for r in held_by}
+    review_path = any(code.startswith(path) for code in codes)
     held = [
         lane
         for lane in lanes
-        if babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
-        and (babysit_risk.blocking(lane) or 0) > 0
+        if (
+            babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
+            and (babysit_risk.blocking(lane) or 0) > 0
+        )
+        or (
+            review_path
+            and lane.lane == SECURITY_LANE
+            and lane.bound
+            and lane.unbound_reason is None
+            and (lane.open_findings or 0) > 0
+        )
     ]
+    if review_path and not any(lane.lane == SECURITY_LANE for lane in held):
+        return False
     return bool(held) and all(lane.whole_review_clears for lane in held)
+
+
+def request(
+    repo: str, text: Any, head: str, node_id: str, identity: str, at: datetime
+) -> tuple[list[str], dict[str, Any] | None]:
+    """The record lines the reasons comment `text` holds, plus one for `head`
+    when this sweep may request a whole review of it, and the request:
+    `{"toggle": True}` for a new record, a `skipped` answer at a cap or limit,
+    or None when `head` is already recorded. The caller writes the lines
+    before it toggles, so a failed write never toggles twice at a head."""
+    lines = record_lines(text)
+    if recorded(text, head):
+        return lines, None
+    if len(lines) >= MAX_TOGGLES:
+        return lines, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
+    # The timeline, not the comment the lane token can edit, holds the count.
+    toggled = lane_toggles(node_id, identity)
+    if toggled is None:
+        return lines, {"toggled": False, "skipped": "toggle-cap:unread"}
+    if toggled >= MAX_TOGGLES:
+        return lines, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
+    refusal = limits(repo)
+    if refusal is not None:
+        return lines, {"toggled": False, "skipped": refusal}
+    return [*lines, record_line(head, at)], {"toggle": True}
 
 
 def _api(args: list[str], env: Mapping[str, str] | None = None) -> Any:
@@ -350,7 +393,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     rec.add_argument("--repo", required=True)
     rec.add_argument("--identity", required=True)
     rec.add_argument("--drafts", required=True, help="JSON list of drafts")
+    req = sub.add_parser(
+        "request",
+        help="the record line for a whole review of --head, the reasons comment on stdin",
+        allow_abbrev=False,
+    )
+    tog = sub.add_parser(
+        "toggle", help="draft, then ready again: a whole review", allow_abbrev=False
+    )
+    for cmd in (req, tog):
+        cmd.add_argument("--node-id", required=True)
+    for name in ("--repo", "--identity", "--head"):
+        req.add_argument(name, required=True)
     args = parser.parse_args(argv)
+    if args.command == "request":
+        lines, answer = request(
+            args.repo,
+            sys.stdin.read().replace("\r\n", "\n"),
+            args.head,
+            args.node_id,
+            args.identity,
+            datetime.now(UTC),
+        )
+        print(json.dumps({"line": lines[-1]} if answer == {"toggle": True} else answer))
+        return 0
+    if args.command == "toggle":
+        result = toggle(args.node_id)
+        print(json.dumps(result))
+        return 0 if result["toggled"] else 1
     drafts = json.loads(Path(args.drafts).read_text())
     result = recover(args.repo, args.identity, drafts)
     print(json.dumps(result))
