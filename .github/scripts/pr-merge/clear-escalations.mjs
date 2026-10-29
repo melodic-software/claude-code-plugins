@@ -39,9 +39,12 @@
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
 //     feedback-protected-path  the PR changes nothing under .github/workflows/
-//     feedback-not-landed      the head is none of its resume keys, and no
+//     feedback-not-landed      the head is none of its resume keys, no
 //                              unresolved review thread carries a lanes App
-//                              comment (owner decision 2026-10-25)
+//                              comment (owner decision 2026-10-25), and
+//                              either a trusted move (below) or clean review
+//                              lanes at the head (reviewLanesClean): a lanes
+//                              App push alone never clears it
 //     ci-fix-* but             a trusted move, and at the new head no check
 //     ci-fix-protected-path    but ci-status (the label fails it) fails, runs
 //                              or was cancelled, each latest run ended
@@ -135,7 +138,8 @@
 //   BABYSIT_RUN_CACHE    the gate reader's Actions token and the run's shared
 //                        reads, as enable-auto-merge passes them; the job
 //                        token also reads branch activity, check runs and
-//                        main's history for a trusted move
+//                        main's history for a trusted move, and the review
+//                        lanes' runs, jobs and annotations
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -312,7 +316,9 @@ const CHECKS = Object.freeze({
       : "the pull request changes nothing under .github/workflows/";
   },
   // address-feedback's fix did not reach its resume key. Gone once the head
-  // is none of those keys and no review thread the lane replied to is open.
+  // is none of those keys, no review thread the lane replied to is open, and
+  // a trusted push moved the head or both review lanes read it clean: a
+  // lanes App push alone must not clear its own stop.
   "feedback-not-landed": async (context) => {
     const head = context.pull.head.sha;
     if (context.keysOf("feedback-not-landed").includes(head)) {
@@ -322,9 +328,17 @@ const CHECKS = Object.freeze({
     if (open === null) {
       return { held: "its review thread listing may be cut short" };
     }
-    return open > 0
-      ? { held: `${open} unresolved review thread(s) carry a lanes App comment` }
-      : `the head moved off the resume key to ${head}, and no review thread the lane replied to is unresolved`;
+    if (open > 0) {
+      return { held: `${open} unresolved review thread(s) carry a lanes App comment` };
+    }
+    const moved = await context.moved();
+    if (moved !== null) {
+      return `${moved}, and no review thread the lane replied to is unresolved`;
+    }
+    const clean = await reviewLanesClean(context);
+    return clean === null
+      ? { held: `a push no trusted person made moved the head; waiting for clean review lanes at ${head}` }
+      : `the head moved off the resume key to ${head}, no review thread the lane replied to is unresolved, and ${clean}`;
   },
   // A fix-ci reason escalation-routes.json now routes to a failing status
   // rather than a person, on a label an older lane run set: once the head's
@@ -422,6 +436,100 @@ async function trustedMove({ read, repo, pull, keys, since, trusted }) {
   return `${by} moved the head from the resume key to ${head}`;
 }
 
+// The review lanes reviewLanesClean reads, as pr-require-checks.yml's
+// `Require both review lanes on this head` step names them: the workflow, the
+// lane its completion record names, its status job, and whether only a whole
+// review counts.
+const REVIEW_LANES = Object.freeze([
+  { file: "pr-review-hosted.yml", lane: "claude-review", job: "pr-review / claude-review-status", whole: false },
+  { file: "pr-review-security-hosted.yml", lane: "claude-security-review", job: "pr-review-security / security-review", whole: true },
+]);
+const RECORD_TITLE = "claude-lane-review-complete";
+// A review's completion record (babysit_review_evidence.py RECORD_RE); a skip
+// record matches none of it, so it reviewed nothing here.
+const REVIEW_RECORD =
+  /^claude-lane-review-complete lane=([\w-]+) sha=([0-9a-f]{40}) findings=\d{1,6} inline=\d{1,6} scope=(whole|incremental since=[0-9a-f]{40})(?: account=fallback)?$/;
+// The security lane's reviewed-head marker, the first line of the comment
+// that carries its summary, and the summary's and each inline comment's
+// severity lines (babysit_review_evidence.py MARKER_RE, SUMMARY_CRITICAL_RE,
+// SEVERITY_RE).
+const SECURITY_REVIEWED_HEAD = /^<!-- claude-lane-reviewed-head lane=claude-security-review sha=([0-9a-f]{40}) -->$/;
+const MARKER_AUTHOR = "github-actions[bot]";
+const CRITICAL_FINDINGS = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
+const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
+const newestById = (items) => items.reduce((newest, item) => (newest === undefined || item.id > newest.id ? item : newest), undefined);
+
+// Whether both review lanes read `pull`'s head clean: a description, or null
+// on any doubt, an unreadable or full page included. Read with the job token:
+// each lane's newest pull_request run on the head from this repository
+// completed success, and so did its status job, whose one completion record
+// names the lane and the head as a review, never a skip; the security lane's
+// is a whole review. The security lane's newest reviewed-head marker names
+// the head, is unedited (an edit's author is not read), and carries one
+// `critical-findings: 0` line. Every unresolved review thread opens with one
+// `severity: SUGGESTION` line: a CRITICAL, IMPORTANT or unreadable one, as on
+// a claude-review or a person's thread, keeps it. For a clear that a push no
+// trusted person made may lift.
+async function reviewLanesClean(context) {
+  const { read, repo, pull, timeline } = context;
+  const head = pull.head.sha;
+  for (const { file, lane, job, whole } of REVIEW_LANES) {
+    const scope = await read(async (reader) => {
+      const runs = (await reader("GET", `/repos/${repo}/actions/workflows/${file}/runs?head_sha=${head}&event=pull_request&per_page=100`))?.workflow_runs;
+      if (!Array.isArray(runs) || runs.length >= 100) {
+        return null;
+      }
+      const run = newestById(
+        runs.filter((item) => item?.path === `.github/workflows/${file}` && item.head_sha === head && item.event === "pull_request" && item.head_repository?.full_name === repo),
+      );
+      if (run?.status !== "completed" || run.conclusion !== "success") {
+        return null;
+      }
+      const jobs = (await reader("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+      if (!Array.isArray(jobs) || jobs.length >= 100) {
+        return null;
+      }
+      const status = newestById(jobs.filter((item) => item?.name === job));
+      if (status?.status !== "completed" || status.conclusion !== "success") {
+        return null;
+      }
+      const notes = await reader("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`);
+      if (!Array.isArray(notes) || notes.length >= 100) {
+        return null;
+      }
+      const records = notes.filter((note) => note?.title === RECORD_TITLE);
+      const record = records.length === 1 && records[0].annotation_level === "notice" ? REVIEW_RECORD.exec(String(records[0].message ?? "")) : null;
+      return record !== null && record[1] === lane && record[2] === head ? record[3] : null;
+    });
+    if (scope === null || (whole && scope !== "whole")) {
+      return null;
+    }
+  }
+  const marker = timeline
+    .filter((item) => item.event === "commented" && isApp(item.user, MARKER_AUTHOR) && SECURITY_REVIEWED_HEAD.test(lines(item.body)[0]))
+    .at(-1);
+  if (
+    marker === undefined ||
+    SECURITY_REVIEWED_HEAD.exec(lines(marker.body)[0])[1] !== head ||
+    !(Date.parse(marker.updated_at ?? marker.created_at) <= Date.parse(marker.created_at))
+  ) {
+    return null;
+  }
+  const counts = [...String(marker.body).matchAll(CRITICAL_FINDINGS)];
+  if (counts.length !== 1 || Number(counts[0][1]) !== 0) {
+    return null;
+  }
+  const open = await context.threads();
+  const severe = (thread) => {
+    const found = [...String(thread?.opening?.nodes?.[0]?.body ?? "").matchAll(SEVERITY)];
+    return found.length !== 1 || found[0][1] !== "SUGGESTION";
+  };
+  if (open === null || open.some(severe)) {
+    return null;
+  }
+  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity";
+}
+
 // main's tip when the newest `reason` escalation was written, when the head
 // contains it (the compare from it to the head is behind by none), or null.
 async function mainMergedAt({ read, repo, pull, escalations }, reason) {
@@ -452,7 +560,11 @@ const LANE_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
-        nodes { isResolved comments(first: 100) { totalCount nodes { author { __typename login } } } }
+        nodes {
+          isResolved
+          opening: comments(first: 1) { nodes { body } }
+          comments(first: 100) { totalCount nodes { author { __typename login } } }
+        }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -462,10 +574,17 @@ const LANE_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!
 // How many unresolved review threads on `pull` carry a comment by the lanes
 // App `bot`, or null when a listing may be cut short. GraphQL names a Bot
 // without the `[bot]` REST adds.
-async function openLaneThreads({ github, repo, pull, bot }) {
-  const [owner, name] = repo.split("/");
+async function openLaneThreads({ threads, bot }) {
+  const open = await threads();
   const lane = (author) => author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot);
-  let open = 0;
+  return open === null ? null : open.filter((thread) => thread.comments.nodes.some((comment) => lane(comment?.author))).length;
+}
+
+// The unresolved review threads on `pull`, or null when a listing may be cut
+// short.
+async function unresolvedThreads({ github, repo, pull }) {
+  const [owner, name] = repo.split("/");
+  const open = [];
   let after = null;
   for (let page = 0; page < THREAD_PAGES; page += 1) {
     const variables = { owner, name, number: pull.number, after };
@@ -481,7 +600,7 @@ async function openLaneThreads({ github, repo, pull, bot }) {
       if (thread?.isResolved !== false || !Array.isArray(comments?.nodes) || !(comments.totalCount <= comments.nodes.length)) {
         return null;
       }
-      open += comments.nodes.some((comment) => lane(comment?.author)) ? 1 : 0;
+      open.push(thread);
     }
     if (!threads.pageInfo?.hasNextPage) {
       return open;
@@ -691,9 +810,11 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     };
     const keys = escalations.map(({ body }) => RESUME_KEY.exec(body[1])?.[1]);
     let movedOnce;
-    const context = { github, repo, pull, mainSha, read, escalations, bot };
+    let threadsOnce;
+    const context = { github, repo, pull, mainSha, read, escalations, bot, timeline };
     context.keysOf = (reason) => keys.filter((_, i) => reasonOf(escalations[i]) === reason);
     context.moved = () => (movedOnce ??= trustedMove({ read, repo, pull, keys, since, trusted }));
+    context.threads = () => (threadsOnce ??= unresolvedThreads(context));
     context.mainMerged = (reason) => mainMergedAt(context, reason);
     context.failing = failing;
     for (const reason of reasons) {

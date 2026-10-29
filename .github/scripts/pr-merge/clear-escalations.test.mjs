@@ -300,25 +300,14 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
 
 // Per the owner decision of 2026-10-25, feedback-not-landed needs no person
 // once the head moved off its resume key and no review thread the lane
-// replied to is left unresolved. GraphQL names the lanes App bot without the
-// `[bot]` REST adds.
+// replied to is left unresolved, and, per the owner's later direction on the
+// security finding, a trusted push moved it or both review lanes read the new
+// head clean: a lanes App push alone never clears it (tests below the trusted
+// move). GraphQL names the lanes App bot without the `[bot]` REST adds.
 const LANE_AUTHOR = { __typename: "Bot", login: "melodic-automation-lanes" };
 const PERSON_AUTHOR = { __typename: "User", login: "kyle-sexton" };
 const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ isResolved, comments: { totalCount, nodes: authors.map((author) => ({ author })) } });
 const notLanded = (head = KEY) => commented(BOT, escalationBody("feedback-not-landed").replaceAll(KEY, head), "2026-10-18T10:00:05Z");
-
-test("feedback-not-landed comes off once the head moved and no review thread the lane replied to is open", async () => {
-  const w = world({
-    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
-    reviewThreads: () => threadPage([reviewThread(true, [PERSON_AUTHOR, LANE_AUTHOR]), reviewThread(false, [PERSON_AUTHOR])]),
-  });
-  const { code } = await run(w);
-  assert.equal(code, 0);
-  const [comment, removal] = w.writes();
-  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
-  assert.match(comment.body.body, /no review thread the lane replied to is unresolved/);
-  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
-});
 
 test("feedback-not-landed stays on the head the lane's fix did not reach", async () => {
   // Any feedback-not-landed key on the head keeps it, beside one that moved.
@@ -1123,6 +1112,100 @@ test("a lanes App push is not a trusted move: the App never lifts its own stop w
       assert.deepEqual(w.writes(), [], `${reason} ${JSON.stringify(pushes)}`);
     }
   }
+});
+
+// feedback-not-landed after a push no trusted person made: the review lanes'
+// runs, status jobs and completion records at the head, read with the job
+// token (`scopes` names each lane's record scope; a lane left out has no run),
+// and the security lane's reviewed-head marker carrying its summary.
+const REVIEW_FILES = { "claude-review": ["pr-review-hosted.yml", "pr-review / claude-review-status"], "claude-security-review": ["pr-review-security-hosted.yml", "pr-review-security / security-review"] };
+function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed" } = {}) {
+  const fallback = readerFor({ pushes });
+  return async (method, path) => {
+    for (const [index, [lane, [file, job]]] of Object.entries(REVIEW_FILES).entries()) {
+      const runId = 800 + index;
+      const jobId = 900 + index;
+      if (path === `/repos/${REPO}/actions/workflows/${file}/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
+        const runs = lane in scopes ? [{ id: runId, path: `.github/workflows/${file}`, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPO }, status: runStatus, conclusion: runStatus === "completed" ? "success" : null }] : [];
+        return { workflow_runs: runs };
+      }
+      if (path === `/repos/${REPO}/actions/runs/${runId}/jobs?filter=latest&per_page=100`) {
+        return { jobs: [{ id: jobId, name: job, status: "completed", conclusion: "success" }] };
+      }
+      if (path === `/repos/${REPO}/check-runs/${jobId}/annotations?per_page=100`) {
+        return [{ title: "claude-lane-review-complete", annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=1 inline=1 scope=${scopes[lane]}` }];
+      }
+    }
+    return fallback(method, path);
+  };
+}
+const securitySummary = (critical = 0, head = HEAD) =>
+  commented(ACTIONS_BOT, `<!-- claude-lane-reviewed-head lane=claude-security-review sha=${head} -->\nSummary.\n\ncritical-findings: ${critical}\n\nclaude-lane: claude-security-review`, "2026-10-18T11:30:00Z");
+const notLandedTimeline = (summary = securitySummary()) => [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), summary];
+const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
+const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
+const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
+
+test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean", async () => {
+  const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread("severity: SUGGESTION")]) });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
+  assert.match(comment.body.body, /both review lanes completed a review of it/);
+  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("feedback-not-landed stays after a lanes App push while the review lanes have not reviewed the new head", async () => {
+  for (const [label, reader, timeline] of [
+    ["no lane run", laneReader({ scopes: {} }), notLandedTimeline()],
+    ["only one lane ran", laneReader({ scopes: { "claude-security-review": "whole" } }), notLandedTimeline()],
+    ["runs still in progress", laneReader({ runStatus: "in_progress" }), notLandedTimeline()],
+    ["an incremental security review", laneReader({ scopes: { "claude-review": "whole", "claude-security-review": `incremental since=${KEY}` } }), notLandedTimeline()],
+    ["no security summary", laneReader(), notLandedTimeline(commented(ACTIONS_BOT, "CI summary.", "2026-10-18T11:30:00Z"))],
+    ["a summary of an earlier head", laneReader(), notLandedTimeline(securitySummary(0, KEY))],
+    ["no job token", undefined, notLandedTimeline()],
+  ]) {
+    const w = world({ timeline, reader });
+    const { logs } = await run(w, reader === undefined ? { TRUSTED_ACTORS_PATH: TRUSTED } : TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes(WAITING)), `${label}: ${logs.join("\n")}`);
+  }
+});
+
+test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity", async () => {
+  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
+    const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([severityThread(severity)]) });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], severity);
+    assert.ok(logs.some((line) => line.includes(WAITING)), severity);
+  }
+});
+
+test("feedback-not-landed stays after a lanes App push when the security review reports a CRITICAL finding", async () => {
+  for (const timeline of [notLandedTimeline(securitySummary(1)), notLandedTimeline({ ...securitySummary(0), updated_at: "2026-10-18T12:00:00Z" })]) {
+    const w = world({ timeline, reader: laneReader() });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), []);
+    assert.ok(logs.some((line) => line.includes(WAITING)), logs.join("\n"));
+  }
+});
+
+test("feedback-not-landed comes off after a trusted person's push, as before, with no review lane read", async () => {
+  const calls = [];
+  const w = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
+    reader: readerFor({ calls }),
+    reviewThreads: () => threadPage([reviewThread(true, [PERSON_AUTHOR, LANE_AUTHOR]), reviewThread(false, [PERSON_AUTHOR])]),
+  });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
+  assert.match(comment.body.body, /kyle-sexton moved the head/);
+  assert.match(comment.body.body, /no review thread the lane replied to is unresolved/);
+  assert.equal(removal.method, "DELETE");
+  assert.ok(!calls.some((path) => path.includes("/actions/")), calls.join("\n"));
 });
 
 test("workflow-staged stays when any push since the label is by an account off the trusted list", async () => {
