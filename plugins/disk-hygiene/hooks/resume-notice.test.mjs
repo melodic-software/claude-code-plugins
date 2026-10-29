@@ -131,6 +131,34 @@ test('the registered rows: the notice fires only after /disk-hygiene:clean expan
   }
 })
 
+test('the registered rows: a model load of /disk-hygiene:clean arms the notice, another skill does not', (t) => {
+  const data = scratch(t)
+  const tmp = join(data, 'tmp')
+  mkdirSync(tmp)
+  const env = { TMPDIR: tmp }
+  const skillRow = hooksJson.hooks.PreToolUse.find((group) => group.matcher === 'Skill').hooks[0]
+  const resume = registered('SessionStart', 'resume-notice.mjs')
+  const load = (skill) =>
+    run(skillRow, data, { session_id: 'sess-8', hook_event_name: 'PreToolUse', tool_name: 'Skill', tool_input: { skill } }, env)
+
+  for (const other of ['repo-hygiene:clean', 'disk-hygiene:audit']) {
+    const r = load(other)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '', `${other}: no permission decision`)
+  }
+  assert.ok(!existsSync(join(data, SUBDIR, 'sess-8.launched')), 'another skill wrote no marker')
+  assert.equal(run(resume, data, { session_id: 'sess-8', source: 'resume' }, env).stdout, '', 'no marker yet: quiet')
+
+  const loaded = load('disk-hygiene:clean')
+  assert.equal(loaded.status, 0, loaded.stderr)
+  assert.equal(loaded.stdout, '', 'the Skill row makes no permission decision')
+  assert.ok(existsSync(join(data, SUBDIR, 'sess-8.launched')), 'the Skill row wrote the marker')
+
+  const after = run(resume, data, { session_id: 'sess-8', source: 'resume' }, env)
+  assert.equal(after.status, 0, after.stderr)
+  assert.equal(JSON.parse(after.stdout).hookSpecificOutput.additionalContext, NOTICE)
+})
+
 test('a launch through a symlinked plugin path still prints the notice', (t) => {
   const data = scratch(t)
   mark(data, 'sess-link')
