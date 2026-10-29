@@ -3559,11 +3559,12 @@ def score_unattended(
     # The manifest review compares base and head text; the cost hold reads a
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
-    # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
+    # The pr-merge lane's switches (owner decisions Q624 and Q15); the local
+    # lane keeps the manifest review, both caps and every path hold.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
+            "path_holds": config.path_holds,
             "max_changed_files": config.max_changed_files,
             "lines_optional": True,
         }
@@ -3605,6 +3606,11 @@ def score_unattended(
             "reasons": [
                 {"code": r.code, "severity": r.severity.name, "detail": r.detail}
                 for r in risk.reasons
+            ],
+            # The path holds merge.diff-check.path-holds turned off, counted
+            # by the rollup.
+            "pathHoldsSkipped": [
+                {"code": r.code, "detail": r.detail} for r in risk.skipped
             ],
         },
         "evidence": [

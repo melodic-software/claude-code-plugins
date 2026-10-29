@@ -5351,7 +5351,8 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR) while the base's
+      # merge.diff-check.path-holds is true (owner decision Q15), so a push after
       # arming is held on its own pull request event; a person on the
       # trusted-actor list (as main has it) lifts it by approving the head, and
       # the approval carries to a later head whose every change since is a
@@ -5662,6 +5663,13 @@ jobs:
             echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
             exit 1
           }
+          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
+          # hold paths off (merge-holds.mjs pathHoldsOf).
+          PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
+            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            exit 1
+          }
+          export PATH_HOLDS
           read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
             --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }

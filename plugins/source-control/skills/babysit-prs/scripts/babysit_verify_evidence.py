@@ -2598,6 +2598,7 @@ def lane_risk_refusal(
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
             base_sha=json_object(pr.get("base")).get("sha"),
             high_floor=config.high_path_floor,
+            path_holds=config.path_holds,
             max_changed_files=config.max_changed_files,
             lines_optional=True,
         )

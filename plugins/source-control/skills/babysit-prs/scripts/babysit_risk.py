@@ -201,6 +201,10 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # `merge.diff-check.path-holds`: False moves every path hold (the
+    # `high-path:` floor and configured globs, `review-path:`) to
+    # `RiskResult.skipped`; anything else keeps them (owner decision Q15).
+    path_holds: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # The repository is public, where standard hosted runners are free; any
@@ -241,6 +245,8 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
+    # The path holds `RiskInput.path_holds` False left out of `reasons`.
+    skipped: tuple[Reason, ...] = ()
 
 
 # What a lane pull request must not change unattended (owner decisions
@@ -2257,17 +2263,31 @@ def _score(inp: RiskInput) -> RiskResult:
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
+    paths = _high_path_reasons(inp, files or [], list(raw_files or ()))
+    skipped = (
+        [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
+    )
     reasons = [
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or [], list(raw_files or ())),
+        *(r for r in paths if r not in skipped),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
         *_trust_gate_reasons(files or [], list(raw_files or ())),
         *_long_line_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
-    return RiskResult(Risk(worst), tuple(reasons))
+    return RiskResult(Risk(worst), tuple(reasons), tuple(skipped))
+
+
+def is_path_hold(reason: Reason) -> bool:
+    """Whether `reason` holds for a changed path alone (`high-path:<glob>`,
+    `review-path:<glob>`), which `merge.diff-check.path-holds` turns off. An
+    unsafe or aliasing path (`high-path:**`) and the manifest review read
+    more than the path, and stay."""
+    return reason.code != UNSAFE_PATH_CODE and reason.code.startswith(
+        ("high-path:", REVIEW_PATH_PREFIX)
+    )
 
 
 # MED reasons an unattended merge passes: the diff's size and the review and
