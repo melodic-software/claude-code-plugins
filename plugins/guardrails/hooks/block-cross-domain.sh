@@ -212,7 +212,9 @@ start=${EPOCHREALTIME:-}
 hook::buffer_stdin_to INPUT || exit 0
 
 # The map is compiled by jq. Without it: one notice per session, then allow.
-[[ -z "$BCD_MAP" ]] || hook::require jq PreToolUse guardrails "$INPUT"
+# With no map a missing jq stays silent: the identity-write rule allows unread.
+[[ -n "$BCD_MAP" ]] || command -v jq >/dev/null 2>&1 || exit 0
+hook::require jq PreToolUse guardrails "$INPUT"
 
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
@@ -1064,6 +1066,7 @@ bcd::writes() {
       t=${w[k]}
       case "$cmd" in
       copy-item | cpi | copy) t=${t,,} ;;
+      *) ;;
       esac
       case "$cmd:$t" in
       cp:-t | install:-t | ln:-t | cp:--target-directory | install:--target-directory | ln:--target-directory | \
