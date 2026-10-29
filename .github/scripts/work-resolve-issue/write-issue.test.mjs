@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { bodyVersion, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
+import { bodyVersion, REFINE_MARKER, splitChildHeader, splitItemsLine } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -231,6 +231,58 @@ describe("person_checks", () => {
     assert.equal(inBody.issue.person_checks, undefined);
     const byHuman = await split(BODY, {}, [comment(11, OWNER, forged)], [node(11, { __typename: "User", databaseId: OWNER.id }, forged)]);
     assert.equal(byHuman.issue.person_checks, undefined);
+  });
+});
+
+// A size split copies only the parent's task-list lines into each part
+// (admit.mjs splitChildHeader), so the lane gets the parent's body as
+// `split_parent` when the part counts as its parent's text (splitChildBody):
+// the lanes App wrote it, its native parent here was filed by a listed human,
+// and every line after the header is one of the parent's task-list lines.
+describe("split_parent", () => {
+  const PARENT_BODY = ["## Plan", "", "- [ ] Add the filer job.", "  - the filer job holds `issues: write` only", "- [ ] Add the breaker."].join("\n");
+  const CHILD_BODY = `${splitChildHeader(7719, 1, 2)}\n- [ ] Add the filer job.`;
+  const HUMAN_ACTOR = { __typename: "User", databaseId: OWNER.id };
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const PARENT = { number: 7719, repository_url: `https://api.github.com/repos/${REPO}` };
+  const child = ({ body = CHILD_BODY, parentSpec = {}, parent = PARENT } = {}) => {
+    const base = fakeGitHub({ comments: [], issue: { ...ISSUE, body }, spec: { body, author: LANES_ACTOR } });
+    const calls = [];
+    const github = async (method, apiPath, payload) => {
+      calls.push(`${method} ${apiPath}`);
+      if (`${method} ${apiPath}` === `GET /repos/${REPO}/issues/6825/parent`) {
+        return structuredClone(parent);
+      }
+      if (method === "POST" && apiPath === "/graphql" && payload.variables.number === 7719) {
+        return {
+          data: { repository: { issue: { body: PARENT_BODY, lastEditedAt: null, author: HUMAN_ACTOR, editor: null, ...parentSpec, comments: { totalCount: 0, nodes: [] } } } },
+        };
+      }
+      return base(method, apiPath, payload);
+    };
+    return { github, calls };
+  };
+
+  test("a trusted part carries its parent's body; any other part, or an issue no split filed, carries none", async () => {
+    const trusted = await run(child().github);
+    assert.equal(trusted.code, 0);
+    assert.deepEqual(trusted.issue.split_parent, { number: 7719, body: PARENT_BODY });
+    for (const [why, options] of [
+      ["a prose line the split did not copy", { body: `${CHILD_BODY}\nThe notes say more.` }],
+      ["a parent body an unlisted account edited", { parentSpec: { lastEditedAt: at(12), editor: { __typename: "User", databaseId: STRANGER.id } } }],
+      ["a parent body edited after the label", { parentSpec: { lastEditedAt: at(29), editor: HUMAN_ACTOR } }],
+      ["a parent in another repository", { parent: { number: 7719, repository_url: "https://api.github.com/repos/other/repo" } }],
+    ]) {
+      const { code, issue } = await run(child(options).github);
+      assert.equal(code, 0, why);
+      assert.equal(issue.split_parent, undefined, why);
+    }
+    // An issue no size split filed reads no parent.
+    const plain = child({ body: ISSUE.body });
+    const { code, issue } = await run(plain.github);
+    assert.equal(code, 0);
+    assert.equal(issue.split_parent, undefined);
+    assert.ok(!plain.calls.some((call) => call.endsWith("/parent")));
   });
 });
 
