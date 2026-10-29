@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 50, "enforcement": 41},
+            {"trust": 18, "gate": 42, "enforcement": 41},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1867,6 +1867,12 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             # The object filter form.
             "      - env:\n          ALL: ${{ secrets.* }}\n",
             "      - run: echo ${{ secrets['DEPLOY'] }}\n",
+            # An expression whose span holds a lone `}`, across lines too.
+            "      - run: echo ${{ format('{0}', secrets.DEPLOY_KEY) }}\n",
+            "      - run: echo ${{ github.x == '}' || secrets.DEPLOY_KEY }}\n",
+            "      - run: |\n          echo ${{ format('{0}',\n            secrets.DEPLOY_KEY) }}\n",
+            # An `if:` reads the context without `${{ }}`.
+            "    if: toJSON(secrets) != ''\n",
             # write-all sets every permission, id-token among them.
             "    permissions: write-all\n",
             "      - uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[x]\n",
@@ -2261,6 +2267,12 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
             ".claude/ai-slop.json",
             ".claude/source-control.md",
             ".claude-lane/profile.json",
+            # Every name and depth under .claude (owner decision Q11).
+            ".claude/output-styles/terse.md",
+            ".claude/code-metrics.yaml",
+            ".claude/agent-memory/x/MEMORY.md",
+            "plugins/x/.claude/a/b/c.txt",
+            "plugins/x/.claude-lane/profile.json",
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             "docs/standards/README.md",

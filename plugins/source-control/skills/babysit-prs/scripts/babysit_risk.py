@@ -350,21 +350,12 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
     (".github/scripts/pr-review-main/**", "gate"),
-    ("**/.claude/settings*.json", "gate"),
-    # A hook settings already registers runs in every later lane.
-    ("**/.claude/hooks/**", "gate"),
-    # A script settings registers as a hook outside hooks/ (cloud-bootstrap.sh),
-    # and skills, agents and commands, whose frontmatter can widen tools.
-    ("**/.claude/*.sh", "gate"),
-    ("**/.claude/skills/**", "gate"),
-    ("**/.claude/agents/**", "gate"),
-    ("**/.claude/commands/**", "gate"),
-    # Auto-loaded instructions and the config beside settings, like CLAUDE.md
-    # (owner decision Q11: agent settings and instruction files stay gated).
-    ("**/.claude/rules/**", "gate"),
-    ("**/.claude/*.json", "gate"),
-    ("**/.claude/*.md", "gate"),
-    (".claude-lane/**", "gate"),
+    # Agent settings and instruction files, whatever their name or depth:
+    # settings, hooks and the scripts settings registers, skills, agents,
+    # commands, rules, output styles and memory (owner decision Q11: agent
+    # settings and instruction files stay gated).
+    ("**/.claude/**", "gate"),
+    ("**/.claude-lane/**", "gate"),
     # The security review applies both as its criteria.
     ("docs/conventions/instruction-exception-register/**", "gate"),
     ("docs/conventions/untrusted-content/**", "gate"),
@@ -397,13 +388,17 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
 PERSON_CLASSES = frozenset({"trust", "gate"})
 
 # A secret the job token is not: any `secrets` reference but GITHUB_TOKEN
-# itself (`secrets.X`, `secrets.*`, `secrets['X']`, `toJSON(secrets)`):
-# any `secrets` context in a `${{ }}` expression (not a word inside a
-# string or a name), not
-# followed by `.github_token` or `['github_token']`; and `secrets: inherit`.
+# itself. The union of the reference forms (`secrets.X`, `secrets.*`,
+# `secrets['X']`, `toJSON(secrets)`, `secrets: inherit`) and any `secrets`
+# context in a `${{ }}` expression, whose span may hold a lone `}` (a string
+# or a `format` placeholder); a word inside a string or a name is neither.
+_NOT_JOB_TOKEN = r"(?!\s*\.\s*github_token\b)(?!\s*\[\s*['\"]github_token['\"]\s*\])"
+_EXPRESSION_SECRET = r"\$\{\{(?:[^}]|\}(?!\}))*?(?<![\w.'\"-])secrets(?![\w-])"
 _NON_JOB_SECRET = re.compile(
-    r"\$\{\{[^}]*?(?<![\w.'\"-])secrets(?![\w-])(?!\s*\.\s*github_token\b)(?!\s*\[\s*['\"]github_token['\"]\s*\])"
-    r"|\bsecrets\s*:\s*inherit\b",
+    r"\bsecrets\s*(?:\.\s*(?!github_token\b)(?:[A-Za-z0-9_]+|\*)"
+    r"|\[(?!\s*['\"]github_token['\"]\s*\])[^\]]*\])"
+    r"|\bsecrets\b(?=\s*\))|\bsecrets\s*:\s*inherit\b"
+    rf"|{_EXPRESSION_SECRET}{_NOT_JOB_TOKEN}",
     re.IGNORECASE,
 )
 # A lane token minted in the run, or an OIDC token a cloud trusts:
@@ -443,16 +438,8 @@ AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
 _NO_AUTHOR_LIFT = frozenset(
     {
         ".github/scripts/pr-review-main/**",
-        "**/.claude/settings*.json",
-        "**/.claude/hooks/**",
-        "**/.claude/*.sh",
-        "**/.claude/skills/**",
-        "**/.claude/agents/**",
-        "**/.claude/commands/**",
-        "**/.claude/rules/**",
-        "**/.claude/*.json",
-        "**/.claude/*.md",
-        ".claude-lane/**",
+        "**/.claude/**",
+        "**/.claude-lane/**",
         "docs/conventions/instruction-exception-register/**",
         "docs/conventions/untrusted-content/**",
         "**/.mcp.json",
@@ -1037,7 +1024,8 @@ _SAFE_PIPELINE_LINE = re.compile(
 # `secrets` context, and `secrets: inherit`.
 _SECRET_REF = re.compile(
     r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b|\$\{\{[^}]*(?<![\w.'\"-])secrets(?![\w-])[^}]*\}\}",
+    r"|\bsecrets\s*:\s*inherit\b"
+    rf"|{_EXPRESSION_SECRET}(?:[^}}]|\}}(?!\}}))*\}}\}}",
     re.IGNORECASE,
 )
 # A model leg: a claude-code-* action or image, run-claude-cli, or the

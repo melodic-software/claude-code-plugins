@@ -280,16 +280,8 @@ jobs:
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
         .github/scripts/pr-review-main/**
-        **/.claude/settings*.json
-        **/.claude/hooks/**
-        **/.claude/*.sh
-        **/.claude/skills/**
-        **/.claude/agents/**
-        **/.claude/commands/**
-        **/.claude/rules/**
-        **/.claude/*.json
-        **/.claude/*.md
-        .claude-lane/**
+        **/.claude/**
+        **/.claude-lane/**
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         **/.mcp.json

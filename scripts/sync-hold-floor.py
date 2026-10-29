@@ -73,9 +73,12 @@ def bash_patterns(glob: str) -> list[str]:
     if glob.endswith("/**"):
         glob = glob[:-3] + "/*"
     found = [glob[3:], "*/" + glob[3:]] if glob.startswith("**/") else [glob]
-    for pattern in found:
-        if "**" in pattern or "'" in pattern:
-            raise SystemExit(f"sync-hold-floor: no bash form for {glob!r}")
+    # Bash's `*` crosses `/`, which Python's and Node's `*` never do, so a
+    # glob whose `*` is not the leading `**/` or trailing `/**` has no form
+    # that matches the same paths.
+    core = glob.removeprefix("**/").removesuffix("/*")
+    if any(c in core for c in "*?[") or "'" in glob:
+        raise SystemExit(f"sync-hold-floor: no bash form for {glob!r}")
     return found
 
 

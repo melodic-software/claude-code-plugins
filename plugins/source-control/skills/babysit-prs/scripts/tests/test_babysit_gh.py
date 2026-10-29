@@ -1302,8 +1302,35 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
                 "owner/repo", list(by_sha), self.NAMES
             )
 
-    def check(self, lane: str, title: str) -> dict[str, Any]:
-        return {"name": self.NAMES[lane], "output": {"title": title}}
+    def check(
+        self, lane: str, title: str, app: str = "github-actions"
+    ) -> dict[str, Any]:
+        return {
+            "name": self.NAMES[lane],
+            "output": {"title": title},
+            "app": {"slug": app},
+        }
+
+    def test_another_apps_run_of_the_name_is_no_record(self) -> None:
+        counts = self.counts(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "findings=0 critical=0", "other-app"
+                    ),
+                    self.check("claude-security-review", "findings=1 critical=1"),
+                ]
+            }
+        )
+        self.assertEqual(counts["a" * 40]["claude-security-review"], [(1, 1)])
+
+    def counts(self, by_sha: dict[str, list[dict[str, Any]]]) -> Any:
+        def fake(args: list[str], env: Any = None) -> Any:
+            sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
+            return [{"check_runs": by_sha.get(sha, [])}]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_main_review_counts("owner/repo", list(by_sha), self.NAMES)
 
     def test_takes_the_most_critical_findings_on_any_head(self) -> None:
         found = self.collect(
@@ -1316,7 +1343,11 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
                 ],
                 "c" * 40: [
                     self.check("claude-review", "findings=4 critical=1"),
-                    {"name": "other", "output": {"title": "findings=9 critical=9"}},
+                    {
+                        "name": "other",
+                        "output": {"title": "findings=9 critical=9"},
+                        "app": {"slug": "github-actions"},
+                    },
                 ],
             }
         )

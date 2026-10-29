@@ -2484,7 +2484,8 @@ def collect_main_review_counts(
 ) -> dict[str, dict[str, list[tuple[int, int] | None]]]:
     """Per head SHA and lane, the (findings, CRITICAL) counts of every check
     run named `names[lane]` on that head, None for a title that does not
-    read. `filter=all` reads every run of the name, since the default
+    read, counting only runs the github-actions app posted. `filter=all`
+    reads every run of the name, since the default
     returns only the latest, which a re-run or a forged clean record would
     replace. A failed read raises `RuntimeError`."""
     found: dict[str, dict[str, list[tuple[int, int] | None]]] = {}
@@ -2502,7 +2503,9 @@ def collect_main_review_counts(
             )
             counts: list[tuple[int, int] | None] = []
             for check in runs:
-                if check.get("name") != name:
+                # Only the record job's own token posts as github-actions.
+                app = json_object(check.get("app")).get("slug")
+                if check.get("name") != name or app != "github-actions":
                     continue
                 title = str(json_object(check.get("output")).get("title") or "")
                 match = MAIN_REVIEW_CHECK_TITLE.fullmatch(title)
