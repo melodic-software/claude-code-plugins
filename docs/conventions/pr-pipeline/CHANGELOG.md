@@ -1,5 +1,48 @@
 # Changelog for the PR pipeline convention
 
+## [7.7.0] - 2026-10-29
+
+### Added
+
+- A lanes App pull request that holds for a person carries the `human-merge-hold` label as well as
+  the `Hold: a human merges this` body line, which the App can edit
+  ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)). report-outcome
+  adds the label right after it opens the pull request, or when it reuses its open one; a pull
+  request the label cannot reach is closed and the issue retried (`hold-label-failed`). ci-status's
+  new `Fail a human-merge hold a listed person has not lifted` step fails while the label is on,
+  and once it is off unless the first removal at or after its newest add was by a `human` of the
+  base's trusted-actor list acting directly, not through an App. `enable-auto-merge.mjs`
+  (`HOLD_LABELS`) never arms a pull request carrying it, and merge-holds.mjs `labelHolds` holds it
+  in the merge queue, so deleting the hold line or rewriting `Refs: #N` to `Closes #N` no longer
+  lets a held pull request merge.
+
+## [7.6.2] - 2026-10-29
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+## [7.6.1] - 2026-10-29
+
+### Fixed
+
+- At the address-feedback round cap, a finding from a review bot listed in
+  `review-threads.reviewer-ids` (such as `chatgpt-codex-connector[bot]`) is a bot finding: it goes
+  to the fresh fixer round instead of a person. It still goes to a person when a trusted person
+  directed it, or when the security-review lane held its head as `CRITICAL`.
+- A security-review finding rated `IMPORTANT` at the round cap is a code fix first: it gets the
+  fresh fixer round, and goes to a person only when that round was given it and left it open. A
+  `CRITICAL` or unrated security finding still goes to a person at once.
+- The fresh fixer round's thread file carries a fixed `retry.brief` (fix each finding in code;
+  never weaken a test or check to close one), which the read runner adds to the skill's preamble.
+
 ## [7.6.0] - 2026-10-29
 
 ### Changed

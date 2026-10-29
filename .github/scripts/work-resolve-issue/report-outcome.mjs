@@ -128,6 +128,10 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
+// The label a held PR carries from its opening. The hold line is body text the
+// lanes App can edit; ci-status fails while this label is on and unless a
+// listed person's own removal took it off (merge-holds.mjs HUMAN_MERGE_HOLD).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
@@ -271,6 +275,20 @@ export function readHoldPaths(path) {
     return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
   } catch {
     return null;
+  }
+}
+
+// The denied paths a PR holds on: readHoldPaths while
+// merge.diff-check.path-holds is on, none while it is absent or false (owner
+// decisions Q15 and Q16; merge-holds.mjs pathHoldsOf reads it alike). An
+// unreadable config still holds.
+export function heldPaths(path) {
+  const paths = readHoldPaths(path);
+  try {
+    const on = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"];
+    return paths !== null && [undefined, null, false, "false"].includes(on) ? [] : paths;
+  } catch {
+    return paths;
   }
 }
 
@@ -834,7 +852,7 @@ export function reusePlan({
     "",
     `#${issueNumber}`,
   ].join("\n");
-  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch };
+  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch, hold };
 }
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
@@ -1062,6 +1080,7 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
+    hold,
   };
 }
 
@@ -1684,7 +1703,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       }
     }
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
-    const holdPaths = readHoldPaths(resolvedPath);
+    const holdPaths = heldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. A
     // failed compare leaves its file list unread, which holds the PR.
@@ -1833,18 +1852,36 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
             pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
           }
         }
+        // A held PR carries the hold label from its opening; one the label
+        // cannot reach is closed rather than left held by body text alone.
+        const labeled =
+          !plan.hold ||
+          (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HUMAN_MERGE_HOLD] }, { safeToResend: true }).then(
+            () => true,
+            (error) => {
+              console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${HUMAN_MERGE_HOLD}: ${String(error?.message ?? error)}`);
+              return false;
+            },
+          ));
         // A plan with a tip opens only at it: a PR whose head moved off the
         // checked tip is closed, and the issue goes to a person. Closing a
         // closed PR changes nothing, so the close is resent.
-        if (!plan.tip || pull.head?.sha === plan.tip) {
+        const moved = Boolean(plan.tip) && pull.head?.sha !== plan.tip;
+        if (labeled && !moved) {
           console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
           return 0;
         }
         await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
-        console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
-        plan = routeStop("pr-head-moved", {
+        console.log(
+          moved
+            ? `report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`
+            : `report-outcome: closed PR #${pull.number}: it holds for a person and could not be labeled ${HUMAN_MERGE_HOLD}`,
+        );
+        plan = routeStop(moved ? "pr-head-moved" : "hold-label-failed", {
           outcome: stopped(
-            `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`,
+            moved
+              ? `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`
+              : `The PR from \`${plan.branch}\` holds for a person, and the \`${HUMAN_MERGE_HOLD}\` label could not be added, so it was closed.`,
           ),
           issueNumber,
           branch: plan.branch,

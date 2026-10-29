@@ -984,7 +984,8 @@ the rules that only tighten in
   `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
-  and Q26 option B), matched case-insensitively whatever `high-path-floor` says:
+  and Q26 option B), matched case-insensitively whatever `high-path-floor` says, while
+  `merge.diff-check.path-holds` is true (owner decision Q15 turns it off here):
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
     its signer process with `effect-grants.json`, `lane-rules.json` and `activity-rules.json`,
@@ -1392,9 +1393,13 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the manifest review HIGH; the fixed HIGH path floor scores
-  either way),
+  either way while `path-holds` is true),
+  `path-holds` (true holds a pull request for a changed path alone: the path floor, `denied-paths`
+  and `review-path:` in the gate, enable-auto-merge's and ci-status's hold paths; absent or false
+  holds none and the gate report lists each skipped hold as `risk.pathHoldsSkipped`),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `high-path-floor: false` (owner direction 2026-10-24) and `path-holds: false` (owner decision
+  Q15, 2026-10-29, until open issues and pull requests reach zero); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the manifest review and
   both caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
@@ -2406,6 +2411,12 @@ them on every `pull_request` run, contract-only runs included:
   trusted-actor list; a later removal is of a later label, such as an escalation
   `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails. To recover, a
   trusted person adds the label back, which starts a new hold, and a trusted person removes it.
+- **Only a trusted person lifts a human-merge hold.** report-outcome labels a lanes App PR that
+  carries `Hold: a human merges this` with `human-merge-hold`, since the App can edit that body
+  line. ci-status fails while the label is on, and once it is off unless the first removal at or
+  after its newest add, by anyone, was a `human` of the base's trusted-actor list acting directly,
+  not through an App. No other hold step skips it. `enable-auto-merge.mjs`, the merge queue's
+  label step and the babysit merge lane hold the label too.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or

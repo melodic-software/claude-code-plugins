@@ -3559,11 +3559,12 @@ def score_unattended(
     # The manifest review compares base and head text; the cost hold reads a
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
-    # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
+    # The pr-merge lane's switches (owner decisions Q624 and Q15); the local
+    # lane keeps the manifest review, both caps and every path hold.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
+            "path_holds": config.path_holds,
             "max_changed_files": config.max_changed_files,
             "lines_optional": True,
         }
@@ -3605,6 +3606,11 @@ def score_unattended(
             "reasons": [
                 {"code": r.code, "severity": r.severity.name, "detail": r.detail}
                 for r in risk.reasons
+            ],
+            # The path holds merge.diff-check.path-holds turned off, counted
+            # by the rollup.
+            "pathHoldsSkipped": [
+                {"code": r.code, "detail": r.detail} for r in risk.skipped
             ],
         },
         "evidence": [
@@ -4300,7 +4306,9 @@ def unattended_writes(
             # Recorded first, so a failed write never toggles twice at a head.
             if report["wholeReview"] == {"toggle": True}:
                 node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
-                report["wholeReview"] = whole_review.toggle(node_id)
+                report["wholeReview"] = whole_review.toggle(
+                    node_id, human_gated=human_gated_label(repo)
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
         if report.get("wholeReview") is None:
@@ -4379,10 +4387,7 @@ def _whole_review_record(
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
     text = _normalized((prior or {}).get("body"))
-    lines = whole_review.record_lines(text)
-    kept = whole_review.with_records(body, lines)
-    if whole_review.recorded(text, head):
-        return kept, None
+    kept = whole_review.with_records(body, whole_review.record_lines(text))
     inputs = policy.inputs or {}
     pr = json_object(inputs.get("pr"))
     user = json_object(pr.get("user"))
@@ -4396,21 +4401,15 @@ def _whole_review_record(
         or text.endswith(RISK_ESCALATION_LINE)
     ):
         return kept, None
-    if len(lines) >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
-    # The timeline, not the comment the lane token can edit, holds the count.
-    toggled = whole_review.lane_toggles(
-        str(pr.get("node_id") or ""), str(inputs.get("identity") or "")
+    lines, answer = whole_review.request(
+        repo,
+        text,
+        head,
+        str(pr.get("node_id") or ""),
+        str(inputs.get("identity") or ""),
+        _now(),
     )
-    if toggled is None:
-        return kept, {"toggled": False, "skipped": "toggle-cap:unread"}
-    if toggled >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
-    refusal = whole_review.limits(repo)
-    if refusal is not None:
-        return kept, {"toggled": False, "skipped": refusal}
-    line = whole_review.record_line(head, _now())
-    return whole_review.with_records(body, [*lines, line]), {"toggle": True}
+    return whole_review.with_records(body, lines), answer
 
 
 def _identity_queue_entries(

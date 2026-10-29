@@ -62,6 +62,19 @@ async page => { // the question page itself: choices, chips, banners, header and
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
+    // #11014: an unanswered question shows Details open on first load, whatever moreOpen is stored; closing it holds for this load
+    const details = () => page.evaluate(() => { const b = document.getElementById("moreBtn"), m = document.getElementById("more"); return {expanded: b && b.getAttribute("aria-expanded"), shown: !!m && !m.hidden}; });
+    await pick("Q1");
+    const d0 = await details();
+    ok("#11014: Q1, unanswered, shows Details open with no stored choice", d0.expanded === "true" && d0.shown, JSON.stringify(d0));
+    await page.click("#moreBtn"); await page.waitForTimeout(150); await pick("Q2"); await pick("Q1");
+    const d1 = await details();
+    ok("#11014: Details closed on Q1 stays closed when Q1 is picked again in the same load", d1.expanded === "false" && !d1.shown, JSON.stringify(d1));
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
+    await pick("Q1");
+    const d2 = await details(), stored = await page.evaluate(() => Object.keys(localStorage).filter(k => /:moreOpen$/.test(k)).map(k => localStorage.getItem(k)));
+    ok("#11014: after a reload with moreOpen stored false, Q1 shows Details open", stored.join() === "false" && d2.expanded === "true" && d2.shown, JSON.stringify({stored, d2}));
+
     // #5815: the Rec choice carries the whole recommendation, not its first sentence
     await pick("Q1");
     const wide = await recRow();

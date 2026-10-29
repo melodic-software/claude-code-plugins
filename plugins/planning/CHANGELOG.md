@@ -3,6 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.4] - 2026-10-29
+
+### Changed
+
+- The shared interview page shows a recommendation's basis as written, through the page's markdown renderer and folded behind "Why" as the 1:1 page folds it. The page no longer adds a `Basis:` label in front of the field, which already opens with `Checked against:` and carries its own `Basis:` label.
+
+## [0.126.3] - 2026-10-29
+
+### Changed
+
+- The interview's `question-shape.md` now points to SKILL.md's Stance for the basis, withheld and wording rules instead of restating them, and `surface.md`, `lane-page.md` and `lane-shared.md` point to it for the rules every lane shares, keeping only their own lane's rules.
+- The surface README's "Differences from the shared page" table adds the page-only decision vocabulary and the two `answerLine` texts, each with its reason.
+
+### Fixed
+
+- **The `--brief` gate fails a page-export Brief that lost its Intent, Decisions or the user's own words** ([#11029](https://github.com/melodic-software/claude-code-plugins/issues/11029)). `scripts/check-open-questions.sh --brief --procedure` used to pass a Brief with `### Intent`, `### Decisions` or every Ask and own-answer line removed. Under `--procedure`, a Brief with a `- Restatement:` stamp now needs `### Intent`. A new `--surface <data_dir>` option exports the Brief from the interview page again and fails (`procedure=fail`) when the Brief lacks a section that export writes, or a line of its Intent. The page lane's wrap-up runs the gate with it.
+
+## [0.126.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- On an unanswered question, the interview page shows "Details: what we know, alternatives" open,
+  whatever `moreOpen` value the browser stored. The facts and alternatives a decision rests on are
+  in view on first load. If you close Details on a question, it stays closed there until the page
+  reloads. An answered question still follows the stored `moreOpen` value.
+
 ## [0.126.1] - 2026-10-29
 
 ### Changed
