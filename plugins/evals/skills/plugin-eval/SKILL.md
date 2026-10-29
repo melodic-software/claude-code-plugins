@@ -273,11 +273,16 @@ Read in this order. Stopping early at any step is the finding.
 1. Run the validity gate before reading any number:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded, when the eval ran with --scaffold]
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded]
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3 ([`--scaffolded`](reference/reading-results.md#read-order)).
+   The run count is the run's `--runs`, else the cases' `runs`, else 3.
    Without the traces `--keep-temp` kept it reports the trace checks unchecked and the run INVALID.
+   Add `--scaffolded` when the eval ran with `--scaffold`, since no result field records it. Without
+   it the `scaffold` check fails every case whose `case.yaml` sets `context.scaffold_script`,
+   because both arms of that case ran in an empty workspace; a `case.yaml` or case directory it
+   cannot find or read leaves the check unchecked and the run INVALID
+   ([read order](reference/reading-results.md#read-order)).
    Report a score, delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it
    printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no
    number, then fix the cause and rerun. Tell the user to post that INVALID line and its reasons in
