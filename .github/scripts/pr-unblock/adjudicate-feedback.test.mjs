@@ -803,7 +803,8 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     ["dependency not in the marketplace at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "planning", source: "./plugins/planning" }] }) }],
     ["dependency at another source at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/other" }] }) }],
     ["no marketplace at the PR base", { baseMarketplace: null }],
-    ["unknown PR base", { baseSha: undefined }],
+    // null, not undefined: settleFlag's default would replace undefined with BASE.
+    ["unknown PR base", { baseSha: null }],
     ["a failed read", { files: null }],
   ];
   for (const [label, options] of cases) {
