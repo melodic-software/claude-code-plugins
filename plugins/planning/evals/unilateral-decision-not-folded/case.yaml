@@ -3,6 +3,8 @@ name: unilateral-decision-not-folded
 description: A short plan whose brief never said whether a failed delivery is logged before or after the retry must surface that choice as its own decision, interviewed or gate-passed, not fold it into mechanical steps
 tags: [plan, decisions]
 expected_outcome: The logger import and threading stay short mechanical steps; the before-or-after-retry choice is raised as its own interview question with a recommendation, or, if the plan decides it, carries an [EXEC-SHAPE] or [FALLBACK] tag and a Decisions made (gate-passed) row; no implementation starts.
+context:
+  scaffold_script: scaffold.sh
 execution:
   prompt: "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. The work is the logger import, threading the logger through the sender, and logging failed deliveries. Collapse the mechanical parts and keep the plan short."
   allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
