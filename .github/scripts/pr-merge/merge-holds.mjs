@@ -253,9 +253,11 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // tables (babysit_merge*, babysit_risk.py and babysit_review_evidence.py,
 // which compute the review's clear condition, this module, and
 // scripts/sync-hold-floor.py, which writes this list); `gate`, the rest of the
-// merge gate's own code (the other pr-merge scripts and the rate guard);
-// `enforcement`, the pr-merge and
-// ci-status workflows, the other modules the
+// merge gate's own code (the other pr-merge scripts and the rate guard), and
+// the review's own surface, which never takes the author lift: every workflow
+// holding a secret or a lane token or granting `actions: write`, the review
+// workflows and ci-status among them, the main-run review's scripts, and the
+// agent settings and instruction files; `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
 // and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
@@ -311,8 +313,6 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
-  [".github/workflows/pr-require-checks.yml", "enforcement"],
-  [".github/workflows/pr-merge.yml", "enforcement"],
   ["docs/conventions/pr-pipeline.yaml", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
@@ -338,9 +338,42 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"],
   [".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"],
   [".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"],
-  [".github/workflows/pr-unblock.yml", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"],
   [".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"],
+  [".github/scripts/pr-review-main/**", "gate"],
+  ["**/.claude/**", "gate"],
+  ["**/.claude-lane/**", "gate"],
+  ["docs/conventions/instruction-exception-register/**", "gate"],
+  ["docs/conventions/untrusted-content/**", "gate"],
+  ["**/.mcp.json", "gate"],
+  ["**/CLAUDE.md", "gate"],
+  ["**/CLAUDE.local.md", "gate"],
+  ["**/AGENTS.md", "gate"],
+  ["REVIEW.md", "gate"],
+  ["docs/standards/**", "gate"],
+  [".github/workflows/dependabot-fragments.yml", "gate"],
+  [".github/workflows/eval-browser-dispatch.yml", "gate"],
+  [".github/workflows/intake-reenter.yml", "gate"],
+  [".github/workflows/intake-triage.yml", "gate"],
+  [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/post-merge-demotion-alert.yml", "gate"],
+  [".github/workflows/post-merge-test-mutation.yml", "gate"],
+  [".github/workflows/pr-feedback-dispatch.yml", "gate"],
+  [".github/workflows/pr-merge.yml", "gate"],
+  [".github/workflows/pr-refine.yml", "gate"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-review-hosted.yml", "gate"],
+  [".github/workflows/pr-review-main.yml", "gate"],
+  [".github/workflows/pr-review-security-hosted.yml", "gate"],
+  [".github/workflows/pr-run-activity-read.yml", "gate"],
+  [".github/workflows/pr-run-activity-write.yml", "gate"],
+  [".github/workflows/pr-unblock-dispatch.yml", "gate"],
+  [".github/workflows/pr-unblock.yml", "gate"],
+  [".github/workflows/pr-verify.yml", "gate"],
+  [".github/workflows/release-publish-plugins.yml", "gate"],
+  [".github/workflows/work-resolve-issue.yml", "gate"],
+  [".github/workflows/work-unblock.yml", "gate"],
   // END hold-floor HOLD_PATH_CLASSES
 ]);
 // The `trust` and `gate` globs (babysit_risk.HIGH_FLOOR), which hold for a
@@ -868,7 +901,7 @@ export function approvalCarry(then, now, from, inBase, merges, based, dismissal 
 // lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
 // The trusted-actor list and the pipeline config are read too: a widening the
 // approver never saw is lifted by the same approval (actorsHold).
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", ".github/recurring-schedule.json", "plugins/evals/skills/validate/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**"]);
 
 // Whether the compare from...H' `merges` touches no hold path and no file a
 // hold path loads, old paths of renames included: pathHold with `holdPaths`

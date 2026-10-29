@@ -53,7 +53,7 @@ import {
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
+import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { KILL_SWITCH_STOP, killSwitchStop, laneStop } from "./limit-stop.mjs";
@@ -91,10 +91,6 @@ const HELD_SKIP = "Skipped: awaiting-human";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
-// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
-// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
-// included, with a bare CR as a line break too.
-const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
 
 // The tracker's human-gated label from .work-item-tracker.json's text, as
 // pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or

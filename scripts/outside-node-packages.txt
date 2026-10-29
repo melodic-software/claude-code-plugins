@@ -27,6 +27,7 @@
 .github/scripts/plugin-eval
 .github/scripts/post-merge-test-mutation
 .github/scripts/pr-merge
+.github/scripts/pr-review-main
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
 .github/scripts/work-unblock

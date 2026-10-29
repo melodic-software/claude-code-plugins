@@ -12,14 +12,18 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import babysit_risk
 from babysit_risk import (
     AGENT_SURFACE_CODE,
     COST_CODE,
     COST_FINDING_CODE,
+    PERMISSION_WIDENING_CODE,
+    PRIVILEGED_TRIGGER_CODE,
     SECRET_EXPOSURE_CODE,
     Risk,
     holding,
@@ -145,7 +149,7 @@ class CostHold(_Finding):
 
 
 MODEL_WORKFLOW = (
-    "jobs:\n  judge:\n    steps:\n"
+    "permissions: {}\njobs:\n  judge:\n    steps:\n"
     "      - uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@abc\n"
 )
 
@@ -261,7 +265,12 @@ class ModelSpendDetections(_Finding):
     def test_a_raised_timeout_on_an_unread_workflow(self):
         raised = _patch("+    timeout-minutes: 45")
         wf = _file(WORKFLOW, patch=raised, contents=None)
-        self.assertNotCost(_cost([wf], public=True))
+        result = _cost([wf], public=True)
+        self.assertNotCost(result)
+        # Unread text cannot show the token did not widen: a person's hold.
+        self.assertIn(
+            PERMISSION_WIDENING_CODE, [r.code for r in person_reasons(holding(result))]
+        )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
     def test_a_raised_artifact_retention_holds_unless_public(self):
@@ -513,7 +522,7 @@ class SecurityAndCostHolds(_Finding):
         self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_raised_timeout_on_a_claude_code_base_action_workflow(self):
-        head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+        head = "permissions: {}\njobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
         wf = self._wf(
             "-    timeout-minutes: 30",
             "+    timeout-minutes: 45",
@@ -558,6 +567,218 @@ class SecurityAndCostHolds(_Finding):
     def test_an_unlisted_base_tree_fails_closed(self):
         result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)
         self.assertIn(COST_CODE, _codes(result))
+
+
+def _workflow(perms: str, job_perms: str = "", on: str = "on: push\n") -> str:
+    """Workflow text: `perms` at the top level, `job_perms` on its one job."""
+    return f"{on}{perms}jobs:\n  build:\n{job_perms}    runs-on: ubuntu-24.04\n"
+
+
+READ_ONLY = _workflow("permissions:\n  contents: read\n")
+
+
+class WorkflowPrivilegeHolds(_Finding):
+    """A workflow change that widens its token or adds a privileged trigger is
+    a person's hold (owner direction 2026-10-28: an AI review alone must not
+    clear it), and no cost decision clears it."""
+
+    def _change(self, base, head, patch="", status="modified", **kw):
+        wf = _file(WORKFLOW, status=status, patch=patch, contents=(base, head))
+        return _cost([wf], public=True, **kw)
+
+    def assertHeld(self, result, code):
+        self.assertIn(code, [r.code for r in person_reasons(holding(result))])
+
+    def assertNotHeld(self, result, code):
+        self.assertNotIn(code, _codes(result))
+
+    def test_a_scope_raised_to_write_holds(self):
+        head = _workflow("permissions:\n  contents: write\n")
+        self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_write_all_and_a_flow_mapping_grant_hold(self):
+        for head in (
+            _workflow("permissions: write-all\n"),
+            _workflow("permissions: { contents: read, issues: write }\n"),
+            _workflow("permissions: {}\n", "    permissions:\n      id-token: write\n"),
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_dropping_the_permissions_block_holds(self):
+        # The job then runs on the repository default, which may write.
+        self.assertHeld(
+            self._change(READ_ONLY, _workflow("")), PERMISSION_WIDENING_CODE
+        )
+
+    def test_a_new_workflow_that_writes_holds_and_a_read_only_one_does_not(self):
+        added = self._change(
+            None, _workflow("permissions:\n  pull-requests: write\n"), status="added"
+        )
+        self.assertHeld(added, PERMISSION_WIDENING_CODE)
+        quiet = self._change(None, _workflow("permissions: read-all\n"), status="added")
+        self.assertNotHeld(quiet, PERMISSION_WIDENING_CODE)
+        self.assertNotHeld(quiet, PRIVILEGED_TRIGGER_CODE)
+
+    def test_lowering_or_keeping_a_scope_does_not_hold(self):
+        writes = _workflow("permissions:\n  contents: write\n")
+        self.assertNotHeld(self._change(writes, READ_ONLY), PERMISSION_WIDENING_CODE)
+        same = writes.replace("on: push\n", "on: push\nname: renamed\n")
+        self.assertNotHeld(self._change(writes, same), PERMISSION_WIDENING_CODE)
+
+    def test_an_added_privileged_trigger_holds(self):
+        for on in (
+            "on: pull_request_target\n",
+            "on: [push, workflow_run]\n",
+            "on:\n  push:\n  workflow_run:\n    workflows: [ci]\n",
+            "on:\n  push:\n  issue_comment:\n    types: [created]\n",
+            "on: [push, issues]\n",
+            "on:\n  - push\n  - issues\n",
+            # The mapping form, whose key `issues` is also a permissions scope.
+            "on:\n  push:\n  issues:\n    types: [opened]\n",
+            "on:\n  push:\n  pull_request_review_comment:\n",
+            "on:\n  push:\n  discussion:\n",
+            "on:\n  push:\n  repository_dispatch:\n",
+        ):
+            with self.subTest(on=on):
+                head = _workflow("permissions: {}\n", on=on)
+                base = _workflow("permissions: {}\n")
+                self.assertHeld(self._change(base, head), PRIVILEGED_TRIGGER_CODE)
+
+    def test_an_existing_trigger_its_expressions_and_comments_do_not_hold(self):
+        on = "on:\n  workflow_run:\n    workflows: [ci]\n"
+        base = _workflow("permissions: {}\n", on=on)
+        patch = _patch(
+            "+    if: github.event.workflow_run.conclusion == 'success'",
+            "+# pull_request_target would run the base copy; we do not use it",
+        )
+        result = self._change(base, base, patch=patch)
+        self.assertNotHeld(result, PRIVILEGED_TRIGGER_CODE)
+        self.assertNotHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_an_issues_permission_is_not_an_issues_trigger(self):
+        base = _workflow("permissions:\n  issues: read\n")
+        head = _workflow("permissions:\n  issues: none\n")
+        patch = _patch("-  issues: read", "+  issues: none")
+        self.assertNotHeld(
+            self._change(base, head, patch=patch), PRIVILEGED_TRIGGER_CODE
+        )
+
+    def test_an_added_trigger_line_holds_even_when_the_text_reads_alike(self):
+        # The raw-text backstop: the patch adds the trigger whatever the text.
+        base = _workflow("permissions: {}\n")
+        result = self._change(base, base, patch=_patch("+  pull_request_target:"))
+        self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+        result = self._change(base, base, patch=_patch("+      issues: write"))
+        self.assertHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_unreadable_text_holds(self):
+        for head in (
+            "on: push\non: pull_request\njobs: {}\n",
+            "x: &a 1\ny: *a\njobs: {}\n",
+            "on: push\njobs: [1]\n",
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_a_cost_decision_or_a_skipped_cost_branch_does_not_clear_it(self):
+        head = _workflow("permissions: write-all\n", on="on: pull_request_target\n")
+        for kw in ({"cost_decision": DECISION}, {"pulumi_dirs": None}):
+            with self.subTest(kw=kw):
+                result = self._change(READ_ONLY, head, **kw)
+                self.assertHeld(result, PERMISSION_WIDENING_CODE)
+                self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+
+    def test_an_object_form_secrets_reference_holds(self):
+        for added in ("${{ secrets.* }}", "${{ toJSON(secrets) }}"):
+            with self.subTest(added):
+                head = READ_ONLY + f"    env:\n      K: {added}\n"
+                wf = _file(
+                    WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head)
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
+    def test_a_secret_the_head_text_gains_holds_without_a_patch(self):
+        head = READ_ONLY + "    env:\n      K: ${{ secrets.DEPLOY_KEY }}\n"
+        wf = _file(WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head))
+        result = _cost([wf], public=True, cost_decision=DECISION)
+        self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
+
+class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
+    """The same holds where PyYAML is not installed: the raw-text reading."""
+
+    def setUp(self):
+        patcher = mock.patch.object(babysit_risk, "_yaml", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class LongLineHolds(unittest.TestCase):
+    """A pull request the main-run review binds (`needs_main_review`) whose
+    patch holds a line longer than that review reads whole holds for a person
+    (`long-line-review:`)."""
+
+    LONG = "+" + "x" * 2500
+    SHORT = "+" + "x" * 1000
+
+    def codes(self, *files):
+        return [
+            r.code
+            for r in babysit_risk.person_reasons(score(_input(files=files)).reasons)
+        ]
+
+    def test_a_2500_byte_line_beside_a_lane_source_holds_for_a_person(self):
+        for files in (
+            # The long line in the lane source itself.
+            (_file(".claude/rules/a.md", patch=_patch(self.LONG)),),
+            # In an ordinary file of a pull request that changes a lane source.
+            (_file("app.py", patch=_patch(self.LONG)), _file(".claude/rules/a.md")),
+            # A removed or context line is given to the review too.
+            (_file(".claude/rules/a.md", patch="@@ -1 +1 @@\n" + " " + "y" * 2500),),
+        ):
+            with self.subTest(paths=[f.path for f in files]):
+                long = [
+                    c for c in self.codes(*files) if c.startswith("long-line-review:")
+                ]
+                self.assertEqual(len(long), 1, long)
+
+    def test_a_1000_byte_line_does_not_hold(self):
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch(self.SHORT)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    def test_multibyte_text_counts_bytes(self):
+        # 700 three-byte characters are 2,100 bytes.
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch("+" + "€" * 700)))
+        self.assertIn("long-line-review:.claude/rules/a.md", codes)
+
+    def test_a_pull_request_without_a_lane_source_is_not_this_hold(self):
+        codes = self.codes(_file("app.py", patch=_patch(self.LONG)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
+    def test_only_a_path_the_main_run_review_binds_holds(self):
+        # A read-only workflow binds through the pull_request lanes, which read
+        # the whole diff, so its long line is no hold (`needs_main_review`).
+        from test_babysit_review_evidence import BASE, READ_ONLY
+        from test_babysit_review_evidence import WORKFLOW as LINT_DOCS
+
+        line = "-" + "x" * 2000
+
+        def codes(head, base_sha=BASE):
+            wf = _file(LINT_DOCS, patch=_patch(line), contents=(READ_ONLY, head))
+            result = score(_input(files=(wf,), base_sha=base_sha))
+            return [c for c in _codes(result) if c.startswith("long-line-review:")]
+
+        self.assertEqual(codes(READ_ONLY), [])
+        # A write scope, or no base to prove the read, needs the main-run review.
+        writer = READ_ONLY.replace(
+            "  contents: read\njobs:", "  contents: write\njobs:"
+        )
+        self.assertNotEqual(writer, READ_ONLY)
+        self.assertEqual(codes(writer), [f"long-line-review:{LINT_DOCS}"])
+        self.assertEqual(codes(READ_ONLY, None), [f"long-line-review:{LINT_DOCS}"])
 
 
 if __name__ == "__main__":

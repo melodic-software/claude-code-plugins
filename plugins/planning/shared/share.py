@@ -300,9 +300,10 @@ def lease_target(hostname):
     return http.client.HTTPSConnection(hostname, 443, timeout=LEASE_SECONDS, context=ssl.create_default_context())
 
 
-# Cloudflare's no-connector page, its tags stripped. The page holds <span>Error</span> <span>1033</span> (read from a
-# stopped quick tunnel's hostname on 2026-10-29), so the words are matched apart from the markup, never a bare "1033".
-NO_CONNECTOR = re.compile(r"\bError 1033\b")
+# Cloudflare's no-connector page, its tags stripped. A browser gets HTML holding <span>Error</span> <span>1033</span>;
+# a client like this one gets text/plain "error code: 1033" (both read from a stopped tunnel's hostname on 2026-10-29).
+# The words are matched apart from the markup, never a bare "1033".
+NO_CONNECTOR = re.compile(r"\berror(?: code)?:? 1033\b", re.IGNORECASE)
 
 
 def no_connector(status, body):
