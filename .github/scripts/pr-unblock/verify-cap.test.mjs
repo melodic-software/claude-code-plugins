@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { readFileSync } from "node:fs";
+
+import { final, SIBLING_UNREADABLE, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -58,4 +60,23 @@ test("without a base commit the reader takes its own cap default", () => {
   const { read, calls } = reader(answer({ refusal: "verify:repeated-fail" }));
   assert.equal(read({ number: 42, head: HEAD, base: undefined }), "verify:repeated-fail");
   assert.deepEqual(calls[0].args, [VERIFY_SCRIPT, "evidence", "--repo", REPO, "42", HEAD]);
+});
+
+// Gap: a cap reached only through other pull requests' FAILs is hidden when
+// one of their runs cannot be read. That read skips the round, failing
+// closed, but never records the head as handled.
+test("a sibling FAIL run the reader cannot read skips the round, for this run only", () => {
+  const { read } = reader(answer({ refusal: "verify:unreadable", detail: SIBLING_UNREADABLE }));
+  const got = read({ number: 42, head: HEAD, base: BASE });
+  assert.equal(got, `verify:unreadable: ${SIBLING_UNREADABLE}`);
+  assert.equal(final(got), false);
+  assert.equal(final(`verify:repeated-fail: ${CAPPED}`), true);
+  // Another unreadable answer (the pull request's own run) is not the cap.
+  const own = reader(answer({ refusal: "verify:unreadable", detail: "run of pr-verify-42-x-fail" }));
+  assert.equal(own.read({ number: 42, head: HEAD, base: BASE }), null);
+});
+
+test("the sibling detail is the reader's SIBLING_UNREADABLE", () => {
+  const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
+  assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
 });

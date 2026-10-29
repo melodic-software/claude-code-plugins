@@ -343,11 +343,6 @@ The owner's standing direction on cost and other stops (the owner's section 3), 
 <!-- spellchecker:on -->
 
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
-A pull request the verifier refuses for good is the owner's too (owner decision, 2026-10-29): FAILs
-at `merge.max-verify-fails` heads (`verify:repeated-fail`) or a pull request too old to judge
-(`verify:too-old`) never merges unattended, so the pr-merge lane escalates it with the human-gated
-label and the lanes stop their fix rounds on it
-([Verifier verdict](../pr-pipeline/README.md#verifier-verdict)).
 
 Three labels take work off the unattended path, and each means one thing (owner decision,
 2026-10-28):

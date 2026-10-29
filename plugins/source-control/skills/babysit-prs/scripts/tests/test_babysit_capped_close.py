@@ -1,0 +1,365 @@
+"""`babysit_verify_evidence.capped_close`: the pr-merge lane closes a lanes App
+pull request the verifier refuses for good (the FAIL cap, too old) for a fresh
+attempt at its issue, or parks the issue once `merge.verify-cap-attempts` are
+spent, never adding a person's label (owner decision 2026-10-29). The expected
+writes follow the GitHub REST endpoints the function names: issue comments,
+issue labels and the pull request update."""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import pathlib
+import subprocess
+import sys
+import unittest
+from typing import Any
+from unittest import mock
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+import babysit_verify_evidence as ve  # noqa: E402
+
+REPO = "melodic-software/claude-code-plugins"
+BOT = "melodic-automation-lanes[bot]"
+HEAD = "a" * 40
+FAILED = ["1" * 40, "2" * 40, "3" * 40]
+PR = 50
+ISSUE = 7
+
+
+class StubReader:
+    """The reader answers `capped_close` reads: the judgment, the FAIL
+    findings and the issue link."""
+
+    def __init__(
+        self, refusal: str = ve.REPEATED_FAIL, issues: tuple[int, ...] = (ISSUE,)
+    ) -> None:
+        self.repo = REPO
+        self.agent_identity = BOT
+        self.refusal = refusal
+        self.issues = issues
+
+    def evidence(self, number: int, head: str) -> ve.Evidence:
+        return ve.Evidence(self.refusal, head, (), 0, "fails at 3 heads, the cap is 3")
+
+    def fail_findings(self, number: int) -> list[dict[str, Any]]:
+        return [
+            {
+                "head": FAILED[0],
+                "run": 11,
+                "summary": "misses the error path",
+                "notes": ["a.py:3 ```rm -rf```"],
+            },
+            {"head": FAILED[1], "run": 12, "unreadable": "artifact x of run 12"},
+        ]
+
+    def _closing_issues(self, number: int) -> dict[int, Any]:
+        return {n: {} for n in self.issues}
+
+
+def comment(body: str, login: str = BOT) -> dict[str, Any]:
+    return {"user": {"login": login}, "body": body}
+
+
+class World:
+    """The REST reads `capped_close` makes and the writes it sends, in order."""
+
+    def __init__(
+        self,
+        *,
+        labels: list[str] | None = None,
+        author: str = BOT,
+        state: str = "open",
+        head: str = HEAD,
+    ) -> None:
+        self.pr = {
+            "state": state,
+            "head": {"sha": head},
+            "user": {"login": author},
+            "labels": [{"name": n} for n in labels or []],
+        }
+        self.comments: dict[int, list[dict[str, Any]]] = {PR: [], ISSUE: []}
+        self.writes: list[list[str]] = []
+        self.fail_once: set[str] = set()
+
+    def paginated(self, endpoint: str, label: str) -> list[dict[str, Any]]:
+        number = int(endpoint.split("/issues/")[1].split("/")[0])
+        return self.comments[number]
+
+    def gh(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.writes.append(args)
+        key = " ".join(args[2:4])
+        if key in self.fail_once:
+            self.fail_once.discard(key)
+            return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+        return subprocess.CompletedProcess(args, 0, "{}", "")
+
+    def run(
+        self,
+        reader: StubReader | None = None,
+        attempts: int = 1,
+        holds: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        with (
+            mock.patch.object(ve.merge_policy, "pull_request", return_value=self.pr),
+            mock.patch.object(ve.postmerge, "_paginated", side_effect=self.paginated),
+            mock.patch.object(ve.postmerge, "gh_capture", side_effect=self.gh),
+        ):
+            return ve.capped_close(
+                reader or StubReader(), PR, HEAD, attempts=attempts, holds=holds
+            )
+
+    def calls(self) -> list[str]:
+        return [" ".join(a[2:4]) for a in self.writes]
+
+    def body(self, index: int) -> str:
+        return self.writes[index][-1].removeprefix("body=")
+
+
+class ClosesForAFreshAttempt(unittest.TestCase):
+    def test_below_the_attempts_it_records_closes_and_restarts_the_issue(self) -> None:
+        world = World()
+        result = world.run()
+        self.assertEqual(
+            result,
+            {
+                "closed": True,
+                "refusal": ve.REPEATED_FAIL,
+                "restarted": [ISSUE],
+                "parked": [],
+            },
+        )
+        # The records first, agent-ready off before the close and back on after
+        # it, so a failed write leaves the pull request open for the next run.
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/comments",
+                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+                f"POST repos/{REPO}/issues/{ISSUE}/labels",
+            ],
+        )
+        self.assertIn("labels[]=agent-ready", world.writes[-1])
+        heads = f"{FAILED[0]},{FAILED[1]}"
+        self.assertEqual(
+            world.body(0).split("\n")[0],
+            f"<!-- verify-capped-close pr={PR} heads={heads} -->",
+        )
+        issue = world.body(1)
+        self.assertEqual(
+            issue.split("\n")[0],
+            f"<!-- verify-capped-close pr={PR} heads={heads} attempt=1 of=1 -->",
+        )
+        self.assertIn("fresh attempt 1 of 1", issue)
+        # The findings, quoted as data: one fence, none of the model's own.
+        self.assertIn("summary: misses the error path", issue)
+        self.assertIn("a.py:3 '''rm -rf'''", issue)
+        self.assertIn("unreadable: artifact x of run 12", issue)
+        self.assertEqual(issue.count("```"), 2)
+        # No person's label anywhere on this path.
+        self.assertFalse(
+            any(
+                "needs-human" in " ".join(w) or "needs-decision" in " ".join(w)
+                for w in world.writes
+            )
+        )
+
+    def test_at_the_attempts_it_parks_the_issue_and_starts_nothing(self) -> None:
+        world = World()
+        world.comments[ISSUE] = [
+            comment(
+                f"<!-- verify-capped-close pr=40 heads={FAILED[2]} attempt=1 of=1 -->\nearlier"
+            )
+        ]
+        result = world.run()
+        self.assertEqual(result["parked"], [ISSUE])
+        self.assertEqual(result["restarted"], [])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/status%3A%20ready",
+                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
+        self.assertIn("labels[]=status: confirmed", world.writes[2])
+        self.assertTrue(
+            world.body(1).split("\n")[0].endswith("attempt=1 of=1 parked -->")
+        )
+        self.assertIn("parked", world.body(1))
+
+    def test_zero_attempts_parks_at_the_first_close(self) -> None:
+        self.assertEqual(World().run(attempts=0)["parked"], [ISSUE])
+
+    def test_only_the_lanes_apps_records_spend_attempts(self) -> None:
+        world = World()
+        world.comments[ISSUE] = [
+            comment(
+                "<!-- verify-capped-close pr=40 heads= attempt=1 of=1 -->",
+                login="someone",
+            )
+        ]
+        self.assertEqual(world.run()["restarted"], [ISSUE])
+
+    def test_a_rerun_after_a_failed_close_writes_only_what_is_left(self) -> None:
+        world = World()
+        world.fail_once.add(f"PATCH repos/{REPO}/pulls/{PR}")
+        with self.assertRaises(RuntimeError):
+            world.run()
+        # The next run finds both records (the reads return what was posted).
+        world.comments[PR] = [comment(world.body(0))]
+        world.comments[ISSUE] = [comment(world.body(1))]
+        world.writes.clear()
+        result = world.run()
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+                f"POST repos/{REPO}/issues/{ISSUE}/labels",
+            ],
+        )
+
+    def test_the_re_add_is_tried_twice(self) -> None:
+        world = World()
+        world.fail_once.add(f"POST repos/{REPO}/issues/{ISSUE}/labels")
+        self.assertEqual(world.run()["restarted"], [ISSUE])
+        self.assertEqual(
+            world.calls()[-2:], [f"POST repos/{REPO}/issues/{ISSUE}/labels"] * 2
+        )
+
+    def test_a_label_already_off_is_no_failure(self) -> None:
+        world = World()
+
+        def gh(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            world.writes.append(args)
+            if args[2] == "DELETE":
+                return subprocess.CompletedProcess(
+                    args, 1, "", "gh: Label does not exist (HTTP 404)"
+                )
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        world.gh = gh  # type: ignore[method-assign]
+        self.assertTrue(world.run()["closed"])
+
+    def test_with_no_issue_it_only_records_and_closes(self) -> None:
+        world = World()
+        result = world.run(StubReader(issues=()))
+        self.assertEqual(result["restarted"], [])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
+        self.assertIn("links no issue", world.body(0))
+
+    def test_too_old_closes_too(self) -> None:
+        self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
+
+
+class LeavesItAlone(unittest.TestCase):
+    def test_a_refusal_that_can_clear_is_no_close(self) -> None:
+        for refusal in (None, ve.FAIL, ve.UNREADABLE, ve.UNTRUSTED_SPEC):
+            with self.subTest(refusal):
+                world = World()
+                self.assertFalse(world.run(StubReader(refusal=refusal))["closed"])
+                self.assertEqual(world.writes, [])
+
+    def test_a_person_pull_request_a_moved_head_or_a_closed_one_is_no_close(
+        self,
+    ) -> None:
+        for world in (
+            World(author="kyle-sexton"),
+            World(head="b" * 40),
+            World(state="closed"),
+        ):
+            self.assertFalse(world.run()["closed"])
+            self.assertEqual(world.writes, [])
+
+    def test_a_hold_label_keeps_it_open(self) -> None:
+        world = World(labels=["Do-Not-Merge"])
+        result = world.run(holds=("do-not-merge", "needs-human"))
+        self.assertEqual(result, {"closed": False, "reason": "it carries do-not-merge"})
+        self.assertEqual(world.writes, [])
+
+
+class TheCommand(unittest.TestCase):
+    """`capped-close`, which enable-auto-merge.mjs pythonClose runs."""
+
+    def main(self, *extra: str) -> tuple[int, dict[str, Any]]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = ve.main(
+                [
+                    "capped-close",
+                    "--repo",
+                    REPO,
+                    "--base-sha",
+                    "b" * 40,
+                    *extra,
+                    str(PR),
+                    HEAD,
+                ]
+            )
+        return code, json.loads(out.getvalue().strip().split("\n")[-1])
+
+    def test_it_closes_under_the_lower_config_with_the_hold_labels(self) -> None:
+        config = mock.Mock(
+            error=None, max_verify_fails=3, agent_identity=BOT, verify_cap_attempts=2
+        )
+        with (
+            mock.patch.object(ve.merge_policy, "config_at", return_value=config),
+            mock.patch.object(
+                ve.merge_policy, "with_default_branch", return_value=config
+            ),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": True}
+            ) as close,
+        ):
+            code, answer = self.main(
+                "--hold-label", "do-not-merge", "--hold-label", "needs-human"
+            )
+        self.assertEqual((code, answer), (0, {"closed": True}))
+        (reader, number, head), kwargs = close.call_args
+        self.assertEqual((reader.agent_identity, number, head), (BOT, PR, HEAD))
+        self.assertEqual(
+            kwargs, {"attempts": 2, "holds": ("do-not-merge", "needs-human")}
+        )
+
+    def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
+        with mock.patch.object(
+            ve.merge_policy,
+            "config_at",
+            side_effect=ve.merge_policy.PolicyReadError("config gone"),
+        ):
+            code, answer = self.main()
+        self.assertEqual((code, answer), (1, {"closed": False, "error": "config gone"}))
+
+
+class TheRecordMatchesItsReaders(unittest.TestCase):
+    def test_the_marker_parses_as_label_unblocked_and_write_issue_read_it(self) -> None:
+        line = ve.capped_close_marker(PR, FAILED[:2], (1, 1))
+        self.assertIsNotNone(ve.CAPPED_CLOSE_RE.fullmatch(line))
+        self.assertTrue(line.startswith(f"<!-- verify-capped-close pr={PR} "))
+        self.assertIsNotNone(
+            ve.CAPPED_CLOSE_RE.fullmatch(ve.capped_close_marker(PR, []))
+        )
+        self.assertIsNotNone(
+            ve.CAPPED_CLOSE_RE.fullmatch(
+                ve.capped_close_marker(PR, [], (0, 0), parked=True)
+            )
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

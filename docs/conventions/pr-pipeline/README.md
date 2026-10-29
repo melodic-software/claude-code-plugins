@@ -2180,7 +2180,13 @@ head:
   counted. More than 50 pull requests that claim to close one issue make every pull request for
   that issue refuse `verify:unreadable`: a hold, not a way past the cap. This cap is what bounds
   pushing until the verifier passes once: the carry-forward below stops only a head that changes
-  nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
+  nothing of its own, and a one-line edit gives a new change. One exception, which relaxes that
+  bound by exactly `merge.verify-cap-attempts` (default 1) fresh attempts per issue (owner decision
+  2026-10-29): a pull request the pr-merge lane closed at the cap or as too old, named by the lanes
+  App's capped-close record on the issue (`<!-- verify-capped-close pr=<n> ... -->` as its first
+  line, written by the App and edited by no one else, so a forged one excuses nothing), counts no
+  more, so the fresh attempt it started starts its own count. Past that many the lane parks the
+  issue instead of starting another, so the re-rolls stay bounded. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a
   trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
@@ -2281,23 +2287,39 @@ exists (#7711).
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 `verify:spec-changed` holds for the lanes
 ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
-`verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary, and so do
-`verify:repeated-fail` and `verify:too-old` (owner decision 2026-10-29), which never clear for the
-pull request, so it never merges unattended. `pr-feedback-dispatch.yml` and
-`pr-unblock-dispatch.yml` start no address-feedback or fix-ci round, and post nothing, on a pull
-request the gate's reader refuses `verify:repeated-fail`
+Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
+`verify:repeated-fail` and `verify:too-old` never clear for the pull request, so it never merges
+unattended, and no person's label goes on for either (owner decision 2026-10-29). Instead, while
+`merge.report-only` is false, the pr-merge lane closes a lanes App pull request at either one for
+a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
+`enable-auto-merge.mjs` through the reader's `capped-close` command, or by the gate under
+`merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
+lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label. In order,
+so a failed write leaves the pull request open for the next run, which finds its records and
+writes the rest: a comment on the pull request opening with
+`<!-- verify-capped-close pr=<n> heads=<shas> -->`, quoting each FAILed head's verdict summary and
+notes (read from its `verdict.json`; an expired one is named by its run) as data in one text
+fence; the same record on each linked issue (closing, or the `Refs:` one), its marker naming the
+attempt; `agent-ready` off the issue; the close; then `agent-ready` back on, tried twice, which
+starts the fresh attempt. `write-issue.mjs` passes that record to the next attempt as
+`author_kind: verify-findings`, the one lanes App comment it keeps besides intake's refinement. An
+issue that already had `merge.verify-cap-attempts` fresh attempts (lanes App records naming other
+pull requests) is parked instead: its record says so, and before the close it gets
+`status: confirmed` with `status: ready` and `agent-ready` taken off, so neither the readmit sweep
+nor triage starts it again. With no linked issue the pull request is only recorded and closed.
+`label-unblocked.mjs` hands no issue to triage for a lane pull request its capped-close record
+names, since the lane already restarted or parked it. An armed pull request is disarmed first.
+`pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
+and post nothing, on a pull request the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
-dispatcher job's read token, last before each dispatch); a read that fails lets the round run under
-its own caps. While `merge.report-only` is
-false the lane escalates all three
+dispatcher job's read token, last before each dispatch), or `verify:unreadable` because another
+pull request's FAIL run for the same issue cannot be read, which may hide the cap; that one is
+read again next run. A read that fails or times out lets the round run under its own caps, which
+costs at most one round before the lane closes the pull request. While `merge.report-only` is
+false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
-rewritten only when either changes. For `verify:repeated-fail` and `verify:too-old` the comment opens
-with the attended queue's `<!-- work-items:escalation lane=pr-merge kind=escalated -->` marker,
-names the reader's detail (the FAILed heads, or when the pull request was created), and says what a
-person does: fix the cause, approve the head and remove the label, then merge in person, or close
-the pull request. On a lanes App pull request `enable-auto-merge.mjs` writes the same person's
-refusal comment and label (`verifyClears`), its reason carrying that detail. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that

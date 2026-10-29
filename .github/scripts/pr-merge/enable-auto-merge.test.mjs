@@ -34,6 +34,7 @@ import {
   refusalBody,
   refusalWrites,
   main,
+  pythonClose,
   pythonRoom,
   pythonVerify,
   ReaderRateLimited,
@@ -308,11 +309,16 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   console.log = (line) => lines.push(line);
   try {
     const actions = options.jobToken ? options.jobToken(github) : undefined;
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
+    const closed = [];
+    const close = async (pull, holds) => {
+      closed.push({ number: pull.number, holds });
+      return options.closeAnswer ? options.closeAnswer(pull) : { closed: true, restarted: [], parked: [] };
+    };
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)) });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses };
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed };
   } finally {
     console.log = log;
   }
@@ -433,38 +439,54 @@ test("a floor path no configured glob names is commented on and labeled human-ga
 });
 
 // Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
-// a CRITICAL security issue, trust holds kept; owner decision 2026-10-29: the
-// repeated-FAIL cap and an old pull request, which never clear for the head,
-// go to a person too. The gate's `needsHuman` (babysit_verify_evidence
-// NEEDS_HUMAN) decides, so a changed spec stays the lanes'.
-test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are", async () => {
+// a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
+// (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
+// changed spec is the lanes'. Owner decision 2026-10-29: the repeated-FAIL
+// cap and an old pull request, which never clear for it, close it for a
+// fresh attempt at its issue, with no note and no person's label.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request close for a fresh attempt", async () => {
   const refused = (refusal, needsHuman, detail = null) => ({ refusal, needsHuman, detail, head: HEAD, ineligible: null, reviews: null });
   const failed = `fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3`;
-  const { notes } = await run([
+  const { notes, closed, lines } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", true, failed) }),
-    pull(4, { verdict: refused("verify:too-old", true, "created 2026-07-27T23:00:00+00:00") }),
+    pull(3, { verdict: refused("verify:repeated-fail", false, failed) }),
+    pull(4, { verdict: refused("verify:too-old", false, "created 2026-07-27T23:00:00+00:00") }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
-  // A refusal that never clears for the head says what a person does in place
-  // of the lanes clearing it, and names the reader's detail (the FAILed heads).
-  const finalNote = (reason) =>
-    personNote(reason).replace(
-      "fix the reason, then remove the label, and the next scheduled run judges it again.",
-      "this reason never clears for the pull request, so the lanes start no more fix rounds on it. Fix the cause, approve the head and remove the label, then merge it in person; or close the pull request.",
-    );
   assert.deepEqual(notes, [
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: finalNote(refusing(`verify:repeated-fail: ${failed}`)) } },
-    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: finalNote(refusing("verify:too-old: created 2026-07-27T23:00:00+00:00")) } },
-    { method: "POST", path: `${ISSUES}/4/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
+  assert.deepEqual(closed, [
+    { number: 3, holds: ["do-not-merge", "needs-human"] },
+    { number: 4, holds: ["do-not-merge", "needs-human"] },
+  ]);
+  assert.ok(lines.some((line) => line.includes(`#3 closed for a fresh attempt (${refusing(`verify:repeated-fail: ${failed}`)})`)));
+});
+
+// A close the reader left undone (a hold label, a head that moved) or that
+// failed writes no note and no label: the next run judges it again.
+test("a capped pull request the close leaves open or fails on gets no note and no label", async () => {
+  const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: null, head: HEAD, ineligible: null, reviews: null };
+  const open = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: false, reason: "it carries do-not-merge" }) });
+  assert.deepEqual(open.notes, []);
+  assert.equal(open.code, 0);
+  assert.ok(open.lines.some((line) => line.includes("#3 left open: it carries do-not-merge")));
+  const failing = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => { throw new Error("close: HTTP 500"); } });
+  assert.deepEqual(failing.notes, []);
+  assert.notEqual(failing.code, 0);
+});
+
+// Report-only closes nothing.
+test("report-only names the close it would make and closes nothing", async () => {
+  const capped = { refusal: "verify:too-old", needsHuman: false, detail: "created x", head: HEAD, ineligible: null, reviews: null };
+  const { closed, lines } = await run([pull(4, { verdict: capped })], { REPORT_ONLY: "true" });
+  assert.deepEqual(closed, []);
+  assert.ok(lines.some((line) => line.includes("#4 would close for a fresh attempt (report-only)")));
 });
 
 test("verifyClears reads the gate's needsHuman and reviewsPerson, not the refusal text", () => {
@@ -1820,7 +1842,7 @@ test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async 
 
 test("an armed pull request whose head lost its pass, or passed the cap, is disarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { writes, lines } = await run([
+  const { writes, lines, closed } = await run([
     // Armed on a passing head, then pushed: the gate finds no verdict at the new head.
     pull(1, { autoMergeRequest: armed, verdict: { refusal: "verify:missing", head: HEAD } }),
     pull(2, { autoMergeRequest: armed, verdict: { refusal: "verify:repeated-fail", head: HEAD } }),
@@ -1832,7 +1854,8 @@ test("an armed pull request whose head lost its pass, or passed the cap, is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "disarm", id: "PR_3" },
   ]);
-  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));
+  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));  // Past the cap it is also closed for a fresh attempt, after the disarm.
+  assert.deepEqual(closed.map((c) => c.number), [2]);
 });
 
 test("the verdict is read only for a lanes App pull request nothing else holds", async () => {
@@ -3180,4 +3203,23 @@ test("an approved hold-path escalation keeps its label while anything else stand
   const edited = { ...note, updated_at: after };
   const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
   assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+});
+
+test("pythonClose runs the reader's capped-close at the base with the hold labels, and throws on a failed exit", () => {
+  const seen = [];
+  const spawn = (cmd, args, options) => {
+    seen.push({ cmd, args, token: options.env.GH_TOKEN });
+    return { status: 0, stdout: '{"closed": true, "restarted": [7], "parked": []}\n' };
+  };
+  const base = "b".repeat(40);
+  const env = { GITHUB_REPOSITORY: "o/r", GH_TOKEN: "app" };
+  const answer = pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: base }, ["do-not-merge", "needs-human"]);
+  assert.deepEqual(answer, { closed: true, restarted: [7], parked: [] });
+  assert.equal(seen[0].cmd, "python3");
+  assert.deepEqual(seen[0].args.slice(1), ["capped-close", "--repo", "o/r", "--base-sha", base, "--hold-label", "do-not-merge", "--hold-label", "needs-human", "5", HEAD]);
+  // Its writes keep the lanes App token.
+  assert.equal(seen[0].token, "app");
+  const failing = () => ({ status: 1, stdout: '{"closed": false, "error": "close: HTTP 403"}\n', stderr: "" });
+  assert.throws(() => pythonClose(env, failing)({ number: 5, headRefOid: HEAD, baseRefOid: base }, []), /capped-close exited 1: close: HTTP 403/);
+  assert.throws(() => pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: "main" }, []), /not a commit SHA/);
 });

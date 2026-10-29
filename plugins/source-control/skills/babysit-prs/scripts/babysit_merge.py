@@ -3831,37 +3831,15 @@ def upsert_marker_comment(
     return outcome
 
 
-# The verifier refusals that never clear for the head (the FAIL cap, an old
-# pull request): their escalation reaches the attended queue and says what a
-# person does, and address-feedback and fix-ci start no round on the cap.
-VERIFY_FINAL = (verify_evidence.REPEATED_FAIL, verify_evidence.TOO_OLD)
-
-
-def verify_escalation_body(refusal: str, head: str, detail: str | None = None) -> str:
+def verify_escalation_body(refusal: str, head: str) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal, the head and the reader's detail only (for the cap, the FAILed
-    heads), so a rerun renders the same body."""
-    if refusal not in VERIFY_FINAL:
-        return "\n".join(
-            [
-                VERIFY_ESCALATION_MARKER,
-                f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-                f"`{head}`. That refusal needs a human, who merges in person; the "
-                "pr-merge lane will not merge this pull request.",
-            ]
-        )
-    why = f" ({detail})" if detail else ""
+    refusal and the head only, so a rerun renders the same body."""
     return "\n".join(
         [
-            ATTEND_QUEUE_MARKER,
             VERIFY_ESCALATION_MARKER,
             f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-            f"`{head}`{why}. That refusal never clears for this pull request, so "
-            "the pr-merge lane will not merge it and address-feedback and fix-ci "
-            "start no more rounds on it.",
-            "",
-            "A person decides it: fix the cause, approve the head and remove the "
-            "human-gated label, then merge it in person; or close the pull request.",
+            f"`{head}`. That refusal needs a human, who merges in person; the "
+            "pr-merge lane will not merge this pull request.",
         ]
     )
 
@@ -3916,12 +3894,39 @@ def escalate_verify(
     identity: str,
     refusal: str,
     inputs: Mapping[str, Any],
-    detail: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal, `detail` the reader's."""
+    """`escalate` for a needs-human verifier refusal."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    body = verify_escalation_body(refusal, head, detail)
+    body = verify_escalation_body(refusal, head)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
+
+
+def close_capped(
+    repo: str,
+    number: int,
+    identity: str,
+    branch: str,
+    config: merge_policy.PipelineConfig,
+    inputs: Mapping[str, Any],
+) -> dict[str, Any]:
+    """`verify_evidence.capped_close` for the gate's pull request at its
+    head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
+    label hold it open."""
+    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    try:
+        label = human_gated_label(repo)
+    except postmerge.PostMergeReadError:
+        label = postmerge.DEFAULT_ROLE_LABEL
+    reader = verify_evidence.Reader(
+        repo, branch, max_fails=config.max_verify_fails, agent_identity=identity
+    )
+    return verify_evidence.capped_close(
+        reader,
+        number,
+        head,
+        attempts=config.verify_cap_attempts,
+        holds=("do-not-merge", label),
+    )
 
 
 def escalate(
@@ -4362,10 +4367,29 @@ def unattended_writes(
                 identity,
                 str(verify.get("refusal")),
                 inputs,
-                verify.get("detail") if isinstance(verify.get("detail"), str) else None,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
+    # A lanes App pull request the verifier refuses for good closes for a
+    # fresh attempt at its issue (`verify_evidence.capped_close`, which judges
+    # it again and leaves a held one alone); no person's label.
+    config = inputs.get("config")
+    if (
+        not stopped
+        and verify.get("refusal") in verify_evidence.VERIFY_FINAL
+        and config is not None
+    ):
+        try:
+            report["cappedClose"] = close_capped(
+                repo, number, identity, branch, config, inputs
+            )
+        except (
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+            postmerge.PostMergeReadError,
+        ) as exc:
+            report["errors"].append(f"capped close: {exc}")
     # A held major Dependabot update gets the same signal, so it reaches the
     # human queue, whatever refusal tops it (an `in-flight:` one included).
     held = f"{merge_policy.MAJOR_HELD}:"

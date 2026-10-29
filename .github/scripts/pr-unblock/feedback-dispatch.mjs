@@ -134,7 +134,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { verifyCapReader } from "./verify-cap.mjs";
+import { final as capFinal, verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -500,12 +500,15 @@ export async function dispatchFeedback({
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
     }
     // Last, as it costs a full verifier read: a push past the FAIL cap could
-    // never merge, so a person decides the pull request (pr-merge escalates).
+    // never merge, so pr-merge closes the pull request for a fresh attempt.
     const capped = await verifyCapped({ number, head, base: pull.base?.sha });
     if (capped) {
-      // The cap never clears for the head: later runs skip it before any read.
-      markHandled(record, settings.checkName, head);
-      return skip(`#${number}: pr-verify's FAILs are at the cap (${capped}); a person decides it, so no ${settings.activity} round`);
+      // The cap never clears for the head: later runs skip it before any
+      // read. A sibling read that failed is read again next run.
+      if (capFinal(capped)) {
+        markHandled(record, settings.checkName, head);
+      }
+      return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
     }
   }
   const { workflowRunId } = await api.dispatchWorkflow({

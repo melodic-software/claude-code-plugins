@@ -50,12 +50,10 @@ test("no LANE_CAUSES.verdict entry is a verifier refusal only a person clears", 
   assert.deepEqual(overlapping, [], `lane verdicts ${overlapping} are in NEEDS_HUMAN`);
 });
 
-test("the repeated-FAIL cap and an old pull request are a person's, not lane causes", () => {
-  // Owner decision 2026-10-29: neither clears for the head, so the gate
-  // escalates them and the clear never lifts their label at the same head.
-  const { verdicts } = personSets();
+test("the repeated-FAIL cap and an old pull request are lane causes the clear lifts", () => {
+  // Owner rule 2026-10-27: neither is intent, design or security, so a label
+  // either one placed comes off at its head.
   for (const refusal of ["verify:repeated-fail", "verify:too-old"]) {
-    assert.ok(verdicts.includes(refusal), `${refusal} is not in NEEDS_HUMAN`);
-    assert.ok(!LANE_CAUSES.verdict.includes(refusal), `${refusal} is a lane cause`);
+    assert.ok(LANE_CAUSES.verdict.includes(refusal), `${refusal} is not a lane cause`);
   }
 });

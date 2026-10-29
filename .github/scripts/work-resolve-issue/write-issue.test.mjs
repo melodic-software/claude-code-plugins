@@ -187,6 +187,38 @@ test("keeps the lanes App's intake refinement, tagged refinement, whose criteria
   assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
 });
 
+// The pr-merge lane's capped-close record carries the verifier's findings on
+// the pull request it closed for this fresh attempt, posted just before the
+// restart, so after the label the restart anchors at. It is the one other
+// lanes App comment kept; any other App comment, marker-like or not, stays out.
+test("keeps the lanes App's capped-close record, tagged verify-findings, and no other App comment", async () => {
+  const record = `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} attempt=1 of=1 -->\nPull request #7493: closed.\n\n\`\`\`text\nhead 1111 summary: fails\n\`\`\``;
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [
+        comment(29, LANES_BOT, record),
+        comment(12, LANES_BOT, "**Decision recorded.** quoted from the body"),
+        comment(13, LANES_BOT, "<!-- verify-capped -->\nnot the record"),
+        comment(14, LANES_BOT, `x\n${record}`),
+        comment(30, OWNER, record),
+      ],
+    }),
+  );
+  assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "verify-findings", false]]);
+  assert.equal(issue.comments[0].body, record);
+});
+
+test("a capped-close record someone else edited stays out", async () => {
+  const record = `<!-- verify-capped-close pr=7493 heads= -->\nclosed`;
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [comment(29, LANES_BOT, record)],
+      edits: { IC_29: { lastEditedAt: "2026-10-29T01:00:00Z", editor: { databaseId: OWNER.id } } },
+    }),
+  );
+  assert.deepEqual(issue.comments, []);
+});
+
 // Intake's split refinement (refine.mjs) names body items a person runs; the
 // lane gets them as person_checks only under admission's guards (admit.mjs
 // personChecks), and never from the comment's prose.

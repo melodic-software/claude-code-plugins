@@ -521,9 +521,10 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
-// The verifier refusals that never clear for the head (babysit_merge.py
-// VERIFY_FINAL): the FAIL cap and an old pull request, each a person's
-// (NEEDS_HUMAN), whose comment says what the person does.
+// The verifier refusals that never clear for the pull request
+// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap and an old pull
+// request. decide closes such a pull request for a fresh attempt at its
+// issue (pythonClose), never adding a person's label.
 export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
 
 // How verifyHold opens the reason for each answer that refuses: the issue
@@ -548,7 +549,7 @@ export function verifyHold(evidence, head) {
   }
   if (evidence.refusal !== null) {
     // A refusal that never clears names the reader's detail (the cap's FAILed
-    // heads), so the person's comment says what holds it.
+    // heads), so the close log says what closed it.
     const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
     return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
   }
@@ -758,19 +759,9 @@ async function liftBlocked(github, repo, number, options) {
 // A reason as the comment's fenced block carries it.
 const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
 
-// What a person does about a reason: for a VERIFY_FINAL refusal, which no
-// later run clears, decide the pull request; else fix it and let the next run
-// judge it again.
-function personClears(reason) {
-  const final = VERIFY_FINAL.some((code) => String(reason).includes(`${READER_HOLDS.verdict}${code}`));
-  return final
-    ? "this reason never clears for the pull request, so the lanes start no more fix rounds on it. Fix the cause, approve the head and remove the label, then merge it in person; or close the pull request."
-    : "fix the reason, then remove the label, and the next scheduled run judges it again.";
-}
-
 export function refusalBody(person, reason, head, label, since = null, partial = false) {
   const who = person
-    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: ${personClears(reason)}`
+    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
     : "The lanes clear this reason on their own; the next scheduled run judges it again.";
   return [
     ...(person ? [ATTEND_QUEUE_MARKER] : []),
@@ -1112,6 +1103,36 @@ export function pythonRoom(env, spawn = spawnSync) {
   };
 }
 
+// The close of a pull request decide answers `close` for: the reader's
+// `capped-close` (babysit_verify_evidence.py capped_close), which judges the
+// head again, posts the FAIL findings on the pull request and its issue,
+// closes it, and starts the issue's fresh attempt or parks it. Its writes run
+// under GH_TOKEN, the lanes App token; its Actions reads under
+// BABYSIT_VERIFY_GH_TOKEN, as the verify reads. `holds`: labels that keep the
+// pull request open. Throws when it exits non-zero.
+export function pythonClose(env, spawn = spawnSync) {
+  return ({ number, headRefOid: head, baseRefOid: base }, holds) => {
+    if (!SHA.test(String(base))) {
+      throw new Error("its base commit is not a commit SHA");
+    }
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    for (const label of holds) {
+      args.push("--hold-label", label);
+    }
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    let answer = null;
+    try {
+      answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+    } catch {
+      answer = null;
+    }
+    if (done.status !== 0) {
+      throw new Error(`capped-close exited ${done.status ?? done.signal}: ${answer?.error ?? String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return answer;
+  };
+}
+
 // `lane-room`'s answer as the run applies it, or an unreadable one when it is
 // not of that shape: { refusal, unreadable, count, cap, queued }.
 export function readRoom(answer) {
@@ -1253,6 +1274,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
     return { action: "verify", reason: "its verifier verdict is not read yet" };
   }
   const unverified = verifyHold(detail.verify, pull.headRefOid);
+  // A refusal that never clears at the head read: closed for a fresh attempt
+  // at its issue, the hold labels above having let it through.
+  if (unverified !== null && detail.verify?.head === pull.headRefOid && VERIFY_FINAL.includes(detail.verify?.refusal)) {
+    return { action: "close", reason: unverified };
+  }
   if (unverified !== null) {
     const clears = verifyClears(detail.verify, pull.headRefOid);
     return { action: armed ? "disarm" : "none", reason: unverified, ...(clears ? { clears } : {}) };
@@ -1290,7 +1316,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, close, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1650,6 +1676,33 @@ export async function main({ env = process.env, github, actions, verify, room, s
             : answered && standing !== null
               ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
               : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
+      }
+      // A pull request the verifier refuses for good closes for a fresh
+      // attempt; a failed close leaves it for the next run, which finds what
+      // this one wrote.
+      if (action === "close") {
+        if (!write) {
+          console.log(`enable-auto-merge: #${pull.number} would close for a fresh attempt (report-only): ${escapeCommand(reason)}`);
+          continue;
+        }
+        try {
+          // An armed one is disarmed first, so a close that fails leaves it unarmed.
+          if (pull.autoMergeRequest != null) {
+            await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+            console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
+          }
+          close ??= pythonClose(env);
+          const result = await close(pull, ["do-not-merge", humanGated]);
+          console.log(
+            result?.closed
+              ? `enable-auto-merge: #${pull.number} closed for a fresh attempt (${escapeCommand(reason)}); restarted ${JSON.stringify(result.restarted ?? [])}, parked ${JSON.stringify(result.parked ?? [])}`
+              : `enable-auto-merge: #${pull.number} left open: ${escapeCommand(result?.reason ?? "the close answered nothing")}`,
+          );
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} capped close: ${describe(error)}`);
+        }
+        continue;
       }
       // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {

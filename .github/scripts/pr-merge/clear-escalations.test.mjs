@@ -724,6 +724,11 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
     // A lane verdict now passes, and the risk score it hid names only lane causes.
     [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
+    // Owner rule 2026-10-27: the repeated-FAIL cap and an old pull request
+    // hold for the lanes, so their labels come off at the head where the
+    // reader still refuses them (#10134's shape).
+    [REPEATED, refusing("verify:repeated-fail")],
+    [TOO_OLD, refusing("verify:too-old")],
   ]) {
     const w = world({ timeline: nativeEscalated(reason), author: BOT, evidence });
     await run(w, NATIVE);
@@ -741,13 +746,6 @@ const PERSON_CLASS = [
   risk("high-path:**: a symlink"),
   risk("high-path:.github/workflows/**: .github/workflows/ci.yml"),
   UNTRUSTED_SPEC,
-  // Owner decision 2026-10-29: the repeated-FAIL cap and an old pull request
-  // never clear for the head, so a person decides them, with or without the
-  // reader's detail.
-  REPEATED,
-  TOO_OLD,
-  `pr-merge's gate refuses its verifier verdict (verify:repeated-fail: fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3)`,
-  "pr-merge's gate refuses its verifier verdict (verify:too-old: created 2026-07-27T23:00:00+00:00)",
   UNTRUSTED,
   // A link reason, the reader's own unread link included.
   "pr-merge's lane does not take its issue link (unreadable: timed out)",

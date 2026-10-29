@@ -216,14 +216,14 @@ const REFUSAL_CLEARED = "refusal-cleared";
 //   a reason with two or more items reads as unknown codes and stays.
 // - verdict: every babysit_verify_evidence.py refusal off NEEDS_HUMAN that
 //   answers: FAIL, EARLIER_FAIL and SPEC_CHANGED, which a push or a new
-//   judgment clears. Not untrusted-spec, repeated-fail or too-old (a
-//   person's, owner decision 2026-10-29), missing or unreadable (no answer),
-//   or ineligible (always paired with a link answer, which verifyHold reads
-//   first).
+//   judgment clears, and REPEATED_FAIL and TOO_OLD, which never clear but hold
+//   for the lanes with no label (owner rule 2026-10-27). Not untrusted-spec (a
+//   person's), missing or unreadable (no answer), or ineligible (always
+//   paired with a link answer, which verifyHold reads first).
 // - link: none; an issue link is a person's.
 export const LANE_CAUSES = Object.freeze({
   link: Object.freeze([]),
-  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed"]),
+  verdict: Object.freeze(["verify:fail", "verify:earlier-fail", "verify:spec-changed", "verify:repeated-fail", "verify:too-old"]),
   risk: Object.freeze(["files-incomplete", "evidence-unbound:", "manifest-review-required"]),
 });
 

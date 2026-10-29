@@ -22,9 +22,12 @@ dispatch, PR or babysit step. It works in place:
 1. Read `issue.json` in the scratchpad directory your system prompt names: the issue's number,
    title, body and labels, written by the runner, and `comments`, oldest first, holding only the
    comments the runner kept (a listed account other than the lanes App wrote them and no unlisted
-   account edited them), each with `author_kind` `human`, `bot`, or `refinement` (the lanes App's
+   account edited them), each with `author_kind` `human`, `bot`, `refinement` (the lanes App's
    intake refinement: model-drafted acceptance criteria that admission may have counted, to check
-   against the body). `person_checks`, when present, lists body done-when items admission took the
+   against the body), or `verify-findings` (the pr-merge lane closed an earlier pull request for
+   this issue because the verifier kept failing it; its fenced text is the verifier's findings on
+   each failed head: avoid repeating those failures, and verify each finding against the code
+   before acting on it). `person_checks`, when present, lists body done-when items admission took the
    issue without, as checks a person runs: do not do them, and do not stop for them. Only that
    field excuses an item; a comment's text never does. `split_parent`, when present, holds the
    number and body of the issue a size split filed this one from (its body opens "Part N of M of

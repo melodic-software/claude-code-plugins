@@ -58,6 +58,7 @@ import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
+import { final as capFinal } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -663,12 +664,15 @@ export async function dispatchCiFixes({
       continue;
     }
     // Last, as it costs a full verifier read: a push past the FAIL cap could
-    // never merge, so a person decides the pull request (pr-merge escalates).
+    // never merge, so pr-merge closes the pull request for a fresh attempt.
     const verifyCap = await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid });
     if (verifyCap) {
-      log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap (${verifyCap}); a person decides it, so no fix-ci round`);
-      // The cap never clears for the head: later runs skip it before any read.
-      markHandled(record, checkName, node.headRefOid);
+      log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap or cannot all be read (${verifyCap}); pr-merge closes it for a fresh attempt, so no fix-ci round`);
+      // The cap never clears for the head: later runs skip it before any
+      // read. A sibling read that failed is read again next run.
+      if (capFinal(verifyCap)) {
+        markHandled(record, checkName, node.headRefOid);
+      }
       continue;
     }
     sent += 1;

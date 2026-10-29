@@ -254,6 +254,19 @@ test("a capped head is recorded, so the next run skips it without reading the ve
   assert.deepEqual(api.calls.dispatch, []);
 });
 
+test("a head whose sibling FAIL run cannot be read is skipped but not recorded", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.equal(reads, 2);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
 // A fork PR that pushed the same commit lists its runs under the same head SHA.
 // Its newer run, still going, would read as a re-run in flight and hold fix-ci
 // off (reconcilerOwns); readRequiredRun keeps it out of the tested run.

@@ -192,8 +192,8 @@ const pull = (overrides) => [
 
 // Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
 // pull request, so a fix round's push could never merge: the gate's reader
-// (verify-cap.mjs) says so, and the dispatcher starts no round and posts
-// nothing.
+// (verify-cap.mjs) says so, the dispatcher starts no round and posts nothing,
+// and pr-merge closes it for a fresh attempt.
 test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
   const api = fakeApi();
   const asked = [];
@@ -213,6 +213,22 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   assert.equal(again.result, null);
   assert.equal(asked.length, 2);
   assert.match(again.lines.join("\n"), /\(recorded\)/);
+});
+
+// A sibling pull request's FAIL run the reader cannot read may hide the cap:
+// no round this run, but the head is not recorded, so the next run reads again.
+test("a PR whose sibling FAIL run cannot be read gets no round this run and is read again next run", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  const first = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(first.result, null);
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(reads, 2);
 });
 
 test("a PR the reader does not find at the cap dispatches as before", async () => {
