@@ -1617,7 +1617,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // `#<number>`. A `Refs:` line, a follow-up or a squash suffix closes nothing.
 // branch-cleanup's linkedIssues takes the same keywords and `Refs` too, and a
 // script activity runs from a copy of its own directory, so it is restated here.
-const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?![0-9])`, "i").test(text);
+const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?!\\w)`, "i").test(text);
 
 // Whether the commit or pull request an already-done reason cites is on the
 // default branch and closes the issue: a pull request (`#<n>`) merged into

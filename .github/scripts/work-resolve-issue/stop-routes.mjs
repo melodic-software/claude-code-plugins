@@ -79,16 +79,15 @@ export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_RO
 
 // The codes a run may open its `stopped` reason with, longest first, each in
 // any case: security-risk with a hyphen, underscore, space or nothing between
-// its words, every other code only hyphenated and followed by a colon, a
-// backtick, closing emphasis, a space or the end, so "Design change in X"
-// names no code.
+// its words, every other code only hyphenated and followed by no word
+// character or hyphen, so "Design change in X" names no code.
 const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
-  .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?=[:\\x60*_\\s]|$)`, "i")]);
+  .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?![\\w-])`, "i")]);
 // A reason with no code that names security or a vulnerability, even inside
 // a word.
-const SECURITY_WORD = /security|vulnerab/i;
+const SECURITY_WORD = /security|vuln/i;
 
 // The code a run's stop reason opens with, read NFKC-normalized (so a
 // full-width letter reads as its ASCII one) past any emphasis, backticks and a
@@ -99,6 +98,7 @@ const SECURITY_WORD = /security|vulnerab/i;
 export const runCode = (reason) => {
   const text = String(reason ?? "")
     .normalize("NFKC")
+    .replace(/[\p{Cf}\p{Mn}]/gu, "")
     .replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
   return CODES.find(([, code]) => code.test(text))?.[0] ?? (SECURITY_WORD.test(text) ? "security-risk" : "stopped");
 };

@@ -95,6 +95,8 @@ test("every other code opens the reason in any case only in its hyphenated form"
     ["**design-change**: X", "design-change"],
     ["Reason: `design-change` X", "design-change"],
     ["design-change", "design-change"],
+    ["design-change. X", "design-change"],
+    ["design-change, X", "design-change"],
     ["Host-Only: needs the native bundle", "host-only"],
     ["Design change in X needs a call", "stopped"],
     ["design_change: X", "stopped"],
@@ -116,6 +118,9 @@ test("a reason with no code that names security or a vulnerability, even inside 
     "A non-security-reviewed path.",
     "Seen by the SecurityScanner.",
     "\uff53ecurity concern in the parser",
+    "secu\u200brity concern in the parser",
+    "secu\u00adrity concern in the parser",
+    "vuln: the parser trusts input",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
     assert.equal(stopRoute(runCode(reason)), "hold", reason);
