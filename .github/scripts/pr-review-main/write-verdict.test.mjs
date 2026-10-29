@@ -9,13 +9,13 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { artifactName, buildVerdict, main, readCoverage, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, LONG_LINE_BYTES, longestLine, main, readCoverage, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const TREE = "c".repeat(40);
 const finding = (severity, extra = {}) => ({ severity, path: "a.yml", line: 3, title: "t", body: "b", ...extra });
-const args = (output, extra = {}) => ({ output, lane: "claude-security-review", pr: 42, headSha: HEAD, baseSha: BASE, tree: TREE, runId: 9, ...extra });
+const args = (output, extra = {}) => ({ output, lane: "claude-security-review", pr: 42, headSha: HEAD, baseSha: BASE, tree: TREE, runId: 9, maxLineBytes: 80, ...extra });
 
 test("counts every finding and the CRITICAL ones, with the job's own head, base and tree", () => {
   const verdict = buildVerdict(args({ findings: [finding("CRITICAL"), finding("SUGGESTION"), finding("IMPORTANT")], summary: "s" }));
@@ -85,6 +85,29 @@ test("a verdict counts only when every diff part was read whole", () => {
     assert.throws(() => readCoverage(messages, parts), /did not read 1 of 2/, name);
   }
   assert.throws(() => readCoverage([read("a", parts[0])], []), /unreadable/);
+});
+
+test("a diff line past the cap writes no verdict, and the verdict records the longest", () => {
+  // Read may cut a 2,500-byte line short; a 1,000-byte one is read whole.
+  assert.equal(longestLine([`+${"x".repeat(1000)}\n`, " ok\n"]), 1000);
+  assert.throws(() => longestLine([" ok\n", `+${"x".repeat(2500)}\n`]), /2500 bytes/);
+  // Bytes, not characters: 700 euro signs are 2,100 bytes.
+  assert.throws(() => longestLine([`+${"\u20ac".repeat(700)}`]));
+  assert.equal(buildVerdict(args({ findings: [], summary: "s" }, { maxLineBytes: 1000 })).max_line_bytes, 1000);
+  for (const bad of [2500, LONG_LINE_BYTES + 1, undefined, "10", -1]) {
+    assert.throws(() => buildVerdict(args({ findings: [], summary: "s" }, { maxLineBytes: bad })), /longest diff line/, String(bad));
+  }
+});
+
+test("the cap is the merge gate's", () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+  const python = spawnSync(
+    "python3",
+    ["-I", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import babysit_risk; print(babysit_risk.LONG_LINE_BYTES)", path.join(root, "plugins/source-control/skills/babysit-prs/scripts")],
+    { encoding: "utf8" },
+  );
+  assert.equal(python.status, 0, python.stderr);
+  assert.equal(Number(python.stdout.trim()), LONG_LINE_BYTES);
 });
 
 test("main writes verdict.json and the name output", () => {

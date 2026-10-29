@@ -696,5 +696,47 @@ class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
         self.addCleanup(patcher.stop)
 
 
+class LongLineHolds(unittest.TestCase):
+    """A lane-source pull request whose patch holds a line longer than the
+    main-run review reads whole holds for a person (`long-line-review:`)."""
+
+    LONG = "+" + "x" * 2500
+    SHORT = "+" + "x" * 1000
+
+    def codes(self, *files):
+        return [
+            r.code
+            for r in babysit_risk.person_reasons(score(_input(files=files)).reasons)
+        ]
+
+    def test_a_2500_byte_line_beside_a_lane_source_holds_for_a_person(self):
+        for files in (
+            # The long line in the lane source itself.
+            (_file(".claude/rules/a.md", patch=_patch(self.LONG)),),
+            # In an ordinary file of a pull request that changes a lane source.
+            (_file("app.py", patch=_patch(self.LONG)), _file(".claude/rules/a.md")),
+            # A removed or context line is given to the review too.
+            (_file(".claude/rules/a.md", patch="@@ -1 +1 @@\n" + " " + "y" * 2500),),
+        ):
+            with self.subTest(paths=[f.path for f in files]):
+                long = [
+                    c for c in self.codes(*files) if c.startswith("long-line-review:")
+                ]
+                self.assertEqual(len(long), 1, long)
+
+    def test_a_1000_byte_line_does_not_hold(self):
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch(self.SHORT)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    def test_multibyte_text_counts_bytes(self):
+        # 700 three-byte characters are 2,100 bytes.
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch("+" + "€" * 700)))
+        self.assertIn("long-line-review:.claude/rules/a.md", codes)
+
+    def test_a_pull_request_without_a_lane_source_is_not_this_hold(self):
+        codes = self.codes(_file("app.py", patch=_patch(self.LONG)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1019,7 +1019,10 @@ the rules that only tighten in
   git would call binary is shown as text, and a patch that still holds a binary file or is over
   300000 bytes gets no verdict. The diff is split into parts one Read returns whole (15000 bytes
   and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when the
-  run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). Each
+  run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
+  line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
+  the merge gate holds such a lane-source pull request for a person as `long-line-review:<path>`,
+  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. Each
   lane uploads `verdict.json` as
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled

@@ -169,6 +169,10 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
+          # Read may cut a long line short, so a diff with a longer line gets
+          # no verdict, and the merge gate holds it for a person
+          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -182,6 +186,11 @@ jobs:
           fi
           if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
             echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          # A diff line's text, past its +, - or space, longer than the cap.
+          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
+            echo "::error::a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole; no verdict, so the lanes stay unbound and the merge gate holds it for a person"
             exit 1
           fi
           # Parts the reviewer reads whole, each named in the prompt; the

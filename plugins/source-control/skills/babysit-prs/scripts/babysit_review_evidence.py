@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import FLOOR, LaneEvidence, glob_match
+from babysit_risk import FLOOR, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -492,7 +492,8 @@ def _main_review_counted(
     event `workflow_run`, on the default branch of this repository with a
     head in this repository that the branch holds (the caller's
     `on_branch`); and `verdict.json` names this lane, pull request and
-    tree, a full head SHA and well-formed counts. With it, whether the run
+    tree, a full head SHA, well-formed counts and a longest diff line within
+    `LONG_LINE_BYTES`. With it, whether the run
     completed with success, the one kind that binds. Anything else, a
     head's forged artifact included, is None."""
     repo, pr, tree, branch = (context.get(k) for k in ("repo", "pr", "tree", "branch"))
@@ -538,8 +539,13 @@ def _main_review_counted(
     done = run.get("status") == "completed" and run.get("conclusion") == "success"
     findings, critical = verdict.get("findings"), verdict.get("critical")
     reviewed = verdict.get("head_sha")
+    # The longest diff line write-verdict.mjs measured: past what the review
+    # reads whole, or not recorded, and the verdict does not count.
+    longest = verdict.get("max_line_bytes")
     if not (
-        verdict.get("schema") == MAIN_REVIEW_SCHEMA
+        _count(longest)
+        and longest <= LONG_LINE_BYTES
+        and verdict.get("schema") == MAIN_REVIEW_SCHEMA
         and verdict.get("lane") == lane
         and verdict.get("pr") == pr
         and verdict.get("tree") == tree

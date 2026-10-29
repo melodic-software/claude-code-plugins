@@ -22,6 +22,9 @@ import { findSecret } from "../../../lib/publish-gate.mjs";
 export const SCHEMA = 1;
 export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
 export const SEVERITIES = Object.freeze(["CRITICAL", "IMPORTANT", "SUGGESTION"]);
+// The longest diff line text, in bytes, the review reads whole
+// (babysit_risk.LONG_LINE_BYTES): a verdict past it is never written.
+export const LONG_LINE_BYTES = 1800;
 const FINDINGS_MAX = 200;
 const TEXT_MAX = 2000;
 const SUMMARY_MAX = 4000;
@@ -79,9 +82,27 @@ export function readCoverage(messages, parts) {
   }
 }
 
-export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId }) {
+// The longest line's text in the diff parts, past its +, - or space, in
+// bytes; more than LONG_LINE_BYTES and there is no verdict.
+export function longestLine(texts) {
+  let longest = 0;
+  for (const text of texts) {
+    for (const line of text.split("\n")) {
+      longest = Math.max(longest, Buffer.byteLength(line, "utf8") - 1);
+    }
+  }
+  if (longest > LONG_LINE_BYTES) {
+    throw new Error(`a diff line is ${longest} bytes, over the ${LONG_LINE_BYTES} the review reads whole`);
+  }
+  return longest;
+}
+
+export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, maxLineBytes }) {
   if (!LANES.includes(lane)) {
     throw new Error("unknown lane");
+  }
+  if (!Number.isSafeInteger(maxLineBytes) || maxLineBytes < 0 || maxLineBytes > LONG_LINE_BYTES) {
+    throw new Error("the longest diff line is not measured within the cap");
   }
   if (!NUMBER.test(String(pr)) || !RUN_ID.test(String(runId))) {
     throw new Error("the pull request number or run id is malformed");
@@ -134,6 +155,7 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId }
     run_id: Number(runId),
     findings: findings.length,
     critical: findings.filter((f) => f.severity === "CRITICAL").length,
+    max_line_bytes: maxLineBytes,
     summary,
     items: findings,
   };
@@ -160,7 +182,9 @@ export function main(env = process.env) {
     throw new Error("the diff parts are unreadable");
   }
   readCoverage(messages, parts);
+  const maxLineBytes = longestLine(parts.map((part) => readFileSync(part, "utf8")));
   const verdict = buildVerdict({
+    maxLineBytes,
     output: structuredOutput(messages),
     lane: env.LANE,
     pr: env.PR_NUMBER,

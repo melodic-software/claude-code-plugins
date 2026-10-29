@@ -908,6 +908,7 @@ def main_review(
     tree: str = HEAD_TREE,
     findings: int = 0,
     critical: int = 0,
+    max_line_bytes: Any = 120,
     **run_fields: Any,
 ) -> dict[str, Any]:
     """A main-run review record as `babysit_gh.collect_main_reviews` reads
@@ -944,6 +945,7 @@ def main_review(
             "tree": tree,
             "findings": findings,
             "critical": critical,
+            "max_line_bytes": max_line_bytes,
         },
     }
 
@@ -984,6 +986,22 @@ class MainRunReviewTests(Base):
             self.assertIsNone(result[lane].unbound_reason)
             self.assertEqual(result[lane].open_findings, 0)
         self.assertEqual(result["claude-security-review"].blocking_findings, 0)
+
+    def test_a_verdict_on_a_diff_with_a_line_past_the_cap_does_not_bind(self) -> None:
+        # Read may cut a 2,500-byte line short, so a review of that diff saw
+        # part of it; a 1,000-byte line is read whole.
+        clean = self.main_bind(
+            [main_review(lane, max_line_bytes=1000) for lane in LANES]
+        )
+        for lane in LANES:
+            self.assertTrue(clean[lane].bound, lane)
+        for longest in (2500, ev.LONG_LINE_BYTES + 1, None, "1000", True):
+            with self.subTest(longest=longest):
+                result = self.main_bind(
+                    [main_review(lane, max_line_bytes=longest) for lane in LANES]
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
 
     def test_a_forged_marker_on_pull_request_runs_still_unbinds(self) -> None:
         # Clean pull_request records and markers by github-actions[bot], which

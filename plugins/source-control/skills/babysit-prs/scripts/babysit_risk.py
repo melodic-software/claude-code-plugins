@@ -1513,6 +1513,43 @@ def _cost_reasons(
     return reasons
 
 
+# The longest diff line, in bytes, the main-run review reads whole. Read may
+# cut a long line short, so a lane-source pull request with a longer line in
+# its patch holds for a person (`long-line-review:`), pr-review-main.yml writes
+# no verdict for it, and the binder counts no verdict past it
+# (babysit_review_evidence `_main_review_counted`). Bytes are at least
+# characters, so the cap is never looser than a character count.
+LONG_LINE_BYTES = 1800
+LONG_LINE_PREFIX = "long-line-review:"
+
+
+def _long_line_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    """`long-line-review:<path>` (HIGH, a person's) per changed file of a pull
+    request that changes a lane source, whose patch holds a line, added,
+    removed or context, longer than `LONG_LINE_BYTES`."""
+    from babysit_review_evidence import lane_source
+
+    if not any(lane_source(path) for f in files for path in f.paths):
+        return []
+    reasons = []
+    for f, raw in zip(files, raw_files):
+        patch = getattr(raw, "patch", None)
+        if not isinstance(patch, str):
+            continue
+        long = [
+            line
+            for line in patch.split("\n")
+            if len(line[1:].encode("utf-8")) > LONG_LINE_BYTES
+        ]
+        if long:
+            detail = (
+                f"{len(long)} diff line(s) over {LONG_LINE_BYTES} bytes, more than the"
+                " main-run review reads whole; a person reads them"
+            )
+            reasons.append(Reason(f"{LONG_LINE_PREFIX}{f.path}", Risk.HIGH, detail))
+    return reasons
+
+
 def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     reasons = []
     incomplete = []
@@ -1655,6 +1692,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
         *_trust_gate_reasons(files or [], list(raw_files or ())),
+        *_long_line_reasons(files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
@@ -1717,7 +1755,12 @@ PERSON_CODES = frozenset(
         FILES_CAPPED_CODE,
     }
 )
-PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNREVIEWED_PATCH_PREFIX)
+PERSON_PREFIXES = (
+    TRUST_GATE_PREFIX,
+    "high-path:",
+    UNREVIEWED_PATCH_PREFIX,
+    LONG_LINE_PREFIX,
+)
 
 
 def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:

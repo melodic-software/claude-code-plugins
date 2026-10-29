@@ -18,3 +18,4 @@ bump: minor
 - `**/.claude/hooks/**` is a `gate` floor path outside the author lift: a hook that settings already registers changes what lanes run.
 - `**/.claude/*.sh`, `**/.claude/skills/**`, `**/.claude/agents/**`, `**/.claude/commands/**` and the instruction-exception register and untrusted-content conventions are `gate` floor paths outside the author lift too.
 - The pull-request merge gate reads every `pr-review-main: <lane>` check run on a head (`filter=all`), so a newer clean run hides no recorded CRITICAL.
+- A lane-source pull request whose patch holds a line over 1800 bytes holds for a person as `long-line-review:<path>`; the main-run review writes no verdict for it, and the binder counts no verdict past that line length.

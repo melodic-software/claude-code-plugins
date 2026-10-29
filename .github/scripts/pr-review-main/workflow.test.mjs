@@ -67,7 +67,7 @@ test("the diff shows every file as text and refuses one a review cannot read who
 
 test("the diff is split into parts one read returns whole, and a longer line gets no verdict", () => {
   const diff = step("Write the diff");
-  const awk = diff.match(/LC_ALL=C (awk -v .*?' "\$DATA\/diff\.patch")/s)[1];
+  const awk = diff.match(/LC_ALL=C (awk -v dir=.*?' "\$DATA\/diff\.patch")/s)[1];
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-split-"));
   try {
     const run = (text) => {
@@ -83,6 +83,25 @@ test("the diff is split into parts one read returns whole, and a longer line get
     assert.equal(parts.map((p) => readFileSync(path.join(dir, "diff", p), "utf8")).join(""), "aaa\nbbb\nccc\nddd\neee\n");
     // A 13-byte line is longer than a 10-byte part.
     assert.notEqual(run("aaaaaaaaaaaa\n").status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a diff with a line past the review's cap gets no verdict", async () => {
+  const diff = step("Write the diff");
+  const { LONG_LINE_BYTES } = await import("./write-verdict.mjs");
+  assert.match(diff, new RegExp(`LONG_LINE_BYTES: "${LONG_LINE_BYTES}"`));
+  const awk = diff.match(/LC_ALL=C (awk -v max=.*?' "\$DATA\/diff\.patch")/s)[1];
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-long-"));
+  try {
+    const run = (line) => {
+      writeFileSync(path.join(dir, "diff.patch"), `diff --git a/x b/x\n@@ -1 +1 @@\n${line}\n`);
+      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, DATA: dir, LONG_LINE_BYTES: String(LONG_LINE_BYTES) } }).status;
+    };
+    assert.equal(run(`+${"x".repeat(1000)}`), 0);
+    assert.notEqual(run(`+${"x".repeat(2500)}`), 0);
+    assert.notEqual(run(` ${"y".repeat(LONG_LINE_BYTES + 1)}`), 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
