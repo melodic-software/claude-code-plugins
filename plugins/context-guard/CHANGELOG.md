@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-10-29
+
+### Changed
+
+- The shared `hook-test-sink.sh` test helper reads the hook-telemetry envelope schema from `docs/contracts/hook-telemetry/`, and from `docs/conventions/hook-telemetry/` only when the new path is absent, ahead of the plugin-contracts move.
+
 ## [1.1.4] - 2026-10-28
 
 ### Changed
