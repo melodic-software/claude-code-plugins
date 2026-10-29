@@ -1523,9 +1523,9 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
 // tool's wrapper as its one Bash rule (bare and quoted), the thread files
 // staged read-only and denied to the file tools, and state/ left writable for
 // the replies file. pr-run-activity.md, "prepare: review-threads".
-function launchThreads({ runFile = true } = {}) {
+function launchThreads({ runFile = true, threads = '{"threads":[]}\n' } = {}) {
   const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
-  writeFileSync(path.join(feedbackDir, "threads.json"), '{"threads":[]}\n');
+  writeFileSync(path.join(feedbackDir, "threads.json"), threads);
   if (runFile) writeFileSync(path.join(feedbackDir, "run.json"), '{"version":1}\n');
   const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
   mkdirSync(scripts, { recursive: true });
@@ -1581,6 +1581,15 @@ test("run-claude-cli: the preamble names the review-thread tool's path and subco
   assert.ok(run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
   const named = /The review-thread tool is (\S+):/.exec(run.preamble)[1];
   assert.ok(run.allowedTools.includes(`Bash(${named} *)`), `the allow rule names ${named}`);
+});
+
+test("run-claude-cli: the fresh fixer round's brief from the thread file ends the preamble; a thread file without one adds nothing", () => {
+  const brief = "Fix each finding in the code it names. Never weaken a test.";
+  const run = launchThreads({ threads: `${JSON.stringify({ threads: [], retry: { brief } })}\n` });
+  assert.equal(run.status, 0, run.stdout);
+  assert.ok(run.preamble.endsWith(`a mode back to the base's is pushed. ${brief}`), run.preamble);
+  const plain = launchThreads();
+  assert.ok(plain.preamble.endsWith("a mode back to the base's is pushed."), plain.preamble);
 });
 
 test("run-claude-cli: review-threads stages the thread file, run.json, the tool copy, its wrapper and an empty state/ for .lane/", () => {

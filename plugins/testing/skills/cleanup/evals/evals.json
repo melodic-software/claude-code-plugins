@@ -87,7 +87,7 @@
     {
       "id": "lost_kill_blocks",
       "prompt": "During a /testing:cleanup shop_tests batch on the fixture whose only change so far is the quarantine, test_small_order_pays_tax_without_discount was changed to self.assertGreater(price_with_tax(50), 0). Continue the batch to the gate.",
-      "expected_output": "The replay reports `Gate: block` with newly-surviving lines for shop/pricing.py:7 and shop/pricing.py:9. The batch stops. For each, cleanup lists shop_tests/test_pricing.py as the candidate change (the batch's changed test that imports shop/pricing.py) and asks the user which to revert. Reverts nothing itself and commits nothing.",
+      "expected_output": "The replay reports `Gate: block` with newly-surviving lines for shop/pricing.py:7 and shop/pricing.py:9. The batch stops. For each, cleanup lists shop_tests/test_pricing.py as the candidate change (the batch's changed test that reaches shop/pricing.py) and asks the user which to revert. Reverts nothing itself and commits nothing.",
       "files": [
         "evals/fixtures/cleanup/shop/pricing.py",
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
@@ -172,6 +172,33 @@
       "expected_output": "Names the missing mutation-testing plugin, offers cannot-fail-only mode and, on the yes, continues in it without the flag: writes mode: cannot-fail-only to decisions.md, runs no test and no mutation tool, has a fresh-context skeptic keep Price_feed_resolves as keep: throw is the only oracle, and proposes Wiring_is_sane and Price_feed_type_exists for deletion. Deletes neither without a yes on that item, and commits nothing.",
       "files": [
         "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
+        "evals/fixtures/cleanup-dotnet/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "dotnet_gate_runs",
+      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.md to .claude/mutation-testing.md and Shop.Tests/PriceFeedTests.cs.fixture to Shop.Tests/PriceFeedTests.cs, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
+      "expected_output": "Passes step 0 and records with /mutation-testing:audit --exercised Shop.Tests --max 100 --record-mutants .work/testing-cleanup/shop.tests/before.tsv. Every test-set run is dotnet test with the Shop.Tests/Shop.Tests.csproj line dotnet-test-selection.sh prints, a --filter naming the PriceFeedTests and WiringTests classes; dotnet test never runs without a project. The record holds PriceFeed constructor mutants in Shop/ServiceRegistration.cs with a non-empty K0. Treats Shop/ServiceRegistration.cs as a production file of the PriceFeedTests tests, though PriceFeedTests.cs has no using for it, so a rewrite there is not gate-blind. Applies no deletion, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop.tests/after.tsv, compares the two records mutant by mutant, and reports `Gate: pass`. Commits nothing.",
+      "files": [
+        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/cleanup-dotnet/.gitignore",
+        "evals/fixtures/cleanup-dotnet/Shop/Shop.csproj",
+        "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/Shop.Tests.csproj",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/PriceFeedTests.cs.fixture",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
+        "evals/fixtures/cleanup-dotnet/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "dotnet_lost_kill_blocks",
+      "prompt": "During a /testing:cleanup Shop.Tests batch on the dotnet_gate_runs setup, the user approved deleting Wiring_is_sane, and Rejects_options_without_a_url in Shop.Tests/PriceFeedTests.cs was changed to Assert.Null(Record.Exception(() => new PriceFeed(Options))). Continue the batch to the gate.",
+      "expected_output": "decisions.md marks the Wiring_is_sane deletion gate-blind (Assert.True(true) reaches no production file) and the Rejects_options_without_a_url change not gate-blind (it calls the PriceFeed constructor in Shop/ServiceRegistration.cs, though PriceFeedTests.cs has no using Shop;). The replay reports `Gate: block` with a newly-surviving line for the constructor statement at Shop/ServiceRegistration.cs:17. The batch stops. Cleanup lists only Rejects_options_without_a_url in Shop.Tests/PriceFeedTests.cs as the candidate change, never the Wiring_is_sane deletion, although WiringTests.cs has using Shop;, and asks the user which to revert. Reverts nothing itself and commits nothing.",
+      "files": [
+        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/PriceFeedTests.cs.fixture",
         "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
         "evals/fixtures/cleanup-dotnet/EXPECTED.md"
       ]
