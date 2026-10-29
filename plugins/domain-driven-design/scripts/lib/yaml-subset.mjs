@@ -12,6 +12,8 @@
 // Everything else is reported with its line rather than parsed partially: flow mappings (`{`),
 // anchors and aliases, tags, block scalars, document markers, tab indentation, duplicate keys,
 // nesting deeper than MAX_DEPTH.
+// Narrower than the Python grammar, as lib/yaml-subset.awk is: a plain value may not hold `: `
+// and a plain key may not hold whitespace, `$` or `.`; quoting either lifts the limit.
 // Keys become own data properties, so a `__proto__` key never reaches an object's prototype.
 // Error messages quote file text as JSON strings cut to 60 characters: they describe data.
 
@@ -95,6 +97,7 @@ function scalar(raw, line) {
   if (["true", "True", "TRUE"].includes(text)) return true;
   if (["false", "False", "FALSE"].includes(text)) return false;
   if (INT.test(text) || FLOAT.test(text)) return Number(text);
+  if (/:[ \t]/.test(text)) throw new YamlSubsetError(line, "a plain value may not hold `: `; quote it");
   return text;
 }
 
@@ -157,7 +160,9 @@ function splitKey(content, line) {
     if (rest.startsWith(":") && (rest.length === 1 || rest[1] === " " || rest[1] === "\t")) return [key, rest.slice(1).trim()];
     return null;
   }
-  return plainKey(content) ?? (content.endsWith(":") ? [content.slice(0, -1).trim(), ""] : null);
+  const split = plainKey(content) ?? (content.endsWith(":") ? [content.slice(0, -1).trim(), ""] : null);
+  if (split && /[\s$.]/.test(split[0])) throw new YamlSubsetError(line, `a plain key may not hold a space, \`$\` or \`.\`; quote it: ${quote(split[0])}`);
+  return split;
 }
 
 /** The Python grammar `^([^\s:[\]{}#][^:#]*?):(?:\s+(.*))?$` in one linear scan: the key runs to

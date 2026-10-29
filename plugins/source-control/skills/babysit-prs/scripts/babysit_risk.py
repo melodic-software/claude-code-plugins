@@ -63,7 +63,9 @@ None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
 no patch; and a `.github/workflows/` file whose patch, unless
 `RiskInput.public` is True, adds a `runs-on:`, `windows`, `macos` or `cron`
-line (a schedule runs billed minutes), a raised timeout (below) or an artifact
+line (a schedule runs billed minutes), a `timeout-minutes` or
+`leg-timeout-minutes` above every one it removes when its head text
+(`contents`) names a model leg or could not be read, or an artifact
 `retention-days` above every one it removes, or above
 `DEFAULT_ARTIFACT_RETENTION_DAYS` when it removes none (storage past the free
 quota); or that gains a runner value (head text against base text, and added
@@ -90,14 +92,13 @@ rates HIGH as `privileged-trigger-review`, read the same two ways. They widen
 what a credential, an agent or a write token can reach, so all four are a
 person's (`PERSON_CODES`) and no cost decision clears them.
 
-Spend that draws only on a subscription or prepaid credit is the MED
-`cost-finding`, reported and never held: a workflow patch that adds a
-`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
-`cron` key in any spelling); that, on a public repository, adds a
-`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
-its head text (`contents`) names a model leg or could not be read, or a raised
-`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
-line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
+Cost means only what can bill. Model usage under a subscription or prepaid
+credit does not, so a model or turn flag reports nothing; nor do hosted
+minutes or artifact storage on a public repository, so a schedule, a raised
+timeout or a raised `retention-days` there reports nothing. A
+`pr-pipeline.yaml` change with any added or removed line off
+`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments, is the MED
+`cost-finding`, reported and never held.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -925,11 +926,6 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that spend model usage: a schedule in any YAML or JSON
-# spelling and a model or turn flag.
-_COST_WORKFLOW_LINE = re.compile(
-    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
-)
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on line, a Windows or macOS label (a matrix value) or a
 # schedule (recurring runs) charges.
@@ -1467,8 +1463,6 @@ def _cost_reasons(
             for s in added:
                 if not public and _COST_PRIVATE_LINE.search(s):
                     charge.append(s.strip())
-                elif _COST_WORKFLOW_LINE.search(s):
-                    spend.append(s.strip())
             secret = _net_added(_SECRET_REF, added, removed)
             if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
@@ -1482,10 +1476,9 @@ def _cost_reasons(
                 agents.append(f"{f.path}: {'; '.join(agent)}")
             # Hosted minutes and artifact storage are free only on a public
             # repository.
-            (spend if public else charge).extend(
-                _raised_timeouts(f, raw, added, removed)
-                + _raised_retention(added, removed)
-            )
+            if not public:
+                charge += _raised_timeouts(f, raw, added, removed)
+                charge += _raised_retention(added, removed)
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
             spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))

@@ -15,7 +15,8 @@
 // reviewer bot or a verifier note opened on a reviewed head and only it
 // wrote), so a fix the reviewer already named is not escalated. Check names,
 // annotations, logs and findings are data: they are copied into the file,
-// capped, and never logged or run.
+// capped, and never logged or run. After a weaken retry stop on the head
+// (WEAKEN_RETRY) the file also carries the runner's fixed `retry` brief.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -28,7 +29,7 @@ import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 // clear-escalations reads the head the same way, so the reader lives on the
 // merge path floor in gate-source.mjs.
 export { failingChecks };
-import { retryRung, stopSkip } from "./escalation-routes.mjs";
+import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
@@ -41,6 +42,28 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
+
+// The fail-routed stop apply-patch.mjs gives a head's first weaken-required
+// escalation, as report-escalation.sh status describes it on the head's
+// pr-unblock/fix-ci status, and the runner's brief for the fresh fixer round
+// that follows: fixed text, never anything a head or a model wrote.
+export const WEAKEN_RETRY = "ci-fix-weaken-retry";
+const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
+export const WEAKEN_BRIEF =
+  "An earlier fix-ci run on this head could fix a failing check only by weakening a test, and the lane refuses that fix. " +
+  "Find a fix in the code under test that keeps every test's assertions and expected values unchanged. " +
+  "If the only way to green still weakens a check, escalate weaken-required: this round is the last before a person.";
+
+// A finished fix-ci check by the GitHub Actions app: an earlier attempt on the head.
+const earlierAttempt = (run) => run?.status === "completed" && run.app?.id === ACTIONS_APP_ID;
+
+// Whether the head carries the pr-unblock/fix-ci status a weaken retry stop
+// posted, by the GitHub Actions bot. Statuses are never removed, so a stop a
+// later run cleared still counts.
+export const weakenStopped = (statuses) =>
+  statuses.some(
+    (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
+  );
 
 export function countFixRounds(commits, appId) {
   return commits.filter(
@@ -182,9 +205,18 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
-  // A retry after the push job stopped on this head runs one rung up.
+  // A retry after the push job stopped on this head runs one rung up. A
+  // weaken-required stop takes its fresh fixer round only on the head's first
+  // fix-ci attempt: the dispatcher retries a stopped head once per base tip
+  // (fix-ci-restarts), so a stop after an earlier attempt could leave the head
+  // red with no retry and no person.
   const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
-  return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, file: { pr, head_sha: headSha, checks, review_findings } };
+  const file = { pr, head_sha: headSha, checks, review_findings };
+  if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
+    file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
+  }
+  const weakenRetry = modelRung === "" && !(await api.listCheckRuns(headSha, "pr-unblock / fix-ci")).some(earlierAttempt);
+  return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, weakenRetry, file };
 }
 
 // The base config's resolved loop caps, through the base checkout's
@@ -233,6 +265,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
   output("lane-escalated", String(result.laneEscalated === true));
   output("model-rung", result.modelRung ?? "");
+  output("weaken-retry", String(result.weakenRetry === true));
   output("stop-resolved", String(result.resolved === true));
   log(
     `${result.decision}: ${result.file?.checks.length ?? 0} failing check(s), ${result.file?.review_findings.length ?? 0} review finding(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`,

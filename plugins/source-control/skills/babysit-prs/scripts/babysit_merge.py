@@ -3331,7 +3331,8 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
 _LANE_AUTHORS = review_evidence.LANE_AUTHORS
 _EDITS_QUERY = (
     "query($ids:[ID!]!){nodes(ids:$ids){... on IssueComment"
-    "{id lastEditedAt editor{__typename login}}}}"
+    "{id lastEditedAt editor{__typename login} userContentEdits(first:100)"
+    "{totalCount nodes{editedAt deletedAt editor{__typename login} diff}}}}}"
 )
 
 
@@ -3339,8 +3340,10 @@ def _attach_edits(comments: Any, label: str) -> None:
     """Give each lane-author comment the `edit` record `bind()` reads
     (babysit_review_evidence._edited_by_another): unedited when REST's
     `updated_at` equals `created_at`, else GraphQL's `lastEditedAt` and
-    `editor`, read 100 node ids at a time. A comment whose record cannot be
-    read gets none, so `bind()` holds it unproven."""
+    `editor`, with its `userContentEdits` as `history`
+    (babysit_review_evidence._marker_revisions), read 100 node ids at a time.
+    A comment whose record cannot be read gets none, so `bind()` holds it
+    unproven."""
     if not is_json_array(comments):
         return
     pending: dict[str, dict[str, Any]] = {}
@@ -3376,6 +3379,7 @@ def _attach_edits(comments: Any, label: str) -> None:
                 pending[node["id"]]["edit"] = {
                     "lastEditedAt": node["lastEditedAt"],
                     "editor": node.get("editor"),
+                    "history": node.get("userContentEdits"),
                 }
 
 

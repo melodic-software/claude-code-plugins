@@ -9,25 +9,26 @@
 # sequences closed on the same line, plain and quoted scalars, `#` comments
 # (whole-line, or after whitespace). A plain scalar may not hold `: ` (a colon
 # then a space or tab); quote such a value. A sequence item is keyed by its
-# zero-based index (`lanes.pr-merge.slots.0.activity`). An empty value, an
-# empty flow sequence and a key with nothing under it print nothing. Keys and
-# scalars may be quoted: `''` inside single quotes is one quote, and inside
-# double quotes `\"`, `\\`, `\/` and `\t` are unescaped while any other `\x`
-# is kept as written. Flow mappings (`{...}`), a line opening with a `---` or
-# `...` document marker, anchors, aliases, tags, block scalars and multi-line
-# flow sequences are parse errors, as in lib/yaml-subset.mjs.
+# zero-based index (`lanes.pr-merge.slots.0.activity`); a mapping item's later
+# keys sit two columns past its dash. An empty value, an empty flow sequence
+# and a key with nothing under it print nothing. Keys and scalars may be
+# quoted: `''` inside single quotes is one quote, and inside double quotes
+# `\"`, `\\`, `\/` and `\t` are unescaped, `\n` is kept as written (a record
+# is one line) and any other `\x` is a parse error. A key repeated in one
+# mapping, flow mappings (`{...}`), nested flow sequences, a line opening with
+# a `---` or `...` document marker, `%` directives, anchors, aliases, tags,
+# block scalars and multi-line flow sequences are parse errors, as in
+# lib/yaml-subset.mjs.
 #
 # The document may sit at a uniform base indent, the leading whitespace of its
 # first content line; indentation is spaces. A tab in a line's leading
 # whitespace is a parse error, except in the base indent of a -v BLOCK=1 fence,
-# which may hold tabs. `%` directives are skipped; CRLF and a leading
-# byte-order mark are accepted.
+# which may hold tabs. CRLF and a leading byte-order mark are accepted.
 #
 # -v BLOCK=1 reads only the lines inside the first ```yaml config fence (a
 # docs convention file); line numbers still name the .md file's own lines.
-# -v STRICT=1 also makes a key repeated in the same mapping a parse error at
-# the second occurrence's line; without it the first and later records are all
-# printed, as before.
+# -v STRICT=1 is still accepted and changes nothing: a repeated key is a parse
+# error at the second occurrence's line either way.
 # On a parse error prints `error<TAB><line><TAB><message>` and exits 1.
 # Prints `block<TAB>1` first when BLOCK=1 found a fence.
 
@@ -39,9 +40,9 @@ function fail(msg) {
 
 function emit(path, val) { print path "\t" val }
 
-# -v STRICT=1: a key seen twice at one full dotted path is a duplicate in its
-# mapping. Sequence items carry their own index in the path, so the same key in
-# two items never collides.
+# A key seen twice at one full dotted path is a duplicate in its mapping.
+# Sequence items carry their own index in the path, so the same key in two
+# items never collides.
 function dupcheck(path) {
   if (path in keyseen) fail("duplicate key `" path "` (first at line " keyseen[path] ")")
   keyseen[path] = NR
@@ -75,8 +76,8 @@ function uncomment(s,   i, n, c, run) {
 # Scan the quoted scalar opening at s[start]. On success sets QV to its value
 # and QEND to the index after the closing quote, and returns 1; returns 0 when
 # the quote is unclosed. `''` inside single quotes is one quote; inside double
-# quotes `\"`, `\\`, `\/` and `\t` are unescaped and any other `\x` is kept
-# as written.
+# quotes `\"`, `\\`, `\/` and `\t` are unescaped, `\n` is kept as written and
+# any other `\x` is a parse error.
 function qscan(s, start,   q, v, i, n, c, e) {
   q = substr(s, start, 1); v = ""; n = length(s)
   for (i = start + 1; i <= n; i++) {
@@ -90,7 +91,8 @@ function qscan(s, start,   q, v, i, n, c, e) {
       e = substr(s, i + 1, 1)
       if (e == "\"" || e == "\\" || e == "/") v = v e
       else if (e == "t") v = v "\t"
-      else v = v c e
+      else if (e == "n") v = v c e
+      else fail("unsupported escape \\" e " in double-quoted string")
       i++
       continue
     }
@@ -127,7 +129,7 @@ function flow(path,   c, start, end) {
   skipws()
   c = ch()
   if (c == "") fail("unclosed flow collection")
-  if (c == "[") { fseq(path); return }
+  if (c == "[") fail("nested flow sequences are outside the subset")
   if (c == "\"" || c == "'") {
     if (!qscan(FS_S, FP)) fail("unclosed quote")
     emit(path, QV)
@@ -172,7 +174,7 @@ function value(path, s, ind, opener,   c, end, rest) {
   c = substr(s, 1, 1)
   if (c == "[") {
     FS_S = s; FP = 1
-    flow(path)
+    fseq(path)
     rest = substr(FS_S, FP)
   } else if (c == "\"" || c == "'") {
     if (!qscan(s, 1)) fail("unclosed quote")
@@ -197,7 +199,7 @@ function mapkey(rest, ind,   key, val, path, p) {
   if (val != "" && val !~ /^[ \t]/) fail("expected a space after `" key ":`")
   sub(/^[ \t]+/, "", val)
   path = (paths[n] == "" ? "" : paths[n] ".") key
-  if (STRICT == 1) dupcheck(path)
+  dupcheck(path)
   value(path, val, ind, "map")
 }
 
@@ -227,7 +229,7 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
   }
   if (line ~ /^[ \t]*(#.*)?$/) next
   if (line ~ /^(---|\.\.\.)/) fail("document markers are outside the subset")
-  if (line ~ /^%/) next
+  if (line ~ /^%/) fail("directives (`%`) are outside the subset")
 
   match(line, /^[ \t]*/)
   if (BLOCK != 1 && substr(line, 1, RLENGTH) ~ /\t/) fail("tab indentation")
@@ -261,13 +263,14 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
   cnt[n]++
   item = substr(rest, 2)
   match(item, /^ */)
-  col = ind + 1 + RLENGTH
   item = substr(item, RLENGTH + 1)
   if (item ~ /^-( |$)/) fail("a sequence nested on one line is not part of the subset")
   p = keyat(item)
   if (p && substr(item, p + 1, 1) ~ /^([ \t])?$/) {
-    n++; inds[n] = col; types[n] = "map"; paths[n] = path
-    mapkey(item, col)
+    # The item's later keys sit two columns past the dash, however far its
+    # first key sits, as in lib/yaml-subset.mjs.
+    n++; inds[n] = ind + 2; types[n] = "map"; paths[n] = path
+    mapkey(item, ind + 2)
   } else {
     value(path, item, ind, "seq")
   }

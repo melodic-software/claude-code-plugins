@@ -1435,6 +1435,44 @@ test("a scheduled tick retries a head whose reply job stopped, until SWEEP_HEAD_
   assert.deepEqual(terminal.calls.dispatch, []);
 });
 
+// A kill switch turned on after a round's model leg ran stops its reply job
+// at the broker (request-lane-token kill-switch-ok): its publish-feedback
+// check skips kill-switch and posts no reply, so the head is released like a
+// lane stop. The tick, which the switch also stops, re-dispatches it once the
+// switch lifts, under SWEEP_HEAD_CAP; a trigger at that head does too, and so
+// does one after a kill-switch stop of the address-feedback run itself.
+const killSwitched = (name, started) => roundRun(name, "neutral", "Skipped: kill-switch", started);
+
+test("a scheduled tick re-dispatches a head whose reply job the kill switch stopped, until SWEEP_HEAD_CAP stops stand", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, killSwitched("publish-feedback", "2026-10-17T10:05:00Z")] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  const capped = sweepApi({
+    checksAt: {
+      [HEAD]: [
+        answeredRound,
+        killSwitched("publish-feedback", "2026-10-17T10:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T11:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T12:05:00Z"),
+      ],
+    },
+  });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+});
+
+test("a head the kill switch stopped dispatches again, and is not recorded as handled", async () => {
+  for (const [label, checks] of [
+    ["the reply job's mint was refused", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), killSwitched("publish-feedback", "2026-10-17T10:05:00Z")]],
+    ["the address-feedback run's own kill step stopped it", [killSwitched("address-feedback", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const record = emptyRecord();
+    const { result } = await decideWith(fakeApi({ checkRuns: checks }), record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, label);
+    assert.equal(record.handled.size, 0, label);
+  }
+});
+
 // The recovery: a pr-feedback-dispatch.yml run an outage lost in the
 // lookback window (24 hours before NOW) makes the tick decide every open
 // lanes App head through dispatchFeedback. `runs` is the one listing, `jobs`

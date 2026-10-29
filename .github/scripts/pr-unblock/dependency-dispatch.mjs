@@ -7,8 +7,8 @@
 // apply-dependency-verdict check run skipped no-model-turn: the
 // review-dependency check runs that started before it handled nothing, so the
 // head is dispatched again. A verdict check that is a lane stop (a reason
-// escalation-routes.json routes to a failing status) releases them the same
-// way, until `limits.limit-stops-per-head` such stops stand on the head, as
+// escalation-routes.json routes to a failing status) or a kill-switch stop
+// releases them the same way, until `limits.limit-stops-per-head` such stops stand on the head, as
 // in dispatch.mjs. The model job's own selection decides the round
 // cap, and every such round posts its round marker. A limit stop holds the
 // head only until its limit resets, at most `limits.limit-stops-per-head`
@@ -133,8 +133,9 @@ export async function dispatchDependencyReviews({
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       // A round whose verdict job skipped no-model-turn handled nothing, and
-      // one whose verdict job stopped on a reason routed to a failing status
-      // is retried on the same head, a fresh model session, until
+      // one whose verdict job stopped on a reason routed to a failing status,
+      // or that the kill switch stopped (limit-stop.mjs releasesHead), is
+      // retried on the same head, a fresh model session, until
       // limit-stops-per-head such stops stand on it: either way the
       // review-dependency check runs that started before that verdict job
       // stop counting, so this run dispatches the head again. A limit stop is
