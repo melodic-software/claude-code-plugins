@@ -4,17 +4,94 @@
     {
       "id": "motion",
       "title": "Motion and animation",
-      "types": ["web", "touch-web", "app"],
-      "triggers": ["animation", "motion", "transition", "easing", "duration", "spring", "gesture", "drag", "swipe", "jank", "dropped frames"],
+      "types": [
+        "web",
+        "touch-web",
+        "app"
+      ],
+      "triggers": [
+        "animation",
+        "motion",
+        "transition",
+        "easing",
+        "duration",
+        "spring",
+        "gesture",
+        "drag",
+        "swipe",
+        "jank",
+        "dropped frames"
+      ],
       "spokes": [
-        {"path": "reference/animation/catalog.md", "read_when": "always"},
-        {"path": "reference/animation/behaviors.md", "read_when": "a known component moves: modal, popover, menu, toast, tooltip, drawer, accordion"},
-        {"path": "reference/animation/gestures.md", "read_when": "drag, swipe or a spring"},
-        {"path": "reference/animation/performance.md", "read_when": "an animation drops frames, or the performance sub-mode"}
+        {
+          "path": "reference/animation/catalog.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/animation/behaviors.md",
+          "read_when": "a known component moves: modal, popover, menu, toast, tooltip, drawer, accordion"
+        },
+        {
+          "path": "reference/animation/gestures.md",
+          "read_when": "drag, swipe or a spring"
+        },
+        {
+          "path": "reference/animation/performance.md",
+          "read_when": "an animation drops frames, or the performance sub-mode"
+        }
       ],
       "recipes": [],
-      "routing_concerns": ["animation-authoring", "animation-audit"],
-      "audit": {"order": 4, "procedure": "skills/audit/reference/motion.md"}
+      "routing_concerns": [
+        "animation-authoring",
+        "animation-audit"
+      ],
+      "audit": {
+        "order": 4,
+        "procedure": "skills/audit/reference/motion.md"
+      }
+    },
+    {
+      "id": "component-api",
+      "title": "Component API",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "component API",
+        "props API",
+        "component props",
+        "what props",
+        "prop names",
+        "component variants",
+        "swap the rendered element",
+        "compound components",
+        "controlled and uncontrolled",
+        "defaultValue",
+        "variant prop",
+        "asChild",
+        "render prop",
+        "slot props",
+        "forward ref"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/component-api.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/component-api/implementation.md",
+          "read_when": "the component is written in React"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [
+        "component-libraries"
+      ],
+      "audit": {
+        "order": 8,
+        "procedure": null
+      }
     }
   ]
 }

@@ -32,6 +32,7 @@ const CONTRACT = {
     gesture: { velocity_threshold: 0.11 },
   },
   design: { concern_spoke_cap: 2 },
+  components: { primitives_default: "base-ui" },
 };
 
 test("the shipped defaults hold the contract's layer-1 values", () => {
@@ -61,4 +62,17 @@ test("the concern-spoke cap takes an integer of at least 1 and keeps 2 otherwise
   assert.deepEqual(capWith("1"), { cap: 1, error_keys: [] });
   assert.deepEqual(capWith("0"), { cap: 2, error_keys: ["design.concern_spoke_cap"] });
   assert.deepEqual(capWith("1.5"), { cap: 2, error_keys: ["design.concern_spoke_cap"] });
+});
+
+// Expected values: the owner's decision that base-ui is the default, and the setting's three
+// library values.
+test("the primitives default takes a library key and keeps base-ui otherwise", () => {
+  const primitivesWith = (raw) => {
+    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { components_primitives_default: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return { primitives: values.components.primitives_default, error_keys: layers[1].error_keys };
+  };
+  assert.deepEqual(primitivesWith("radix"), { primitives: "radix", error_keys: [] });
+  assert.deepEqual(primitivesWith("react-aria"), { primitives: "react-aria", error_keys: [] });
+  assert.deepEqual(primitivesWith("Base UI"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
+  assert.deepEqual(primitivesWith("shadcn"), { primitives: "base-ui", error_keys: ["components.primitives_default"] });
 });

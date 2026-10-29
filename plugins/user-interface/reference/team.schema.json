@@ -97,6 +97,14 @@
         "concern_spoke_cap": {"type": "integer", "minimum": 1, "description": "The most concern spokes from reference/concerns.json one design pass loads; the rest are named as next steps."}
       }
     },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Settings read by reference/component-libraries.md when /user-interface:design picks a component library. A library the project already uses, and its design system, beat every layer.",
+      "properties": {
+        "primitives_default": {"enum": ["base-ui", "radix", "react-aria"], "description": "The accessible primitives library a React project with none installed builds on, by its setting value in the primitives table in reference/component-libraries.md; a setting value is not a package name."}
+      }
+    },
     "routing": {
       "type": "object",
       "additionalProperties": false,

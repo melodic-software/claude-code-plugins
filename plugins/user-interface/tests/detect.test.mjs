@@ -173,6 +173,7 @@ describe("--config", () => {
         gesture: { velocity_threshold: 0.11 },
       },
       design: { concern_spoke_cap: 2 },
+      components: { primitives_default: "base-ui" },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -196,6 +197,7 @@ describe("--config", () => {
       "animation.duration_ms.large": "team",
       "animation.gesture.velocity_threshold": "defaults",
       "design.concern_spoke_cap": "defaults",
+      "components.primitives_default": "defaults",
       routing: "team",
     });
   });
