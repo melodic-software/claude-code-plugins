@@ -2530,10 +2530,11 @@ def lane_risk_refusal(
     issue: int | None,
     *,
     humans: Callable[[], frozenset[int]] = frozenset,
-) -> tuple[str, bool] | None:
-    """Why pr-merge's gate would hold the pull request on its risk score, and
-    whether only a person clears it (`babysit_risk.person_reasons`), or
-    None: `babysit_risk.score` and `holding` over the inputs the gate builds
+) -> tuple[str, bool, bool] | None:
+    """Why pr-merge's gate would hold the pull request on its risk score,
+    whether only a person clears it (`babysit_risk.person_reasons`), and
+    whether a clean whole review of the head would clear it
+    (`babysit_whole_review.wanted`, as the gate asks it), or None: `babysit_risk.score` and `holding` over the inputs the gate builds
     (`babysit_merge.score_unattended`) for a lane pull request, with `config`
     the base's tightened by the default branch head's. So the review lanes' evidence (an open CRITICAL
     security finding, a review not bound to the head), a symlink, submodule
@@ -2550,11 +2551,12 @@ def lane_risk_refusal(
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
     import babysit_risk  # noqa: PLC0415
+    import babysit_whole_review  # noqa: PLC0415
 
     try:
         identity = config.agent_identity
         if not identity:
-            return "unreadable: no agent identity", False
+            return "unreadable: no agent identity", False, False
         permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
@@ -2592,7 +2594,7 @@ def lane_risk_refusal(
             if decision:
                 risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
-        return f"unreadable: {type(exc).__name__}: {exc}", False
+        return f"unreadable: {type(exc).__name__}: {exc}", False, False
     held = babysit_risk.holding(risk)
     paths = [
         r
@@ -2619,7 +2621,10 @@ def lane_risk_refusal(
         if lifted:
             held = [r for r in held if r not in paths]
     text = "; ".join(f"{r.code}: {r.detail}" for r in held)
-    return (text, bool(babysit_risk.person_reasons(held))) if text else None
+    # Scored without the high paths an approval lifted.
+    kept = tuple(r for r in risk.reasons if r in held or r not in paths)
+    whole = babysit_whole_review.wanted(None, replace(risk, reasons=kept), lanes)
+    return (text, bool(babysit_risk.person_reasons(held)), whole) if text else None
 
 
 def lane_queue(
@@ -2765,7 +2770,8 @@ def answer_kind(report: Any) -> str:
 
 def _decides(report: dict[str, Any]) -> tuple[Any, ...]:
     """The fields enable-auto-merge.mjs decides and notes on (verifyHold,
-    verifyClears, ejectionHold), a risk hold's text aside."""
+    verifyClears, ejectionHold, decide's whole-review request), a risk hold's
+    text aside."""
     queue = json_object(report.get("queue"))
     return (
         report.get("refusal"),
@@ -2773,6 +2779,7 @@ def _decides(report: dict[str, Any]) -> tuple[Any, ...]:
         report.get("ineligible"),
         isinstance(report.get("reviews"), str),
         report.get("reviewsPerson"),
+        report.get("wholeReviewWanted"),
         queue.get("refusal"),
     )
 
@@ -3629,8 +3636,9 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     and no verdict or config read. With `--lane-reviews` (and `--base-sha`
     and `--rung`, the lane room's effective rung), a line whose refusal is
     null also carries `reviews`: null when pr-merge's gate would not hold
-    the pull request on its risk score (`lane_risk_refusal`), else why, and
-    `reviewsPerson`: whether only a person clears that hold. With
+    the pull request on its risk score (`lane_risk_refusal`), else why,
+    `reviewsPerson`: whether only a person clears that hold, and
+    `wholeReviewWanted`: whether a clean whole review of the head would. With
     `--lane-queue` too, a line whose `reviews` is null also carries `queue`
     (`lane_queue`): the head's failed-check merge-queue removals, the
     `merge.max-queue-ejections` limit, and the gate's refusal and comment at
@@ -3789,8 +3797,9 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
         # Whether only a person clears `reviews`; an unread score the lanes
-        # read again.
+        # read again. Whether a whole review of the head would clear it.
         link["reviewsPerson"] = False
+        link["wholeReviewWanted"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
         elif config is None:
@@ -3804,7 +3813,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                 demoted=False,
             ).rung
             held = (
-                (f"unreadable: the lane's rung is {args.rung}", False)
+                (f"unreadable: the lane's rung is {args.rung}", False, False)
                 if rung == "off"
                 else lane_risk_refusal(
                     args.repo,
@@ -3815,7 +3824,11 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                     humans=reader._trusted_humans,
                 )
             )
-            link["reviews"], link["reviewsPerson"] = held or (None, False)
+            (
+                link["reviews"],
+                link["reviewsPerson"],
+                link["wholeReviewWanted"],
+            ) = held or (None, False, False)
         if args.lane_queue and link["reviews"] is None and config is not None:
             link["queue"] = lane_queue(
                 args.repo,

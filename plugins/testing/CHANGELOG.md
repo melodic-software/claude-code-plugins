@@ -3,6 +3,25 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.0] - 2026-10-29
+
+### Added
+
+- **`/testing:cleanup` offers cannot-fail-only mode when the mutation run cannot gate the folder** ([#11005](https://github.com/melodic-software/claude-code-plugins/issues/11005)). Step 3 used to stop the batch when `/mutation-testing:audit` recorded `K0 empty` or ended as `no mapping: scope empty`. A suite that reaches its code through dependency injection or an interface, common in .NET, maps nothing. Cleanup now names the result and offers cannot-fail-only mode, continuing only on your yes. It does the same when the audit refuses because you declined both its install command and `tool: manual`. Any step 2 quarantines stay in the batch, and a batch with no cannot-fail candidate still reports them. Unattended, it still stops. A new `cannot_fail_only_offered_on_empty_mapping` eval covers the offer on the `cleanup-dotnet` fixture.
+
+## [1.4.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.4.3] - 2026-10-29
+
+### Fixed
+
+- **`/testing:cleanup` finds a C# test's production files** ([#11004](https://github.com/melodic-software/claude-code-plugins/issues/11004)). The gate-blind check in step 5 and the candidate changes listed under `Gate: block` in step 6 used to read the production files a test file imports. A C# `using` names a namespace, not a file, so those checks had no answer on C#. Both now read the files defining the code a test reaches: what it calls directly, through a helper, an interface or dependency injection. When no changed test reaches a newly surviving mutant's file, `Gate: block` lists every changed test, since each mutant ran against the whole test set. Step 6 now says the replay compares the two records mutant by mutant, and the classifier brief hands over the production files each test reaches.
+- A new `dotnet_gate_runs` eval runs the gated batch on the `cleanup-dotnet` fixture with `test-command: dotnet test {tests}`, and expects `Gate: pass` from the replay. The fixture gains its two `.csproj` files, a `.gitignore` for build output, and a `PriceFeedTests.cs.fixture` that calls `PriceFeed` directly. A `mutation-testing-dotnet.md` config beside it has the keys `/mutation-testing:setup apply` writes.
+
 ## [1.4.2] - 2026-10-29
 
 ### Changed
