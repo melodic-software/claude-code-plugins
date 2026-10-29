@@ -60,6 +60,12 @@ deny can return process environment or git config. The lists live once, in
 `cases/lib/lane-write-tools.json`, copied from this marketplace repository's `collect-base-activity`
 action; when the lane's lists change, change that file.
 
+The `intake-permissions` area runs under `dontAsk` with only `Bash(gh issue view *)` allowed, the
+rule shape a read-only issue lane grants. A control runs a plain `gh issue view 1`, and four cases
+expect a deny when `;`, `&&`, `|` or `$()` adds a `touch` the rule does not approve. Each case's
+settings put a stub `gh` first on `PATH` that logs its arguments and prints `gh-stub-marker`, so a
+call that gets through touches no real issue; the control passes only on that marker.
+
 The `autocompact` area checks which auto-compact window `/autocompact`, run with no argument, reports
 when a project settings file, the `--autocompact` flag and the environment variable each set one. Its
 cases judge the printed line, not a tool call. A base case sets only the project file's top-level

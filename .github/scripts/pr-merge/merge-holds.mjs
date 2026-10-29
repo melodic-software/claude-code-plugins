@@ -838,17 +838,52 @@ function sameModes(merges, trees) {
 }
 
 // Whether an approval of `from` carries to the head `now` was read at
-// (babysit_merge_policy.approval_carry): every commit since is a merge of the
-// base (baseMergesOnly), and the net change is the same (sameNetChange) or
-// the merges brought exactly the base's changes (exactBaseCarry over
-// `merges`, `based` and `trees`, null when not read). An approval GitHub
-// dismissed as stale (autoDismissed) passes its `dismissal` commit, which
-// must be one of the commits pushed since `from`, so the push the carry
-// checks dismissed it.
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null) {
-  if (!baseMergesOnly(then, now, from, new Set(inBase))) return false;
-  if (dismissal !== null && !newCommits(then, now).some((c) => c?.sha === dismissal)) return false;
-  return sameNetChange(then, now) || exactBaseCarry(merges, based, trees);
+// (babysit_merge_policy.approval_carry), by either of two paths:
+// - every commit since is a merge of the base (baseMergesOnly), and the net
+//   change is the same (sameNetChange) or the merges brought exactly the
+//   base's changes (exactBaseCarry over `merges`, `based` and `trees`, null
+//   when not read);
+// - the owner's decision Q10 of 2026-10-28: `merges`, the compare from...H',
+//   touches no hold path (ungatedSince, with `holdPaths` the configured
+//   globs; undefined, as a caller that read none passes, skips this path).
+// An approval GitHub dismissed as stale (autoDismissed) passes its
+// `dismissal` commit, which must be one of the commits pushed since `from`,
+// so the push the carry checks dismissed it.
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined) {
+  const pushed = (commits) => dismissal === null || (commits ?? []).some((c) => c?.sha === dismissal);
+  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now) || exactBaseCarry(merges, based, trees));
+  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths) && pushed(listedCommits(merges)));
+}
+
+// The code a hold-path file loads that is no hold path itself: every file of
+// each local action a hold-path workflow uses, every tracked script it names
+// by path in any directory (from the head checkout or `.base/`, the lint and
+// test scripts ci-status runs included), and the JS and Python those import
+// (test_merge_holds_sync.py derives that closure and fails on a member these
+// globs and HOLD_PATH_CLASSES miss; a shell script's own `source` is not
+// walked).
+// Holding them for a person would hold most pull requests, so a push that
+// touches one only stops an approval carrying (ungatedSince); the review
+// lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
+// The trusted-actor list and the pipeline config are read too: a widening the
+// approver never saw is lifted by the same approval (actorsHold).
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**"]);
+
+// Whether the compare from...H' `merges` touches no hold path and no file a
+// hold path loads, old paths of renames included: pathHold with `holdPaths`
+// and HOLD_PATH_FLOOR, REVIEW_FLOOR's enforcement globs (the floored code the
+// gate holds for a security review, which a person's approval never
+// covered) and CARRY_REFUSES. H' must be ahead of `from` with nothing behind,
+// its commit list read whole, and fewer than the compare API's 300 files
+// listed, each named. Any edit to such a file, a test or a comment included,
+// needs a new approval.
+export function ungatedSince(merges, holdPaths) {
+  const files = merges?.files;
+  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
+  if (!files.every((f) => typeof f?.filename === "string")) return false;
+  const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
+  const loaded = [...REVIEW_FLOOR, ...CARRY_REFUSES];
+  return Array.isArray(holdPaths) && pathHold(paths, holdPaths) === null && !paths.some((path) => loaded.some((glob) => matchesHoldPath(path, glob)));
 }
 
 // The reviews GitHub dismissed as stale, from the pull request's issue
@@ -940,7 +975,7 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
 // the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
 // read restores no dismissed approval): the caller keeps the exact-head
 // approvals it read (pathLifters).
-export async function liftersOf(github, repo, number, head, humans) {
+export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined) {
   try {
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
     const base = pull?.base?.ref;
@@ -983,7 +1018,16 @@ export async function liftersOf(github, repo, number, head, humans) {
         [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
         trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) lifters.add(login);
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) {
+        lifters.add(login);
+        continue;
+      }
+      // Q10's path reads from...H' when the base-merge path did not; a read
+      // that fails carries nothing by it.
+      if (holdPaths !== undefined && merges === null) {
+        merges = await compare(`${sha}...${head}`).catch(() => null);
+      }
+      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {
@@ -1309,6 +1353,49 @@ export function changeOf(line) {
   return { path: line.filename, previous: typeof previous === "string" && previous ? previous : null, status: typeof line.status === "string" ? line.status : null };
 }
 
+// A HEAD A PR-UNBLOCK LANE STOPPED: each `pr-unblock/*` context whose newest
+// status by github-actions[bot] is `failure` or `error`, as
+// { context, state, description }. `statuses` are a commit's REST statuses,
+// newest first as GitHub lists them, so a later `success` on the head
+// supersedes a failure, and another account's status neither holds nor
+// clears. ci-status's pr-unblock step and enable-auto-merge both judge a head
+// by this; a list that is not an array throws.
+export function unblockStops(statuses) {
+  if (!Array.isArray(statuses)) {
+    throw new Error("the head's statuses are not a list");
+  }
+  const seen = new Set();
+  const stops = [];
+  for (const status of statuses) {
+    const context = status?.context;
+    if (typeof context !== "string" || !context.startsWith("pr-unblock/") || status?.creator?.login !== "github-actions[bot]" || seen.has(context)) {
+      continue;
+    }
+    seen.add(context);
+    if (status.state === "failure" || status.state === "error") {
+      stops.push({ context, state: status.state, description: String(status.description ?? "").replaceAll(/[\t\r\n]/g, " ") });
+    }
+  }
+  return stops;
+}
+
+// Every REST status of `head`, 100 a page, newest first. A page that is not a
+// list, or more than 10 pages, throws.
+export async function readStatuses(github, repo, head) {
+  const statuses = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const rows = await github("GET", `/repos/${repo}/commits/${head}/statuses?per_page=100&page=${page}`);
+    if (!Array.isArray(rows)) {
+      throw new Error("the head's statuses did not read");
+    }
+    statuses.push(...rows);
+    if (rows.length < 100) {
+      return statuses;
+    }
+  }
+  throw new Error("more than 1000 statuses on the head");
+}
+
 // Whether a person wrote the body of pull request `number` (personWrote); a
 // read that fails counts as a person.
 async function bodyByPerson(github, repo, number) {
@@ -1365,7 +1452,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const held = pathHold(files, holdPaths);
     let lifted = { lifters: [] };
     if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
-      lifted = await liftersOf(github, repo, Number(number), head, humans);
+      lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
     const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);

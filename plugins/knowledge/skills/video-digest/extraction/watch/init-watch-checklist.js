@@ -15,8 +15,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { detectContentClass, outcomeFloors } from "../evals/check-watch-outcomes.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { readJsonFile } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import { isHighVolume } from "../watching/frame-budget.js";
 import { watchStatePath } from "./watch-state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -171,9 +173,141 @@ export function carryOverProgress(rendered, previous) {
 }
 
 /**
+ * @param {string} fact what the generator read
+ * @returns {string} indented evidence line written under a generated tick
+ */
+function generatedEvidence(fact) {
+  return `  - evidence (generated): ${fact}`;
+}
+
+const COMPANION_ROWS = ["0b.1", "0b.2", "0b.3", "0b.4", "0b.5"];
+const COMPANION_NA_EVIDENCE = generatedEvidence("n/a, no `source/companion-sources.md` exists");
+
+/**
+ * Untick every Phase 0b row a previous run marked n/a and drop its evidence line, so the
+ * n/a state is recomputed on each run instead of surviving the kept-tick rewrite.
+ *
+ * @param {string} previous checklist already on disk
+ * @returns {string}
+ */
+export function dropCompanionNaTicks(previous) {
+  const lines = previous.split("\n");
+  return lines
+    .flatMap((line, i) => {
+      if (line === COMPANION_NA_EVIDENCE) return [];
+      if (lines[i + 1] === COMPANION_NA_EVIDENCE) return [line.replace(/^- \[[xX]\]/, "- [ ]")];
+      return [line];
+    })
+    .join("\n");
+}
+
+/**
+ * Tick each listed row that is still unticked and write its evidence line under it. A row
+ * already ticked keeps its tick and evidence as they are.
+ *
+ * @param {string} text checklist
+ * @param {Map<string, string>} ticks row id -> evidence line
+ * @returns {string}
+ */
+export function applyGeneratedTicks(text, ticks) {
+  return text
+    .split("\n")
+    .flatMap((line) => {
+      const match = ROW_ID.exec(line);
+      const evidence = match && match[1] === " " && ticks.get(match[2]);
+      return evidence ? [line.replace("- [ ]", "- [x]"), evidence] : [line];
+    })
+    .join("\n");
+}
+
+/**
+ * The rows the generator ticks from facts it reads, each with the evidence line naming the
+ * fact. Rows 0.1-0.4 and 1.2 rest on facts it cannot read and are never listed.
+ *
+ * @param {object} facts
+ * @param {string} facts.absSlice
+ * @param {any} facts.watch parsed watch.json
+ * @param {any} facts.selection parsed selection.json, or null when absent
+ * @param {boolean | undefined} facts.recordedHighVolume highVolume as recorded, undefined when unrecorded
+ * @param {number} facts.contactSheetCount
+ * @param {number} facts.densificationWindowCount
+ * @param {number} facts.durationSec
+ * @returns {Map<string, string>} row id -> evidence line
+ */
+export function generatedTicks({
+  absSlice,
+  watch,
+  selection,
+  recordedHighVolume,
+  contactSheetCount,
+  densificationWindowCount,
+  durationSec,
+}) {
+  /** @type {Map<string, string>} */
+  const ticks = new Map();
+
+  if (!fs.existsSync(lanePath(absSlice, LANES.source, "companion-sources.md"))) {
+    for (const row of COMPANION_ROWS) ticks.set(row, COMPANION_NA_EVIDENCE);
+  }
+
+  ticks.set("1.1", generatedEvidence("`run-state/watch.json` present"));
+
+  const metrics = watch.phases?.watching?.metrics ?? {};
+  const frameCount = selection?.selectedFrames?.length;
+  const sheets = selection?.contactSheets?.length;
+  const windows = selection?.densificationWindows?.length;
+  if (
+    [frameCount, sheets, windows].every((count) => count !== undefined) &&
+    frameCount === metrics.frameCount &&
+    sheets === metrics.contactSheetCount &&
+    windows === metrics.densificationWindows
+  ) {
+    ticks.set(
+      "1.3",
+      generatedEvidence(
+        `\`key-frames/selection.json\` matches \`watch.json\` watching metrics: ${frameCount} frames, ${sheets} contact sheets, ${windows} densification windows`,
+      ),
+    );
+  }
+
+  const { contactSheetsDir, framesDir } = resolveTempSession(watch.tempSession ?? {});
+  if ([contactSheetsDir, framesDir].every((dir) => dir && fs.existsSync(dir))) {
+    ticks.set(
+      "1.4",
+      generatedEvidence(
+        "`contactSheetsDir` and `framesDir` from `watch.json` `tempSession` exist on disk",
+      ),
+    );
+  }
+
+  // Without the candidate counts, isHighVolume applies exactly row 1.5's rule.
+  const ruleHighVolume = isHighVolume({ contactSheetCount, durationSec, densificationWindowCount });
+  if (selection && recordedHighVolume === ruleHighVolume) {
+    const hours = (durationSec / 3600).toFixed(1);
+    ticks.set(
+      "1.5",
+      generatedEvidence(
+        `highVolume=${recordedHighVolume} matches the rule for ${contactSheetCount} sheets, ${hours}h, ${densificationWindowCount} densification windows`,
+      ),
+    );
+  }
+
+  const cliPhases = ["acquire", "transcript", "watching", "harvest"];
+  if (cliPhases.every((phase) => watch.phases?.[phase]?.completedAt)) {
+    ticks.set(
+      "1.6",
+      generatedEvidence("`watch.json` phases acquire, transcript, watching and harvest complete"),
+    );
+  }
+
+  return ticks;
+}
+
+/**
  * Write the checklist. With `force`, an existing checklist is regenerated (floors,
  * signals, per-sheet rows) and keeps its ticks and Resume notes, except ticks on rows
- * whose criteria changed: those are dropped and listed on stdout.
+ * whose criteria changed: those are dropped and listed on stdout. Each run then ticks the
+ * still-unticked rows `generatedTicks` proves, with their evidence lines.
  *
  * @param {string} sliceDir
  * @param {{ force?: boolean }} [options]
@@ -214,8 +348,11 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
     selection?.densificationWindows?.length ??
     watch.phases?.watching?.metrics?.densificationWindows ??
     0;
-  const highVolume =
-    selection?.frameSelection?.highVolume ?? watch.phases?.watching?.metrics?.highVolume ?? false;
+  const recordedHighVolume =
+    selection?.highVolume ??
+    selection?.frameSelection?.highVolume ??
+    watch.phases?.watching?.metrics?.highVolume;
+  const highVolume = recordedHighVolume ?? false;
 
   const visionPlanBody = fs.existsSync(visionPlanPath)
     ? fs.readFileSync(visionPlanPath, "utf8")
@@ -269,12 +406,27 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
 
   template = stampCriteriaHashes(template);
   if (fs.existsSync(outPath)) {
-    const carried = carryOverProgress(template, fs.readFileSync(outPath, "utf8"));
+    const carried = carryOverProgress(
+      template,
+      dropCompanionNaTicks(fs.readFileSync(outPath, "utf8")),
+    );
     template = carried.text;
     if (carried.dropped.length > 0) {
       writeStdout(`Dropped ticks (criteria changed since ticked): ${carried.dropped.join(", ")}`);
     }
   }
+  template = applyGeneratedTicks(
+    template,
+    generatedTicks({
+      absSlice,
+      watch,
+      selection,
+      recordedHighVolume,
+      contactSheetCount,
+      densificationWindowCount,
+      durationSec,
+    }),
+  );
 
   fs.mkdirSync(lanePath(absSlice, LANES.runState), { recursive: true });
   fs.writeFileSync(outPath, template, "utf8");
