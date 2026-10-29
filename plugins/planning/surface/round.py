@@ -353,7 +353,7 @@ def mark_handled(doc, seqs):
 
 def guard_revision(d, doc, qid, seq, force):
     """Refuse a revision when the user acted on the question after the event being answered, and return the responses it read.
-    Without --seq, only an unhandled user event on the question blocks it."""
+    Without `seq`, only an unhandled user event on the question blocks it."""
     snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     if force:
         return snapshot
@@ -373,10 +373,10 @@ def guard_revision(d, doc, qid, seq, force):
             for e in events
             if e["seq"] > seq and not e.get("withdrawn") and e.get("kind") != "undo"
         ]
-        why = f"a user event newer than --seq {seq}"
+        why = f"a user event newer than `seq` {seq}"
     if newer:
         sys.exit(
-            f"refused: {qid} has {why} (#{max(newer)}). Read it first, or pass --force."
+            f"refused: {qid} has {why} (#{max(newer)}). Read it first, or pass `force: true`."
         )
     return snapshot
 
@@ -462,7 +462,7 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
     if "commits" not in q:
         sys.exit(
             f"refused: {q['id']} declares no commits; list what accepting commits the user to, "
-            'or pass an explicit empty list ("commits": [] or --commit none) (R1)'
+            'or pass an explicit empty list ("commits": []) (R1)'
         )
     alts = q.get("alternatives") or []
     check_alt_count(q["id"], len(alts), q)
@@ -1237,7 +1237,7 @@ def set_resolution(d, q, text):
     one counts."""
     text = " ".join(text.split())
     if not text:
-        sys.exit("refused: reply --resolution needs text")
+        sys.exit("refused: a reply `resolution` needs text")
     snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     own = exporters.latest_decision(q, snapshot.get("responses", {}))
     if not own or own.get("decision") != "own":
@@ -1560,7 +1560,7 @@ def op_archive(d, doc, a):
     is cleared, as `wait --clear` clears one (the setAside stamps stay), so an archived question
     carries no `waiting` hold (G6)."""
     if not (a.why or "").strip():
-        sys.exit("archive needs --why")
+        sys.exit("archive needs `why`")
     capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
