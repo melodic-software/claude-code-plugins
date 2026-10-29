@@ -263,31 +263,26 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    the JSON is the only record of what happened.
 
 Where a harness guard other than the worktree refusal above blocks a Bash command containing the
-bare word `eval`, run the same command through the PowerShell tool instead. The command text is
-unchanged; only the tool differs.
+bare word `eval`, run the same command, unchanged, through the PowerShell tool instead.
 
 ## Reading the delta
 
 Read in this order. Stopping early at any step is the finding.
 
-1. Run the validity gate before reading any number:
+1. Run the validity gate ([read order](reference/reading-results.md#read-order)) before reading any number:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded]
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3.
-   Without the traces `--keep-temp` kept it reports the trace checks unchecked and the run INVALID.
-   Add `--scaffolded` when the eval ran with `--scaffold`, since no result field records it. Without
-   it the `scaffold` check fails every case whose `case.yaml` sets `context.scaffold_script`,
-   because both arms of that case ran in an empty workspace; a `case.yaml` or case directory it
-   cannot find or read leaves the check unchecked and the run INVALID
-   ([read order](reference/reading-results.md#read-order)).
-   Report a score, delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it
-   printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no
-   number, then fix the cause and rerun. Tell the user to post that INVALID line and its reasons in
-   place of the number; "post nothing" is not the instruction. Exit 2 means the file could not be
-   read or an argument was wrong: say which. The steps below still apply to a VALID run.
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. Without the traces
+   `--keep-temp` kept it reports the trace checks unchecked and the run INVALID. Add `--scaffolded`
+   when the eval ran with `--scaffold`, since no result field records it. Report a score, delta, or
+   interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
+   `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
+   fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of the
+   number; "post nothing" is not the instruction. Exit 2 means the file could not be read or an
+   argument was wrong: say which. The steps below still apply to a VALID run.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
