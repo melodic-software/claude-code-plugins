@@ -2709,8 +2709,8 @@ paced. This queued cap replaces the admission window (`limits.admission-window-h
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 
 Neither intake nor the sweep adds a new `agent-ready` to an issue whose work a merged pull request
-may already have done: one in this repository whose body names the issue on a `Refs:` line (`Refs:
-#<n>`, a list of issues holding it, or either with a parenthesized note), merged after the issue's
+may already have done: one in this repository whose body names the issue on a `Refs:` line
+(`Refs: #<n>`, a list of issues holding it, or either with a parenthesized note), merged after the issue's
 newest decision comment (a listed human's `**Decision recorded.**`) or lanes-App refinement
 comment, or since it opened when it has neither. The issue is parked at `status: confirmed`, loses
 `status: ready` and `admission-deferred`, and gets the admission comment naming the pull requests.

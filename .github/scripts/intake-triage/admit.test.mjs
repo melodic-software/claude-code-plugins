@@ -707,7 +707,7 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     }
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
-      // mergedRefsPulls' batch: `done` is issue 7 as DONE_QUERY reads it.
+      // mergedRefsPulls' batch: `done` is the fixture issue as DONE_QUERY reads it.
       if (body.query.includes("fragment done on Issue")) {
         return { data: { repository: { i7: done } } };
       }
@@ -1118,8 +1118,8 @@ describe("admit", () => {
 
 
 describe("a merged Refs pull request after the newest decision or refinement", () => {
-  // Issue 7 as DONE_QUERY reads it: opened 10-20, with `comments` and the pull
-  // requests that mention it.
+  // The fixture issue as DONE_QUERY reads it: opened 10-20, with `comments` and
+  // the pull requests that mention it.
   const node = ({ comments = [], pulls = [] } = {}) => ({
     createdAt: "2026-10-20T08:00:00Z",
     comments: { nodes: comments },
