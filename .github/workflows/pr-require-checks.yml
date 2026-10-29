@@ -405,6 +405,8 @@ jobs:
           exit 1
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
       # branch, and a merge group against the queue's base commit, unless its
       # diff touches a plugin or marketplace manifest, as a release does. A schedule
@@ -1381,6 +1383,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the slow-shapes
       # gate, which fails closed if the module is missing rather than clearing
@@ -2179,6 +2183,8 @@ jobs:
       - name: Fetch base
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
 
       # The pinned interpreter for the native-overlap registry checks
       # scripts/validate-plugins.sh runs. They read no package, so nothing is
@@ -2689,6 +2695,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       # Node, Python, ShellCheck, shfmt, Biome and Ruff are declared here so
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
@@ -2958,6 +2966,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
