@@ -1489,6 +1489,49 @@ test("select reads the rung from MODEL_RUNG and refuses any other value", async 
   await assert.rejects(() => outputFor("2"), /MODEL_RUNG/);
 });
 
+// The first weaken-required stop on a head (no lane stop there yet, so
+// fix-ci-context passes weakenRetry) stops for one fresh fixer round: a
+// fail-routed reason the dispatcher retries. Without weakenRetry (the fresh
+// round ran, or an earlier stop spent the head's retry) it holds for a person
+// as before, and a protected-path escalation beside it always does.
+for (const [why, reply, rung, weakenRetry, want] of [
+  ["weaken-required, first on the head", "a: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required beside unfixed, first on the head", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required at the in-run rung-up, first on the head", "a: escalated weaken-required y\n", 1, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required in the fresh round", "a: escalated weaken-required y\n", 1, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["weaken-required with no retry left at rung 0", "a: escalated weaken-required y\n", 0, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required, first on the head", "a: escalated weaken-required x\nb: escalated protected-path y\n", 0, true, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["unfixed alone, first on the head", "a: escalated unfixed x\n", 0, true, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
+]) {
+  test(`an empty fix-ci patch escalating ${why} selects ${want.escalationReason || want.skipReason}`, (t) => {
+    const reportDir = scratch(t);
+    writeFileSync(join(reportDir, "reply.txt"), reply);
+    const head = "a".repeat(40);
+    const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
+    assert.deepEqual(select({ ...base, reportDir, rung, weakenRetry }), want);
+  });
+}
+
+test("select reads weakenRetry from WEAKEN_RETRY and refuses any other value", async (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated weaken-required x\n");
+  const head = "a".repeat(40);
+  const baseDir = scratch(t);
+  mkdirSync(join(baseDir, dirname(RULES_PATH)), { recursive: true });
+  writeFileSync(join(baseDir, RULES_PATH), JSON.stringify(RULES));
+  const outputFor = async (value) => {
+    const out = join(scratch(t), "out");
+    writeFileSync(out, "");
+    const env = { BASE_DIR: baseDir, PATCH_PREPARE: "ci-context", PATCH_STATE: "empty", PATCH_HEAD_SHA: head, HEAD_SHA: head, PATCH_DIR: scratch(t), REPORT_DIR: reportDir, GITHUB_OUTPUT: out, WEAKEN_RETRY: value };
+    await main(["select"], env, { log: () => {} });
+    return readFileSync(out, "utf8");
+  };
+  assert.match(await outputFor("true"), /^escalation-reason=ci-fix-weaken-retry$/m);
+  assert.match(await outputFor("false"), /^escalation-reason=ci-fix-weaken-required$/m);
+  assert.match(await outputFor(""), /^escalation-reason=ci-fix-weaken-required$/m);
+  await assert.rejects(() => outputFor("yes"), /WEAKEN_RETRY/);
+});
+
 // --- select and main ---
 
 test("select proceeds on a good artifact, reads the row's report, and names the row's empty reason", (t) => {

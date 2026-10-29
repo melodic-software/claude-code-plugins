@@ -344,9 +344,14 @@ status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the mod
 through a path the lane token may not push, or by weakening a required check), which go to a
 person. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. In a run that changed nothing, `protected-path`,
-`weaken-required` and `flaky` go to a person without a retry; beside a pushed patch, the new
-head's CI decides for them too. The same
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
+person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
+fix-ci attempt stops `ci-fix-weaken-retry` instead, a failing status: the dispatcher retries the
+head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (fix the
+code under test and keep every test's assertions and expected values). A
+`weaken-required` in that round, or after any earlier attempt on the head, goes to a person as
+`ci-fix-weaken-required`; the guard itself is unchanged. Beside a pushed patch, the new head's
+CI decides for all of them. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
