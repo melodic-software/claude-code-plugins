@@ -20,7 +20,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Uncommitted diff size, `git diff --shortstat HEAD`
 
-Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as separate body Bash calls, not pre-compute lines. Pointer: the worktree skill's [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation", which holds the dated record and its recheck trigger.
+Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as separate body Bash calls, not pre-compute lines. Pointer: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation", which holds the dated record and its recheck trigger.
 
 ## Pre-computed context
 
