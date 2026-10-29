@@ -193,6 +193,65 @@
         "order": 6,
         "procedure": null
       }
+    },
+    {
+      "id": "color",
+      "title": "Color",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "color",
+        "palette",
+        "oklch",
+        "contrast",
+        "color scale",
+        "tonal ramp",
+        "convert hex",
+        "gamut",
+        "display-p3",
+        "chroma",
+        "focus ring color",
+        "color tokens"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/color.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/color/building-scales.md",
+          "read_when": "building a tonal ramp, a hue family or a dark-mode remap, or auditing a scale for hue drift"
+        },
+        {
+          "path": "reference/types/web/color/contrast.md",
+          "read_when": "a contrast number, a failing pair, or text checked in both themes"
+        },
+        {
+          "path": "reference/types/web/color/converting-colors.md",
+          "read_when": "rewriting hex, rgb() or hsl() literals as oklch"
+        },
+        {
+          "path": "reference/types/web/color/gamut-and-p3.md",
+          "read_when": "high chroma, Display P3, or a browser target without oklch()"
+        },
+        {
+          "path": "reference/types/web/color/tailwind.md",
+          "read_when": "detect reports Tailwind"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md",
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [
+        "typography-color"
+      ],
+      "audit": {
+        "order": 11,
+        "procedure": null
+      }
     }
   ]
 }
