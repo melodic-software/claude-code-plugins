@@ -7,9 +7,11 @@
 # run of each review caller on the head has a successful status job whose
 # `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
 # with the cause named, a lane the kill switch stopped among them; Dependabot, the
-# release App and the standards-sync App are exempt by numeric author id. It
-# fails closed when it cannot read.
-# test-scope: .github/workflows/pr-require-checks.yml
+# release App and the standards-sync App are exempt by numeric author id, but
+# not from a trust-gate path, and neither is a pull request an agent App
+# (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
+# to. It fails closed when it cannot read.
+# test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -120,6 +122,11 @@ else
   fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
 
+# The base commit's config names the agent App.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/conventions"
+printf 'merge:\n  trust-path-hold-apps:\n    - melodic-agent[bot]\n' >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
+printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
+
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
 # calls, then prints RUNS_CODE or RUNS_SEC by caller file. A jobs read fails
 # when STUB_JOBS_FAIL is set, else prints the JOBS_<run id> variable.
@@ -148,7 +155,16 @@ case "$*" in
   while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
   jq -r "$2" <<<"${STUB_FILES:-[]}"
   ;;
-*/pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" '{changed_files: $n}' ;;
+*/pulls/*/commits*)
+  [[ -z "${STUB_COMMITS_FAIL:-}" ]] || exit 1
+  printf '%s\n' "${STUB_COMMITS:-[]}"
+  ;;
+*/activity*)
+  [[ -z "${STUB_PUSHES_FAIL:-}" ]] || exit 1
+  printf '%s\n' "${STUB_PUSHES:-[]}"
+  ;;
+*/pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" --argjson c "${STUB_COMMIT_COUNT:-0}" --arg u "${STUB_AUTHOR:-kyle-sexton}" \
+  '{changed_files: $n, commits: $c, user: {login: $u}}' ;;
 */check-runs/*/annotations*)
   [[ -z "${STUB_NOTES_FAIL:-}" ]] || exit 1
   id="$*"
@@ -188,8 +204,9 @@ expect() {
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
-    AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+    AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
+    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -387,6 +404,73 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
+
+# A trust-gate path an agent App touched waits for a person, whoever opened
+# the pull request; with no App on it the review lanes decide, as before.
+APP='melodic-agent[bot]'
+SHA_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa SHA_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+# commit <sha> <author login> <committer login> <email>: "" is an unlinked account.
+commit() { jq -cn --arg sha "$1" --arg a "$2" --arg c "$3" --arg e "$4" \
+  '{sha: $sha, author: (if $a == "" then null else {login: $a} end), committer: (if $c == "" then null else {login: $c} end),
+    commit: {author: {email: $e}, committer: {email: $e}}}'; }
+push() { jq -cn --arg a "$1" --arg after "$2" '{activity_type: "push", after: $after, actor: {login: $a, type: "User"}}'; }
+list() { local IFS=,; printf '[%s]' "$*"; }
+PERSON='153232337+kyle-sexton@users.noreply.github.com'
+export STUB_COMMITS STUB_PUSHES STUB_COMMIT_COUNT STUB_AUTHOR
+STUB_FILES="$(files README.md .github/actions/resolve-config/resolve.mjs)" STUB_CHANGED=2 STUB_COMMIT_COUNT=1
+STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")")"
+STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
+expect "a person's trust-gate change with no App on it goes to the review lanes" 0 \
+  "No agent App opened, wrote or pushed to #77; the review lanes decide its trust-gate paths." "::error::"
+if grep -qxF 'api repos/o/r/pulls/77/commits?per_page=100 --paginate' "$TMP_ROOT/log" &&
+  grep -qxF 'api repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&direction=desc&per_page=100' "$TMP_ROOT/log" &&
+  grep -q '/actions/workflows/' "$TMP_ROOT/log"; then
+  ok "the commits, the head branch's push history and then the review runs are read"
+else
+  fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)" "$(push "$APP" $SHA_B)")"
+expect "an App-pushed resolve-config change by a person's commit is held" 1 \
+  "::error::#77 changes trust-gate paths: .github/actions/resolve-config/resolve.mjs, and melodic-agent[bot] pushed bbbbbbbbbbbb to it, so no review lane decides it. A person merges it."
+if grep -q '/actions/workflows/' "$TMP_ROOT/log"; then fail "a held App change read the review runs"; else ok "a held App change reads no review run"; fi
+BASE_CONFIG="$ROOT" expect "the repository's own pr-pipeline.yaml names the agent App" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
+STUB_AUTHOR="$APP" expect "an App-authored pull request changing a trust-gate path is held" 1 "and melodic-agent[bot] opened it, so no review lane decides it"
+STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")" "$(commit $SHA_B Melodic-Agent[bot] web-flow '')")" STUB_COMMIT_COUNT=2 \
+  expect "a commit the App authored, in any letter case, is held" 1 "an agent App authored or committed bbbbbbbbbbbb"
+STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com")")" \
+  expect "a commit by the App's noreply address with no linked account is held" 1 "an agent App authored or committed bbbbbbbbbbbb"
+STUB_COMMITS_FAIL=1 expect "an unreadable commit list is held" 1 "::error::could not read the commits of #77; re-run this run."
+STUB_COMMIT_COUNT=2 expect "a commit list shorter than the pull request is held" 1 "::error::GitHub listed fewer commits than #77 has"
+STUB_PUSHES_FAIL=1 expect "an unreadable push history is held" 1 "::error::could not read the push history of feature/x; re-run this run."
+STUB_PUSHES="$(jq -cn --argjson p "$(push kyle-sexton $SHA_A)" '[range(100) | $p]')" \
+  expect "a full page of push history is held" 1 "::error::the push history of feature/x is unreadable or fills a page"
+# yq failing or missing leaves no list: held, also on a file list at GitHub's
+# 3000-file cap that names no trust-gate path, where held is empty.
+# yq-fails prints a list and then fails, so only pipefail catches it, whatever
+# jq does with empty input.
+mkdir -p "$TMP_ROOT/yq-fails" "$TMP_ROOT/yq-missing"
+printf '#!/usr/bin/env bash\necho "[]"\necho "Error: boom" >&2\nexit 1\n' >"$TMP_ROOT/yq-fails/yq"
+printf '#!/usr/bin/env bash\necho "yq: command not found" >&2\nexit 127\n' >"$TMP_ROOT/yq-missing/yq"
+chmod +x "$TMP_ROOT/yq-fails/yq" "$TMP_ROOT/yq-missing/yq"
+for dir in yq-fails yq-missing; do
+  STUB_PATH="$TMP_ROOT/$dir" expect "a trust-gate change with $dir is held" 1 "::error::could not read merge.trust-path-hold-apps"
+  STUB_PATH="$TMP_ROOT/$dir" STUB_CHANGED=3000 SHARED_FILES="$(jq -cn '[range(3000) | {filename: "docs/f\(.).md"}]')" \
+    expect "a 3000-file list with $dir is held" 1 "::error::could not read merge.trust-path-hold-apps"
+done
+BASE_CONFIG='' expect "an unreadable base config is held" 1 "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml"
+printf 'merge:\n  trust-path-hold-apps: melodic-agent[bot]\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
+BASE_CONFIG="$TMP_ROOT/bare-config" expect "a malformed App list is held" 1 "could not read merge.trust-path-hold-apps"
+printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
+STUB_AUTHOR="$APP" BASE_CONFIG="$TMP_ROOT/bare-config" expect "a base naming no App holds nothing" 0 "'$CODE_CHECK' passed" "::error::"
+if grep -q '/commits\|/activity' "$TMP_ROOT/log"; then fail "a base naming no App read the commits"; else ok "a base naming no App reads no commit or push"; fi
+STUB_FILES="$(files README.md docs/a.md)" STUB_AUTHOR="$APP"
+expect "an App's pull request changing no trust-gate path still needs both lanes" 0 "'$SEC_CHECK' passed" "::error::"
+if grep -qE '/commits|/activity|pulls/77$' "$TMP_ROOT/log"; then fail "a change with no trust-gate path read the pull request, commits or pushes"; else ok "a change with no trust-gate path makes no extra read"; fi
+RUNS_CODE="$(runs)"
+STUB_AUTHOR="$APP" expect "an App's pull request with no trust-gate path and no review fails as before" 1 "'$CODE_CHECK' is missing"
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
+STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
 export STUB_RUNS_FAILS=1
 expect "a transient run-list failure is retried" 0 "'$CODE_CHECK' passed"
