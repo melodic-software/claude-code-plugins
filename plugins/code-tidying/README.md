@@ -52,8 +52,10 @@ Seven skills, one capability:
   `in-place=commit` makes one commit.
 - **`/code-tidying:tidy-diff`**. Tidies one change's own lines before its
   commit, scoped by a file-and-line list the caller writes (no branch or base
-  ref, so it runs on a detached head): a behavior-preserving simplify pass and
-  proven class-A comment deletions on code, then `/docs-hygiene:write-for-agents`
+  ref, so it runs on a detached head): a behavior-preserving simplify pass,
+  proven class-A comment deletions and a generated-code residue pass (swallowed
+  errors, silent fallbacks, silencing casts, debug logs; a fix that changes
+  behavior comes back as a proposal) on code, then `/docs-hygiene:write-for-agents`
   or `write-for-humans` and `/ai-slop:audit fix` on markdown, within an
   optional turn budget. It stages and commits nothing. The issue lane runs it
   on a small single-area change before its one push.
