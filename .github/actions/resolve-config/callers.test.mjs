@@ -6977,3 +6977,13 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
   ].sort());
 });
+
+// work-unblock re-fires an issue from the failed mint step, so only a pull
+// request run of the write file ends a kill-switch refusal green; an issue
+// run stays red.
+test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-token");
+  const value = step.with["kill-switch-ok"];
+  assert.equal(evaluate(value, { "inputs.issue-number": "" }), true, "a pull request run skips");
+  assert.equal(evaluate(value, { "inputs.issue-number": "7" }), false, "an issue run stays red");
+});
