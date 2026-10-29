@@ -80,6 +80,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | --- | --- | --- |
 | [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
 | [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
+| [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
 
 ## 6. Plan
 
@@ -333,7 +334,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/user-experience:evaluate`](../plugins/user-experience/skills/evaluate/SKILL.md) | `user-experience` | Plan and run UX evaluations, fair-choice checks and measure selection, evidence-labeled |
 | [`/user-experience:plan-user-research`](../plugins/user-experience/skills/plan-user-research/SKILL.md) | `user-experience` | Plan user research and write its instruments, evidence-labeled |
 | [`/user-experience:shape`](../plugins/user-experience/skills/shape/SKILL.md) | `user-experience` | Detect the app's stage and the project's own evidence, then chain the UX jobs in order |
-| [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
 | [`/user-experience:synthesize`](../plugins/user-experience/skills/synthesize/SKILL.md) | `user-experience` | Synthesize research data into labeled themes, insights, needs, personas or jobs |
 | [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
 | [`/user-interface:glossary`](../plugins/user-interface/skills/glossary/SKILL.md) | `user-interface` | Name the design or front-end term for a described effect, detail or behavior |
