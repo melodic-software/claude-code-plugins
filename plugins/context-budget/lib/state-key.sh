@@ -163,7 +163,7 @@ if [[ -n "$remote" ]]; then
   # remote, which would otherwise write outside the caller's namespace),
   # absolute local paths, and backslashes. Anything rejected still keys
   # deterministically, by hash.
-  if printf '%s' "$identity" | grep -qE '^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$'; then
+  if grep -qE '^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$' <<<"$identity"; then
     rung="remote"
   else
     identity="remote/$(hash12 "$remote")"
