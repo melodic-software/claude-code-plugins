@@ -197,7 +197,7 @@ for (const path of setupSkills) {
   // prerequisites) have no such signal and are covered by the check-only
   // declaration plus the registry exclusion, not by a second existence probe.
   if (!/^argument-hint:\s*"[[<]check[|\]>]/m.test(frontmatter)) {
-    fail(path, 'setup skills must declare check as the leading action in argument-hint ("[check|apply] ...", "<check|apply> ...", or "[check] ...") (docs/conventions/argument-hint/README.md)');
+    fail(path, 'setup skills must declare check as the leading action in argument-hint ("[check|apply] ...", "<check|apply> ...", or "[check] ...") (docs/contracts/argument-hint/README.md)');
   }
   const body = content.slice(content.indexOf("---", 3) + 3);
   if (!/`check`/.test(body)) {
@@ -227,7 +227,7 @@ for (const path of setupSkills) {
     if (trackedConfigOwners?.has(plugin)) {
       fail(
         path,
-        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/conventions/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
+        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/contracts/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
       );
     }
     // The one carve-out surface with a manifest-side counterpart. Any claim
@@ -531,7 +531,7 @@ if (existsSync(marketplacePath)) {
 // ---------------------------------------------------------------------------
 // Retired conventions: plugins/<plugin>/retirements.yaml
 // (docs/migration-playbook.md § Retired conventions; owner doc
-// docs/conventions/retired-conventions/README.md).
+// docs/contracts/retired-conventions/README.md).
 //
 // A manifest is the append-only record of consumer-facing artifacts a plugin
 // has retired; the shared helper lib/check-retirements.sh (canonical in
@@ -1167,7 +1167,7 @@ for (const path of argumentSkills) {
 // Empty fails (omit the key instead). Over budget and malformed warn, so a
 // drifting hint does not turn the fleet red on its own; the contract test
 // asserts the shipping tree draws zero warnings.
-const ARGUMENT_HINT_DOC = "docs/conventions/argument-hint/README.md";
+const ARGUMENT_HINT_DOC = "docs/contracts/argument-hint/README.md";
 const ARGUMENT_HINT_BUDGET = 100;
 const warnings = [];
 
@@ -1275,9 +1275,9 @@ for (const path of argumentSkills) {
   }
 }
 
-// Plugin names and option text, per docs/conventions/plugin-option-naming. A
+// Plugin names and option text, per docs/contracts/plugin-option-naming. A
 // displayName fails; every title and description shape warns on its own line.
-const OPTION_NAMING_DOC = "docs/conventions/plugin-option-naming/README.md";
+const OPTION_NAMING_DOC = "docs/contracts/plugin-option-naming/README.md";
 const DESCRIPTION_BUDGET = 300;
 const optionWarn = (path, message) =>
   warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);

@@ -16,7 +16,7 @@
 # best-effort and also fires on any command holding $(), backticks or $VAR
 # (https://code.claude.com/docs/en/hooks#bash-if-matching), so this script
 # re-checks that a subcommand really is `git push` before it spends a run
-# (docs/conventions/hook-precision/README.md, rule 2). A quoted or heredoc
+# (docs/contracts/hook-precision/README.md, rule 2). A quoted or heredoc
 # mention of "git push" is data, not a push.
 #
 # Stays quiet (exit 0) on: no real push; a push that only deletes remote refs,
