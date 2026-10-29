@@ -108,4 +108,28 @@ expect_rc "a fragment already on the base is not this change set's bump" 1 $?
 expect_rc "a git failure is rc 2, never a pass or a plain stale" 2 $?
 rm -rf "$f"
 
+# --- root_of and convention_of ------------------------------------------------------
+# expect_out <label> <want> <command...>: the command's stdout, run in $f.
+expect_out() {
+  local label="$1" want="$2" got
+  shift 2
+  got="$(cd "$f" && use_lib && "$@")"
+  if [[ "$got" == "$want" ]]; then ok "$label"; else fail "$label: want '$want', got '$got'"; fi
+}
+base_fixture f alpha
+mkdir -p "$f/docs/contracts/ctr" "$f/docs/conventions/cnv" "$f/docs/conventions/ctr" "$f/docs/contracts/alpha"
+for d in contracts/ctr conventions/cnv contracts/alpha; do
+  printf '# Changelog\n\n## 1.0.0 - 2026-01-01\n' >"$f/docs/$d/CHANGELOG.md"
+done
+printf 'stub\n' >"$f/docs/conventions/ctr/README.md"
+expect_out "root_of finds a plugin first" plugins/alpha changelog_fragments::root_of alpha
+expect_out "root_of finds a convention under docs/contracts/" docs/contracts/ctr changelog_fragments::root_of ctr
+expect_out "root_of finds a convention under docs/conventions/" docs/conventions/cnv changelog_fragments::root_of cnv
+expect_out "convention_of names a docs/contracts/ convention" ctr changelog_fragments::convention_of docs/contracts/ctr/README.md
+expect_out "convention_of names a docs/conventions/ convention" cnv changelog_fragments::convention_of docs/conventions/cnv/CHANGELOG.md
+expect_out "convention_of skips a stub left at the old home" "" changelog_fragments::convention_of docs/conventions/ctr/README.md
+expect_out "convention_of skips a name a plugin owns" "" changelog_fragments::convention_of docs/contracts/alpha/README.md
+expect_out "convention_of skips a path outside both homes" "" changelog_fragments::convention_of plugins/alpha/README.md
+rm -rf "$f"
+
 test_harness::report

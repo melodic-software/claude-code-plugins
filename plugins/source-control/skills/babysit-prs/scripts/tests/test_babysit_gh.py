@@ -1320,5 +1320,23 @@ class CollectLaneRunsTests(unittest.TestCase):
         self.assertEqual([env for _, env in reads], [None] * 7)
 
 
+class FetchPullRequestAuthorTests(unittest.TestCase):
+    def test_reads_the_login_nested_under_author(self) -> None:
+        # `gh pr view --json author` nests the login one level down; reading it
+        # at the top level returned "" and the own-PR refusal never fired.
+        payload = {"author": {"login": "kyle-sexton", "is_bot": False}}
+        with mock.patch.object(gh, "gh_json", return_value=payload):
+            self.assertEqual(gh.fetch_pull_request_author("o/r", 1), "kyle-sexton")
+
+    def test_missing_login_fails_closed(self) -> None:
+        for payload in ({"author": {}}, {"login": "kyle-sexton"}, {"author": None}):
+            with (
+                self.subTest(payload=payload),
+                mock.patch.object(gh, "gh_json", return_value=payload),
+                self.assertRaises(RuntimeError),
+            ):
+                gh.fetch_pull_request_author("o/r", 1)
+
+
 if __name__ == "__main__":
     unittest.main()

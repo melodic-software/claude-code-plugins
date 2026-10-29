@@ -79,7 +79,7 @@ check_fail_closed "a nested list item" \
 check_fail_closed "a repeated pre_ready key" \
   $'pre_ready: []\npre_ready:\n  - step: verify\n    enabled: false\n' "pre_ready appears more than once"
 check_fail_closed "a repeated key inside an item" \
-  $'pre_ready:\n  - step: verify\n    enabled: false\n    step: code-review\n' "pre_ready item 0 repeats a key"
+  $'pre_ready:\n  - step: verify\n    enabled: false\n    step: code-review\n' "docs/conventions/source-control.yaml does not parse: line 4: duplicate key \`pre_ready.0.step\` (first at line 2)"
 
 # --http-response reads a `gh api -i` response: the status line decides.
 read_response() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" --http-response 2>/dev/null; }

@@ -1232,6 +1232,39 @@ class LaneMode(Unattended):
             _, out = self.lane()
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
 
+    def test_a_trusted_persons_gate_path_clears_on_a_clean_security_review(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the gate path leaves `high-path:` for
+        # `review-path:`, which BOUND's clean security review clears; the
+        # lanes App's own pull request keeps the person's hold.
+        gate = ".github/scripts/pr-merge/who.mjs"
+        self.config = dataclasses.replace(
+            self.config, adoption_idle_hours=24, denied_paths=()
+        )
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        person = {"login": "owner", "id": PERSON_ID, "type": "User"}
+        for user, lanes, score in (
+            (person, BOUND, "LOW"),
+            (person, UNBOUND, "HIGH"),
+            ({"login": IDENTITY, "id": PERSON_ID, "type": "Bot"}, BOUND, "HIGH"),
+        ):
+            self.pr_user, self.lanes = user, lanes
+            with (
+                self.subTest(user=user["type"], lanes=lanes[1].bound),
+                mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
+            ):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                codes = [r["code"] for r in risk["reasons"]]
+                self.assertEqual(
+                    f"high-path:{gate}" in codes, user["type"] == "Bot", codes
+                )
+
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
         # denied paths only under plugins/*/scripts/.
@@ -4429,6 +4462,7 @@ class AttachEdits(unittest.TestCase):
         edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
         other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
         editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
         reply = {
             "data": {
                 "nodes": [
@@ -4436,6 +4470,7 @@ class AttachEdits(unittest.TestCase):
                         "id": "IC_b",
                         "lastEditedAt": "2026-10-22T03:00:00Z",
                         "editor": editor,
+                        "userContentEdits": history,
                     }
                 ]
             }
@@ -4444,7 +4479,12 @@ class AttachEdits(unittest.TestCase):
             merge._attach_edits([same, edited, other], "#1")
         self.assertEqual(same["edit"], {"lastEditedAt": None})
         self.assertEqual(
-            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
         )
         self.assertNotIn("edit", other)
         args = read.call_args.args[0]

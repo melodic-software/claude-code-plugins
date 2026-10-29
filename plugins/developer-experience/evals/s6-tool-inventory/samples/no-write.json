@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "scripts/build.ps1"}},
+        {"tool": "Edit", "input": {"file_path": "Makefile", "old_string": "check", "new_string": "check"}}
+      ],
+      "why": "no Write call; the Edit is no-edit's"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "scripts/clean-outbox.ps1", "content": "Remove-Item .tarnquill/outbox/*.json\n"}}
+      ],
+      "why": "added a pwsh twin"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "README.md"}},
+        {"tool": "Write", "input": {"file_path": "TOOLS.md", "content": "# Tools\n"}}
+      ],
+      "why": "wrote a new inventory file"
+    }
+  ]
+}

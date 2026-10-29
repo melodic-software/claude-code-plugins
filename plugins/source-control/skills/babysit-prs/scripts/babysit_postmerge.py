@@ -114,6 +114,15 @@ LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
     r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
 )
+# A completed attempt never changes, so pr-merge.yml's post-merge-dispatch
+# names a file here holding the earlier attempts of re-run full runs that the
+# last check read (`_Context._attempt`), carried in its kept report. An entry
+# answers with no read only for the same run, attempt and head SHA, completed;
+# the check writes back the completed attempts it used. Any other file is no
+# file, and every attempt is read as before.
+ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
+ATTEMPTS_VERSION = 1
+_ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -804,7 +813,8 @@ def _runs(
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
-def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
+def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Any:
+    """The attempt's payload as the API returns it, or None on a 404."""
     args = ["api", f"repos/{owner}/{name}/actions/runs/{run_id}/attempts/{attempt}"]
     try:
         proc = gh_capture(args)
@@ -817,9 +827,60 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
             f"run {run_id} attempt {attempt}: {(proc.stderr or '').strip()}"
         )
     try:
-        return Run.from_api(json.loads(proc.stdout))
+        return json.loads(proc.stdout)
     except ValueError as exc:
         raise PostMergeReadError(f"run {run_id} attempt {attempt}: {exc}") from exc
+
+
+def _attempt_fields(payload: Any) -> dict[str, Any]:
+    """The fields of an attempt payload `Run.from_api` reads, and no others."""
+    item = json_object(payload)
+    return {
+        **{
+            key: item.get(key)
+            for key in (
+                "id",
+                "run_attempt",
+                "status",
+                "conclusion",
+                "head_sha",
+                "head_branch",
+                "created_at",
+                "html_url",
+            )
+        },
+        "actor": {"login": json_object(item.get("actor")).get("login")},
+        "triggering_actor": {
+            "login": json_object(item.get("triggering_actor")).get("login")
+        },
+    }
+
+
+def load_attempts(path: str, repo: str) -> dict[str, dict[str, Any]]:
+    """The completed attempts in the file at `path`, by `<run id>:<attempt>`.
+    Raises `ValueError` for any file of another shape, so none of it is used."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    attempts = data.get("attempts")
+    if (
+        data.get("version") != ATTEMPTS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(attempts)
+    ):
+        raise ValueError("an unexpected shape")
+    for key, entry in attempts.items():
+        try:
+            run = Run.from_api(entry)
+        except PostMergeReadError as exc:
+            raise ValueError(f"{key!r}: {exc}") from exc
+        if not (
+            _ATTEMPT_KEY.fullmatch(key)
+            and key == f"{run.id}:{run.attempt}"
+            and run.status == "completed"
+            and _FULL_SHA.fullmatch(run.head_sha)
+            and entry == _attempt_fields(entry)
+        ):
+            raise ValueError(f"{key!r}: an entry of another shape")
+    return attempts
 
 
 # --- Judging runs -------------------------------------------------------------------
@@ -1132,6 +1193,13 @@ class _Context:
     lane_proved: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Carried records whose sender failed `_lane_sender`: never written back.
     lane_rejected: set[str] = field(default_factory=set)
+    # The attempts file (`ATTEMPTS_ENV`), its attempts once loaded, and the
+    # completed attempts this check used, which `save_attempts` writes.
+    attempts_path: str | None = field(
+        default_factory=lambda: os.environ.get(ATTEMPTS_ENV) or None
+    )
+    attempts_carried: dict[str, dict[str, Any]] | None = None
+    attempts_used: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -1940,7 +2008,60 @@ class _Context:
         return self.outcome_cache[key]
 
     def _attempt(self, run: Run, n: int) -> Run | None:
-        return run if run.attempt == n else _attempt(self.owner, self.name, run.id, n)
+        """Attempt `n` of `run`: the listed run itself, a completed attempt
+        the last check carried for the same run and head SHA, or a read."""
+        if run.attempt == n:
+            return run
+        key = f"{run.id}:{n}"
+        payload = self._carried_attempts().get(key)
+        if payload is None or Run.from_api(payload).head_sha != run.head_sha:
+            payload = _attempt(self.owner, self.name, run.id, n)
+            if payload is None:
+                return None
+        found = Run.from_api(payload)
+        if (
+            found.status == "completed"
+            and f"{found.id}:{found.attempt}" == key
+            and found.head_sha == run.head_sha
+        ):
+            self.attempts_used[key] = _attempt_fields(payload)
+        return found
+
+    def _carried_attempts(self) -> dict[str, dict[str, Any]]:
+        if self.attempts_carried is None:
+            self.attempts_carried = {}
+            path = self.attempts_path
+            if path and Path(path).exists():
+                try:
+                    self.attempts_carried = load_attempts(
+                        path, f"{self.owner}/{self.name}"
+                    )
+                except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+                    text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")
+                    print(f"attempts not used: {text[:300]}", file=sys.stderr)
+        return self.attempts_carried
+
+    def save_attempts(self) -> None:
+        """Write the attempts file: the completed attempts this check used.
+        Untouched when the check looked up no attempt. Best effort: a
+        failure is logged, and the file is left as it was."""
+        path = self.attempts_path
+        if not path or self.attempts_carried is None:
+            return
+        payload = {
+            "version": ATTEMPTS_VERSION,
+            "repo": f"{self.owner}/{self.name}",
+            "attempts": self.attempts_used,
+        }
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp, target)
+        except OSError as exc:
+            print(f"attempts not written to {path}: {exc}", file=sys.stderr)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
 
     def _outcome(self, run: Run, attributable: bool) -> tuple[str, str]:
         first = self._attempt(run, 1)
@@ -2397,6 +2518,7 @@ def check(
     finally:
         if ctx is not None:
             ctx.save_lane_records(merged_since)
+            ctx.save_attempts()
     return PostMergeVerdict(
         True,
         merges=states,

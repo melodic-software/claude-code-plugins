@@ -114,6 +114,11 @@ D/audit-sessions/
   interactive session in scope and window. The machine-wide and per-ticket metrics carry
   `"not_applicable": true` with a null `value`, raise no finding and are listed in
   `data.unchecked`. The drift check still reads every record. `--session` refuses `--write-report`.
+- `--tickets '<regex>'` prints a separate envelope, schema `audit-sessions.tickets/v1`: `data`
+  holds `pattern`, `span_label`, `unkeyed` (interactive sessions with no match), `scope`, `window`,
+  `branch_key` with `--branch`, and `tickets`, one row per key with `sessions` (ids in start order),
+  `output_tokens`, `span_s`, `prs` (distinct linked PRs) and `gaps_s`. A gap runs from the latest
+  end so far to the next start and is 0 for overlapping sessions. It writes nothing.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.

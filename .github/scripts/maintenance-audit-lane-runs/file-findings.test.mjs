@@ -139,10 +139,16 @@ test("a finding naming another workflow than its unit's is dropped", (t) => {
   assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "workflow-not-unit" }]);
 });
 
-test("a finding naming a job absent from its unit is dropped", (t) => {
-  const { items, dropped } = prepareOne(t, dUnit(), { job: "deploy" });
+test("a finding naming a job absent from its A unit's failed jobs is dropped", (t) => {
+  const { items, dropped } = prepareOne(t, aUnit(), { slice: "A", workflow: ".github/workflows/pr-ci.yml", job: "deploy" });
   assert.equal(items.length, 0);
-  assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "job-not-in-unit" }]);
+  assert.deepEqual(dropped, [{ unit: "a1", title: finding().title, reason: "job-not-in-unit" }]);
+});
+
+test("a workflow-level finding on a D unit with green samples is kept", (t) => {
+  const { items, dropped } = prepareOne(t, dUnit(), { job: "deploy", signature: "duplicate runs for one head" });
+  assert.equal(items.length, 1);
+  assert.deepEqual(dropped, []);
 });
 
 test("a finding naming a slice other than its unit's is dropped", (t) => {
@@ -151,7 +157,7 @@ test("a finding naming a slice other than its unit's is dropped", (t) => {
   assert.deepEqual(dropped, [{ unit: "a1", title: finding().title, reason: "slice-not-unit" }]);
 });
 
-test("a finding that matches its unit's workflow and job passes", (t) => {
+test("a finding that matches its unit's workflow, and an A unit's failed job, passes", (t) => {
   const d = prepareOne(t, dUnit(), { job: "label" });
   assert.equal(d.items.length, 1);
   assert.deepEqual(d.dropped, []);

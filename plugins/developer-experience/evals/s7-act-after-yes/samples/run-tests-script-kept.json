@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Run the unit tests.\nset -euo pipefail\ncd \"$(dirname \"${BASH_SOURCE[0]}\")/..\"\npython3 -m unittest discover -s tests -t .\n",
+      "why": "the scaffold script, kept as is"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Run the unit tests (the only test entry point).\nset -euo pipefail\ncd \"$(dirname \"${BASH_SOURCE[0]}\")/..\"\npython3 -m unittest discover -t . -s tests \"$@\"\n",
+      "why": "kept and extended to pass arguments through"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "the kept script is gone or empty"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\nexec bash \"$(dirname \"$0\")/test.sh\"\n",
+      "why": "near miss: now delegates to the script that was to be removed"
+    },
+    {
+      "answer": ".PHONY: test\n\ntest:\n\tbash scripts/run_tests.sh\n",
+      "why": "answer to a different question: the Makefile"
+    }
+  ]
+}

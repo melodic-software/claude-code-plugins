@@ -100,22 +100,85 @@ const lastLine = (body) =>
 export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
 export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
+// The security-review lane's ratings, lowest first (security-review SKILL.md,
+// "Reporting": one `severity: <rating>` line per inline comment), and the
+// lowest one a person decides: this repository counts IMPORTANT as HIGH.
+export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
+export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
+// Any line shaped like a rating, wherever it sits; the lane's own line is
+// unindented, outside a fence, and the comment's first line or the last one
+// above its `claude-lane:` footer (blank lines skipped).
+const SEVERITY_SHAPED = /^[ \t>]*severity:/i;
+const SEVERITY_LINE = /^severity:[ \t]*([A-Za-z]+)[ \t]*$/i;
+const FENCE = /^[ \t]*(```|~~~)/;
+// A lane comment's one rating, upper-cased, or null (unrated, so a person
+// decides) unless the body holds exactly one rating-shaped line and it is the
+// lane's own: unindented, outside any fenced block, and the first non-blank
+// line or the last non-blank line above the lane footer. A rating quoted from
+// the pull request (fenced, indented, `>`-quoted or mid-body) never supplies
+// it, and any second rating-shaped line voids it.
+export function severityOf(body) {
+  const lines = String(body ?? "")
+    .split("\n")
+    .map((line) => line.replace(/\r$/, ""));
+  const content = [];
+  let fence = null;
+  for (const line of lines) {
+    const open = FENCE.exec(line)?.[1];
+    if (fence === null && open) {
+      fence = open;
+      content.push({ line, fenced: true });
+      continue;
+    }
+    if (fence !== null) {
+      if (open === fence) {
+        fence = null;
+      }
+      content.push({ line, fenced: true });
+      continue;
+    }
+    content.push({ line, fenced: false });
+  }
+  const shaped = content.filter(({ line }) => SEVERITY_SHAPED.test(line));
+  if (shaped.length !== 1 || shaped[0].fenced) {
+    return null;
+  }
+  const nonBlank = content.filter(({ line }) => line.trim() !== "");
+  const footer = nonBlank.length > 0 && laneOf(nonBlank.at(-1).line) !== null;
+  const positions = [nonBlank[0], footer ? nonBlank.at(-2) : undefined];
+  const match = positions.includes(shaped[0]) ? SEVERITY_LINE.exec(shaped[0].line) : null;
+  const rating = match?.[1].toUpperCase();
+  return SECURITY_SEVERITIES.includes(rating) ? rating : null;
+}
+// Whether a security-review lane comment is one a person decides: rated at or
+// above SECURITY_PERSON_SEVERITY, or with no rating it can read (fail closed).
+export const securityNeedsPerson = (body) => {
+  const severity = severityOf(body);
+  return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(SECURITY_PERSON_SEVERITY);
+};
+
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
 
 // Past the round cap, the threads only a person may still decide: a security
-// lane finding, a verifier note a trusted person directed, and a finding
-// whose lane no footer pr-review-cli appended names: only on a
-// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
-// never model text. The code lane's finding and an undirected verifier note
-// go to a fresh fixer: a round cap is a lane bound, and pr-verify's FAIL
-// already holds the merge and judges the next head afresh.
-export const needsPerson = (thread, rootAuthorId) =>
-  isVerifierNote(thread)
-    ? thread.comments.some((comment) => comment.direction === true)
-    : rootAuthorId !== MARKER_AUTHOR_ID ||
-      thread.comments[0]?.author !== "reviewer" ||
-      laneOf(thread.comments[0].body) !== "claude-review";
+// lane finding a person decides (securityNeedsPerson), a verifier note a
+// trusted person directed, and a finding whose lane no footer pr-review-cli
+// appended names: only on a github-actions[bot] root (`rootAuthorId`) is the
+// footer the reusable's, never model text. The code lane's finding, a
+// security lane finding rated below SECURITY_PERSON_SEVERITY and an undirected
+// verifier note go to a fresh fixer: a round cap is a lane bound, and
+// pr-verify's FAIL already holds the merge and judges the next head afresh.
+export const needsPerson = (thread, rootAuthorId) => {
+  if (isVerifierNote(thread)) {
+    return thread.comments.some((comment) => comment.direction === true);
+  }
+  const root = thread.comments[0];
+  if (rootAuthorId !== MARKER_AUTHOR_ID || root?.author !== "reviewer") {
+    return true;
+  }
+  const lane = laneOf(root.body);
+  return lane === "claude-security-review" ? securityNeedsPerson(root.body) : lane !== "claude-review";
+};
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -537,6 +600,7 @@ export async function select({
   trustedHumans,
   humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
+  adoption = NO_ADOPTION,
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -588,7 +652,15 @@ export async function select({
       return { decision: "skip", skipReason: "awaiting-human", threads: kept };
     }
     const stale = new Set(staleVerifyNotes(threads, headSha));
-    return threads.some((thread) => thread.isResolved === false && !stale.has(thread.id))
+    const untaken = threads.some((thread) => thread.isResolved === false && !stale.has(thread.id));
+    // On an adopted owner PR (ownerAuthored), a thread the lane does not take
+    // is the owner's (one they wrote, answered, or a lane answer the lanes App
+    // cannot resolve there), and so no stop: it still holds the merge until it
+    // is resolved. Any other person's PR still escalates.
+    if (untaken && ownerAuthored(pull, adoption)) {
+      return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
       : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
   }
@@ -746,6 +818,14 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   }
 }`;
 
+// The fetch a main run from the full base checkout hands createGitHubApi: each
+// attempt's rate-limit reading goes to the job-end api-calls notice
+// (rate-guard.mjs countRequests), and nothing else changes. It loads here, at
+// run time: publish-feedback.mjs and apply-dependency-verdict.mjs import this
+// module from a copy of this directory alone, which cannot reach .github/actions.
+export const countedFetch = async (fetchImpl = globalThis.fetch) =>
+  (await import("../../actions/log-api-budget/rate-guard.mjs")).countRequests(fetchImpl);
+
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). Closing a closed
 // pull request changes nothing; a blob, a tree and a commit are used only by
@@ -815,6 +895,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (pr, since) => paginate(`pulls/${pr}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    // A commit's statuses, newest first (fix-ci-context.mjs weakenStopped).
+    listCommitStatuses: (sha) => paginate(`commits/${sha}/statuses`),
     // The repository activity for one ref, newest first (contents read).
     listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
     async listCheckRuns(sha, name) {
@@ -1017,6 +1099,33 @@ export function trustedHumansFrom(trustedActorsPath) {
   );
 }
 
+// No owner is adopted unless the base config's `adoption` section sets
+// idle-hours (pr-pipeline.yaml).
+export const NO_ADOPTION = Object.freeze({ ownerIds: Object.freeze(new Set()), idleHours: undefined });
+
+// An owner PR: one a person on the base's trusted-actors list opened (by id,
+// kind human), under an `adoption` section. Its rounds post as the lanes App
+// like a lanes App PR's, so a lane answer is told apart from the person's.
+export const ownerAuthored = (pull, adoption = NO_ADOPTION) =>
+  adoption.idleHours !== undefined && pull.user?.type === "User" && adoption.ownerIds.has(pull.user?.id);
+
+// The owners whose PRs a round serves: the base trusted-actors list's people,
+// under the base config's `adoption` section. An unreadable section adopts no
+// owner, and lanes App PRs proceed.
+export async function ownerAdoption(env, log = () => {}) {
+  try {
+    const { adoptionFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+    const idleHours = adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" })["idle-hours"];
+    if (idleHours === undefined) {
+      return NO_ADOPTION;
+    }
+    return { ownerIds: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`), idleHours };
+  } catch (error) {
+    log(`::warning::cannot read the base adoption section or trusted-actors list (${error.message}); no owner PR is served this run`);
+    return NO_ADOPTION;
+  }
+}
+
 // The reviewer bot's id comes from the base's trusted-actors list, by login.
 export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
   const actor = readActors(trustedActorsPath).find((row) => row.login === login && row.kind === "bot");
@@ -1047,9 +1156,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
-  const selectThreads = () => {
+  const selectThreads = async () => {
     need(env, ["TRUSTED_ACTORS"]);
     return select({
       api: client,
@@ -1062,6 +1172,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
       humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
+      adoption: await ownerAdoption(env, log),
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {

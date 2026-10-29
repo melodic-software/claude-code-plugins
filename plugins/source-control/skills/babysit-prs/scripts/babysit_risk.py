@@ -21,7 +21,9 @@ main runs to mint and scope lane tokens and judge triggers, code owners and
 submodules, and it holds whatever the floor switch says. Its
 `enforcement` entries (`REVIEW_FLOOR`) rate HIGH as `review-path:<glob>`
 instead, which a clean security review bound to the head clears
-(`security_review_clean`, owner decision Q26 option B). No other path rates
+(`security_review_clean`, owner decision Q26 option B), and so do the
+`gate` entries in `RiskInput.author_reviewed` (owner direction 2026-10-27).
+No other path rates
 HIGH for being trusted alone, and the two review lanes, which are the gate,
 judge it, except the cost and trusted-actor holds below. The configured
 `merge.diff-check.denied-paths` are joined to the floor. Every glob matches
@@ -61,7 +63,9 @@ None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
 no patch; and a `.github/workflows/` file whose patch, unless
 `RiskInput.public` is True, adds a `runs-on:`, `windows`, `macos` or `cron`
-line (a schedule runs billed minutes), a raised timeout (below) or an artifact
+line (a schedule runs billed minutes), a `timeout-minutes` or
+`leg-timeout-minutes` above every one it removes when its head text
+(`contents`) names a model leg or could not be read, or an artifact
 `retention-days` above every one it removes, or above
 `DEFAULT_ARTIFACT_RETENTION_DAYS` when it removes none (storage past the free
 quota); or that gains a runner value (head text against base text, and added
@@ -76,14 +80,13 @@ against the lines it removes so a move or repin is not new. They widen what a
 credential or an agent can reach, so both are a person's (`PERSON_CODES`)
 and no cost decision clears them.
 
-Spend that draws only on a subscription or prepaid credit is the MED
-`cost-finding`, reported and never held: a workflow patch that adds a
-`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
-`cron` key in any spelling); that, on a public repository, adds a
-`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
-its head text (`contents`) names a model leg or could not be read, or a raised
-`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
-line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
+Cost means only what can bill. Model usage under a subscription or prepaid
+credit does not, so a model or turn flag reports nothing; nor do hosted
+minutes or artifact storage on a public repository, so a schedule, a raised
+timeout or a raised `retention-days` there reports nothing. A
+`pr-pipeline.yaml` change with any added or removed line off
+`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments, is the MED
+`cost-finding`, reported and never held.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -186,6 +189,12 @@ class RiskInput:
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
+    # `gate` paths a trusted person's own commits alone touched, on a head
+    # pr-verify passed, on that person's own pull request
+    # (babysit_merge_policy.author_reviewed_paths): they rate `review-path:`
+    # as an enforcement path does (owner direction 2026-10-27). Anything but
+    # a frozenset of strings lifts nothing.
+    author_reviewed: frozenset[str] = frozenset()
     # The listing reached the files API's cap, so no read ever completes it
     # and its paths can never all be judged.
     files_capped: bool = False
@@ -207,15 +216,20 @@ class RiskResult:
 # What a lane pull request must not change unattended (owner decisions
 # Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B), each glob with its class:
 # - `trust`: what mints and scopes lane tokens and judges triggers
-#   (request-lane-token, check-trusted-trigger, check-kill-switch, whose
-#   writeOutputs both of those write their verdicts through), code owners
-#   and submodules.
-# - `gate`: the merge gate's own code and the config the token broker loads:
-#   resolve-config (which the broker runs from main in its signer process,
-#   effect-grants.json included), the rate guard, every pr-merge script,
-#   babysit_merge*, babysit_risk.py and babysit_review_evidence.py (which
-#   compute the review's clear condition), the pipeline config, and
-#   scripts/sync-hold-floor.py, which writes this table's copies.
+#   (request-lane-token, resolve-config, which the token broker runs from
+#   main in its signer process with effect-grants.json, lane-rules.json and
+#   activity-rules.json, the pipeline config, whose activity `effect:`
+#   values and lane slots the broker reads, check-trusted-trigger,
+#   check-kill-switch, whose writeOutputs both of those write their verdicts
+#   through), code owners, submodules, and the code that computes the
+#   author lift and the hold tables: babysit_merge*, babysit_risk.py and
+#   babysit_review_evidence.py (which compute the review's clear
+#   condition), merge-holds.mjs and scripts/sync-hold-floor.py, which writes
+#   this table's copies, and the pr-merge scripts that apply and enforce the
+#   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
+#   gate-check.mjs and head-ref-map.mjs.
+# - `gate`: the rest of the merge gate's own code: the rate guard and the
+#   other pr-merge scripts.
 # - `enforcement`: the pr-merge and ci-status workflows, the rest of the
 #   modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
@@ -225,7 +239,13 @@ class RiskResult:
 #   the routing table they read, so a held reason cannot be dropped unreviewed.
 # A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
 # path holds until the security lane's review binds to the head with no
-# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed.
+# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed. So
+# does a `gate` path on a trusted person's own pull request that only their
+# own commits touched, on a head pr-verify passed (AUTHOR_REVIEW_FLOOR,
+# `RiskInput.author_reviewed`); a lanes App pull request's never does, nor
+# does a `trust` path: agents commit as the trusted owner, so what scopes a
+# lane token, and what could widen the lift or drop a floor row for the next
+# pull request, always waits for a person.
 # The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
 # HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
 # hold_patterns, and test_merge_holds_sync.py runs its --check.
@@ -233,18 +253,18 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/actions/check-trusted-trigger/**", "trust"),
     ("**/CODEOWNERS", "trust"),
     ("**/.gitmodules", "trust"),
-    (".github/actions/resolve-config/**", "gate"),
+    (".github/actions/resolve-config/**", "trust"),
     (".github/actions/check-kill-switch/**", "trust"),
     (".github/actions/request-lane-token/**", "trust"),
     (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
     (".github/actions/log-api-budget/rate-limits.json", "gate"),
-    (".github/scripts/pr-merge/merge-holds.mjs", "gate"),
-    (".github/scripts/pr-merge/enable-auto-merge.mjs", "gate"),
-    (".github/scripts/pr-merge/superseded.mjs", "gate"),
-    (".github/scripts/pr-merge/clear-escalations.mjs", "gate"),
+    (".github/scripts/pr-merge/merge-holds.mjs", "trust"),
+    (".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"),
+    (".github/scripts/pr-merge/superseded.mjs", "trust"),
+    (".github/scripts/pr-merge/clear-escalations.mjs", "trust"),
     (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
-    (".github/scripts/pr-merge/gate-check.mjs", "gate"),
-    (".github/scripts/pr-merge/head-ref-map.mjs", "gate"),
+    (".github/scripts/pr-merge/gate-check.mjs", "trust"),
+    (".github/scripts/pr-merge/head-ref-map.mjs", "trust"),
     (".github/scripts/pr-merge/lane-records.mjs", "gate"),
     (".github/scripts/pr-merge/last-report.mjs", "gate"),
     (".github/scripts/pr-merge/rate-stop.bash", "gate"),
@@ -256,19 +276,19 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
     (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
     (".github/actions/report-check-run/posting-run.mjs", "gate"),
-    ("scripts/sync-hold-floor.py", "gate"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "gate"),
+    ("scripts/sync-hold-floor.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "gate"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "trust"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py", "enforcement"),
-    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "gate"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
@@ -277,7 +297,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
     (".github/workflows/pr-require-checks.yml", "enforcement"),
     (".github/workflows/pr-merge.yml", "enforcement"),
-    ("docs/conventions/pr-pipeline.yaml", "gate"),
+    ("docs/conventions/pr-pipeline.yaml", "trust"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
@@ -309,6 +329,10 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
 PERSON_CLASSES = frozenset({"trust", "gate"})
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
 REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enforcement")
+AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
+AUTHOR_REVIEW_FLOOR: tuple[str, ...] = tuple(
+    g for g, c in FLOOR_CLASSES if c in AUTHOR_REVIEW_CLASSES
+)
 # Every floor glob, whichever clears it.
 FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
 REVIEW_PATH_PREFIX = "review-path:"
@@ -666,14 +690,21 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
+    reviewed = _author_reviewed(inp.author_reviewed, paths, configured)
     for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
-        hits = [path for path in paths if glob_match(pattern, path)]
+        hits = [
+            path
+            for path in paths
+            if glob_match(pattern, path)
+            and not (path in reviewed and pattern in AUTHOR_REVIEW_FLOOR)
+        ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if not security_review_clean(inp.lanes):
         unbindable = _security_review_unbindable(inp.lanes)
-        for pattern in REVIEW_FLOOR:
-            hits = [path for path in paths if glob_match(pattern, path)]
+        for pattern in (*REVIEW_FLOOR, *AUTHOR_REVIEW_FLOOR):
+            candidates = paths if pattern in REVIEW_FLOOR else reviewed
+            hits = [path for path in candidates if glob_match(pattern, path)]
             if hits and unbindable:
                 detail = f"{', '.join(hits)}; it also changes a lane source, so no security review binds to this head"
                 reasons.append(
@@ -695,6 +726,25 @@ def _high_path_reasons(
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
     return reasons
+
+
+def _author_reviewed(
+    raw: Any, paths: list[str], configured: Iterable[str]
+) -> list[str]:
+    """The changed `paths` in `raw` (`RiskInput.author_reviewed`) that a
+    `gate` glob matches and no other floor or configured glob does: only
+    those leave `high-path:` for `review-path:`. Anything but a frozenset of
+    strings names none."""
+    if not (isinstance(raw, frozenset) and all(isinstance(p, str) for p in raw)):
+        return []
+    held = [*(g for g in HIGH_FLOOR if g not in AUTHOR_REVIEW_FLOOR), *configured]
+    return [
+        path
+        for path in dict.fromkeys(paths)
+        if path in raw
+        and any(glob_match(g, path) for g in AUTHOR_REVIEW_FLOOR)
+        and not any(glob_match(g, path) for g in held)
+    ]
 
 
 def is_trusted_actors_path(path: str) -> bool:
@@ -759,11 +809,6 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that spend model usage: a schedule in any YAML or JSON
-# spelling and a model or turn flag.
-_COST_WORKFLOW_LINE = re.compile(
-    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
-)
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on line, a Windows or macOS label (a matrix value) or a
 # schedule (recurring runs) charges.
@@ -1026,8 +1071,6 @@ def _cost_reasons(
             for s in added:
                 if not public and _COST_PRIVATE_LINE.search(s):
                     charge.append(s.strip())
-                elif _COST_WORKFLOW_LINE.search(s):
-                    spend.append(s.strip())
             secret = _net_added(_SECRET_REF, added, removed)
             if secret:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
@@ -1041,10 +1084,9 @@ def _cost_reasons(
                 agents.append(f"{f.path}: {'; '.join(agent)}")
             # Hosted minutes and artifact storage are free only on a public
             # repository.
-            (spend if public else charge).extend(
-                _raised_timeouts(f, raw, added, removed)
-                + _raised_retention(added, removed)
-            )
+            if not public:
+                charge += _raised_timeouts(f, raw, added, removed)
+                charge += _raised_retention(added, removed)
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
             spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))

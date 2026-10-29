@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwd -P",
+            "description": "Canonical project path"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s' 'C#' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4",
+            "description": "Hash the raw topic name"
+          }
+        }
+      ],
+      "why": "computes the collision hash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls learning-root",
+            "description": "List the workspace root"
+          }
+        }
+      ],
+      "why": "never hashes, so any hash in the reply is invented"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s' \"$(pwd -P)\" | sha256sum | cut -c1-8",
+            "description": "Hash the project path"
+          }
+        }
+      ],
+      "why": "hashes only the project path, so the topic suffix is invented"
+    },
+    {
+      "answer": [],
+      "why": "no shell call"
+    }
+  ]
+}

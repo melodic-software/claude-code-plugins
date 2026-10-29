@@ -35,7 +35,10 @@ name: maintenance-reconcile-lost-runs
 # first attempt, only in ci-status, which noted that the lanes kill switch was
 # on, has that ci-status re-run, recorded as above, by the first run after the
 # switch is lifted, whatever the run's age; it takes a place under the cap. A
-# run at a later attempt is left to a person.
+# run at a later attempt is left to a person. Any pull request's ci-status that
+# failed the same way only on a `pr-unblock/*` status is re-run the same way
+# once no such status fails the head (the lane that stopped cleared it); a
+# status post starts no run, and a failed re-run of it is only a warning.
 #
 # An intake-triage run an issue event started whose first attempt failed only
 # in its intake-label-needs-triage job (a rate limit, most often) left the
@@ -108,10 +111,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill

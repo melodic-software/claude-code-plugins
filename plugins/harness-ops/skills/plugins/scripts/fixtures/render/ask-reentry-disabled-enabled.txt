@@ -1,3 +1,4 @@
+Result: changes applied, nothing under Action needed
 Marketplace: market1: current (autoUpdate: on)
 In-repo: 0: <case> has no project/local installs
 Installed: 2 new catalog plugin(s): beta@market1, gamma@market1

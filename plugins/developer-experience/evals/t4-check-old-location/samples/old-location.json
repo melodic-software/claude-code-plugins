@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "| 3 | Conventions file | **FAIL** | It's in an old location: `.claude/developer-experience.md` (it has `written_against: developer-experience@` and the `# Developer tooling conventions` heading). One file references the old path: `AGENTS.md:13`. Fix: run `apply` to migrate it. |",
+      "why": "excerpt of sources/labels/T4/2/samples/real-p6a-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "| 3 | Conventions file location | **FAIL** | `.claude/developer-experience.md` | It's in the old location (`.claude/`, which also has the `written_against:` front matter and the conventions heading). The only file that references this path is `AGENTS.md:13`. Fix: run `apply`, which moves it. |",
+      "why": "excerpt of real-p6b-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "| 3 | Conventions file location | **FAIL** | The file is at `.claude/developer-experience.md`, an old location: the plugin never puts it under `.claude/`. The only file that references it is `AGENTS.md:13`. | `apply` migrates it. Without a bound convention home, the default is `docs/conventions/developer-experience.md`. Basis: verified, `reference/conventions-file.md:19-21`. |",
+      "why": "excerpt of real-p6b-A2-run2.md, labeled PASS"
+    },
+    {
+      "answer": "| 3 | Conventions file | **FAIL**: old location | `.claude/developer-experience.md` (it has `written_against: developer-experience@0.0.1` and the `# Developer tooling conventions` heading). Files that reference this path: `AGENTS.md:13`. Fix: run `apply` (migrate). |",
+      "why": "excerpt of real-p6b-A2-run3.md, labeled PASS"
+    },
+    {
+      "answer": "| 3 | Conventions file | **FAIL** (old location) | `.claude/developer-experience.md` | The file is under `.claude/`, so it needs to move. Nothing exists yet at `docs/conventions/developer-experience.md`. The only file that references the old path is `AGENTS.md:13`. |",
+      "why": "excerpt of real-p6c-A2-run1.md, labeled PASS"
+    },
+    {
+      "answer": "Nothing was written. Next `apply` would **migrate** the conventions file out of `.claude/`.\n\n| 3 | Conventions file location | **FAIL** (old location) | The file is at `.claude/developer-experience.md`, which has `written_against: developer-experience@0.0.1` and the `# Developer tooling conventions` heading. Nothing exists at `docs/conventions/developer-experience.md`. The only file that refers to the old path is `AGENTS.md:13`. | Run apply to migrate. Deleting the old file needs its own yes. |",
+      "why": "excerpt of real-p6c-A2-run2.md, labeled PASS"
+    },
+    {
+      "answer": "Nothing was written. The conventions file is still in its old location, `.claude/developer-experience.md`, so the next `apply` would **migrate** it. The pointer line in `AGENTS.md` needs updating, `CLAUDE.md` doesn't import `AGENTS.md`, and three statements in the file aren't true of the code.",
+      "why": "excerpt of real-p6c-A2-run3.md, labeled PASS"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no report"
+    },
+    {
+      "answer": "**Next `apply` state: update.** It would edit `.claude/developer-experience.md` in place, keeping the prose verbatim except where you accept the fact fixes above. It would also update `CLI contract`.",
+      "why": "excerpt of var-p6b-A2-run2.md, labeled FAIL: the path is kept as the right place"
+    },
+    {
+      "answer": "**About the load fix:** the instruction-placement plugin is installed, according to `installed_plugins.json`. To move instructions from `CLAUDE.md` into `AGENTS.md`, use `/instruction-placement:migrate`. Otherwise, adding the `@AGENTS.md` line to `CLAUDE.md` is enough on its own.\n\n- edit `.claude/developer-experience.md` in place, keeping your sections and text as they are;",
+      "why": "excerpt of var-p6c-A2-run1.md, labeled FAIL: migrate names another skill, not the conventions file"
+    },
+    {
+      "answer": "## What the next `apply` does: update in place\n\nThe next `apply` edits `.claude/developer-experience.md` where it is. In the same step it would fix 5b and 5h and update `CLI contract`. The `AGENTS.md` line stays as it is.",
+      "why": "excerpt of var-p6a-A2-run1.md, labeled FAIL"
+    },
+    {
+      "answer": "**Next `apply` would:** fix the four false facts and the `CLI contract` marker in `.claude/developer-experience.md`.",
+      "why": "excerpt of var-p6b-A2-run1.md, labeled FAIL"
+    },
+    {
+      "answer": "The conventions file belongs at `docs/conventions/developer-experience.md`, and `apply` would write it there.",
+      "why": "near miss: never names where the conventions are now"
+    }
+  ]
+}

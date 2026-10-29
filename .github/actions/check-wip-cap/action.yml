@@ -55,11 +55,13 @@ outputs:
 runs:
   using: composite
   steps:
+    # setup-pinned-node's script, the sibling action in the same checkout: no
+    # GitHub API call, unlike actions/setup-node on a tool-cache miss.
     - name: Set up Node
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-      with:
-        node-version-file: ${{ inputs.base-path }}/.node-version
-        package-manager-cache: false
+      shell: bash
+      env:
+        VERSION_FILE: ${{ inputs.base-path }}/.node-version
+      run: bash "$GITHUB_ACTION_PATH/../setup-pinned-node/install-node.sh" "$VERSION_FILE"
 
     # The last known state: the newest status a run saved; none on the first
     # run. A cache restore spends no REST quota, so it holds when the

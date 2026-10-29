@@ -29,8 +29,8 @@ even when some other root ran, unless another lane took it. The grep lane takes 
 `package.json` root owns, so a full run covers it and only `--lane knip` leaves it listed.
 `skipped` stays the missing-or-uninvocable binary state.
 
-Source files with no lane are the extensions in `DC_NOLANE_EXTS` (Rust, .NET, JVM, Ruby, C and
-C++, and the others listed there) and extensionless files whose shebang names a non-shell
+Source files with no lane are the extensions in `DC_NOLANE_EXTS` (Rust, F# and VB, JVM, Ruby, C
+and C++, and the others listed there) and extensionless files whose shebang names a non-shell
 interpreter. Add a lowercase extension to `DC_NOLANE_EXTS` (`scripts/lib/dead-code-shapes.sh`) to
 classify it. An extensionless file with a line-1 shell shebang (`sh`, `bash`, `dash`, `zsh`, `ksh`,
 including `env` forms) joins the shell lane, and one with no shebang is not source. The grep lane
@@ -109,7 +109,7 @@ non-source paths are not in the coverage total.
 - **Invocation:** `gopls check -severity=hint`, run with cwd set to the module root, one root per
   `go.mod`. Per the official docs gopls "does not run the actual compiler": it runs `go list` plus
   its own front end, and Go has no `build.rs` equivalent, so there is no project code to execute.
-  That is why Go passes the no-build rule while Rust and .NET do not.
+  That is why Go passes the no-build rule while Rust and a .NET build lane do not.
 - **Unexported symbols only.** That is the lane's **declared coverage**, not a defect. An exported
   symbol is reachable from outside the module and no in-module analysis can call it dead.
 - **Ownership, as in the knip lane.** A module is handed only the `.go` files it owns, paths under
@@ -131,7 +131,7 @@ non-source paths are not in the coverage total.
   unused`. Exit **0** while carrying that finding, with the used and exported functions correctly
   left un-hinted.
 
-### grep: shell, PowerShell, and standalone JS/TS
+### grep: shell, PowerShell, C#, and standalone JS/TS
 
 - **The portable floor is `grep -w -F -f <names>`** over the repository's tracked files. `-F` is
   **mandatory**: without it `core.ts` matches `coreXts`. None of `-w`, `-F`, `-f` is a GNU-only
@@ -159,6 +159,48 @@ non-source paths are not in the coverage total.
   candidate. Tier 2 follows from the figure. The precision is below the tier 1 shell symbols,
   and an export used only by an outside consumer reads as unreferenced. A symbol used only inside
   its own file counts as referenced and stays unreported.
+- **C# is read as text and nothing is built.** No `dotnet`, MSBuild, restore or analyzer runs. The
+  extractor takes `class`, `struct`, `interface`, `enum` and `record` declarations, and members
+  whose line opens with `public`, `internal`, `protected` or `private`. The name is the last word
+  before the parameter list, initializer, terminator or accessor body. Not extracted: a member with
+  no access modifier (private by default), an override or operator (reached without spelling the
+  name), a constructor, an indexer and a tuple-typed member. A line yields one name, so
+  `int alpha, beta;` yields only `beta`, and `int alpha = 1, beta = 2;` only `alpha`. There is no overload or type resolution, and no unused-parameter or unused-`using`
+  detection.
+- **Two C# shapes, one reference rule.** A `private` declaration (not `private protected`) is
+  `cs-unreferenced-private`; any other is `cs-unreferenced-symbol`. Both use the
+  referenced-anywhere rule above. A private member is accessible "only within the body of the
+  class or the struct where you declare them", and from nested types in that body
+  ([private keyword](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/private)),
+  but a partial type spreads that body over files: "Any class, struct, or interface members
+  declared in a partial definition are available to all the other parts"
+  ([Partial classes and members](https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/partial-classes-and-methods)).
+  The repository-wide search covers both, and a reflection lookup by a string literal in another
+  file. The cost is recall: a dead name that matches any other word in the repository is saved.
+  No stop list is applied, because a short common name (`Get`, `Name`) costs recall, never
+  precision. Both pages read 2026-10-29.
+- **Markup is in the reference corpus.** `.razor` and `.cshtml` files are tracked, so the search
+  reads them. A component names its handler in markup as `@on{DOM EVENT}="{DELEGATE}"`
+  ([Blazor event handling](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling),
+  read 2026-10-29), so a code-behind handler `@onclick` names, or a `[Parameter]` property a
+  parent sets, is saved. The lane extracts nothing from markup, and markup is not in the coverage
+  total.
+- **C# figures** come from the trap corpus `cs-orders.cs`, `cs-program.cs`,
+  `OrderCounter.razor.cs`, `OrderCounter.razor` and `OrderPage.razor`: the candidate set
+  `scripts/dead-code-scan.test.sh` asserts, recorded 2026-10-29. `cs-unreferenced-private`: 3
+  candidates, 2 true (`_staleCounter`, `FormatLegacyOrder`) and 1 false (`OnAudit`, invoked by
+  reflection under a name built at run time), so **66.7% precision**. Of 3 dead private members it
+  found 2, so **66.7% recall**: the dead private `Clamp` is saved by the live `QuantityRules.Clamp`.
+  `cs-unreferenced-symbol`: 3 candidates, 1 true (`LegacyOrderExporter`) and 2 false
+  (`AuditRequestHandler`, created by assembly scanning; `Sku`, read only by `JsonSerializer`), so
+  **33.3% precision** and **100% recall** (1 of 1). Saved: the interface implementation `Handle`,
+  the Razor handler `HandleRefresh`, the parameter `Total` and the used class `QuantityRules`.
+  Each shape yields a false dead, so both are tier 2.
+- **How the C# pass fails.** False dead: reflection by a computed name, DI or assembly scanning,
+  MediatR-style handler discovery, a property only a serializer reads, a member a source generator
+  calls, a <!-- spellchecker:off -->`[JSInvokable("alias")]`<!-- spellchecker:on --> method JavaScript calls by the alias, a component only `@page`
+  routing reaches, and an entry-point `Main`. False alive: a dead name shared with any other
+  identifier, string or comment in the repository.
 - **A hit adjacent to `$`, `-`, or `.` is never an automatic `alive`** during adjudication: inspect
   it before crediting it as a reference.
 - **`unreferenced-file` reuses this search** on two keys per source file: the basename and the
@@ -166,7 +208,8 @@ non-source paths are not in the coverage total.
   compiled unit is named by its stem (`new Widget()`, `mod widget;`), never its filename. A hit in
   any other tracked file saves it. That includes CI workflows, settings, manifests, and docs. A hit
   inside the file itself does not. The input set is shell, PowerShell, Python entry points (line-1
-  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, and
+  shebang, a `__name__` guard, or `__main__.py`), JS/TS that no `package.json` root owns, C# (keyed
+  on its stem with every extension dropped, so `Counter.razor.cs` is saved by `<Counter`), and
   source extensions with no lane. Go stays on the gopls lane. Knip still owns unused TS/JS files
   inside a manifest root. The shape is tier 2: a computed path, a glob, `python -m`, or a build
   file that never spells the path can still load the file, so the candidate is uncertain, not
@@ -179,14 +222,16 @@ non-source paths are not in the coverage total.
   matching part of the lines." **As of:** 2026-09-28. **Recheck:** the lane fails on a BSD or
   macOS userland, or the man page drops either flag.
 
-## Why Rust, .NET, and an LSP scanning lane are absent
+## Why Rust, a .NET build lane, and an LSP scanning lane are absent
 
-- **Rust and .NET**: rust-analyzer's dead-code signal comes from `cargo check`, which compiles
-  `build.rs` and proc macros; the Roslyn server signals "project needs to be restored"; clangd needs
-  `compile_commands.json`; jdtls needs a built classpath. Every one of them builds or executes
-  project code. The exclusion trigger is a detector that does neither. That trigger is what
-  admitted Go. Source files in those languages still enter the grep lane's `unreferenced-file`
-  search, which does not build.
+- **Rust and a .NET build lane**: rust-analyzer's dead-code signal comes from `cargo check`, which
+  compiles `build.rs` and proc macros; the Roslyn server signals "project needs to be restored";
+  clangd needs `compile_commands.json`; jdtls needs a built classpath. Every one of them builds or
+  executes project code. The exclusion trigger is a detector that does neither. That trigger is
+  what admitted Go, and what admits the grep lane's C# pass, which reads `.cs` text and runs no
+  .NET tool. A Roslyn or ReSharper lane, with unused parameters and unnecessary `using` directives,
+  stays excluded. Source files in the other languages still enter the grep lane's
+  `unreferenced-file` search, which does not build.
 - **An LSP scanning lane**: Claude Code's `LSP` tool is model-callable only. No bash script can
   reach it, and it has no batch mode, so enumerating every symbol would cost one model turn each.
   It is retained only as an optional per-candidate assist inside the already-bounded adjudication.

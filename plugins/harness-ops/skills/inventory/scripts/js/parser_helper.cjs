@@ -58,8 +58,12 @@
 //     -> {"id":7,"ok":true,"used":["pY"]}   names the module reads as a property
 //   {"id":8,"op":"exports","module":"<key>","source":"..."}
 //     -> {"id":8,"ok":true,"names":["pY","default"]}   every name it exports
-//   {"id":9,"op":"loads","module":"<key>","source":"..."}
-//     -> {"id":9,"ok":true,"files":["chunk-a.js"]}  files it loads whole
+//   {"id":9,"op":"loads","module":"<key>","source":"...","loaders":["Fe"]}
+//     -> {"id":9,"ok":true,"files":["chunk-a.js"],"aliases":[]}  files it
+//        loads whole, and the names it exports an alias of `require` under.
+//     `loaders`, optional here and on `namespace` and `sinks`, lists every
+//     name a module of the bundle exports such an alias under; an import
+//     of one is then a named loader, and so is the alias itself.
 //   {"id":10,"op":"namespace","module":"<key>","source":"...","file":"chunk-a.js","name":"pY"}
 //     Whether each whole load of the file reads only other exports by
 //     name; `namespace` below documents the reply.
@@ -971,11 +975,13 @@ const isImportMeta = (n) => n?.type === "MetaProperty" && n.meta.name === "impor
 // escaping) could reach the export unseen and throws Unresolved. A promise
 // or a record on the way holds it only through the built-ins the walk
 // names in `trusted`; `thenable` is whether a promise resolves with the
-// namespace, which reads its `then` export.
+// namespace, which reads its `then` export. `loaders` maps each call of a
+// named loader with a literal specifier to the file it loads.
 class Namespace {
-  constructor(entry, name) {
+  constructor(entry, name, loaders) {
     this.entry = entry;
     this.name = name;
+    this.loaders = loaders;
     this.parents = parentsOf(entry);
     this.trusted = new Set();
     this.thenable = false;
@@ -1004,7 +1010,7 @@ class Namespace {
       const callee = node.callee;
       const bare = callee.type === "Identifier" && !this.entry.refs.get(callee.start)?.resolved;
       const meta = callee.type === "MemberExpression" && isImportMeta(callee.object) && !callee.computed;
-      if (!bare && !meta) throw new Unresolved("a require through a binding or object", node.start);
+      if (!bare && !meta && !this.loaders.has(node)) throw new Unresolved("a require through a binding or object", node.start);
       if (meta) this.importMetaIntact();
       this.trusted.add("require");
       return this.value(node);
@@ -1227,9 +1233,10 @@ class Namespace {
   }
 }
 
-// {"op":"namespace","module":key,"source"?:...,"file":F,"name":Z}
-//   Whether every place the module loads the file F whole reaches no read
-//   of the export Z other than through the walk above.
+// {"op":"namespace","module":key,"source"?:...,"file":F,"name":Z,"loaders"?:[...]}
+//   Whether every place the module loads the file F whole, a named
+//   loader's call included (`loaders` as `loads` takes them), reaches no
+//   read of the export Z other than through the walk above.
 //   -> {"safe":true,"sites":n,"trusted":[...],"thenable":bool}
 //   -> {"safe":false,"reason":"...","at":offset|null}
 function namespace(req) {
@@ -1240,13 +1247,15 @@ function namespace(req) {
   if (entry === null) return { ok: true, need_source: true };
   if (entry.error) return { ok: true, safe: false, reason: `the module does not parse: ${entry.error}`, at: null };
   if (entry.evals) return { ok: true, safe: false, reason: "the module calls eval directly", at: null };
-  const walk = new Namespace(entry, req.name);
+  const named = new Map();
+  for (const [node, spec] of loaderUses(entry, loaderNames(req)).uses) if (spec !== null) named.set(node, fileName(spec));
+  const walk = new Namespace(entry, req.name, named);
   let sites = 0;
   try {
     const stack = [entry.ast];
     while (stack.length) {
       const node = stack.pop();
-      if (loadedFile(node) === req.file) {
+      if ((named.get(node) ?? loadedFile(node)) === req.file) {
         sites++;
         walk.site(node);
       }
@@ -1424,7 +1433,9 @@ function definerOf(n) {
 //   - code run from a string through node:vm: any load of the vm module
 //     except an import naming only `isContext`, and a vm runner's name
 //     (`runInThisContext`, `runInNewContext`, ...) read from any object;
-//   - a load the scan cannot name (`unknownLoad`), which may load node:vm;
+//   - a load the scan cannot name (`unknownLoad`, and a use of a named
+//     loader other than a call with a literal specifier, given `loaders`
+//     as `loads` takes them), which may load node:vm;
 //   - the global `Function` used other than for `typeof`, `instanceof` or
 //     a `.prototype` read that stays clear of `constructor` (`prototypeOnly`),
 //     except a build whose result is discarded and a
@@ -1445,20 +1456,26 @@ function sinks(req) {
   }
   const entry = moduleFor(req);
   if (entry === null) return { ok: true, need_source: true };
-  return { ok: true, hits: sinkHits(entry, new Set([...req.names, "Function"]), 0) };
+  return { ok: true, hits: sinkHits(entry, new Set([...req.names, "Function"]), 0, loaderNames(req)) };
 }
 
 // How deep a folded `Function` body that builds another is followed.
 const FOLD_DEPTH = 4;
 
 // The `sinks` hits for an analyzed module (`analyze`), or for code a
-// `Function` call folded to, `depth` folds down.
-function sinkHits(entry, names, depth) {
+// `Function` call folded to, `depth` folds down; `loaders` as
+// `loaderNames` reads them.
+function sinkHits(entry, names, depth, loaders = new Set()) {
   if (entry.error) return [["unparsed", null, 0]];
   if (entry.evals) return [["eval", null, 0]];
   const parents = parentsOf(entry);
   const hits = [];
   const hit = (kind, name, node) => hits.length < SINK_LIMIT && hits.push([kind, name, node.start]);
+  const held = loaderUses(entry, loaders);
+  for (const [node, spec] of held.uses) {
+    if (spec === null) hit("unknown-load", null, node);
+    else if (VM_SPECIFIERS.has(spec)) hit("vm-string-code", null, node);
+  }
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
   const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   const fresh = (node, depth = 0) => {
@@ -1702,7 +1719,7 @@ function sinkHits(entry, names, depth) {
       if (!harmless) hit("vm-string-code", null, node);
     }
     // A load the scan cannot name may load node:vm.
-    if (unknownLoad(node, holder, keyValues)) hit("unknown-load", null, node);
+    if (unknownLoad(node, parents, keyValues) && !held.cleared.has(node)) hit("unknown-load", null, node);
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {
@@ -1796,16 +1813,19 @@ function scanFor(req) {
   return scan;
 }
 
-// Whether `node` (with parent `parent`) may load a module the scan cannot
-// name: `import(x)` with a specifier that is no literal, and `require`,
-// `import.meta.require` or `x.require` used other than as the direct callee
-// of a call with a literal specifier (an alias, `.call`, `(0,require)`), a
-// `typeof` test, or `require.resolve`. A binding named `require` is no use.
+// Whether `node` (its parent in `parents`) may load a module the scan
+// cannot name: `import(x)` with a specifier that is no literal, and
+// `require`, `import.meta.require` or `x.require` used other than as the
+// direct callee of a call with a literal specifier (an alias, `.call`,
+// `(0,require)`), a `typeof` test, `require.resolve`, or a member read only
+// tested for truth (`onlyTested`, lodash's `w&&w.require&&w.require("util")`).
+// A binding named `require` is no use.
 // A computed member or destructured key counts when `keyValues` (from
 // `keyValuesOf`) finds it unknown or able to spell `require`
 // (`module[k]`, `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
 // target of a plain `o[k]=v`; even a literal specifier does not name its file.
-function unknownLoad(node, parent, keyValues) {
+function unknownLoad(node, parents, keyValues) {
+  const parent = parents.get(node);
   if (node.type === "ImportExpression") return literalString(node.source) === null;
   // `import.meta` other than read by name can hand out its `require`
   // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
@@ -1837,15 +1857,123 @@ function unknownLoad(node, parent, keyValues) {
   }
   if (parent?.type === "CallExpression" && parent.callee === node) return computed || literalString(parent.arguments[0]) === null;
   if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
+  if (node.type === "MemberExpression" && !computed && onlyTested(parents, node)) return false;
   return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
 }
 
+// Whether the value of `node` is only tested for truth, so it never
+// leaves the expression: a `&&` operand other than the last, the test of
+// an `if`, a loop or `?:`, or the operand of `!`. The last operand of a
+// `&&` is what the whole `&&` may evaluate to.
+function onlyTested(parents, node) {
+  let value = node;
+  let holder = parents.get(node);
+  while (holder?.type === "LogicalExpression" && holder.operator === "&&" && holder.right === value) {
+    value = holder;
+    holder = parents.get(holder);
+  }
+  if (holder?.type === "LogicalExpression") return holder.operator === "&&" && holder.left === value;
+  if (holder?.type === "UnaryExpression") return holder.operator === "!";
+  return ["IfStatement", "WhileStatement", "DoWhileStatement", "ForStatement", "ConditionalExpression"].includes(holder?.type) && holder.test === value;
+}
+
+// Whether `node`, with parent `parent`, initializes a plain declarator with
+// `import.meta.require` or `require` itself, which `aliasesOf` may find to
+// be an exported alias.
+const aliasInit = (node, parent) =>
+  parent?.type === "VariableDeclarator" &&
+  parent.init === node &&
+  parent.id.type === "Identifier" &&
+  ((node.type === "MemberExpression" && isImportMeta(node.object) && memberName(node) === "require") ||
+    (node.type === "Identifier" && node.name === "require"));
+
+// The module's aliases of the loader, as [variable, initializer, [exported
+// names]]: each module-scope variable a plain declarator initializes with
+// `import.meta.require` or a `require` no binding declares, never written
+// again, and exported by name other than `default` (Bun's runtime chunk:
+// `var Fe=import.meta.require;export{...,Fe}`). A module with a direct
+// `eval` has none: eslint-scope resolves no reference there.
+function aliasesOf(entry) {
+  if (entry.evals) return [];
+  const parents = parentsOf(entry);
+  const out = [];
+  for (const v of entry.top?.variables ?? []) {
+    const def = v.defs.length === 1 ? v.defs[0] : null;
+    const init = def?.type === "Variable" && def.node.id === def.name ? def.node.init : null;
+    if (init === null || !aliasInit(init, def.node)) continue;
+    if (init.type === "Identifier" && entry.refs.get(init.start)?.resolved) continue;
+    if (v.references.some((r) => r.isWrite() && r.identifier !== def.name)) continue;
+    const names = parents.get(def.parent)?.type === "ExportNamedDeclaration" ? [v.name] : [];
+    for (const r of v.references) {
+      const spec = parents.get(r.identifier);
+      if (spec?.type === "ExportSpecifier" && spec.local === r.identifier) names.push(spec.exported.name ?? spec.exported.value);
+    }
+    if (names.length > 0 && !names.includes("default")) out.push([v, init, names]);
+  }
+  return out;
+}
+
+// The names a request's `loaders` lists: every name some module exports an
+// alias under (`aliasesOf`), which the caller collects across the bundle.
+const loaderNames = (req) => new Set(Array.isArray(req.loaders) ? req.loaders.filter((n) => typeof n === "string") : []);
+
+// The named loaders the module holds, given `names` (`loaderNames`): each
+// of its aliases exported only under those names, and each import of one
+// of them by name. A call of one with a literal specifier loads that file.
+//   -> {aliases: every name the module exports an alias under,
+//       cleared: the initializers of the aliases that are named loaders,
+//       uses: [[call, specifier]] for each call with a literal specifier and
+//             [node, null] for any other use (a call with no literal, an
+//             alias, an escape, a re-export), which may load any file}
+function loaderUses(entry, names) {
+  const parents = parentsOf(entry);
+  const own = aliasesOf(entry);
+  const cleared = new Set();
+  const held = [];
+  for (const [v, init, exported] of own) {
+    if (!exported.every((n) => names.has(n))) continue;
+    cleared.add(init);
+    held.push(v);
+  }
+  const uses = [];
+  for (const node of entry.ast.body) {
+    if (node.type === "ImportDeclaration") {
+      for (const spec of node.specifiers) {
+        const v = spec.type === "ImportSpecifier" && names.has(spec.imported.name ?? spec.imported.value) ? entry.decls.get(spec.local.start) : null;
+        if (v) held.push(v);
+      }
+    } else if (node.type === "ExportNamedDeclaration" && node.source) {
+      for (const spec of node.specifiers) if (names.has(spec.local.name ?? spec.local.value)) uses.push([spec, null]);
+    }
+  }
+  for (const v of held) {
+    // Under a direct `eval` the import's references are unresolved, so any use may be unseen.
+    if (entry.evals) {
+      uses.push([v.defs[0].name, null]);
+      continue;
+    }
+    // An alias's own declarator and its exports are how importers get it.
+    const alias = v.defs[0].type === "Variable";
+    for (const r of v.references) {
+      const id = r.identifier;
+      const parent = parents.get(id);
+      if (alias && (id === v.defs[0].name || (parent?.type === "ExportSpecifier" && parent.local === id))) continue;
+      const spec = parent?.type === "CallExpression" && parent.callee === id ? literalString(parent.arguments[0]) : null;
+      uses.push(spec === null ? [id, null] : [parent, spec]);
+    }
+  }
+  return { aliases: own.flatMap(([, , exported]) => exported), cleared, uses };
+}
+
 // `computed` is whether a computed key may load a module the scan cannot
-// name, which takes the scope analysis to tell (`computedLoad`).
+// name, which takes the scope analysis to tell (`computedLoad`);
+// `aliasInits` are the offsets of the `aliasInit` reads, which `loads`
+// counts unless each is a named loader's (`loaderUses`).
 function scanOf(ast) {
   const keys = new Set();
   const loads = new Set();
   const imports = [];
+  const aliasInits = [];
   for (const node of ast.body) {
     if (node.type !== "ImportDeclaration" && !(node.type === "ExportNamedDeclaration" && node.source)) continue;
     for (const spec of node.specifiers) {
@@ -1858,12 +1986,16 @@ function scanOf(ast) {
     computed = true;
     return new Set();
   };
-  const stack = [[ast, null]];
+  const parents = new Map();
+  const stack = [ast];
   while (stack.length) {
-    const [node, parent] = stack.pop();
+    const node = stack.pop();
     const loaded = loadedFile(node);
     if (loaded !== null) loads.add(loaded);
-    if (unknownLoad(node, parent, deferred)) loads.add(UNKNOWN_FILE);
+    if (unknownLoad(node, parents, deferred)) {
+      if (aliasInit(node, parents.get(node))) aliasInits.push(node.start);
+      else loads.add(UNKNOWN_FILE);
+    }
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -1879,11 +2011,14 @@ function scanOf(ast) {
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push([c, node]);
+        if (c && typeof c.type === "string" && c !== node) {
+          parents.set(c, node);
+          stack.push(c);
+        }
       }
     }
   }
-  return { keys, loads, imports, computed };
+  return { keys, loads, imports, computed, aliasInits };
 }
 
 // Whether a computed key in the module may load a module the scan cannot
@@ -1894,7 +2029,7 @@ function computedLoad(entry) {
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    if (unknownLoad(node, parents.get(node), keyValues)) return true;
+    if (unknownLoad(node, parents, keyValues) && !aliasInit(node, parents.get(node))) return true;
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
@@ -1917,22 +2052,38 @@ function keysUsed(req) {
   return { ok: true, used: req.names.filter((n) => scan === null || scan.keys.has(n)) };
 }
 
-// {"op":"loads","module":key,"source"?:...}
-//   -> {"files":[file names the module loads whole]} (`loadedFile`), with
-//      "*" when it may load one the scan cannot name (`unknownLoad`), or
-//      {"files":null} for a module that does not parse.
+// {"op":"loads","module":key,"source"?:...,"loaders"?:[...]}
+//   -> {"files":[file names the module loads whole]} (`loadedFile`, and a
+//      named loader's call with a literal specifier, `loaderUses`), with
+//      "*" when it may load one the scan cannot name (`unknownLoad`, an
+//      alias that is no named loader, any other use of one), and
+//      "aliases", the names it exports an alias under (`aliasesOf`); or
+//      {"files":null,"aliases":[]} for a module that does not parse.
 function loads(req) {
   if (typeof req.module !== "string") return { ok: false, error: "loads needs a string `module`" };
   const scan = scanFor(req);
   if (scan === undefined) return { ok: true, need_source: true };
-  if (scan === null) return { ok: true, files: null };
+  if (scan === null) return { ok: true, files: null, aliases: [] };
   if (scan.computed && !scan.loads.has(UNKNOWN_FILE)) {
     const entry = moduleFor(req);
     if (entry === null) return { ok: true, need_source: true };
     if (entry.error || computedLoad(entry)) scan.loads.add(UNKNOWN_FILE);
     scan.computed = false;
   }
-  return { ok: true, files: [...scan.loads].sort() };
+  const names = loaderNames(req);
+  const files = new Set(scan.loads);
+  let aliases = [];
+  if (scan.aliasInits.length > 0 || scan.imports.some(([n]) => names.has(n))) {
+    const entry = moduleFor(req);
+    if (entry === null) return { ok: true, need_source: true };
+    if (entry.error) return { ok: true, files: null, aliases: [] };
+    const held = loaderUses(entry, names);
+    aliases = held.aliases;
+    const cleared = new Set([...held.cleared].map((n) => n.start));
+    if (scan.aliasInits.some((at) => !cleared.has(at))) files.add(UNKNOWN_FILE);
+    for (const [, spec] of held.uses) files.add(spec === null ? UNKNOWN_FILE : fileName(spec));
+  }
+  return { ok: true, files: [...files].sort(), aliases };
 }
 
 // {"op":"imports","module":key,"source"?:...}

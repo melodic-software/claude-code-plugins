@@ -5875,6 +5875,71 @@ class ForeignPaths(unittest.TestCase):
             self.assertIsNone(policy.foreign_paths(REPO, owner_pr(), self.CHANGED))
 
 
+class AuthorReviewedPaths(unittest.TestCase):
+    """Owner direction 2026-10-27: a trusted person's own pull request's
+    `gate` paths only their own commits touched, on a head pr-verify passed,
+    clear on a clean security review (`babysit_risk.RiskInput.author_reviewed`);
+    the lanes App's, a bot's, a `trust` path and a lane's fix never do."""
+
+    GATE = ".github/scripts/pr-merge/who.mjs"
+    TRUST = ".github/actions/request-lane-token/action.yml"
+    CHANGED = frozenset({GATE, TRUST, "docs/x.md"})
+    LANES = {"login": "melodic-automation-lanes[bot]", "id": 337595936, "type": "Bot"}
+
+    def reviewed(
+        self, user=None, others=frozenset(), humans=(OWNER_ID,), verified=True
+    ):
+        pr = owner_pr() if user is None else owner_pr(user=user)
+        with mock.patch.object(policy, "foreign_paths", return_value=others):
+            return policy.author_reviewed_paths(
+                REPO, pr, self.CHANGED, humans, verified
+            )
+
+    def test_a_trusted_persons_own_gate_paths_on_a_passed_head(self) -> None:
+        self.assertEqual(self.reviewed(), frozenset({self.GATE}))
+
+    def test_a_lanes_app_or_bot_pull_request_gets_none(self) -> None:
+        for user in (
+            self.LANES,
+            {"login": "claude[bot]", "id": 209825114, "type": "Bot"},
+            # An App's id on the human list is still not a person.
+            {"login": "x[bot]", "id": OWNER_ID, "type": "Bot"},
+        ):
+            with self.subTest(user=user["login"]):
+                self.assertEqual(self.reviewed(user), frozenset())
+
+    def test_a_person_off_the_list_or_an_unread_list_gets_none(self) -> None:
+        stranger = {"login": "someone", "id": 99, "type": "User"}
+        self.assertEqual(self.reviewed(stranger), frozenset())
+        self.assertEqual(self.reviewed(humans=()), frozenset())
+        self.assertEqual(self.reviewed({"login": "x", "type": "User"}), frozenset())
+
+    def test_no_verifier_pass_gets_none(self) -> None:
+        self.assertEqual(self.reviewed(verified=False), frozenset())
+
+    def test_token_scope_paths_are_never_lifted(self) -> None:
+        # Owner decision 2026-10-28: what the token broker loads to scope a
+        # lane token waits for a person even on a trusted person's own pull
+        # request with a pr-verify pass.
+        token_scope = {
+            ".github/actions/resolve-config/resolve.mjs",
+            ".github/actions/resolve-config/effect-grants.json",
+            ".github/actions/resolve-config/lane-rules.json",
+            ".github/actions/resolve-config/activity-rules.json",
+        }
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            reviewed = policy.author_reviewed_paths(
+                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True
+            )
+        self.assertEqual(reviewed, frozenset({self.GATE}))
+
+    def test_a_gate_path_another_commit_touched_or_unread_commits_get_none(
+        self,
+    ) -> None:
+        self.assertEqual(self.reviewed(others=frozenset({self.GATE})), frozenset())
+        self.assertEqual(self.reviewed(others=None), frozenset())
+
+
 class LaneEnabledSince(unittest.TestCase):
     """Authority pr-merge reads its own enabled run (plan Design "Lane mode")."""
 
@@ -9143,6 +9208,47 @@ class FileContents(unittest.TestCase):
         self.assertIsNone(out[0].contents)
         self.assertIn("502", out[0].contents_error)
 
+
+class LaneIdentity(unittest.TestCase):
+    """`lane_identity` names the lane only when the base and the default branch
+    head agree, and never reads the pull request's head (#10763)."""
+
+    def _run(self, base_id, main_id, *, base_error=None, main_raises=False):
+        base = policy.PipelineConfig(
+            SHA, "C2", None, base_id, None, (), None, base_error
+        )
+        main = policy.PipelineConfig(MAIN_SHA, "C2", None, main_id, None, (), None)
+        with (
+            mock.patch.object(policy, "config_at", return_value=base) as at,
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                side_effect=policy.PolicyReadError("head unreadable")
+                if main_raises
+                else None,
+                return_value=main,
+            ),
+        ):
+            result = policy.lane_identity("owner/repo", SHA)
+        at.assert_called_once_with("owner/repo", SHA)
+        return result
+
+    def test_agreeing_base_and_default_branch_name_the_lane(self) -> None:
+        identity, source = self._run(IDENTITY, IDENTITY.upper())
+        self.assertEqual(identity, IDENTITY)
+        self.assertIn(SHA, source)
+
+    def test_unset_on_either_side_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, None)[0])
+        self.assertIsNone(self._run(None, IDENTITY)[0])
+        self.assertIsNone(self._run(None, None)[0])
+
+    def test_differing_identities_name_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, "other-lane[bot]")[0])
+
+    def test_a_failed_read_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, base_error="bad yaml")[0])
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, main_raises=True)[0])
 
 if __name__ == "__main__":
     unittest.main()

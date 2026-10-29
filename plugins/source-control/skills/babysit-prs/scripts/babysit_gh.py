@@ -1488,10 +1488,13 @@ def discover_prs(
 def fetch_pull_request_author(repo: str, number: int) -> str:
     """The PR author's login from `gh pr view --json author`."""
     repo = repo.casefold()
-    author = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
-    if not is_json_object(author):
+    payload = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
+    author = payload.get("author") if is_json_object(payload) else None
+    login = author.get("login") if is_json_object(author) else None
+    if not isinstance(login, str) or not login:
+        # Fail closed: an unread author cannot be shown not to be a self login.
         raise RuntimeError(f"Unexpected gh pr view author for {repo}#{number}")
-    return str(author.get("login") or "")
+    return login
 
 
 def view_pr_fields(

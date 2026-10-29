@@ -104,8 +104,8 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
 # of merge-holds.mjs prints the working tree's module, or answers 404 when
 # STUB_NO_MODULE is set. A discussion read fails its first STUB_FAILS calls,
-# then prints each row of STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON
-# arrays) as one line, as `--jq '.[] | @json'` does. A contents read of
+# then prints STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON arrays) as the
+# API's page. A contents read of
 # pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
 # set. A files read answers STUB_FILES (a JSON array of [path,
 # renamed-from or null, status] arrays, status renamed with a renamed-from
@@ -123,7 +123,7 @@ mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-rows() { jq -c '.[]' <<<"${1:-[]}"; }
+rows() { printf '%s\n' "${1:-[]}"; }
 discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
@@ -250,10 +250,12 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
 # The base commit's config, as the base_config checkout holds it: this tree's
-# pr-pipeline.yaml and trusted-actor list. STUB_BASE_CONFIG replaces its path.
-mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+# pr-pipeline.yaml, trusted-actor list and merge-holds.mjs, whose switchHold
+# judges the kill switch. STUB_BASE_CONFIG replaces its path.
+mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/base-config/.github/scripts/pr-merge"
 cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
 cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
+cp "$MODULE" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -261,7 +263,7 @@ WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
-  rm -f "$TMP_ROOT/verify-listing.json"
+  rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-reads"
   # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
   # STUB_CARRIED replaces the carried file (all-empty sections are cold too).
   if [[ -n "${STUB_COLD:-}" ]]; then
@@ -312,6 +314,23 @@ for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
   STUB_PULL="$(pull 'Closes #1')"
   unset KILL REPO_KILL
 done
+# The switch holds before the base-branch exit, so one into another branch fails too.
+STUB_PULL="$(STUB_BASE_REF=release pull 'Closes #1')"
+KILL=true expect "with the kill switch on, a lanes App pull request into another branch fails" 1 0 \
+  "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
+EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE KILL=true \
+  expect "with the kill switch on, a queued lanes App pull request fails" 1 0 "::error::#7: the lanes kill switch is on"
+# The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
+# judge it fails closed before any further read.
+STUB_PULL="$(pull 'Closes #1')"
+held_module="$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
+for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
+  'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
+  if [[ -z "$stub" ]]; then rm -f "$held_module"; else printf '%s\n' "$stub" >"$held_module"; fi
+  expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
+    "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #7; re-run this run."
+done
+cp "$MODULE" "$held_module"
 # shellcheck disable=SC2016 # a literal workflow expression, not shell
 if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
   grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then
@@ -628,6 +647,11 @@ if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
   ok "the push disarms it by its node id with one mutation"
 else
   fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
+fi
+if [[ ! -e "$TMP_ROOT/pr-reads" ]]; then
+  ok "after the disarm the step drops every kept read, so a later read of the pull is live"
+else
+  fail "the step kept reads after its disarm: '$(ls "$TMP_ROOT/pr-reads")'"
 fi
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 export STUB_DISARM_FAILS=1
