@@ -209,12 +209,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           last=$RUNNER_TEMP/post-merge-last
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code='' code_sha=''
+          # The completed attempts the last check read, which the check
+          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV); kept
+          # below whether or not the check runs.
+          [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$RUNNER_TEMP/post-merge-attempts.json"
           # An idle tick: the last run's report, from a check that passed
           # (exit 0 or 5), stands while the lane room's reuse rule keeps it
           # and nothing else the check reads has moved (settle --idle-tick).
@@ -275,6 +280,7 @@ jobs:
           # A reused report keeps the commit whose code made it.
           [ -z "$code_sha" ] || echo "$code_sha" >"$kept/post-merge-code-sha"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
+          [ ! -f "$RUNNER_TEMP/post-merge-attempts.json" ] || cp "$RUNNER_TEMP/post-merge-attempts.json" "$kept/attempts.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
 
