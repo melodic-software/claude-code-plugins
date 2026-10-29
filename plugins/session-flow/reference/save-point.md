@@ -431,8 +431,10 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   1. **Conversation-bound wording.** When the condition ties its proof to the producing
      conversation ("in the transcript", "in this conversation", "shown by output you produced",
      "output you produced", or a close variant), put a warning line above the goal region's
-     instruction line; on the full path it is the first line of the `goal-first` or `goal-after`
-     slot value, so `emit` prints it. It says the next session must re-produce every earlier proof before the
+     instruction line; on the full path it goes in the `goal-first` or `goal-after` slot value
+     directly above the fixed goal instruction line, so `emit` prints it. In `goal-first` it is
+     the value's first line; in `goal-after` it comes after the value's leading newline, so the
+     blank line below the resume region's bottom rail stays. It says the next session must re-produce every earlier proof before the
      goal can be met, and suggests rewording the proof as "at commit `<sha>` or in
      `<evidence file>`, shown in the conversation", with this session's commit or evidence file
      filled in. The condition between the rails stays verbatim; a rewrite goes in only when the
