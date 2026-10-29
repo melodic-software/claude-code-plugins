@@ -283,10 +283,14 @@ jobs:
     timeout-minutes: 3
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. No write scope: this job runs pull request code.
+    # and nowhere else. The queue-hold step reads the queued pull request and
+    # its head's commit statuses ("Commit statuses" read, per
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
+    # No write scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
+      statuses: read
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
@@ -320,6 +324,89 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
+      # merge queue the holds that cost no lane work, its hold labels, a
+      # pr-unblock stop on its head and the lanes kill switch, are judged by
+      # the base commit's merge-holds.mjs queueHolds: a held group fails this
+      # job in seconds, and every lane, which needs it, skips. ci-status still
+      # judges each hold itself, from its own reads, so the aggregate fails on
+      # the hold and on this job, and a skipped lane stays skipped there (this
+      # job did not succeed). Nothing here feeds a ci-status hold: this job runs
+      # pull request code. Only a hold read fails it: a read that fails, a ref
+      # it cannot parse, or a base module without queueHolds leaves the hold to
+      # ci-status, which retries and fails closed. Two reads, the pull request
+      # and its head's statuses (one per 100), through the api-budget gh
+      # wrapper, whose api-calls notice the step ends with. The base's
+      # module, tracker config, wrapper and Node pin come from one shallow
+      # fetch of the group's base commit. Pinned by
+      # scripts/ci-early-queue-holds.test.sh, which runs this body.
+      - name: Read the base commit's queue-hold rules
+        id: queue_rules
+        if: github.event_name == 'merge_group'
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::warning::the group's base '$BASE_SHA' is not a commit SHA; ci-status judges the holds."; exit 1; }
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          dir="$RUNNER_TEMP/queue-rules"
+          mkdir -p "$dir"
+          git show "$BASE_SHA:.github/scripts/pr-merge/merge-holds.mjs" >"$dir/merge-holds.mjs"
+          git show "$BASE_SHA:.github/actions/log-api-budget/api-budget.bash" >"$dir/api-budget.bash"
+          git show "$BASE_SHA:.work-item-tracker.json" >"$dir/tracker.json" 2>/dev/null || rm -f "$dir/tracker.json"
+          echo "node=$(git show "$BASE_SHA:.node-version")" >>"$GITHUB_OUTPUT"
+      - name: Set up Node for the queue holds
+        if: github.event_name == 'merge_group' && steps.queue_rules.outcome == 'success'
+        continue-on-error: true
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.queue_rules.outputs.node }}
+          package-manager-cache: false
+      - name: Fail a queued pull request a hold stops, before the lanes
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RULES: ${{ steps.queue_rules.outcome == 'success' && format('{0}/queue-rules', runner.temp) || '' }}
+          LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
+          LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+        run: |
+          if [ -z "$RULES" ] || [ ! -s "$RULES/merge-holds.mjs" ]; then
+            echo "::notice::the base commit's hold rules did not read; ci-status judges the holds."
+            exit 0
+          fi
+          # shellcheck source=/dev/null
+          if . "$RULES/api-budget.bash"; then
+            api_budget_wrap_gh github-token
+            trap 'api_budget_emit github-token; api_budget_emit_calls github-token' EXIT
+          fi
+          leave() { echo "::warning::$1; ci-status judges the holds."; exit 0; }
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          [ -n "$pr" ] || leave "cannot read a pull request number from the merge-group ref '$GITHUB_REF'"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" >"$RUNNER_TEMP/queued-pull.json" || leave "could not read #$pr"
+          head=$(jq -r '.head.sha // ""' "$RUNNER_TEMP/queued-pull.json") || head=
+          [[ $head =~ ^[0-9a-f]{40}$ ]] || leave "the head of #$pr is not a commit SHA"
+          rows=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate --jq '.[]') || leave "could not read the statuses of $head"
+          tracker=null
+          [ ! -s "$RULES/tracker.json" ] || tracker=$(cat "$RULES/tracker.json")
+          jq -n --slurpfile pull "$RUNNER_TEMP/queued-pull.json" --argjson tracker "$tracker" --slurpfile statuses <(printf '%s\n' "$rows") \
+            --arg appId "${LANES_APP_SENDER_ID:-}" --arg disabled "${LANES_DISABLED:-}" --arg repoDisabled "${LANES_REPO_DISABLED:-}" \
+            '{pull: $pull[0], statuses: $statuses, tracker: $tracker, lanes: {appId: $appId, disabled: $disabled, repoDisabled: $repoDisabled}}' \
+            >"$RUNNER_TEMP/queue-holds.json" || leave "the reads of #$pr do not parse"
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          reasons=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+            import { pathToFileURL } from "node:url";
+            const { queueHolds } = await import(pathToFileURL(process.argv[2]).href);
+            for (const reason of queueHolds(JSON.parse(readFileSync(process.argv[1], "utf8")))) console.log(reason.replaceAll(/[\r\n]/g, " "));' \
+            "$RUNNER_TEMP/queue-holds.json" "$RULES/merge-holds.mjs") || leave "the base commit's merge-holds.mjs could not judge #$pr"
+          if [ -z "$reasons" ]; then
+            echo "#$pr: no hold label, pr-unblock stop or kill switch holds it before the lanes."
+            exit 0
+          fi
+          while IFS= read -r reason; do
+            echo "::error::${reason//%/%25} The lanes do not run for this group."
+          done <<<"$reasons"
+          exit 1
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
@@ -5117,16 +5204,16 @@ jobs:
           rows=$(read3 "the statuses of $head" "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate --jq '.[]') || exit 1
           jq -s . <<<"$rows" >"$RUNNER_TEMP/pr-unblock-statuses.json" || { echo "::error::the statuses of $head do not parse."; exit 1; }
           # shellcheck disable=SC2016 # JavaScript, not shell
-          stops=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+          if ! stops=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
             import { pathToFileURL } from "node:url";
             const { unblockStops } = await import(pathToFileURL(process.argv[2]).href);
             console.log(JSON.stringify(unblockStops(JSON.parse(readFileSync(process.argv[1], "utf8")))));' \
-            "$RUNNER_TEMP/pr-unblock-statuses.json" "$module") &&
-            jq -e 'type == "array"' <<<"$stops" >/dev/null &&
-            failing=$(jq -r '.[] | [.context, .state, .description] | @tsv' <<<"$stops") || {
+            "$RUNNER_TEMP/pr-unblock-statuses.json" "$module") ||
+            ! jq -e 'type == "array"' <<<"$stops" >/dev/null ||
+            ! failing=$(jq -r '.[] | [.context, .state, .description] | @tsv' <<<"$stops"); then
             echo "::error::merge-holds.mjs at the base commit could not judge the statuses of $head; re-run this run."
             exit 1
-          }
+          fi
           if [ -z "$failing" ]; then
             echo "No pr-unblock/* status fails on $head."
             exit 0
