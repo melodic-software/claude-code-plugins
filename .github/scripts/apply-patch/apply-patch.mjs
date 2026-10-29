@@ -212,8 +212,6 @@ const REQUIREMENTS = {
 // git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
-// A row's content rule: what each changed file's bytes must also meet, read
-// from the local objects. It returns the first refusal, or null.
 // The mode of `path` in the tree `treeSha`, walked one directory at a time
 // through the Git trees API; null when it is absent.
 async function modeAt(api, treeSha, path) {
@@ -232,10 +230,13 @@ async function modeAt(api, treeSha, path) {
   return null;
 }
 
+// A row's content rule: what each changed file's bytes must also meet, read
+// from the local objects. It returns the first refusal, or null.
 export const CONTENT_RULES = {
   // A file mode changes only back to the one the path has at the merge base
   // of the PR head and its base: a mode the PR itself introduced is reverted,
-  // and no other is changed. Content-only changes read nothing.
+  // and no other is changed; a file the PR added may drop to 100644, the
+  // default mode. Content-only changes read nothing.
   "pr-mode-revert": async ({ entries, api, pr, headSha }) => {
     const changed = entries.filter((entry) => [REGULAR, EXECUTABLE].includes(entry.oldMode) && [REGULAR, EXECUTABLE].includes(entry.newMode) && entry.oldMode !== entry.newMode);
     if (changed.length === 0) {
@@ -251,7 +252,7 @@ export const CONTENT_RULES = {
     }
     for (const entry of changed) {
       const mode = await modeAt(api, tree, entry.path);
-      if (mode !== entry.newMode) {
+      if (mode !== entry.newMode && !(mode === null && entry.newMode === REGULAR)) {
         return `${entry.path} changes mode ${entry.oldMode} to ${entry.newMode}, but the merge base holds it ${mode === null ? "not at all" : `at ${mode}`}`;
       }
     }

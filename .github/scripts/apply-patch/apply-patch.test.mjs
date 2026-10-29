@@ -2223,17 +2223,26 @@ test("new-exec-bit is optional: it refuses a mode that gains the executable bit 
 // A PR whose merge base holds `path` at `baseMode`, whose head holds it at
 // `headMode`, and a model patch that leaves it at `patchMode`; the fake API
 // reads the merge base's trees from the repository, as GitHub would.
-function modeFix(t, { path = "plugins/p/scripts/lib.sh", baseMode, headMode, patchMode, edit = () => {} }) {
+// `newInHead` leaves `path` out of the merge base, so the PR adds it.
+function modeFix(t, { path = "plugins/p/scripts/lib.sh", baseMode, headMode, patchMode, newInHead = false, edit = () => {} }) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
   git(repo, ["config", "user.email", "t@example.com"]);
   git(repo, ["config", "user.name", "t"]);
   git(repo, ["config", "core.fileMode", "true"]);
-  mkdirSync(join(repo, dirname(path)), { recursive: true });
-  writeFileSync(join(repo, path), "x=1\n");
   writeFileSync(join(repo, "README.md"), "# r\n");
-  chmodSync(join(repo, path), baseMode);
+  const place = (mode) => {
+    mkdirSync(join(repo, dirname(path)), { recursive: true });
+    writeFileSync(join(repo, path), "x=1\n");
+    chmodSync(join(repo, path), mode);
+  };
+  if (!newInHead) {
+    place(baseMode);
+  }
   const base = commitAll(repo, "base");
+  if (newInHead) {
+    place(headMode);
+  }
   chmodSync(join(repo, path), headMode);
   writeFileSync(join(repo, "README.md"), "# pr\n");
   const head = commitAll(repo, "head");
@@ -2275,6 +2284,14 @@ test("review-threads: reverting an executable bit the PR introduced pushes the m
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
   assert.deepEqual(api.compares, [["e".repeat(40), fix.head]]);
+});
+
+test("review-threads: dropping the executable bit from a file the PR added pushes 100644", async (t) => {
+  const fix = modeFix(t, { headMode: 0o755, patchMode: 0o644, newInHead: true });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
 });
 
 test("review-threads: a patch that sets an executable bit the head lacks is refused before any write", async (t) => {
