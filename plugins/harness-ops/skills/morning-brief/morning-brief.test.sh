@@ -898,6 +898,29 @@ assert_contains "touches: --hold-label picks the hold label" \
 assert_contains "touches: a quiet window says so" \
   "$(section "$(run_touch --touch-json "$TMP/touch-empty.json")" "== Owner touches")" "  escalations: none in the window"
 
+# Label events are read back from now, 100 at most. #304 has more before its
+# oldest read, which is inside the window, so events in the window may be lost;
+# #305 has more before an oldest read from before the window; #306 has no more.
+cat >"$TMP/touch-labelcap.json" <<'EOF'
+{"owner": "op-user", "pages": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"__typename": "Issue", "number": 304, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
+   "labels": {"pageInfo": {"hasPreviousPage": true}, "nodes": [
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-19T01:00:00Z", "actor": {"login": "x"}, "label": {"name": "triage"}}]}},
+  {"__typename": "Issue", "number": 305, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
+   "labels": {"pageInfo": {"hasPreviousPage": true}, "nodes": [
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-18T23:00:00Z", "actor": {"login": "x"}, "label": {"name": "triage"}},
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-19T01:00:00Z", "actor": {"login": "x"}, "label": {"name": "triage"}}]}},
+  {"__typename": "Issue", "number": 306, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
+   "labels": {"pageInfo": {"hasPreviousPage": false}, "nodes": [
+     {"__typename": "LabeledEvent", "createdAt": "2026-07-19T01:00:00Z", "actor": {"login": "x"}, "label": {"name": "triage"}}]}}
+]}}}]}
+EOF
+TOUCH_LABELCAP_SEC="$(section "$(run_touch --touch-json "$TMP/touch-labelcap.json")" "== Owner touches")"
+assert_contains "touches: a label history cut off inside the window is PARTIAL" "$TOUCH_LABELCAP_SEC" \
+  "  PARTIAL: more than 100 events in the window on #304"
+assert_not_contains "touches: a label history cut off before the window is complete" "$TOUCH_LABELCAP_SEC" "#305"
+assert_not_contains "touches: a label history with nothing before it is complete" "$TOUCH_LABELCAP_SEC" "#306"
+
 printf '{"pages": []}\n' >"$TMP/touch-noowner.json"
 assert_contains "touches: no operator login is UNREADABLE" \
   "$(section "$(run_touch --touch-json "$TMP/touch-noowner.json")" "== Owner touches")" "UNREADABLE: no operator login (pass --owner-login)"

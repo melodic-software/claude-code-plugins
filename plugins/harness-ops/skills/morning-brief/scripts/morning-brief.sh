@@ -2309,7 +2309,8 @@ print_lanes() {
 # stays under the search's 1,000-result ceiling; every item with an event in
 # the window was updated on or after the window's start, so it lands in
 # exactly one day's search. A search that reaches the ceiling, or an item with
-# more than 100 events in the window, prints PARTIAL.
+# more than 100 events in the window (label events: 100 read back from now
+# with more before them and none before the window), prints PARTIAL.
 # 50 a page: at 100 a page GitHub returns an empty timeline for some results
 # (18 of one day's 350 at 100; none lost at 50).
 TOUCH_PAGE_LIMIT=20 # 20 pages of 50 is the search ceiling
@@ -2330,6 +2331,7 @@ TOUCH_QUERY='
               nodes { __typename ... on IssueComment { createdAt author { login } body } }
             }
             labels: timelineItems(itemTypes:[LABELED_EVENT, UNLABELED_EVENT], last:100) {
+              pageInfo { hasPreviousPage }
               nodes { __typename
                 ... on LabeledEvent { createdAt actor { login } label { name } }
                 ... on UnlabeledEvent { createdAt actor { login } label { name } } }
@@ -2345,6 +2347,7 @@ TOUCH_QUERY='
                 ... on MergedEvent { createdAt actor { login } } }
             }
             labels: timelineItems(itemTypes:[LABELED_EVENT, UNLABELED_EVENT], last:100) {
+              pageInfo { hasPreviousPage }
               nodes { __typename
                 ... on LabeledEvent { createdAt actor { login } label { name } }
                 ... on UnlabeledEvent { createdAt actor { login } label { name } } }
@@ -2465,7 +2468,10 @@ TOUCH_JQ='
           ( $top[:$cap][] | "    #\(.n) \(.kind)  \(.parts)" ),
           ( if ($top | length) > $cap then "  PARTIAL: \($top | length) items touched; showing the top \($cap)" else empty end )
         end ),
-    ( [ $items[] | select(.acts.pageInfo.hasNextPage == true) | "#\(.number)" ] as $t
+    ( [ $items[] | select(.acts.pageInfo.hasNextPage == true
+          or (.labels.pageInfo.hasPreviousPage == true
+              and ([ .labels.nodes[]? | .createdAt | select(. != null) | ep ] | min // $start) >= $start))
+        | "#\(.number)" ] as $t
       | if ($t | length) > 0 then "  PARTIAL: more than 100 events in the window on \($t | join(" ")); counts on those may be low" else empty end ),
     "  note: approve, merge, dnm-lift and hold-off by operator count actions under the operator login, including any agent session that holds it"
 '
