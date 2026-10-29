@@ -1,8 +1,9 @@
 # knowledge
 
 A Claude Code plugin that ingests external knowledge into durable, synthesized
-artifacts. Its first shipped pipeline distills a technical book (PDF or EPUB) into
-concept-organized, author-attributed **skill reference files**; a re-runnable
+artifacts. Its first shipped pipeline distills a technical book (PDF or EPUB) or a
+person's or company's published web corpus into concept-organized, author-attributed
+**skill reference files**; a re-runnable
 `setup` action settles where synthesized artifacts land in the consuming repo.
 
 ## Skills
@@ -28,6 +29,18 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
   question at query time.
 - **Multi-author merges**, where two books cover the same concept, their
   content is consolidated into a shared file.
+- **For a web corpus**, 8 to 12 theme reference files, `reference/glossary.md`
+  and `reference/article-index.md`, plus a `SKILL.md` in the fixed corpus shape
+  (thesis, core ideas, method, how to answer, scope). The raw pieces, fetched
+  one URL at a time through `scripts/fetch-docs.sh --public-only` or read from
+  an export you supply, and the per-piece notes stay under
+  `${CLAUDE_PLUGIN_DATA}`, outside the skill folder.
+
+Before any write, `distill` runs `scripts/repo-visibility.mjs` on the target
+skill directory (and, for a web corpus, on the corpus directory) and proceeds
+only on `private`, `internal` or `local`. Any other result, `unknown` included,
+stops the run and asks you to rerun from a private repository or one with no
+remote. A GitHub remote reads `unknown` when `gh` is missing or not signed in.
 
 You name the target skill when you invoke `/knowledge:distill`, so output
 lands somewhere you chose (`.claude/skills/<target>/` under the session's git top-level, per [`reference/work-root.md`](reference/work-root.md)): either an existing skill it extends or a new one it creates. Cross-session state
@@ -67,7 +80,9 @@ the rest of the knowledge stack.
 ## Requirements
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
-  Code's Read tool; EPUB requires unzipping and text extraction first.
+  Code's Read tool; EPUB requires unzipping and text extraction first. A web
+  corpus needs public https pages or an export you supply.
+- **`gh` signed in** for `distill`'s visibility check on a GitHub remote.
 - **Node.js on `PATH`**: `absorb-upstream`, `course-digest`, `distill`,
   `docpage-digest`, `map-corpus` and `video-digest` resolve their session root,
   and `distill` its progress key, with `scripts/work-root.mjs`.
