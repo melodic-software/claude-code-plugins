@@ -4,7 +4,7 @@
 // trigger gate and the broker check it as they check a resolve-conflicts
 // dispatch. A head that already carries a pr-unblock / review-dependency check
 // run was reviewed, unless the head's newest pr-unblock /
-// apply-dependency-verdict check run skipped no-model-turn: the
+// apply-dependency-verdict check run skipped no-model-turn or kill-switch: the
 // review-dependency check runs that started before it handled nothing, so the
 // head is dispatched again. The model job's own selection decides the round
 // cap, and every such round posts its round marker. A limit stop holds the
@@ -22,7 +22,7 @@
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
-import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, killSwitchStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
@@ -128,16 +128,17 @@ export async function dispatchDependencyReviews({
         continue;
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      // A round whose verdict job skipped no-model-turn handled nothing: the
-      // review-dependency check runs that started before that verdict job
-      // stop counting, so this run dispatches the head again. A limit stop is
+      // A round whose verdict job skipped no-model-turn, or that the kill
+      // switch stopped, handled nothing: the review-dependency check runs that
+      // started before that verdict job stop counting, so this run dispatches
+      // the head again. A limit stop is
       // not released that way, though its round's verdict also finds no model
       // turn: it holds the head until its limit resets.
       let verdicts = [];
       if (anyHandles(existing, { now, limits })) {
         verdicts = await api.listCheckRuns({ sha: node.headRefOid, checkName: verdictCheckName, appId });
         const newest = verdicts.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), verdicts[0]);
-        if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
+        if (killSwitchStop(newest) || (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn")) {
           const cut = startOf(newest);
           existing = existing.filter((run) => limitResetsAt(run, limits) !== null || !(startOf(run) < cut));
         }

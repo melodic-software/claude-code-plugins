@@ -31,8 +31,9 @@
 // - that head has no pr-unblock / address-feedback check run yet (one the
 //   usage limit stopped stops counting once its limit resets, and one that
 //   started before the head's newest pr-unblock / publish-feedback check run
-//   when that run skipped no-model-turn or finding-stands: that round left
-//   the head for another round), and no
+//   when that run skipped no-model-turn, finding-stands, lane-stopped or
+//   kill-switch: that round left the head for another round; a kill-switch
+//   stop of the address-feedback run itself does not count either), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
 // - the base config's pr-unblock lane is enabled, holds enabled
 //   address-feedback and publish-feedback slots, and address-feedback applies
@@ -62,11 +63,13 @@
 // on a PR a person opened, verify-notes.mjs holds a fail with a label it
 // removes itself on the next pass, so there is no thread to resolve.
 //
-// A round whose reply job skipped no-model-turn, or finding-stands (an
+// A round whose reply job skipped no-model-turn, finding-stands (an
 // adjudicator let a disputed finding stand and the head did not move, so no
-// review run follows), releases its head only for the next review or
-// pr-verify completion there, which may never come. So a completed
-// scheduled pr-unblock-dispatch.yml run, the half-hourly tick, also starts
+// review run follows), or kill-switch (the lanes kill switch stopped it, and
+// the switch lifting starts no review run), releases its head only for the
+// next review or pr-verify completion there, which may never come. So a
+// completed scheduled pr-unblock-dispatch.yml run, the half-hourly tick, which
+// the kill switch also stops, starts
 // the file, and main() sweeps (sweepReleased): each open lanes App PR into
 // main whose head's newest reply check took one of those skips, fewer than
 // SWEEP_HEAD_CAP times at that head, is decided as above with the
@@ -116,7 +119,7 @@ import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-f
 import { fixRequesters, humanGatedLabelFrom, onReviewedHead, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { anyHandles, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -162,8 +165,9 @@ export const SWEEP_HEAD_CAP = 3;
 const startOf = (run) => Date.parse(run.started_at ?? "");
 // The reply check skips that leave the head for another round: a lane stop
 // (a stop escalation-routes.json routes to a failing status) is retried on
-// the same head, a fresh model session, under SWEEP_HEAD_CAP with the rest.
-const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands", LANE_STOP]);
+// the same head, a fresh model session, under SWEEP_HEAD_CAP with the rest,
+// and so is a kill-switch stop, which posted no reply.
+const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands", LANE_STOP, KILL_SWITCH_STOP]);
 const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
 // A pass-only round's reply check (publish-feedback.mjs PASS_ONLY_SKIP)
 // answers no thread, so it neither releases a head nor ends a release.

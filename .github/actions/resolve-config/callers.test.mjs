@@ -6907,14 +6907,29 @@ test("every model leg is followed by a sealed transcript upload of its own execu
 // token, so nothing after it may run on success() alone: every later step is
 // gated, a step that reads the token runs only when it is set, and a job that
 // needs the stopped job's success and reads none of its outputs also needs its
-// skip output empty (an output only a token step sets already stops it).
+// skip output empty (an output only a token step sets already stops it). A
+// reusable workflow's caller job stands for its job, so the same holds for
+// the caller's dependents, through the skip output the workflow exposes.
 test("every kill-switch-ok caller runs no token step and no dependent job on a kill-switch stop", () => {
   const callers = [];
-  for (const name of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
-    const { jobs } = workflow(name);
+  const dependents = (name, jobs, id, skip) => {
+    for (const [otherId, other] of Object.entries(jobs)) {
+      const needs = [other.needs ?? []].flat();
+      const cond = String(other.if ?? "");
+      if (!needs.includes(id) || !cond.includes(`needs.${id}.result == 'success'`)) continue;
+      if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
+      assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
+      assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+    }
+  };
+  const names = readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f));
+  for (const name of names) {
+    const parsed = workflow(name);
+    const { jobs } = parsed;
     for (const [id, job] of Object.entries(jobs ?? {})) {
       const steps = job.steps ?? [];
-      const at = steps.findIndex((step) => step.with?.["kill-switch-ok"] === true);
+      // A literal true, or an expression that may render it.
+      const at = steps.findIndex((step) => step.with?.["kill-switch-ok"] === true || String(step.with?.["kill-switch-ok"] ?? "").includes("${{"));
       if (at === -1) continue;
       callers.push(`${name}:${id}`);
       const tokenId = steps[at].id;
@@ -6928,13 +6943,17 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
         }
       }
       const [skip] = Object.entries(job.outputs ?? {}).find(([, value]) => value.includes(`steps.${tokenId}.outputs.skip-reason`)) ?? [];
-      for (const [otherId, other] of Object.entries(jobs)) {
-        const needs = [other.needs ?? []].flat();
-        const cond = String(other.if ?? "");
-        if (!needs.includes(id) || !cond.includes(`needs.${id}.result == 'success'`)) continue;
-        if (cond.replaceAll(`needs.${id}.outputs.${skip} `, "").includes(`needs.${id}.outputs.`)) continue;
-        assert.ok(skip, `${name}:${id} exposes the token step's skip-reason for ${otherId}`);
-        assert.ok(cond.includes(`needs.${id}.outputs.${skip} == ''`), `${name}:${otherId} skips on ${id}'s ${skip}`);
+      dependents(name, jobs, id, skip);
+      const called = parsed.on?.workflow_call;
+      if (!called) continue;
+      const [callSkip] = Object.entries(called.outputs ?? {}).find(([, output]) => String(output.value).includes(`jobs.${id}.outputs.${skip}`)) ?? [];
+      for (const caller of names) {
+        const callerJobs = workflow(caller).jobs ?? {};
+        for (const [callerId, callerJob] of Object.entries(callerJobs)) {
+          if (String(callerJob.uses ?? "").split(" ")[0] !== `./.github/workflows/${name}`) continue;
+          callers.push(`${caller}:${callerId} -> ${name}`);
+          dependents(caller, callerJobs, callerId, callSkip);
+        }
       }
     }
   }
@@ -6943,5 +6962,18 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "intake-triage.yml:apply-verdict",
     "pr-merge.yml:enable-auto-merge",
     "pr-merge.yml:merge",
-  ]);
+    "pr-refine.yml:apply-docs-patch -> pr-run-activity-write.yml",
+    "pr-run-activity-write.yml:run",
+    "pr-unblock.yml:apply-conflict-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-dependency-verdict -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
+    "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
+    "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:apply-issue-patch -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-outcome -> pr-run-activity-write.yml",
+    "work-resolve-issue.yml:report-skip -> pr-run-activity-write.yml",
+  ].sort());
 });

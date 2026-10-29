@@ -497,6 +497,7 @@
         "research-first",
         "probe-first",
         "workflow-modified",
+        "kill-switch",
         "rung-up",
         "no-model-turn",
         "finding-stands",
