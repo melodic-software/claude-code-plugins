@@ -609,14 +609,16 @@ retracted by finishing the cleanup.
 **Treat a resumed process as one without the belt.** Our probe found the belt absent after
 `claude -p --resume`, so a resumed session has no deny-by-default Bash lane and no PowerShell deletion
 prompts from this plugin; the always-on engine gate, the permission mode and the auto-mode classifier
-remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for
-`/disk-hygiene:clean` also writes a per-session marker (`clean-invoked/<session_id>.launched` under the
+remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for a typed
+`/disk-hygiene:clean`, and a `PreToolUse` hook on the `Skill` tool for a model load of it, each write a per-session marker (`clean-invoked/<session_id>.launched` under the
 plugin data directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source`
 is `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
 tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
-registers the belt again. It relies on the model following the notice. Only a typed command fires
-`UserPromptExpansion`, so a skill Claude loaded through the Skill tool writes no marker and a
-resume after it gets no notice. The marker is written before
+registers the belt again. It relies on the model following the notice. Both paths are needed: a typed
+command fires `UserPromptExpansion` and skips `PreToolUse`, and a Skill-tool load fires only
+`PreToolUse`. The `Skill` row writes the marker only when `tool_input.skill` names
+`disk-hygiene:clean`, launches nothing else and prints nothing, so it makes no permission decision.
+The marker is written before
 the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
 later resume still warns; that errs toward no deletes. The marker is keyed on the session id, so a
 session that starts under a new id gets no notice.

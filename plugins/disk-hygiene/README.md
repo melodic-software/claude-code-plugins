@@ -150,8 +150,8 @@ unconditionally, and fail closed to enabled.
 Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
 new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
 a `SessionStart` notice tells the model to make no delete or overwrite until the user types
-`/disk-hygiene:clean` again (#9853). That notice keys on a marker the typed command's expansion
-writes, so a session where Claude loaded `clean` through the Skill tool gets no notice on resume. The
+`/disk-hygiene:clean` again (#9853). That notice keys on a marker written both when the typed command
+expands and when Claude loads `clean` through the Skill tool. The
 plugin-level engine gate still asks before every engine `apply` and `handoff-apply`, and it fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
 "evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
@@ -497,7 +497,8 @@ installed. The measurements below carry the conditions they were taken under.
   plugin's own `hooks.json` (the launch-form record below states what that bounds), bundled
   standard-library scripts only, instant no-output deferral for any command
   not referencing the engine, and no new capability beyond what the skill-scoped deployment already
-  did during active cleanup. Known costs, accepted, with the always-on share measured per the
+  did during active cleanup. The `Skill` row starts only node for a skill other than
+  `disk-hygiene:clean`; for that skill it writes one marker file and launches no Python. Known costs, accepted, with the always-on share measured per the
   [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
   wall-clock around direct hook invocation with a benign representative payload; Windows 11 +
   Git Bash dev host, 2026-08-16): the engine-gate hook costs **≈ 190–300 ms per Bash/PowerShell
