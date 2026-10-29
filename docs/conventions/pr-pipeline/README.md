@@ -261,7 +261,13 @@ serves an adopted owner PR, posting its replies as the lanes App:
   `IDLE_OWNER_WINDOW_HOURS` of the PR turning idle, so a head with nothing for the lane is not
   re-read every tick; any new update opens the window again. A head whose round stopped with a
   failing `pr-unblock/address-feedback` status, and no thread left, is dispatched to clear it, as
-  for a lanes App PR, under the same `Hold:` and idle gates.
+  for a lanes App PR, under the same `Hold:` and idle gates. The select job reads the body again
+  when the round starts and skips `awaiting-human` on a `Hold:` line added after dispatch.
+- Human gate: a lane escalation's human-gated label lets the round work only as it lets fix-ci
+  work the PR (`gate-source.mjs` `prHold`): not after an `address-feedback` escalation, and not
+  once a person commented or reviewed after the label went on. Held, the round works only a thread
+  a trusted person with write access asked the lane to fix. On a lanes App PR a lane escalation's
+  label still lets the round work, as before.
 - What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
   listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
   security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.
@@ -1144,15 +1150,27 @@ the rules that only tighten in
     standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
-    on any other repository every one, and any added `windows` or `macos` line;
+    on any other repository every one, and any added `windows` or `macos` line. A `runs-on`
+    expression that names a matrix key or an input (`${{ matrix.os }}`, `${{ inputs.runner }}`)
+    counts each value that key or the input's `default:` and `options:` gain in the same file;
   - on a repository not known to be public, an added `cron:` key in any YAML or JSON spelling
-    (a schedule runs billed minutes), a `timeout-minutes` or `leg-timeout-minutes` the patch
-    adds above every one it removes in a workflow whose head text uses one of the model actions
-    below or could not be read, or an artifact `retention-days` the patch adds above every one
-    it removes, or above GitHub's
+    (a schedule runs billed minutes), a raised timeout as below, or an artifact
+    `retention-days` the patch adds above every one it removes, or above GitHub's
     [90-day default](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
     when it removes none (storage past the free quota);
   - a workflow or pipeline file with no patch.
+
+  Off a public repository, a raised timeout is a `timeout-minutes` or `leg-timeout-minutes`. In a
+  workflow whose head text uses one of the model actions below, or could not be read, it is one
+  the patch adds above every one it removes once equal values cancel, so a value removed and
+  re-added on another job hides nothing, or one set to an expression. In a workflow whose head text uses a model action or a
+  local `uses: ./` workflow or action, it is also, head text against base text at each job's key
+  path (a step's timeouts compared among its job's steps), block or flow style, one raised, set
+  to an expression, added above the highest number already at its path, a `timeout-minutes` set
+  where none was above GitHub's
+  [360-minute default](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
+  or one removed from a job or step the head still has, so that default or the action's own
+  applies. A `leg-timeout-minutes` set where none was is a cap, not a raise.
 
   Cost means only what can bill. Model usage under a subscription or prepaid credit does not, so
   a `--model` or `--max-turns` flag reports nothing; nor do hosted minutes or artifact storage on
@@ -1162,11 +1180,18 @@ the rules that only tighten in
   `description:` or `title:` value, or that only edits trailing comments on the same lines in
   place. Flow style, quoted keys and new list items count.
 
-  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets['NAME']`,
-  `toJSON(secrets)`, `secrets: inherit`) scores HIGH as `secret-exposure-review`, and one that
-  gains a `uses:` of `run-claude-cli` or any `claude-code*` action or image (matched ignoring
-  case) or a run line invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`,
-  each counted against the lines it removes so a moved line or a repin is not new. The secrets
+  A workflow patch that gains a `secrets` reference (`secrets.NAME`, `secrets.*`,
+  `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`, or the bare `secrets` context anywhere
+  in a `${{ }}` expression outside a string, such as `${{ secrets }}` or
+  `contains(secrets, 'X')`, or in an `if:` value without `${{ }}`, job or step level, quoted or a
+  block scalar; every `${{` starts a fresh read, and an expression whose string is
+  still open where its read ends counts as one) scores HIGH as
+  `secret-exposure-review`, and a workflow or composite action patch that gains a `uses:` of
+  `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line
+  invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`, each counted against
+  the lines it removes, an expression split across a folded scalar read whole, so a moved line or
+  a repin is not new; so does a composite action file with no patch to read, unless it is deleted,
+  re-moded, or renamed from another composite action, with no line added. The secrets
   reference is also read from the head text against the base text, so a workflow with no patch is
   not skipped. A workflow whose token gains a write scope scores HIGH as
   `permission-widening-review`: base and head are parsed (PyYAML; without it, the text alone) and
@@ -1178,6 +1203,12 @@ the rules that only tighten in
   `privileged-trigger-review`. These widen what a
   credential, an agent or a write token can reach, not only spend, so a person clears them and no
   cost decision does.
+
+  Accepted: a `secrets` reference moved within one file is net zero and does not hold. Other new
+  triggers, a removed `concurrency` or job `if:` guard, matrix growth and `max-parallel`, a
+  non-Claude model action, and paths outside the ones above (a workflow in a subdirectory of
+  `.github/workflows/`, `Pulumi.yml`, ARM templates, `*.tf.json`) are left to the review lanes'
+  cost hold, which holds for a real charge (`pr-review-hosted.yml`).
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as

@@ -96,6 +96,9 @@ D/audit-sessions/
   Each stored path is joined onto its session's `cwd`, so one file edited from different
   directories counts once and same-named files in different directories stay apart; the evidence
   `path` is therefore the full path, and a consumer keeps churn evidence on the machine.
+- The `tools.denials` finding also carries `by_kind`, the denials per kind summed over its
+  `evidence` sessions, most first, and `dominant_kind`, the first of them. How the kinds are read:
+  that rule's `basis` in `sweep-rules.json`.
 - Each `data.metrics` row carries `p90`, this store's p90 of the metric under collect.py's
   `_percentile` rule (null for the machine-wide ratio, a degraded metric, or a metric with no
   values), the rule's `threshold`, and

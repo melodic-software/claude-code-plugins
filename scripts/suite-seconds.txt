@@ -16,7 +16,9 @@
 # shell rows that had drifted 20 s or more and Python rows 8 s or more, plus
 # the unlisted shell suites 20 s or more over the mean they counted,
 # 2026-10-28 from whole-tree runs 40653674557, 40663973538 and 40674471154
-# (align.test.sh kept: its leg had no Chromium there, so it skipped): a shell
+# (align.test.sh kept: its leg had no Chromium there, so it skipped), and the
+# unlisted post-merge-demotion-alert.test.sh 2026-10-29 from whole-tree run
+# 40892244877: a shell
 # suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
@@ -782,6 +784,7 @@ scripts/lib/test-harness.test.sh 1
 scripts/node-notice-rows.test.sh 8
 scripts/pilot-plugin-quality-sim.test.sh 1
 scripts/plugin-validate-report.test.sh 1
+scripts/post-merge-demotion-alert.test.sh 100
 scripts/run-outside-node-suites.test.sh 1
 scripts/run-plugin-tests.test.sh 12
 scripts/selection-audit.test.sh 1

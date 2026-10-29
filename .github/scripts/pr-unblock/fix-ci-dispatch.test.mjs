@@ -1318,6 +1318,28 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
 });
 
+// #10902's escalated head: the rollup holds only the newest fix-ci check, the
+// rung-up's SUCCESS "Passed: no changes", which reads as a run that handled
+// the head. The rollup's newest apply-patch check is a lane stop, so the
+// listing pass leaves the head to the REST read, which ties that stop to the
+// fix-ci check's run attempt, and the head gets its one same-head retry.
+test("an escalated head whose rollup shows a passed fix-ci check is retried once from the REST lane stop", async () => {
+  const head = "7".padStart(40, "a");
+  const passed = { title: "Passed: no changes", completedAt: "2026-10-22T08:50:00Z" };
+  const rollup = [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", passed), check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })];
+  const fixCi = { ...toRest(check("pr-unblock / fix-ci", "SUCCESS", passed)), started_at: "2026-10-22T08:40:00Z", external_id: "pr-unblock:fix-ci:40843021992:1" };
+  const stop = { ...toRest(check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })), started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:40843021992:1" };
+  const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop]]]) });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
+  // With no lane stop, the passed check handles the head.
+  const handled = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]) });
+  assert.deepEqual(handled.api.calls.dispatch, []);
+  assert.ok(handled.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), handled.lines.join("\n"));
+  // With no stop in the rollup, the listing pass skips the head unread.
+  const unread = await run({ pages: [[pr(7, { checks: rollup.slice(0, 2) })]], history: new Map([[head, [fixCi]]]) });
+  assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
+});
+
 // A re-run is the same run id at its next attempt (external_id
 // `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
 // attempt it followed.
