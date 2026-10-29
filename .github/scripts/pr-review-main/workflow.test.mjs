@@ -151,11 +151,12 @@ function diffCase(build, maxBytes = 0) {
       mkdirSync(path.dirname(path.join(src, file)), { recursive: true });
       symlinkSync(target, path.join(src, file));
     };
-    build.base(write, symlink);
+    const chmod = (file) => chmodSync(path.join(src, file), 0o755);
+    build.base(write, symlink, chmod);
     git("add", "-A");
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
     const base = git("rev-parse", "HEAD");
-    build.head(git, write, (file) => chmodSync(path.join(src, file), 0o755));
+    build.head(git, write, chmod);
     git("add", "-A");
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "head");
     const head = git("rev-parse", "HEAD");
@@ -224,6 +225,64 @@ test("over the size cap a move an added line names prints whole, and so does one
   assert.match(patch, /^rename to docs\/quiet\.md$/m);
   assert.doesNotMatch(patch, /^\+quiet /m);
   assert.doesNotMatch(patch, /^rename to build\//m);
+});
+
+test("over the size cap a move a shown line names by its bare name, or its name without the extension, prints whole", () => {
+  const patch = diffCase({
+    base: (write) => {
+      write("lib/helper.sh", lines("helper", 10));
+      write("lib/payload.py", lines("payload", 10));
+      write("lib/quiet.md", lines("quiet", 10));
+      write("ci.sh", "true\n");
+    },
+    head: (git, write) => {
+      git("mv", "lib/helper.sh", "tools/helper.sh");
+      git("mv", "lib/payload.py", "tools/payload.py");
+      git("mv", "lib/quiet.md", "docs/quiet.md");
+      write("ci.sh", 'true\nsource "$(dirname "$0")/helper.sh"\nimport payload\n');
+    },
+  });
+  for (const word of ["helper", "payload"]) {
+    assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 10, word);
+  }
+  // An unrelated pure move still collapses.
+  assert.match(patch, /^rename to docs\/quiet\.md$/m);
+  assert.doesNotMatch(patch, /^\+quiet /m);
+});
+
+test("over the size cap a move that may run or load prints whole", () => {
+  const patch = diffCase({
+    base: (write, _symlink) => {
+      write("fixtures/evil/SKILL.md", lines("skill", 10));
+      write("notes/run.md", lines("hook", 10));
+      write("lib/x/conftest.py", lines("conftest", 10));
+      write("lib/quiet.md", lines("quiet", 10));
+    },
+    head: (git) => {
+      git("mv", "fixtures/evil/SKILL.md", "plugins/p/skills/evil/SKILL.md");
+      git("mv", "notes/run.md", "plugins/p/hooks/run.md");
+      git("mv", "lib/x/conftest.py", "tests/conftest.py");
+      git("mv", "lib/quiet.md", "docs/quiet.md");
+    },
+  });
+  for (const word of ["skill", "hook", "conftest"]) {
+    assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 10, word);
+  }
+  assert.match(patch, /^rename to docs\/quiet\.md$/m);
+  assert.doesNotMatch(patch, /^\+quiet /m);
+});
+
+test("over the size cap a moved executable prints whole", () => {
+  const patch = diffCase({
+    // Executable on both sides, so the mode does not change.
+    base: (write, _symlink, chmod) => {
+      write("tools/run", lines("exec", 10));
+      chmod("tools/run");
+    },
+    head: (git) => git("mv", "tools/run", "bin/run"),
+  });
+  assert.doesNotMatch(patch, /^old mode/m);
+  assert.equal(patch.match(/^\+exec \d+$/gm).length, 10);
 });
 
 test("over the size cap a moved symlink prints whole", () => {
@@ -477,7 +536,10 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     const leg = jobText(to);
     assert.equal(needsOf(to), route);
     assert.match(leg, new RegExp(`^ {6}matrix: \\$\\{\\{ fromJSON\\(needs\\.${route}\\.outputs\\.matrix\\) \\}\\}$`, "m"));
-    assert.doesNotMatch(leg, /always\(\) \|\||!cancelled\(\)/);
+    // !cancelled() with the route's own success: the implicit success() needs
+    // every ancestor, so one lane's failed leg would skip the other's.
+    assert.match(leg, new RegExp(`^ {4}if: >-\\n {6}!cancelled\\(\\)\\n {6}&& needs\\.${route}\\.result == 'success'\\n {6}&& github\\.ref == 'refs\\/heads\\/main'\\n`, "m"));
+    assert.doesNotMatch(leg, /always\(\) \|\|/);
     // Each lane's reason is its own output, set only by the handoff step.
     for (const lane of ["claude-review", "claude-security-review"]) {
       assert.match(jobText(from), new RegExp(`^ {6}${lane}: \\$\\{\\{ steps\\.handoff\\.outputs\\.${lane} \\}\\}$`, "m"));
@@ -542,7 +604,8 @@ test("every later leg repeats the key leg's steps but for its credential and why
       "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}",
     );
     // Its gates are the key leg's.
-    const gates = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))[1];
+    // Past the route checks, its gates are the key leg's.
+    const gates = (id) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(id))[1].replace(/^ {6}!cancelled\(\)\n {6}&& needs\.[a-z-]+\.result == 'success'\n {6}&& /, "      ");
     assert.equal(gates(job), gates(KEY));
   }
   assert.equal(input(step("Report the review's outcome", KEY), "fallback-reason"), undefined);

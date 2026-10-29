@@ -34,6 +34,28 @@ import babysit_review_evidence as ev  # noqa: E402
 DIFF = ["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"]
 # A symlink's or a submodule's mode: the rename lines show neither target.
 LINK_MODES = {"120000", "160000"}
+# A move that may run or load: an executable, a path under a directory a
+# plugin or Claude Code loads from, or a file such a tool reads by its name.
+EXEC_MODE = "100755"
+LOADED_SEGMENTS = {"skills", "agents", "commands", "hooks"}
+LOADED_NAMES = {
+    "SKILL.md",
+    "hooks.json",
+    "plugin.json",
+    "marketplace.json",
+    "conftest.py",
+    "__init__.py",
+    "settings.json",
+}
+
+
+def loaded(mode: str, path: str) -> bool:
+    parts = path.split("/")
+    return (
+        mode == EXEC_MODE
+        or bool(LOADED_SEGMENTS.intersection(parts[:-1]))
+        or parts[-1] in LOADED_NAMES
+    )
 
 
 def git(repo: str, *args: str) -> bytes:
@@ -60,6 +82,8 @@ def renames(raw: bytes) -> tuple[list[str], list[tuple[str, str]]]:
                 status != "R100"
                 or old_mode != new_mode
                 or {old_mode, new_mode} & LINK_MODES
+                or loaded(old_mode, src)
+                or loaded(new_mode, dst)
                 or ev.lane_source(src)
                 or ev.lane_source(dst)
             ):
@@ -72,9 +96,12 @@ def renames(raw: bytes) -> tuple[list[str], list[tuple[str, str]]]:
 
 
 def named(path: str, added: bytes) -> bool:
-    """Whether an added line names `path`, or its last directory and name."""
-    tail = "/".join(path.split("/")[-2:])
-    return os.fsencode(path) in added or os.fsencode(tail) in added
+    """Whether an added line names `path`, its last directory and name, its
+    name, or its name without the extension. Matching too much only prints
+    more."""
+    name = path.split("/")[-1]
+    forms = {path, "/".join(path.split("/")[-2:]), name, name.rsplit(".", 1)[0]}
+    return any(form and os.fsencode(form) in added for form in forms)
 
 
 def write_diff(repo: str, base: str, head: str, max_bytes: int) -> bytes:

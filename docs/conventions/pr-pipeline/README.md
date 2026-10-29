@@ -1082,7 +1082,10 @@ the rules that only tighten in
   `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
   does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
   a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
-  symlink or submodule, and one whose new path (or its last directory and name) an added line names
+  symlink or submodule, one that may run or load (an executable, a path under a `skills`, `agents`,
+  `commands` or `hooks` directory, or a file a tool reads by name such as `SKILL.md`, `hooks.json`,
+  `plugin.json`, `marketplace.json`, `conftest.py`, `__init__.py` or `settings.json`), and one whose
+  new path, last directory and name, name, or name without its extension an added line names
   show whole (`write-diff.py`); the prompt tells the reviewer a rename-only entry is unseen and that
   a change referencing a moved path is a finding. The caps apply after. A verdict binds only when the head
   also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
