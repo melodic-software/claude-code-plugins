@@ -41,7 +41,8 @@
 #   1. the kill switch, before any source;
 #   2. no map file: no domain and no step 3 or 4, so only the GIT IDENTITY
 #      WRITES rule below can deny, and a call its prefilter misses leaves at
-#      step 5 with no trace and no telemetry;
+#      step 5, or before the jq gate when its raw input already misses, with
+#      no trace and no telemetry;
 #   3. the map, compiled by jq into CACHE (identity-domains.cache beside it)
 #      once per change of its bytes or of HOME and read back with builtins
 #      otherwise, so a steady call starts no process; a malformed map is
@@ -172,8 +173,8 @@
 #     continuation, or to git's XDG global file (`~/.config/git/config`),
 #     which is no identity file here; and, the other way, an `&>` or `>|`
 #     with an identity file after it inside quoted text, which denies
-#   - a map that is malformed, or a missing jq with a map, which turns the
-#     whole guard off, the identity-write rule included
+#   - a map that is malformed, or a missing jq, which turns the whole guard
+#     off, the identity-write rule included
 #
 # TEST HOOK. GUARDRAILS_CROSS_DOMAIN_TRACE=1 writes one stderr line per step a
 # call reaches (`block-cross-domain: trace <step>`).
@@ -211,9 +212,25 @@ start=${EPOCHREALTIME:-}
 # Every stdin failure (empty, stalled, not JSON, cut short) allows the call.
 hook::buffer_stdin_to INPUT || exit 0
 
-# The map is compiled by jq. Without it: one notice per session, then allow.
-# With no map a missing jq stays silent: the identity-write rule allows unread.
-[[ -n "$BCD_MAP" ]] || command -v jq >/dev/null 2>&1 || exit 0
+# With no map only the identity-write rule can deny, and only a command whose
+# text holds both `git` and `config` reaches it (bcd::write_prefilter). That test
+# runs here first, on the raw input, so a call the rule would never read leaves
+# before the jq gate and a missing jq is not reported for it. Lowercased, with
+# its escaped backslashes, escaped CRs, `\`, `"` and `'` dropped, the raw input
+# holds every letter run the command text does; a `\u` escape can spell a
+# letter, so an input with one goes on to the gate.
+if [[ -z "$BCD_MAP" ]]; then
+  BCD_RAW=${INPUT//\\\\/}
+  if [[ "$BCD_RAW" != *\\u* ]]; then
+    BCD_RAW=${BCD_RAW,,}
+    BCD_RAW=${BCD_RAW//\\r/}
+    BCD_RAW=${BCD_RAW//[$'\r'\\\"\']/}
+    [[ "$BCD_RAW" == *git* && "$BCD_RAW" == *config* ]] || exit 0
+  fi
+fi
+
+# The map is compiled by jq, and the call's fields are read through it. Without
+# it: one notice per session, then allow.
 hook::require jq PreToolUse guardrails "$INPUT"
 
 jq_rc=0

@@ -641,6 +641,12 @@ guard_invoke --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- "CLAUDE_PLUGIN_DATA=
   "BASH_ENV=$HIDE_JQ" "CLAUDE_PLUGIN_ROOT=$HOOK_DIR/.."
 assert_exit "jq hidden, no map: exit 0" 0 "$GUARD_RC"
 assert_silent "jq hidden, no map: silent" "$GUARD_OUT$GUARD_ERR"
+guard_invoke --cwd "$NEUTRAL" --command 'git config --global user.email dev@example.invalid' -- \
+  "CLAUDE_PLUGIN_DATA=$NO_MAP" "BASH_ENV=$HIDE_JQ" "CLAUDE_PLUGIN_ROOT=$HOOK_DIR/.."
+assert_exit "jq hidden, no map, an identity write: exit 0" 0 "$GUARD_RC"
+assert_absent "jq hidden, no map, an identity write: no deny" "$GUARD_OUT" permissionDecision
+assert_contains "jq hidden, no map, an identity write: the user is told jq is missing" \
+  "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" "jq not on the hook PATH"
 
 # --- The cache follows the map ----------------------------------------------
 EDIT="$TEST_TMPDIR/edit"
