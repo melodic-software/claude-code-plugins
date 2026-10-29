@@ -4,9 +4,10 @@
 // The clean skill's frontmatter belt (the PowerShell deletion prompts and the
 // deny-by-default Bash lane) is registered in the process that invoked the
 // skill. A Windows probe found it absent after `claude -p --resume`, which
-// starts a new process on the same session id. The UserPromptExpansion row in
-// hooks.json writes `<marker-root>/clean-invoked/<session>.launched` through
-// run-python-hook.sh's `--launch-marker`; on `source: resume` this script looks
+// starts a new process on the same session id. Two rows in hooks.json write
+// `<marker-root>/clean-invoked/<session>.launched` through run-python-hook.sh's
+// `--launch-marker`: UserPromptExpansion when the user types the command, and
+// the PreToolUse `Skill` row when the model loads it. On `source: resume` this script looks
 // for that marker and, when it is there, tells the model to make no deletes or
 // overwrites until the user types /disk-hygiene:clean again, which registers
 // the belt again. It is a notice, not a gate.

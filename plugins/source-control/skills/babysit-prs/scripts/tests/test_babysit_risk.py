@@ -1752,7 +1752,9 @@ class ReviewFlagClassTests(unittest.TestCase):
 
     def test_subscription_spend_is_reported_and_does_not_hold(self):
         patch = "@@ -1,1 +1,2 @@\n lanes:\n+  model: opus"
-        result = score(_input(files=(_file("conventions/pr-pipeline.yaml", patch=patch),)))
+        result = score(
+            _input(files=(_file("conventions/pr-pipeline.yaml", patch=patch),))
+        )
         self.assertEqual(_codes(result), ("cost-finding",))
         self.assertFalse(holds(result))
 
@@ -1830,6 +1832,19 @@ def _credentialed(text: str) -> bool:
         for step in job.get("steps") or ()
     )
     return oidc or dispatch or bool(secrets - {"github_token"}) or lane_token
+
+
+class SecretRefReadsExpressions(unittest.TestCase):
+    def test_a_bare_secrets_context_inside_an_expression_is_a_reference(self):
+        # Only the `${{ }}` alternative of `_SECRET_REF` matches these shapes.
+        for line in (
+            "${{ secrets }}",
+            "${{ contains(secrets, 'A') }}",
+            "${{ secrets || 'x' }}",
+            "${{ secrets.X }}",
+        ):
+            with self.subTest(line=line):
+                self.assertTrue(babysit_risk._SECRET_REF.search(line))
 
 
 @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
