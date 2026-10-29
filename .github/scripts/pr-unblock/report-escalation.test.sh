@@ -155,7 +155,7 @@ FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-confl
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
   dependency-invalid
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated)
+  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-escalated ci-fix-weaken-retry)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"

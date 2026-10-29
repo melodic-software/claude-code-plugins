@@ -1,5 +1,5 @@
 ---
-description: "Read-only, audit-only scan of one directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftovers, reported as an evidence snapshot. Removes nothing; any removal is a separate /disk-hygiene:clean run that a person invokes. Use when: 'delegate a disk-hygiene audit', 'orchestrator scan of a directory for leftovers', 'subagent scan of this directory for leftovers', 'disk-hygiene audit report'. Skip when: the ask is to clean up or reclaim space (that is /disk-hygiene:clean), one repository's caches or build output (repo-hygiene), or an OS-managed root."
+description: "Read-only, audit-only scan of one directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftovers, reported as an evidence snapshot. Removes nothing; any removal is a separate /disk-hygiene:clean run, gated on the user's own answer. Use when: 'delegate a disk-hygiene audit', 'orchestrator scan of a directory for leftovers', 'subagent scan of this directory for leftovers', 'disk-hygiene audit report'. Skip when: the ask is to clean up or reclaim space (that is /disk-hygiene:clean), one repository's caches or build output (repo-hygiene), or an OS-managed root."
 argument-hint: "[--max-depth <N>] [--sizes-only] [--policy <file>] <target-directory>"
 user-invocable: true
 disable-model-invocation: false
@@ -100,7 +100,7 @@ Report from the snapshot and the scan's stdout, and nothing the run did not obse
 
 ## 4. Hand off
 
-Removal is `/disk-hygiene:clean`, which a person invokes. Close the report with the snapshot path
+Removal is a separate `/disk-hygiene:clean` run. Close the report with the snapshot path
 and that one line. Do not start a removal run and do not propose exact paths for one. When
 `effective` was `false`, say instead that removal is disabled by the plugin's configuration.
 
@@ -108,7 +108,7 @@ and that one line. Do not start a removal run and do not propose exact paths for
 
 /disk-hygiene:clean <target-directory>
 
-Run by a person when the findings warrant removal; it takes the same target, not this snapshot.
+Run when the findings warrant removal and the user wants it; it takes the same target, not this snapshot.
 
 ## Gotchas
 

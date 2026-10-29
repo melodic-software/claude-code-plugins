@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, main, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -92,8 +92,10 @@ function fakeApi({
   workflowRunId = 38779200001,
   permissions = { "kyle-sexton": "admin" },
   labelEvents = [],
+  reviewComments = [],
+  reviews = [],
 } = {}) {
-  const calls = { dispatch: [], permission: [], labelEvents: 0 };
+  const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -119,6 +121,11 @@ function fakeApi({
       calls.labelEvents += 1;
       return labelEvents;
     },
+    async listReviewComments(number, since) {
+      calls.reviewReads.push(since);
+      return reviewComments;
+    },
+    listReviews: async () => reviews,
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -1435,6 +1442,44 @@ test("a scheduled tick retries a head whose reply job stopped, until SWEEP_HEAD_
   assert.deepEqual(terminal.calls.dispatch, []);
 });
 
+// A kill switch turned on after a round's model leg ran stops its reply job
+// at the broker (request-lane-token kill-switch-ok): its publish-feedback
+// check skips kill-switch and posts no reply, so the head is released like a
+// lane stop. The tick, which the switch also stops, re-dispatches it once the
+// switch lifts, under SWEEP_HEAD_CAP; a trigger at that head does too, and so
+// does one after a kill-switch stop of the address-feedback run itself.
+const killSwitched = (name, started) => roundRun(name, "neutral", "Skipped: kill-switch", started);
+
+test("a scheduled tick re-dispatches a head whose reply job the kill switch stopped, until SWEEP_HEAD_CAP stops stand", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, killSwitched("publish-feedback", "2026-10-17T10:05:00Z")] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  const capped = sweepApi({
+    checksAt: {
+      [HEAD]: [
+        answeredRound,
+        killSwitched("publish-feedback", "2026-10-17T10:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T11:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T12:05:00Z"),
+      ],
+    },
+  });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+});
+
+test("a head the kill switch stopped dispatches again, and is not recorded as handled", async () => {
+  for (const [label, checks] of [
+    ["the reply job's mint was refused", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), killSwitched("publish-feedback", "2026-10-17T10:05:00Z")]],
+    ["the address-feedback run's own kill step stopped it", [killSwitched("address-feedback", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const record = emptyRecord();
+    const { result } = await decideWith(fakeApi({ checkRuns: checks }), record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, label);
+    assert.equal(record.handled.size, 0, label);
+  }
+});
+
 // The recovery: a pr-feedback-dispatch.yml run an outage lost in the
 // lookback window (24 hours before NOW) makes the tick decide every open
 // lanes App head through dispatchFeedback. `runs` is the one listing, `jobs`
@@ -1863,4 +1908,300 @@ test("a pr-merge run on a head still gated, of another event, or with no review 
   unreviewed.listCompletedRuns = async () => [];
   assert.match((await mergeMain(dir, unreviewed)).lines.at(-1), /no completed review run yet/);
   assert.deepEqual([...scheduled.calls.dispatch, ...unreviewed.calls.dispatch], []);
+});
+
+// Owner PRs: one a person on the trusted-actors list opened, adopted under the
+// base config's `adoption` section once its last update and head commit are
+// idle-hours old (fix-ci's adoption rule). Its round posts as the lanes App.
+const NOW_MS = Date.parse("2026-10-28T12:00:00Z");
+const ADOPTION = { ownerIds: new Set([KYLE.databaseId]), idleHours: 2 };
+const ownerPull = (overrides = {}) =>
+  pull({ user: { id: KYLE.databaseId, type: "User" }, updated_at: "2026-10-28T09:00:00Z", body: "Closes #1", ...overrides });
+const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
+  const api = fakeApi({ pulls: ownerPull(), ...options });
+  api.calls.commits = [];
+  api.headCommittedAt = async (sha) => {
+    api.calls.commits.push(sha);
+    return committedAt;
+  };
+  return api;
+};
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) {
+  const lines = [];
+  const result = await dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    adoption,
+    passOnly,
+    now: NOW_MS,
+    log: (line) => lines.push(line),
+  });
+  return { result, lines };
+}
+
+test("an idle owner PR's lane-review thread dispatches address-feedback, so the lanes App answers it", async () => {
+  for (const threads of [[thread([CLAUDE])], [LANE_FINDING]]) {
+    const api = ownerApi({ threads });
+    const { result } = await decideOwner(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+    assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
+    assert.deepEqual(api.calls.commits, [HEAD]);
+  }
+});
+
+test("an owner PR or its head commit active within idle-hours is not dispatched", async () => {
+  for (const [label, api] of [
+    ["a recent update", ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T11:00:00Z" }) })],
+    ["a recent head commit", ownerApi({}, "2026-10-28T11:30:00Z")],
+    ["an unreadable update", ownerApi({ pulls: ownerPull({ updated_at: undefined }) })],
+    ["an unreadable commit date", ownerApi({}, "")],
+  ]) {
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /owner PR or its head commit active in the last 2 hour\(s\)/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+test("an owner PR with a Hold: body line is not dispatched", async () => {
+  const api = ownerApi({ pulls: ownerPull({ body: "Summary\n  hold: I am still on this" }) });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /held by a Hold: line/);
+});
+
+test("a person's PR is not served without an adoption section, or when the person is not on the trusted list", async () => {
+  for (const [label, api, adoption] of [
+    ["no adoption section", ownerApi(), NO_ADOPTION],
+    ["an untrusted person", ownerApi({ pulls: ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }) }), ADOPTION],
+    ["a trusted id typed as a Bot", ownerApi({ pulls: ownerPull({ user: { id: KYLE.databaseId, type: "Bot" } }) }), ADOPTION],
+  ]) {
+    const { result, lines } = await decideOwner(api, { adoption });
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /was not opened by the lanes App or an adopted owner/, label);
+    assert.deepEqual(api.calls.commits, [], label);
+  }
+});
+
+test("on an owner PR a thread a person wrote or answered stays the person's and starts no round", async () => {
+  for (const [label, threads] of [
+    ["a thread the owner opened", [thread([KYLE])]],
+    ["a reviewer thread the owner answered", [{ isResolved: false, comments: { nodes: [{ author: CLAUDE, body: "finding", createdAt: "2026-10-28T08:00:00Z", ...onReview(CLAUDE) }, { author: KYLE, body: "Fixed in abc.", createdAt: "2026-10-28T08:01:00Z" }], pageInfo: { hasNextPage: false } } }]],
+  ]) {
+    const api = ownerApi({ threads });
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /has no thread the lane works/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+// On an owner PR a lane escalation's needs-human lets the round work only as
+// it lets fix-ci work there (gate-source.mjs prHold): another lane's
+// escalation with no person speaking since the label does; address-feedback's
+// own escalation, or a person's review comment since the label, holds it, and
+// then only a write-access fix request dispatches. A lanes App PR reads the
+// escalation through gateSource alone, as before.
+const ownFeedbackEscalation = () =>
+  escalationComment({ body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`feedback-round-cap\`` });
+// The review markers as the REST API returns them, typed Bot, so they are no
+// person speaking.
+const botReviewed = [marker("claude-review", HEAD, ACTIONS_USER), marker("claude-security-review", HEAD, ACTIONS_USER)];
+const ownerGated = (options = {}) =>
+  ownerApi({ pulls: ownerPull({ labels: [{ name: "needs-human" }] }), comments: [...botReviewed, escalationComment()], labelEvents: [appLabeled], ...options });
+const personSpoke = [{ user: { login: KYLE_LOGIN.login, id: KYLE.databaseId, type: "User" }, created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
+
+test("an owner PR another lane's escalation gated dispatches for a reviewer-bot thread when no person spoke since", async () => {
+  const api = ownerGated();
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  // The review comments are read from a second before the label went on.
+  assert.deepEqual(api.calls.reviewReads, ["2026-10-18T09:59:59Z"]);
+});
+
+for (const [label, options, why] of [
+  ["address-feedback's own escalation", { comments: [...botReviewed, ownFeedbackEscalation()] }, "address-feedback escalated it"],
+  ["a person's review comment since the label", { reviewComments: personSpoke }, "a person commented or reviewed since needs-human went on"],
+]) {
+  test(`an owner PR a lane escalation gated dispatches nothing for a reviewer-bot thread after ${label}`, async () => {
+    const api = ownerGated(options);
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, lines.join("\n"));
+    assert.match(lines.at(-1), new RegExp(`#42 is labeled needs-human \\(held by needs-human: ${why}\\) and has no thread a trusted person with write access asked the lane to fix`));
+    assert.deepEqual(api.calls.dispatch, []);
+  });
+}
+
+test("an owner PR a lane escalation holds still dispatches for a write-access trusted person's fix request", async () => {
+  const api = ownerGated({ reviewComments: personSpoke, threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })] });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
+});
+
+test("a lanes App PR under its own address-feedback escalation still dispatches for a reviewer-bot thread under an adoption section", async () => {
+  const api = ownerApi({ pulls: humanGated(), comments: [...botReviewed, ownFeedbackEscalation()], labelEvents: [appLabeled], reviewComments: personSpoke });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.reviewReads, []);
+});
+
+test("a lanes App PR is decided as before under an adoption section: no idle read", async () => {
+  const api = ownerApi({ pulls: pull({ updated_at: "2026-10-28T11:59:00Z" }) }, "2026-10-28T11:59:00Z");
+  const { result } = await decideOwner(api);
+  assert.equal(result?.number, 42);
+  assert.deepEqual(api.calls.commits, []);
+});
+
+test("a pass-only round never goes to an owner PR", async () => {
+  const api = ownerApi();
+  const { result, lines } = await decideOwner(api, { passOnly: true });
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /was not opened by the lanes App$/);
+});
+
+test("the sweep dispatches an idle owner PR whose reviewed head the lane has not answered", async () => {
+  const sweepApi = (pulls) => {
+    const api = ownerApi({ pulls });
+    Object.assign(api, {
+      listOpenPulls: async () => pulls,
+      listStatuses: async () => [],
+      listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T08:30:00Z" })] : []),
+    });
+    return api;
+  };
+  const sweep = (api) =>
+    sweepReleased({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      appSenderId: APP_ID,
+      trustedHumans: new Set([KYLE.databaseId]),
+      resolveSlot: async () => resolvedLane(),
+      adoption: ADOPTION,
+      now: NOW_MS,
+      log: () => {},
+    });
+  const idle = sweepApi(ownerPull());
+  assert.equal((await sweep(idle))?.number, 42);
+  assert.equal(idle.calls.dispatch.length, 1);
+  // Still active: the listing's update time skips it before any read.
+  const active = sweepApi(ownerPull({ updated_at: "2026-10-28T11:00:00Z" }));
+  assert.equal(await sweep(active), null);
+  assert.deepEqual(active.calls.commits, []);
+  // A head the lane already answered costs two check-run reads and a status
+  // read a tick: no review run, commit or thread read.
+  const answered = sweepApi(ownerPull());
+  const done = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-28T09:00:00Z", output: { title: "Answered" } };
+  const reads = [];
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = answered[name];
+    answered[name] = async (...args) => {
+      reads.push(args[0]?.checkName ? `${name}:${args[0].checkName}` : name);
+      return name === "listCheckRuns" ? (args[0].checkName === "pr-unblock / address-feedback" ? [done] : []) : inner(...args);
+    };
+  }
+  assert.equal(await sweep(answered), null);
+  assert.deepEqual(reads, ["listCheckRuns:pr-unblock / address-feedback", "listCheckRuns:pr-unblock / publish-feedback", "listStatuses"]);
+  // An untrusted person's PR is never listed.
+  const stranger = sweepApi(ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }));
+  assert.equal(await sweep(stranger), null);
+  assert.deepEqual(stranger.calls.dispatch, []);
+});
+
+const ownerSweepApi = (pulls) => {
+  const api = ownerApi({ pulls });
+  Object.assign(api, {
+    listOpenPulls: async () => pulls,
+    listStatuses: async () => [],
+    listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T08:30:00Z" })] : []),
+  });
+  return api;
+};
+const ownerSweep = (api) =>
+  sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    adoption: ADOPTION,
+    now: NOW_MS,
+    log: () => {},
+  });
+
+test("the sweep decides an idle owner head with no round only within the idle window, so a skip is not re-read every tick", async () => {
+  // Idle since 09:00 + 2 h = 11:00: inside the window, the full decision runs.
+  const fresh = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:00:00Z" }));
+  fresh.listReviewThreads = async () => [thread([KYLE])];
+  assert.equal(await ownerSweep(fresh), null);
+  assert.deepEqual(fresh.calls.commits, [HEAD]);
+  // Idle since 07:00 + 2 h = 09:00, more than IDLE_OWNER_WINDOW_HOURS ago: the
+  // same skip costs one check-run read, no review run, PR, commit or thread read.
+  const reads = [];
+  const settled = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T07:00:00Z" }));
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = settled[name];
+    settled[name] = async (...args) => {
+      reads.push(name);
+      return inner(...args);
+    };
+  }
+  assert.equal(await ownerSweep(settled), null);
+  assert.deepEqual(reads, ["listCheckRuns"]);
+  assert.equal(IDLE_OWNER_WINDOW_HOURS, 2);
+  // A new update opens the window again.
+  const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
+  assert.equal((await ownerSweep(reopened))?.number, 42);
+});
+
+test("the sweep clears an idle owner PR's failing stop once no thread is left, past the idle window, under its gates", async () => {
+  const stopped = (pullOverrides = {}, committedAt = "2026-10-28T08:00:00Z") => {
+    const api = ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }) }, committedAt);
+    const round = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "failure", started_at: "2026-10-28T06:00:00Z", output: { title: "Escalated" } };
+    Object.assign(api, {
+      listOpenPulls: async () => ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }),
+      listCheckRuns: async ({ checkName }) => (checkName === "pr-unblock / address-feedback" ? [round] : []),
+      listStatuses: async () => [{ ...STOP, created_at: "2026-10-28T06:30:00Z" }],
+      listReviewThreads: async () => [{ isResolved: true, comments: { nodes: [] } }],
+      listWorkflowRuns: async () => [],
+      listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T05:30:00Z" })] : []),
+    });
+    return api;
+  };
+  const api = stopped();
+  const result = await ownerSweep(api);
+  assert.equal(result?.number, 42);
+  assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
+  // A Hold: line or a recent head commit still keeps the lane off.
+  for (const [label, held] of [
+    ["a Hold: line", stopped({ body: "Hold: mine" })],
+    ["a recent head commit", stopped({}, "2026-10-28T11:30:00Z")],
+  ]) {
+    assert.equal(await ownerSweep(held), null, label);
+    assert.deepEqual(held.calls.dispatch, [], label);
+  }
+  // An open thread leaves the stop to the person.
+  const open = stopped();
+  open.listReviewThreads = async () => [{ isResolved: false, comments: { nodes: [] } }];
+  assert.equal(await ownerSweep(open), null);
+});
+
+test("ownerAdoption reads the base adoption section and the trusted list's people; an unreadable base adopts no owner", async () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  const adoption = await ownerAdoption({ BASE_PATH: root });
+  assert.ok(Number.isInteger(adoption.idleHours));
+  assert.ok(adoption.ownerIds.has(KYLE.databaseId));
+  const lines = [];
+  assert.equal(await ownerAdoption({ BASE_PATH: "/nonexistent-base" }, (line) => lines.push(line)), NO_ADOPTION);
+  assert.match(lines[0], /no owner PR is served this run/);
 });

@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Tracks identity domains. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
+  "description": "Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Blocks cross-domain paths. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -81,7 +81,7 @@
     "block_cross_domain_enabled": {
       "type": "boolean",
       "title": "Block-cross-domain guard",
-      "description": "Reads a machine-local identity-domain map, identity-domains.json in the plugin data directory, classifies the session directory and each Bash or PowerShell command against it, and reports the result to telemetry; it denies nothing. With no map it does nothing. On by default.",
+      "description": "From a session in one identity domain (identity-domains.json), denies a Bash or PowerShell command naming another domain's root or owner, putting its marker in a git remote, author or gh/az config variable, or running gh or az without its domain's config directory. No map: no-op. On by default.",
       "default": true
     },
     "block_unresolved_pr_merge_enabled": {
@@ -176,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.61.3"
+  "version": "0.63.1"
 }

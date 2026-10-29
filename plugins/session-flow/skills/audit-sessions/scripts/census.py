@@ -45,6 +45,7 @@ SECTIONS = frozenset(
         "usage_key",
         "effort_value",
         "assistant_error",
+        "denial_kind",
         "invariant",
     }
 )

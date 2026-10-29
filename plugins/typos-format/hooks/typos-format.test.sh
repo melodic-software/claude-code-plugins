@@ -75,7 +75,7 @@ if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/n
 else
   fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
 fi
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
 
 # --- SessionStart probe honors typos_format_enabled -----------------------------------
 # Runs the probe row as the harness spawns it: `node` with the row's args,
@@ -99,7 +99,8 @@ else
   while IFS= read -r pg_arg; do
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
 
   run_probe() { # <value|__unset__>
     local v="$1"

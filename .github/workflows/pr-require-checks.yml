@@ -4132,7 +4132,9 @@ jobs:
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label, the trusted-actor list names who
       # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
-      # lanes App's id that LANES_APP_ID must equal; all are read at the base
+      # lanes App's id that LANES_APP_ID must equal, and its
+      # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
+      # review-lanes step holds; all are read at the base
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
       # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
@@ -4500,7 +4502,8 @@ jobs:
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
       # is the base commit's .work-item-tracker.json role_labels.human-gated
-      # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
+      # (default `needs-human`), resolved by the base checkout's merge-holds.mjs
+      # humanGatedLabel as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
       # read live, not from the event payload, which a later label event
       # outdates. The reason is the newest hold comment's text: a review
@@ -4532,15 +4535,20 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
+          # The base module's humanGatedLabel; an empty tracker config names none.
+          # The module is not the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          human_gated=$(TRACKER=$tracker node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { humanGatedLabel } = await import(pathToFileURL(process.argv[2]).href);
+            const text = process.env.TRACKER ?? "";
+            const label = humanGatedLabel(text === "" ? null : JSON.parse(text));
+            if (typeof label !== "string" || !label) {
+              throw new Error("no verdict");
             }
-          fi
+            console.log(label);' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
             if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
@@ -4695,7 +4703,14 @@ jobs:
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
       # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it; a person merges it. A draft is exempt
+      # lane reads it; a person merges it. So does any other same-repository
+      # PR changing one that an agent App (merge.trust-path-hold-apps in the
+      # base commit's pr-pipeline.yaml) opened, authored or committed a commit
+      # of, or pushed to its head branch (the repository activity API, one
+      # page), since its head can rewrite the review callers; it still needs
+      # both lanes otherwise. Those reads run only once a trust-gate path
+      # matched, and an unreadable base config, PR, commit list or push
+      # history, or a short commit list or full push page, fails closed. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
@@ -4719,6 +4734,8 @@ jobs:
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -4735,7 +4752,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$("${READER:-gh_read}" "$2"); then
+              if body=$("${READER:-gh_read}" "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -4743,16 +4760,17 @@ jobs:
               sleep $((attempt * 5))
             done
           }
-          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+          # held_paths: sets files to the changed and renamed-from paths of the
+          # pull request and held to those that are trust-gate paths.
+          held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/workflows/pr-unblock.yml' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-review-main/*' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # END hold-floor hold_patterns
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
             fi
-            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
             # The broker step above leaves the file list it read; read it again
             # only when that step could not.
             if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
@@ -4766,10 +4784,6 @@ jobs:
                 sleep $((attempt * 5))
               done
             fi
-            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
-              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
-              exit 1
-            fi
             held=
             # Case-folded, as the floor matches: a case-insensitive checkout
             # reads `.github/codeowners` as CODEOWNERS.
@@ -4781,6 +4795,14 @@ jobs:
               done
             done < <(tr '\t' '\n' <<<"$files" | grep .)
             shopt -u nocasematch
+          }
+          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+            held_paths
+            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
+              exit 1
+            fi
             if [ -n "$held" ]; then
               echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it."
               exit 1
@@ -4795,6 +4817,59 @@ jobs:
               echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
             done <<<"$lanes"
             exit 1
+          fi
+          # An agent App's head can rewrite the review callers, so a trust-gate
+          # path it touched waits for a person as an exempt author's does: the
+          # base's merge.trust-path-hold-apps, matched by login against the
+          # author, each commit's author and committer (account or noreply
+          # address) and each push to the head branch. GitHub lists at most
+          # 3000 files, so a list that long may hide one.
+          held_paths
+          if [ -n "$held" ] || [ "$(grep -c . <<<"$files")" -ge 3000 ]; then
+            conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
+            apps='[]'
+            # pipefail, and an empty list counts as unread: the step runs without
+            # pipefail, so a failed yq would otherwise leave apps empty and pass.
+            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
+              jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
+                then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
+              echo "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml, so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
+              exit 1
+            fi
+            if [ "$apps" != '[]' ]; then
+              pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+              if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+                held="$held (and files GitHub did not list)"
+              fi
+            fi
+            if [ "$apps" != '[]' ] && [ -n "$held" ]; then
+              commits=$(read_api "the commits of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --paginate) || exit 1
+              ref=$(jq -rn --arg r "refs/heads/$HEAD_REF" '$r | @uri')
+              pushes=$(read_api "the push history of $HEAD_REF" "repos/$GITHUB_REPOSITORY/activity?ref=$ref&direction=desc&per_page=100") || exit 1
+              want=$(jq -er '.commits | numbers' <<<"$pr") && listed=$(jq -n '[inputs | arrays[]] | length' <<<"$commits") && [ "$listed" -ge "$want" ] || {
+                echo "::error::GitHub listed fewer commits than #$PR_NUMBER has, so whether an agent App wrote one cannot be checked; a person merges it."
+                exit 1
+              }
+              jq -e 'arrays | length < 100' <<<"$pushes" >/dev/null || {
+                echo "::error::the push history of $HEAD_REF is unreadable or fills a page, so whether an agent App pushed to it cannot be checked; a person merges it."
+                exit 1
+              }
+              why=$(jq -nr --argjson apps "$apps" --argjson pr "$pr" --argjson pushes "$pushes" '
+                def app: ascii_downcase as $l | any($apps[]; . == $l);
+                def mail: ascii_downcase as $m
+                  | any($apps[]; . as $a | $m == $a + "@users.noreply.github.com" or ($m | endswith("+" + $a + "@users.noreply.github.com")));
+                [if ($pr.user.login // "" | app) then "\($pr.user.login) opened it" else empty end]
+                + [inputs[] | select(any(.author.login, .committer.login; . // "" | app)
+                    or any(.commit.author.email, .commit.committer.email; . // "" | mail))
+                  | "an agent App authored or committed \(.sha[0:12])"]
+                + [$pushes[] | select(.actor.login // "" | app) | "\(.actor.login) pushed \((.after // "")[0:12]) to it"]
+                | unique | join("; ")' <<<"$commits")
+              if [ -n "$why" ]; then
+                echo "::error::#$PR_NUMBER changes trust-gate paths:${held//%/%25}, and $why, so no review lane decides it. A person merges it."
+                exit 1
+              fi
+              echo "No agent App opened, wrote or pushed to #$PR_NUMBER; the review lanes decide its trust-gate paths."
+            fi
           fi
           failed=0
           while read -r file lane check; do
@@ -4877,8 +4952,10 @@ jobs:
       # pull request a person opened when pr-verify fails its head, and removes
       # it on a pass. It is read here only: a red ci-status on a pull_request
       # event stops pr-verify from judging the next head (pr-verify.yml), so
-      # the pass that removes the label would never come. The human-gated label is resolved at the group's base commit,
-      # as the step above resolves it. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
+      # the pass that removes the label would never come. The rule is the base
+      # checkout's merge-holds.mjs labelHolds (the human-gated label by its
+      # humanGatedLabel, as the step above resolves it), which select-tests'
+      # queueHolds runs too; a base module that cannot judge fails closed. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
       # pull request merges only when its own group passes, and a failed group
       # removes the pull request it was built for, never one ahead of it
       # (HEADGREEN would need every entry read), so failing on an earlier
@@ -4915,15 +4992,33 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
-            }
+          module=$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs
+          if [ ! -s "$module" ]; then
+            echo "::error::cannot read merge-holds.mjs at $BASE_SHA; re-run this run."
+            exit 1
           fi
+          # The base module's labelHolds over the tracker config (an empty one
+          # names no label) and the live labels: `label` prints the human-gated
+          # label, `holds` the reasons as a JSON list of strings. The module is
+          # never the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          label_holds() {
+            TRACKER=$tracker node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [mode, module, labels, number] = process.argv.slice(1);
+              const { humanGatedLabel, labelHolds } = await import(pathToFileURL(module).href);
+              const text = process.env.TRACKER ?? "";
+              const tracker = text === "" ? null : JSON.parse(text);
+              const out = mode === "label" ? humanGatedLabel(tracker) : labelHolds(JSON.parse(readFileSync(labels, "utf8")), tracker, Number(number));
+              if (mode === "label" ? typeof out !== "string" || !out : !Array.isArray(out) || !out.every((reason) => typeof reason === "string" && reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(mode === "label" ? out : JSON.stringify(out));' "$@"
+          }
+          human_gated=$(label_holds label "$module") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           for attempt in 1 2 3; do
             if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
@@ -4931,21 +5026,20 @@ jobs:
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
-          held=0
-          if grep -qxF do-not-merge <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."
+          jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$labels" >"$RUNNER_TEMP/queued-labels.json"
+          if ! reasons=$(label_holds holds "$module" "$RUNNER_TEMP/queued-labels.json" "$pr") || [ -z "$reasons" ] ||
+            ! failing=$(jq -r 'if type == "array" then .[] else error("not a list") end' <<<"$reasons"); then
+            echo "::error::merge-holds.mjs at $BASE_SHA could not judge the labels of #$pr; re-run this run."
+            exit 1
           fi
-          if grep -qxF -- "$human_gated" <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries '$human_gated'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."
+          if [ -n "$failing" ]; then
+            while IFS= read -r reason; do
+              echo "::error::${reason//%/%25}"
+            done <<<"$failing"
+            exit 1
           fi
-          if grep -qxF pr-verify-failed <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."
-          fi
-          [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+          held=0
           # The trust hold, for a pull request an automation opened: its linked
           # issue (babysit_merge_policy._linked_issue: the closing issues here,
           # or with none, the one issue its plain `Refs:` lines name, by the
@@ -5144,7 +5238,9 @@ jobs:
       # one armed before it was turned on stops in the merge queue, as the
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
       # the vars context, no API read, and only the exact value `false` on
-      # both proceeds. Every other author's pull request is not affected.
+      # both proceeds, by the base checkout's merge-holds.mjs switchHold, which
+      # select-tests' queueHolds runs too; a base module that cannot judge
+      # fails closed. Every other author's pull request is not affected.
       # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
       # ci-status on each open lanes App pull request this failed, at most 3
       # per half-hourly run, when ci-status was the run's only failed job on
@@ -5353,8 +5449,27 @@ jobs:
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi
-          if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
-            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
+          # The kill switch, by the base checkout's merge-holds.mjs switchHold:
+          # it answers JSON null or the hold's reason, and anything else fails
+          # closed.
+          printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+            ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
+              const { LANES_APP_ID: appId, LANES_DISABLED: disabled, LANES_REPO_DISABLED: repoDisabled } = process.env;
+              const reason = switchHold(JSON.parse(readFileSync(process.argv[1], "utf8")), { appId, disabled, repoDisabled });
+              if (reason !== null && (typeof reason !== "string" || !reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
+            echo "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #$pr; re-run this run."
+            exit 1
+          fi
+          if [ -n "$reason" ]; then
+            echo "::error::${reason//%/%25}"
             exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA

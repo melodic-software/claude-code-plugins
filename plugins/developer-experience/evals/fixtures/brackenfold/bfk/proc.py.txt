@@ -1,0 +1,8 @@
+"""The one subprocess helper: every external command goes through run()."""
+
+import subprocess
+
+
+def run(cmd, check=True):
+    """Run cmd (a list of strings) and return the CompletedProcess with text output."""
+    return subprocess.run(cmd, check=check, capture_output=True, text=True)

@@ -3,6 +3,23 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.5] - 2026-10-29
+
+### Fixed
+
+- `/performance:go-faster`: the `session-work` and `orchestration` areas now read the `workflows` block of `transcript-counts`, so a session that delegates through the Workflow tool gets findings for it. `session-work` records the slowest tool, any tool with repeated errors, and each Bash command repeated across the Workflow-tool agents. `orchestration` records the longest workflow wall time with the workflow, agent and result counts, or the agent count when no workflow agent has a timestamp. Workflow numbers stay apart from the main session's. A session with a transcript and evidence of work gets `orchestration`'s "no delegation time" `no-data` only when it made no subagent call and started no Workflow-tool agent.
+
+## [0.12.4] - 2026-10-29
+
+### Fixed
+
+- `findings.py transcript-counts` now counts the agents the Workflow tool starts, which it never
+  read before: a `workflows` block gives the agent count, results and wall time per workflow,
+  per-tool calls and wait across workflow agents, and each Bash command repeated across them with
+  p50, p95, max and the peak number of overlapping runs. Agents started after the go-faster
+  invocation are left out, as direct subagents are, and a session with no workflow agents prints
+  the same output as before.
+
 ## [0.12.3] - 2026-10-27
 
 ### Security

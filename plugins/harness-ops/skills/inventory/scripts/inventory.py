@@ -2373,8 +2373,9 @@ def _sink_hit(src: str, names: list[str]) -> tuple[str, str | None, int] | None:
     methods, keys and engine lookups the flow trusted) on an object that
     could be a built-in prototype, or None. See the helper's `sinks` op."""
     assert _PARSER is not None
+    loaders = _named_loaders(src)
     for lo, hi in _module_spans(src):
-        hits = _PARSER.sinks(src, lo, hi, names)
+        hits = _PARSER.sinks(src, lo, hi, names, loaders)
         if hits:
             return hits[0]
     return None
@@ -2443,21 +2444,24 @@ def _namespace_holds(src: str, lo: int, name: str, paths: list[str]) -> set[str]
     `namespace` op, which accepts only reads of other exports by name. A
     module that may load a file the parser cannot name (an aliased
     `require`, `require.call`, `import(x)`) could load this one, so it
-    fails the hop. A promise settled with the namespace reads its `then`
-    export, so each file's module must be known and export no `then`."""
+    fails the hop; an exported alias is followed into its importers
+    instead (`_named_loaders`). A promise settled with the namespace reads
+    its `then` export, so each file's module must be known and export no
+    `then`."""
     assert _PARSER is not None
     path = _PARSER.module_path(src, lo)
     files = {p.rsplit("/", 1)[-1] for p in ([path] if path else []) + paths}
     if not files:
         return None
+    loaders = _named_loaders(src)
     trusted: set[str] = set()
     thenable = False
     for span in _module_spans(src):
-        loaded = _PARSER.loads(src, *span)
+        loaded = _PARSER.loads(src, *span, loaders)
         if loaded is not None and "*" in loaded:
             return None
         for file in sorted(files if loaded is None else files.intersection(loaded)):
-            found = _PARSER.namespace(src, *span, file, name)
+            found = _PARSER.namespace(src, *span, file, name, loaders)
             if not found["safe"]:
                 return None
             trusted.update(found["trusted"])
@@ -2472,6 +2476,42 @@ def _namespace_holds(src: str, lo: int, name: str, paths: list[str]) -> set[str]
                 if exported is None or "then" in exported:
                     return None
     return trusted
+
+
+def _named_loaders(src: str) -> tuple[str, ...]:
+    """Every name a module exports an alias of `require` under (the
+    parser's `aliases`; Bun's runtime chunk exports
+    `Fe=import.meta.require`), for the `loads`, `namespace` and `sinks`
+    ops: each importer's call of one with a literal specifier loads that
+    file, and any other use may load any. Empty, so each alias stays a load
+    the parser cannot name, when a module exporting one has no path in
+    Bun's module table, or some module loads one whole (by that path or any
+    importer's `from`), since a namespace of it hands the alias out."""
+    assert _PARSER is not None
+    names: set[str] = set()
+    files: set[str] = set()
+    for lo, hi in _module_spans(src):
+        exported = _PARSER.aliases(src, lo, hi)
+        if not exported:
+            continue
+        path = _PARSER.module_path(src, lo)
+        if path is None:
+            return ()
+        names.update(exported)
+        files.add(path.rsplit("/", 1)[-1])
+    loaders = tuple(sorted(names))
+    if not loaders:
+        return ()
+    for lo, hi in _module_spans(src):
+        imported = _PARSER.imports(src, lo, hi)
+        if imported is None:
+            return ()
+        files.update(p.rsplit("/", 1)[-1] for n, p in imported if n in names)
+    for lo, hi in _module_spans(src):
+        loaded = _PARSER.loads(src, lo, hi, loaders)
+        if loaded is None or files.intersection(loaded):
+            return ()
+    return loaders
 
 
 def _reassigned(src: str, ident: str, body: tuple[int, int], masked: str) -> bool:

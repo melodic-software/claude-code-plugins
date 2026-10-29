@@ -476,6 +476,16 @@ them live when a command's output, or the files you find, do not match the entry
   earlier output while its inputs are unchanged" and its route is `next-run`. Everything else is
   `later`, route `next-run`, `fix_owner` `/performance:goal`. An unverified repeat is always
   `later`: the transcript does not hold its results, so a changed input cannot be ruled out.
+- **Record, Workflow-tool agents**: when the output has a `workflows` block, record from it as
+  well, tier E1, workload `transcript counts, workflow agents`, `command` the same line, each
+  key's slowdown class starting `workflow-` and each title saying the work ran in Workflow-tool
+  agents: the tool in `workflows.tools` with the most `wait_ms` (unit `wait-ms`), any tool there
+  whose `errors` exceed one (unit `count`), and each entry in `workflows.repeated_commands` (unit
+  `count`, value its `runs`, key ending in `/<its command>` as printed, title naming its `p95_ms`,
+  else its `max_ms`, and its `peak`, or only its `runs` when `samples` is 0). Each
+  is horizon `later`, route `next-run`, `fix_owner` `/performance:goal`: the block does not compare
+  results, so a changed input cannot be ruled out. Keep each workflow number apart from the main
+  session's.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
@@ -549,20 +559,30 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## orchestration
 
-- **Source**: subagent calls in this session's transcript, from the `session-work` counts.
-- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name) and `subagents`.
+- **Source**: subagent calls and Workflow-tool agents in this session's transcript, from the
+  `session-work` counts.
+- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name), `subagents` and
+  the `workflows` block when present.
 - **Owner**: none.
-- **Record**: a measured finding, unit `wait-ms`, value the summed `wait_ms` of those tools, title
-  naming the call count and `subagents`, tier E1, workload `transcript counts`, `command` the
-  transcript-counts line, `fix_owner` `/multi-agent:assess`, horizon `later`, route `next-run`.
+- **Record**: with subagent calls, a measured finding, unit `wait-ms`, value the summed `wait_ms`
+  of those tools, title naming the call count and `subagents`, tier E1, workload `transcript
+  counts`, `command` the transcript-counts line, `fix_owner` `/multi-agent:assess`, horizon
+  `later`, route `next-run`. With a `workflows` block, a measured finding, key
+  `orchestration/workflow-wall`, unit `elapsed-ms`, value the largest `wall_ms` in
+  `workflows.by_workflow`, title naming the number of workflows, `workflows.agents` and the
+  summed `results`, tier E1, workload `transcript counts, workflow agents`, the same `command`,
+  `fix_owner` and route, horizon `later`. When every `wall_ms` there is null, record it instead
+  under key `orchestration/workflow-agents`, unit `count`, value `workflows.agents`. Keep the two
+  findings apart; never sum a subagent wait with a workflow wall time.
   A delegation, parallelism or batching change may be `now` only when it meets every `now` rule.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
   for session <SESSION>: its transcript file is missing; this area reads only the live session's
   transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
-  /performance:go-faster after this session has done some work". No subagent calls: `no-data`,
-  reason "this session made no subagent calls, so there is no delegation time to measure".
+  /performance:go-faster after this session has done some work". No subagent calls and no
+  `workflows` block: `no-data`, reason "this session made no subagent calls and started no
+  Workflow-tool agents, so there is no delegation time to measure".
 - **Guard**: a change that lowers a subagent's model or effort, or drops its verification, is
   `flag-only`.
 - **Catalog**: [catalog/agentic-workflow.md](catalog/agentic-workflow.md) rows with area

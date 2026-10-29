@@ -1,0 +1,32 @@
+using Tarnquill.Cli.Infrastructure;
+
+namespace Tarnquill.Cli.Commands;
+
+public static class CommitCommand
+{
+    private static readonly string[] Types = ["feat", "fix", "docs", "chore"];
+
+    public static int Run()
+    {
+        Console.Write($"Change type ({string.Join("/", Types)}): ");
+        var type = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(type) || !Types.Contains(type))
+        {
+            Console.Error.WriteLine("tq commit: unknown change type");
+            return 1;
+        }
+
+        Console.Write("Message: ");
+        var message = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(message))
+        {
+            Console.Error.WriteLine("tq commit: a message is required");
+            return 1;
+        }
+
+        var result = ProcessRunner.Run("git", "commit", "-m", $"{type}: {message}");
+        Console.Write(result.StdOut);
+        Console.Error.Write(result.StdErr);
+        return result.ExitCode == 0 ? 0 : 1;
+    }
+}

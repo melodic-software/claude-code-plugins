@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
+import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, loadRules, noteUnrunnable, openPullsNaming, readSchedule, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -109,6 +112,20 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
     });
 
+    test("a task list only inside a code fence is refused, and one after the fence is admitted", () => {
+      // A shorter fence line inside a longer fence does not close it.
+      for (const [open, inner, close] of [
+        ["```", [], "```"],
+        ["~~~", ["```"], "~~~"],
+        ["````markdown", ["```", "- [ ] Another item."], "````"],
+      ]) {
+        const fenced = issueOf({ body: ["## Done when", "", open, "- [ ] Line 3 says nineteen.", ...inner, close].join("\n") });
+        assert.deepEqual(decide(facts({ issue: fenced })), { verdict: "refuse", reasons: [NO_SPEC] }, open);
+        const after = issueOf({ body: [...fenced.body.split("\n"), "", "- [ ] Line 3 says nineteen."].join("\n") });
+        assert.deepEqual(decide(facts({ issue: after })), { verdict: "admit", reasons: [] }, open);
+      }
+    });
+
     test("admit() writes nothing when the text read answers an unexpected shape", async () => {
       for (const spec of ["no-issue", "no-body"]) {
         const { github, calls } = fakeGitHub({ spec });
@@ -139,6 +156,37 @@ describe("decide", () => {
     for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
       assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
     }
+  });
+
+  // The hold is a constant of decide, so no rules file loadRules accepts
+  // lifts it, one whose `classes` names the class included.
+  test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
+    const dir = tempDir("admit-rules-");
+    const widened = [
+      { ...RULES, classes: [...RULES.classes, UNTRUSTED_CLASS] },
+      { ...RULES, classes: [UNTRUSTED_CLASS], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+    ];
+    widened.forEach((content, index) => {
+      const path = join(dir, `rules-${index}.json`);
+      writeFileSync(path, JSON.stringify(content));
+      const rules = loadRules(path);
+      for (const overrides of [{ verdict: { ...VERDICT, workClass: UNTRUSTED_CLASS } }, { issue: issueOf({ labels: [{ name: READY }, { name: UNTRUSTED_CLASS }] }) }]) {
+        const result = decide(facts({ rules, ...overrides }));
+        assert.equal(result.verdict, "refuse", path);
+        assert.equal(result.hold, true, path);
+        assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
+      }
+    });
+  });
+
+  test("an issue row in patch-rules.json that refuses no protected path fails admission closed", () => {
+    const dir = tempDir("admit-patch-rules-");
+    for (const row of [{ refuse: [] }, { refuse: ["symlink", "gitlink"] }, {}]) {
+      const path = join(dir, "patch-rules.json");
+      writeFileSync(path, JSON.stringify({ [PATCH_ROW]: row }));
+      assert.throws(() => pushRefusalsOf(path), /row refuses no protected path/, JSON.stringify(row));
+    }
+    assert.ok(issuePushRefusals().length > 0);
   });
 
   test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
@@ -219,6 +267,83 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), reason);
     });
   }
+
+  // #9372: intake's split never edits the body, so it stays the listed
+  // human's text; the split refinement alone takes the person-only item out.
+  describe("intake's split refinement", () => {
+    const issue = issueOf({ body: CANARY });
+    const SPLIT = { exact: true, outcome: "Line 9 says 27 checks.", criteria: [], dependencies: [], related: [], questions: [], sources: [], split: [2], external: { state: "none", repo: "", class: "", what: "" } };
+    const splitRefinement = (body = CANARY, items = [2], extra = {}) => {
+      const output = validateOutput({ ...SPLIT, split: items }, new Set(), { count: 3, items: items.map((n) => ({ n })) });
+      return written(APP_ACTOR, { body: render(output, { body, checks: ["- [ ] a check"], retriage: true }), ...extra });
+    };
+    const held = (spec) => {
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true);
+      assert.match(result.reasons.join("; "), /item 2 \(a run on a host the lane is not/);
+    };
+
+    test("admits the human's untouched body once the refinement lists the item a person runs", () => {
+      const spec = humanSpec(issue, [splitRefinement()]);
+      assert.deepEqual(decide(facts({ issue, spec })), { verdict: "admit", reasons: [] });
+      assert.equal(spec.body, CANARY, "the body is as its author wrote it");
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), [2]);
+    });
+
+    test("holds the item again when the record does not stand", () => {
+      held(humanSpec(issue, [splitRefinement(`${CANARY}\n- [ ] Added since.`)]));
+      held(humanSpec(issue, [splitRefinement(undefined, undefined, { editor: APP_ACTOR })]));
+      held(humanSpec(issue, [splitRefinement(), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\nA newer one.` })]));
+      held(humanSpec(issue, [written(USER(OUTSIDER), { body: splitRefinement().body })]));
+    });
+
+    test("never drops a runnable criterion: the items must be exactly the ones the lane cannot perform", () => {
+      for (const items of [[1], [2, 3], [1, 2]]) {
+        const result = decide(facts({ issue, spec: humanSpec(issue, [splitRefinement(undefined, items)]) }));
+        assert.equal(result.verdict, "refuse", `items ${items}`);
+        assert.equal(result.hold, true);
+      }
+      const all = written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([1, 2, 3])}` });
+      assert.deepEqual(personChecks(humanSpec(issue, [all]), humans, APP, RULES["task-list"]), [], "a record leaving no item for the lane");
+    });
+
+    test("a body another account last edited stays untrusted, the record with it", () => {
+      const spec = { ...written(USER(HUMAN), { body: CANARY, editor: APP_ACTOR }), comments: [splitRefinement()] };
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), []);
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join("; "), /no trusted-human acceptance criteria/);
+    });
+
+    test("a size split leaves the item a person runs out of its parts", () => {
+      const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement()]), humans, RULES["task-list"], APP, HOSTS);
+      assert.deepEqual(lines, [CANARY.split("\n")[2], CANARY.split("\n")[4]]);
+    });
+
+    test("a size split keeps every item the lane can perform, whatever the record names", () => {
+      const all = CANARY.split("\n").filter((row) => row.startsWith("- [ ]"));
+      for (const items of [[1], [1, 2], [2, 3]]) {
+        const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement(undefined, items)]), humans, RULES["task-list"], APP, HOSTS);
+        assert.deepEqual(lines, all, `items ${items}`);
+      }
+    });
+
+    test("a split row anywhere but the App's counted refinement excuses nothing", () => {
+      const row = `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([2])}`;
+      held(humanSpec(issueOf({ body: `${CANARY}\n${splitItemsLine([2])}` }), []));
+      held({ ...written(USER(HUMAN), { body: `${row}\n${CANARY}` }), comments: [] });
+      held(humanSpec(issue, [written(USER(HUMAN), { body: row })]));
+    });
+
+    test("a record holds only under the configured web hosts: an item they make runnable stays the lane's", () => {
+      const body = [CANARY.split("\n")[0], "", "- [ ] Line 3 says nineteen.", "- [ ] Confirm https://example.com/page says nineteen."].join("\n");
+      const spec = humanSpec(issueOf({ body }), [splitRefinement(body, [2])]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], []), [2]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], ["example.com"]), []);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], "any"), []);
+    });
+  });
 
   // Owner Q93 settled Size Large without a person: the split happens at intake,
   // so the issue parks at status: ready (a wait with no pull request).
@@ -389,6 +514,8 @@ describe("decide", () => {
       ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
       ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+      ["- [ ] CODEOWNERS names the team.", "CODEOWNERS"],
+      ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
       // #9113's criterion: a bare name of a workflow on disk.
       ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
@@ -413,6 +540,31 @@ describe("decide", () => {
       }
     });
 
+    const evasions = [
+      ["a case change", "- [ ] `.GitHub/Workflows/a.yml` reads the new input.", ".GitHub/Workflows/a.yml"],
+      ["a case change in .gitmodules", "- [ ] `.GITMODULES` drops the old submodule.", ".GITMODULES"],
+      ["a case change in a bare workflow name", "- [ ] PR-Require-Checks.yml pins that release.", ".github/workflows/PR-Require-Checks.yml"],
+      ["a missing leading dot", "- [ ] github/workflows/a.yml reads the new input.", "github/workflows/a.yml"],
+      ["a missing leading dot on .gitmodules", "- [ ] `vendor/gitmodules` drops the old submodule.", "vendor/gitmodules"],
+      ["fullwidth characters", "- [ ] ．github／workflows／a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters", "- [ ] .git​hub/work⁠flows/a﻿.yml reads the new input.", ".github/workflows/a.yml"],
+      ["URL encoding", "- [ ] %2Egithub%2Fworkflows%2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["fullwidth percent signs", "- [ ] ％2Egithub％2Fworkflows％2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters in the task-list prefix", "​- [ ]​ .github/workflows/a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["a case change in a root CODEOWNERS", "- [ ] `codeowners` names the team.", "codeowners"],
+      ["a root .gitmodules without its dot", "- [ ] `gitmodules` drops the old submodule.", "gitmodules"],
+    ];
+    for (const [name, line, path] of evasions) {
+      test(`still refuses a protected path written with ${name}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
+    test("still refuses a protected path in a code fence under a criterion, past its blank and bullet-like lines", () => {
+      const issue = withCriteria("- [ ] Apply this change:", "  ```diff", "  - timeout-minutes: 3", "", "  + see .github/workflows/a.yml", "  ```");
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+    });
+
     const admitted = [
       // #9137's shape.
       "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
@@ -421,6 +573,10 @@ describe("decide", () => {
       // #9092's: a bare .yml name no workflow on disk has.
       "- [ ] No pr-test-macos.yml is added.",
       "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
+      // A root name in prose, outside backticks, names no file.
+      "- [ ] The codeowners check reports the missing team.",
+      "- [ ] Codeowners review is requested.",
+      "- [ ] The gitmodules parser skips comments.",
     ];
     for (const line of admitted) {
       test(`admits ${line}`, () => {
@@ -698,7 +854,7 @@ describe("decide", () => {
 // `elsewhere` answers another repository's issue reads by path; `older` is
 // the count the older-deferred search answers, or "incomplete". `closer` is
 // what the closing-event query answers.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn, done = null } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -707,6 +863,10 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     }
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
+      // mergedRefsPulls' batch: `done` is the fixture issue as DONE_QUERY reads it.
+      if (body.query.includes("fragment done on Issue")) {
+        return { data: { repository: { i7: done } } };
+      }
       if (body.query.includes("closedByPullRequestsReferences")) {
         const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
         return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
@@ -897,7 +1057,7 @@ describe("admit", () => {
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a child issue for the host queue \(`host-run`\)/);
   });
 
   test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
@@ -1113,6 +1273,110 @@ describe("admit", () => {
 });
 
 
+describe("a merged Refs pull request after the newest decision or refinement", () => {
+  // The fixture issue as DONE_QUERY reads it: opened 10-20, with `comments` and
+  // the pull requests that mention it.
+  const node = ({ comments = [], pulls = [] } = {}) => ({
+    createdAt: "2026-10-20T08:00:00Z",
+    comments: { nodes: comments },
+    timelineItems: { nodes: pulls.map((source) => ({ source })) },
+  });
+  const pull = (overrides = {}) => ({ number: 30, merged: true, mergedAt: "2026-10-27T15:54:34Z", body: "Refs: #7\n\n## Summary", repository: { nameWithOwner: "o/r" }, ...overrides });
+  const comment = (author, body, createdAt) => ({ createdAt, body, lastEditedAt: null, author, editor: null });
+  const decision = (createdAt) => comment(USER(HUMAN), "**Decision recorded.** Build it as the refinement says.", createdAt);
+  const refinement = (createdAt) => comment(APP_ACTOR, `${REFINE_MARKER}\n**Refinement.**`, createdAt);
+  const after = (fields) => mergedRefsAfter(node(fields), 7, "o/r", humans, APP);
+
+  test("one merged after the newest decision comment may have done the work", () => {
+    assert.deepEqual(after({ comments: [decision("2026-10-25T21:47:04Z")], pulls: [pull()] }), [30]);
+  });
+
+  test("one merged before the newest decision or refinement comment did not", () => {
+    assert.deepEqual(after({ comments: [decision("2026-10-28T09:00:00Z")], pulls: [pull()] }), []);
+    assert.deepEqual(after({ comments: [decision("2026-10-25T21:47:04Z"), refinement("2026-10-28T09:00:00Z")], pulls: [pull()] }), []);
+  });
+
+  test("with neither comment, one merged since the issue opened counts", () => {
+    assert.deepEqual(after({ pulls: [pull()] }), [30]);
+  });
+
+  test("no pull request, or one that is open, another repository's, or only mentions it, is none", () => {
+    assert.deepEqual(after(), []);
+    assert.deepEqual(
+      after({
+        pulls: [
+          pull({ number: 31, merged: false, mergedAt: null }),
+          pull({ number: 32, repository: { nameWithOwner: "o/other" } }),
+          pull({ number: 33, body: "Follows the approach in #7." }),
+          pull({ number: 34, body: "Closes #8\nRefs: #70" }),
+        ],
+      }),
+      [],
+    );
+  });
+
+  test("a decision comment someone outside the list wrote, or an outsider edited, moves no cutoff", () => {
+    const outsider = comment(USER(OUTSIDER), "**Decision recorded.** Run it again.", "2026-10-28T09:00:00Z");
+    const edited = { ...decision("2026-10-28T09:00:00Z"), lastEditedAt: "2026-10-28T10:00:00Z", editor: USER(OUTSIDER) };
+    assert.deepEqual(after({ comments: [outsider, edited], pulls: [pull()] }), [30]);
+  });
+
+  test("a Refs line names the issue alone, in a list of issues, or with a note after", () => {
+    for (const body of ["Refs: #7", "  Refs: #7\r", "Refs: #3, #7", "Refs: #7 (closes once the check is green)"]) {
+      assert.equal(refsNames(body, 7), true, body);
+    }
+    for (const body of ["Refs: #70", "Refs: #7, see the thread", "Refs: o/x#7", "Refs: #1; possible overlap with #7", "See #7"]) {
+      assert.equal(refsNames(body, 7), false, body);
+    }
+  });
+
+  test("admit() parks such an issue at status: confirmed with one comment naming the pull request", async () => {
+    const fake = fakeGitHub({ done: node({ comments: [decision("2026-10-25T21:47:04Z")], pulls: [pull()] }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    assert.equal(result.status, CONFIRMED);
+    assert.equal(fake.calls.filter((call) => call.path === "/graphql" && call.body.query.includes("fragment done on Issue")).length, 1);
+    assert.deepEqual(writes(fake.calls), [
+      `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`,
+      `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)} undefined`,
+      `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([30]))}` })}`,
+    ]);
+    assert.match(doneReason([30]), /#30/);
+  });
+
+  test("admit() admits one whose Refs pull request merged before its newest decision", async () => {
+    const fake = fakeGitHub({ done: node({ comments: [decision("2026-10-28T09:00:00Z")], pulls: [pull()] }) });
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.equal(fake.calls.filter((call) => call.path === "/graphql" && call.body.query.includes("fragment done on Issue")).length, 1);
+  });
+
+  test("admit() admits one with no pull request", async () => {
+    const fake = fakeGitHub({ done: node() });
+    assert.equal((await go(fake)).outcome, "admitted");
+  });
+
+  test("admit() admits as before when the read fails or answers no repository", async () => {
+    const failing = fakeGitHub({ done: node({ pulls: [pull()] }), failOn: (method, path, body) => path === "/graphql" && body.query.includes("fragment done on Issue") });
+    const logged = [];
+    assert.equal((await admit({ ...goArgs(failing), log: (line) => logged.push(line) })).outcome, "admitted");
+    assert.ok(logged.some((line) => line.startsWith("::warning title=admit::merged Refs pull requests not read")), logged.join("\n"));
+    const empty = { github: async () => ({ errors: [{ message: "rate limited" }] }) };
+    assert.deepEqual(await mergedRefsReader({ ...empty, repository: "o/r", humans, appId: APP, log: () => {} })(7), []);
+  });
+
+  test("a pass reads each batch of its issues in one call", async () => {
+    const queries = [];
+    const github = async (method, path, body) => {
+      queries.push(body.query);
+      return { data: { repository: { i7: node({ pulls: [pull()] }), i8: node(), i9: node({ pulls: [pull({ number: 40, body: "Refs: #9" })] }) } } };
+    };
+    const read = mergedRefsReader({ github, repository: "o/r", numbers: [7, 8, 9], humans, appId: APP });
+    assert.deepEqual([await read(7), await read(8), await read(9)], [[30], [], [40]]);
+    assert.equal(queries.length, 1);
+    assert.match(queries[0], /i7: issue\(number: 7\).*i8: issue\(number: 8\).*i9: issue\(number: 9\)/s);
+  });
+});
+
 describe("unrunnableCriteria", () => {
   const kinds = (line, hosts = HOSTS) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", hosts).found.map(({ kind }) => kind);
   const positives = [
@@ -1248,12 +1512,124 @@ describe("unrunnableCriteria", () => {
     assert.ok(text.includes("@\u200bowner"));
     assert.equal(text.length, 80);
   });
+  test("still flags an item written with a case change, fullwidth or zero-width characters or URL encoding", () => {
+    for (const line of [
+      "RUN IT ON A WINDOWS 11 HOST.",
+      "Run it on a \uff37\uff49\uff4e\uff44\uff4f\uff57\uff53 11 host.",
+      "Run it on a Win\u200bdo\u200cws 11\u2060 host.",
+      "Run it on%20a%20Windows%2011%20host.",
+    ]) {
+      assert.deepEqual(kinds(line), ["a run on a host the lane is not"], line);
+    }
+    // An invisible character in the task-list prefix still leaves an item.
+    assert.equal(unrunnableCriteria("​- [ ]​ Run it on a Windows 11 host.", "- [ ] ", HOSTS).found.length, 1);
+    assert.deepEqual(kinds("The page at https://exa\u200bmple.com/docs shows the new flag."), ["a page on example.com, outside the lane's web hosts"]);
+  });
 });
 
-test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
-  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
-  assert.equal(result.verdict, "refuse");
-  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+// Host work goes to the host queue (`host-run`), parked at status: confirmed,
+// never to a person (docs/conventions/loop-lane/README.md, the three labels
+// that take work off the unattended path). Only a mixed issue lacking
+// host-run holds, so refine.mjs splitOf can split it from needs-decision.
+describe("host-run work", () => {
+  const HOST_ONLY = "- [ ] Run it on a Windows 11 host.";
+  const hostRun = (body, labels = [{ name: READY }]) => issueOf({ body, labels });
+  const queued = (body) => hostRun(body, [{ name: READY }, { name: "host-run" }]);
+  const addedBy = (id) => [{ event: "labeled", label: { name: "host-run" }, actor: { id }, created_at: "2026-10-21T00:00:00Z" }];
+
+  test("every done-when item unrunnable goes to the host queue: host-run added, no hold, no split", async () => {
+    const result = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, undefined);
+    assert.equal(result.hostRun, true);
+    assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so it goes to the host queue \(`host-run`\)/);
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY) });
+    assert.equal((await go(fake)).status, CONFIRMED);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED, "host-run"] })}`);
+  });
+
+  // #9293: the owner released it with host-run added, and admission held it again.
+  test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
+    for (const [body, by] of [
+      [HOST_ONLY, HUMAN],
+      [CANARY, HUMAN],
+      [CANARY, APP],
+    ]) {
+      const issue = queued(body);
+      const result = decide(facts({ issue, events: addedBy(by) }));
+      assert.equal(result.verdict, "refuse", body);
+      assert.equal(result.hold, undefined, body);
+      assert.equal(result.hostRun, undefined, body);
+      const fake = fakeGitHub({ issue, events: addedBy(by) });
+      assert.equal((await go(fake)).status, CONFIRMED, body);
+      assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`, body);
+    }
+  });
+
+  // host-run starts an unattended host run, so it goes only on an issue whose
+  // one obstacle is that no item is left for the lane.
+  test("host work with another refusal, a wait or a pending split parks at status: confirmed with no host-run", async () => {
+    const issue = hostRun(HOST_ONLY);
+    for (const [why, overrides] of [
+      ["Uncertainty unknown", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+      ["a duplicate label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) }],
+      ["an attended label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "attended" }]) }],
+      ["an open pull request", { pulls: [5] }],
+      ["a pending size split", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }],
+    ]) {
+      const result = decide(facts({ issue, ...overrides }));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, undefined, why);
+      assert.equal(result.hostRun, undefined, why);
+    }
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
+  });
+
+  // A host-run label counts only when a listed human or the lanes App added it
+  // last, as attendedHold judges `attended`'s provenance.
+  test("a host-run label an unlisted account added does not lift the split hold", () => {
+    for (const events of [addedBy(OUTSIDER), []]) {
+      const result = decide(facts({ issue: queued(CANARY), events }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true, JSON.stringify(events));
+    }
+    assert.equal(decide(facts({ issue: queued(CANARY), events: addedBy(HUMAN) })).hold, undefined);
+  });
+
+  // Billing is an owner stop reason (docs/conventions/loop-lane/README.md, when
+  // work stops for the owner), so a paid eval keeps the person hold; any other
+  // unrunnable kind, an off-allowlist page included, goes to the host queue.
+  test("a paid-eval item keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
+    const PAID = "- [ ] Run a paid eval of the skill and record the delta.";
+    for (const [why, input] of [
+      ["paid eval alone", { issue: hostRun(PAID) }],
+      ["paid eval beside a host item", { issue: hostRun(`${HOST_ONLY}\n${PAID}`) }],
+      ["paid eval on an issue carrying host-run", { issue: queued(`${HOST_ONLY}\n${PAID}`), events: addedBy(HUMAN) }],
+    ]) {
+      const result = decide(facts(input));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, true, why);
+      assert.equal(result.hostRun, undefined, why);
+      assert.match(result.reasons.join("; "), /the owner, since a paid eval can bill the owner/, why);
+    }
+    const page = decide(facts({ issue: hostRun("- [ ] Confirm it matches https://example.com/docs.") }));
+    assert.equal(page.hold, undefined);
+    assert.equal(page.hostRun, true);
+  });
+
+  test("a hold for a person adds no host-run, so no unattended host run acts on held text", async () => {
+    const trusted = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(trusted.hostRun, true);
+    const issue = issueOf({ body: HOST_ONLY, user: { id: OUTSIDER } });
+    const held = decide(facts({ issue }));
+    assert.equal(held.hold, true);
+    assert.equal(held.hostRun, undefined);
+    const fake = fakeGitHub({ issue });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
 });
 
 describe("noteUnrunnable", () => {

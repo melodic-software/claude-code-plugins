@@ -290,7 +290,7 @@ fi
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
 # shellcheck disable=SC2310  # the return status IS the verdict
-if linkage::problems "$BODY"; then
+if linkage::blocking_problems "$BODY"; then
   emit_tel "ok"
   exit 0
 fi

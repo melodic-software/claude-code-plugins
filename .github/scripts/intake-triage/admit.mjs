@@ -23,8 +23,9 @@
 // - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
 //   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
 //   work; no other work class gates admission (owner Q85, #9668);
-// - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
-//   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
+// - 7: a `task-list` line outside a code fence, the criteria the lane
+//   checks, in text pr-verify will read (resolve-pr.mjs linkedIssues): the
+//   body or a comment written,
 //   and last edited if ever, by a listed human; on an issue whose body a
 //   listed human wrote, refine.mjs's newest refinement comment while unedited
 //   (refinementSpec); and the body of a sub-issue a size split filed, under
@@ -53,9 +54,21 @@
 //   OS, a paid eval (trigger probes and before-and-after eval numbers
 //   included), a live Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
-//   or a page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue, which
-//   refine.mjs files when some items are left for the lane;
+//   or a page on a host outside resolve-issue's web-access domains. When some
+//   items are left for the lane and the issue lacks `host-run`, the refusal
+//   holds at needs-decision and recommends splitting those items off, which
+//   refine.mjs records; otherwise it parks at status: confirmed, adding
+//   `host-run`, the host queue's label, when no item is left for the lane and
+//   nothing else refuses, waits or holds;
+// - not already done: no pull request merged in this repository names the
+//   issue on a `Refs:` line (refsNames) after its newest decision or
+//   refinement comment, or since it opened when it has neither
+//   (mergedRefsAfter). Such a pull request may have finished the work, so the
+//   refusal parks it at `status: confirmed` for an agent's done-check: close
+//   it, or post a `**Decision recorded.**` comment saying what is left, which
+//   moves the cutoff past that pull request. One GraphQL call reads every
+//   issue of an admission pass (mergedRefsPulls); a read that fails admits as
+//   though none merged, so a missed check costs one lane run, never a stall;
 // - 10: check-wip-cap's status: over the queued cap, with a queued count it
 //   could not read (fail-open), or with the lane paused over the WIP or held
 //   cap (from wip.pause-from), the issue gets
@@ -122,6 +135,9 @@ export const CONFIRMED = "status: confirmed";
 // The owner-present label (owner decision 2026-10-28): only a listed human
 // removes it.
 export const ATTENDED = "attended";
+// The host queue's label (stop-routes.mjs): an unattended agent run on a host
+// builds the work.
+export const HOST_RUN = "host-run";
 // Opens the refinement line that records the work's external state
 // (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
@@ -236,28 +252,139 @@ export async function stillBlocking(blockers, repository, isTrusted, elsewhere =
   return untrusted;
 }
 
+// Whether `body` has a `Refs:` line naming issue `number`: trimmed, the line
+// is `Refs: #<number>` (report-outcome.mjs's form), or a list of this
+// repository's issues holding it (`Refs: #<a>, #<number>`), with at most a
+// parenthesized note after. Any other text on the line, a passing mention or
+// another repository's issue, is not one. Pure.
+export function refsNames(body, number) {
+  if (!Number.isSafeInteger(number) || number < 1) {
+    return false;
+  }
+  const line = new RegExp(String.raw`^Refs: (?:#\d+, )*#${number}(?:, #\d+)*(?: \(.*\))?$`);
+  return String(body ?? "")
+    .split("\n")
+    .some((text) => line.test(text.trim()));
+}
+
 // The open pull requests in `repository` for issue `number`: those `closing`
 // (closedByPullRequestsReferences nodes) lists in this repository, and those
-// the timeline says reference it whose body has a `Refs: #<number>` line.
+// the timeline says reference it whose body names it by refsNames.
 export function openPullsNaming(timeline, repository, number, closing = []) {
-  const refs = `Refs: #${number}`;
   const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .filter(
-      (source) =>
-        source?.pull_request &&
-        source.state === "open" &&
-        here(source.repository_url, repository) &&
-        String(source.body ?? "")
-          .split("\n")
-          .some((line) => line.trim() === refs),
-    )
+    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository) && refsNames(source.body, number))
     .map((source) => source.number);
   const closes = closing
     .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
     .map((node) => node.number);
   return [...new Set([...closes, ...linked])];
 }
+
+// The pull requests that may already have done issue `node`'s work: merged
+// in `repository`, naming it by refsNames, after the newest of its decision
+// comments (a listed human's `**Decision recorded.**`, select-trusted-text's
+// isDecisionComment) and the lanes App's (`appId`) refinement comments
+// (REFINE_MARKER), or after it was opened when it has none. `node` is the
+// issue as DONE_QUERY reads it. Numbers, ascending. Pure.
+export function mergedRefsAfter(node, number, repository, humans, appId) {
+  const at = (text) => {
+    const time = Date.parse(text);
+    return Number.isFinite(time) ? time : null;
+  };
+  const decision = (comment) =>
+    comment?.author?.__typename === "User" &&
+    isDecisionComment(
+      { comment: { user: { id: comment.author.databaseId }, body: comment.body }, lastEditedAt: comment.lastEditedAt ?? null, lastEditorId: comment.editor?.databaseId },
+      humans,
+    );
+  const refinement = (comment) =>
+    appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+  const since = Math.max(
+    at(node?.createdAt) ?? Number.NEGATIVE_INFINITY,
+    ...(node?.comments?.nodes ?? []).filter((comment) => decision(comment) || refinement(comment)).map((comment) => at(comment.createdAt) ?? Number.NEGATIVE_INFINITY),
+  );
+  const pulls = (node?.timelineItems?.nodes ?? [])
+    .map((event) => event?.source)
+    .filter(
+      (source) =>
+        Number.isSafeInteger(source?.number) &&
+        source.merged === true &&
+        String(source.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase() &&
+        (at(source.mergedAt) ?? Number.NEGATIVE_INFINITY) > since &&
+        refsNames(source.body, number),
+    )
+    .map((source) => source.number);
+  return [...new Set(pulls)].sort((a, b) => a - b);
+}
+
+// What DONE_QUERY reads for each issue: when it opened, its newest 100
+// comments (where the newest decision or refinement is), and the newest 100
+// pull requests and issues that mention it.
+const DONE_FIELDS = `fragment done on Issue {
+  createdAt
+  comments(last: 100) { nodes { createdAt body lastEditedAt author { ...actor } editor { ...actor } } }
+  timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 100) { nodes { ... on CrossReferencedEvent { source { ... on PullRequest { number merged mergedAt body repository { nameWithOwner } } } } } }
+}
+fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
+// Issues one DONE_QUERY reads: at 100 comments and 100 events each, 50
+// issues stay far inside GraphQL's node limit
+// (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit).
+export const DONE_BATCH = 50;
+
+// mergedRefsAfter for each of `numbers` (issues in `repository`), in one
+// GraphQL call: a Map of each issue to its pull requests, holding only those
+// with one. A failed or unexpected read logs a warning and answers an empty
+// Map, so admission goes on as it would without the check: a missed done-check
+// costs one lane run, while a stalled admission costs every issue's.
+export async function mergedRefsPulls({ github, repository, numbers, humans, appId, log = console.log }) {
+  const [owner, name] = repository.split("/");
+  const wanted = [...new Set(numbers.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
+  const found = new Map();
+  if (wanted.length === 0) {
+    return found;
+  }
+  const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${wanted.map((n) => `i${n}: issue(number: ${n}) { ...done }`).join(" ")} } }\n${DONE_FIELDS}`;
+  try {
+    const answer = await github("POST", "/graphql", { query, variables: { owner, name } });
+    const repo = answer?.data?.repository;
+    if (repo === null || typeof repo !== "object") {
+      throw new Error("the answer has no repository");
+    }
+    for (const n of wanted) {
+      const pulls = mergedRefsAfter(repo[`i${n}`], n, repository, humans, appId);
+      if (pulls.length > 0) {
+        found.set(n, pulls);
+      }
+    }
+  } catch (error) {
+    log(`::warning title=admit::merged Refs pull requests not read (${String(error?.message ?? error).replaceAll("\n", " ")}); admitting as if none`);
+    return new Map();
+  }
+  return found;
+}
+
+// A reader of mergedRefsPulls for one admission pass over `numbers`, in their
+// order: asked for an issue, it reads the DONE_BATCH of `numbers` that holds
+// it once, or the issue alone when it is not among them, and answers its pull
+// requests ([] for none).
+export function mergedRefsReader({ github, repository, numbers = [], humans, appId, log }) {
+  const order = numbers.map(Number);
+  const reads = new Map();
+  return async (number) => {
+    const index = order.indexOf(Number(number));
+    const key = index === -1 ? `#${number}` : Math.floor(index / DONE_BATCH);
+    if (!reads.has(key)) {
+      const batch = index === -1 ? [Number(number)] : order.slice(key * DONE_BATCH, (key + 1) * DONE_BATCH);
+      reads.set(key, mergedRefsPulls({ github, repository, numbers: batch, humans, appId, log }));
+    }
+    return (await reads.get(key)).get(Number(number)) ?? [];
+  };
+}
+
+// The refusal reason for pull requests mergedRefsAfter found.
+export const doneReason = (pulls) =>
+  `merged pull request ${pulls.map((n) => `#${n}`).join(", ")} names it with \`Refs:\` after its newest decision or refinement comment, so its work may already be done: close the issue if it is, or post a comment whose first line is \`**Decision recorded.**\` saying what is left, which sends it back through intake`;
 
 // The open pull requests for an issue, read fresh (openPullsNaming).
 export async function openPullsFor(github, repository, number) {
@@ -280,13 +407,16 @@ const FREE = String.raw`(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b)`;
 // The trigger-probe harness or the plugin-eval command, not its own test;
 // the harness's validate, score, compare and emit-plugin-eval run no model.
 const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\s+(?:score|compare|emit-plugin-eval)\b)|\/evals:plugin-eval)\b${FREE}`;
+// The unrunnable kind that can bill the owner: an owner decision, never the
+// host queue.
+export const PAID_EVAL = "a paid eval";
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
     /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
   ],
   [
-    "a paid eval",
+    PAID_EVAL,
     new RegExp(
       [
         String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
@@ -353,21 +483,72 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
-// [{line, text, more}] for each task-list item, in order: its index among
-// the body's `\n`-split lines, its text after the task-list prefix, and the
+// Unicode format characters (category Cf): zero-width spaces and joiners, the
+// BOM, soft hyphens and bidi controls, which render as nothing.
+const INVISIBLE = /\p{Cf}/gu;
+// Criteria text as the lane may read it, for the refusals that match it:
+// invisible characters dropped (a copied refinement breaks `://` and `www.`
+// with a zero-width space so no link renders), compatibility forms such as
+// fullwidth letters folded to ASCII (NFKC) before and after percent-encoded
+// runs are decoded, and a run that decodes to a line break or not at all left
+// as written. Pure.
+const decodeRun = (run) => {
+  try {
+    const decoded = decodeURIComponent(run);
+    return /[\r\n]/.test(decoded) ? run : decoded;
+  } catch {
+    return run;
+  }
+};
+const plainText = (text) =>
+  String(text ?? "")
+    .replace(INVISIBLE, "")
+    .normalize("NFKC")
+    .replace(/(?:%[0-9a-f]{2})+/gi, decodeRun)
+    .normalize("NFKC")
+    .replace(INVISIBLE, "");
+
+// For each of `lines`, the 1-based number of the fenced code block it is part
+// of (its opening ``` or ~~~ line, the lines up to the closing fence, and
+// that fence), or 0 outside one. Pure.
+const fenceBlocks = (lines) => {
+  let open = null;
+  let block = 0;
+  return lines.map((line) => {
+    const fence = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (open === null) {
+      if (fence === undefined) {
+        return 0;
+      }
+      open = fence;
+      block += 1;
+    } else if (fence?.[0] === open[0] && fence.length >= open.length && line.trim() === fence) {
+      open = null;
+    }
+    return block;
+  });
+};
+
+// [{line, text, more}] for each task-list item, a line read without its
+// invisible characters, in order: its index among the body's `\n`-split
+// lines, its text after the task-list prefix, and the
 // indexes of the lines after it indented deeper than its marker (a sub-list
-// or wrapped text, part of the item). Item n (1-based) is entry n - 1. Pure.
+// or wrapped text, part of the item), a blank line inside a code fence that
+// opens among them included. Item n (1-based) is entry n - 1. Pure.
 export const taskItems = (body, taskList) => {
   const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
   const indent = (line) => line.length - line.trimStart().length;
   const items = [];
   lines.forEach((line, index) => {
-    const trimmed = line.trimStart();
+    const trimmed = line.replace(INVISIBLE, "").trimStart();
     if (!trimmed.startsWith(taskList)) {
       return;
     }
     const more = [];
-    for (let next = index + 1; next < lines.length && lines[next].trim() !== "" && indent(lines[next]) > indent(line); next += 1) {
+    const part = (next) =>
+      lines[next].trim() === "" ? blocks[next] !== 0 && blocks[next] === blocks[next - 1] && more.at(-1) === next - 1 : indent(lines[next]) > indent(line);
+    for (let next = index + 1; next < lines.length && part(next); next += 1) {
       more.push(next);
     }
     items.push({ line: index, text: trimmed.slice(taskList.length), more });
@@ -381,12 +562,13 @@ export const refusalText = (reasons) =>
   `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
-// perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
-// URL check, an absent list allows only GitHub and local hosts, and a `*.`
-// entry allows that domain's subdomains. Pure.
+// perform, each item's text read as plainText. `webHosts` is resolve-issue's
+// web-access domains: "any" skips the URL check, an absent list allows only
+// GitHub and local hosts, and a `*.` entry allows that domain's subdomains.
+// Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
-  const items = taskItems(body, taskList).map(({ text }) => text);
+  const items = taskItems(body, taskList).map(({ text }) => plainText(text));
   const found = [];
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
@@ -411,13 +593,23 @@ export function unrunnableCriteria(body, taskList, webHosts) {
 // The patch-rules.json row apply-patch.mjs reads for an issue lane push
 // (TARGETS.issue).
 export const PATCH_ROW = "issue";
+// The protected-path refusals of that row in the patch-rules.json at `path`.
+// A row that names none throws, so admission fails closed rather than let a
+// criterion name any path.
+export function pushRefusalsOf(path) {
+  const refuse = JSON.parse(readFileSync(path, "utf8"))[PATCH_ROW]?.refuse;
+  const names = Array.isArray(refuse) ? refuse.filter((name) => PROTECTED_REFUSALS[name]?.kind === "protected-path") : [];
+  if (names.length === 0) {
+    throw new Error(`${path}: the \`${PATCH_ROW}\` row refuses no protected path`);
+  }
+  return names;
+}
+
 let pushRefusalNames;
-// The protected-path refusals of that row in the default branch's
-// patch-rules.json beside this script, read once.
+// pushRefusalsOf the default branch's patch-rules.json beside this script,
+// read once.
 export function issuePushRefusals() {
-  pushRefusalNames ??= JSON.parse(readFileSync(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url), "utf8"))[PATCH_ROW].refuse.filter(
-    (name) => PROTECTED_REFUSALS[name]?.kind === "protected-path",
-  );
+  pushRefusalNames ??= pushRefusalsOf(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url));
   return pushRefusalNames;
 }
 
@@ -461,50 +653,81 @@ export function workflowFiles() {
 
 // A repository path a criterion names: a backticked span or a word, less a
 // trailing `:12` or `:3-9` and punctuation. A relative path with a `/`, a
-// root CODEOWNERS or .gitmodules, or the bare name of a file in `workflows`
-// (as that workflow's path) counts: any other bare file name or an absolute
-// runner path names no file of this repository.
-const pathTokens = (text, workflows) =>
-  [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
-    .map((token) =>
-      token
+// root CODEOWNERS or .gitmodules (the latter with or without its dot), or the
+// bare name of a file in `workflows` (as that workflow's path), each in any
+// case, counts: any other bare file name or an absolute runner path names no
+// file of this repository. Outside a backticked span a root name counts only
+// as `CODEOWNERS` or a dot-led `.gitmodules`, so prose such as "the
+// codeowners check" names no file.
+const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
+const isRootName = (token, quoted) => (quoted ? ROOT_NAMES.has(token.toLowerCase()) : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules");
+const pathTokens = (text, workflows) => {
+  const workflowNames = new Set([...workflows].map((name) => name.toLowerCase()));
+  return [
+    ...[...text.matchAll(/`([^`]+)`/g)].map((m) => ({ token: m[1], quoted: true })),
+    ...text
+      .replaceAll("`", " ")
+      .split(/\s+/)
+      .map((token) => ({ token, quoted: false })),
+  ]
+    .map(({ token, quoted }) => ({
+      token: token
         .replace(/^["'(\[]+/, "")
         .replace(/[.,;:!?"')\]]+$/, "")
         .replace(/:\d+(-\d+)?$/, ""),
-    )
-    .map((token) => (workflows.has(token) ? `.github/workflows/${token}` : token))
-    .filter((token) => token === "CODEOWNERS" || token === ".gitmodules" || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+      quoted,
+    }))
+    .map(({ token, quoted }) => ({ token: workflowNames.has(token.toLowerCase()) ? `.github/workflows/${token}` : token, quoted }))
+    .filter(({ token, quoted }) => isRootName(token, quoted) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")))
+    .map(({ token }) => token);
+};
+
+// The dot-led names the path rules read, matched without their dot too: to a
+// lane reading it, `github/workflows/a.yml` names `.github/workflows/a.yml`.
+const DOTLESS = new Map([
+  ["github", ".github"],
+  ["gitmodules", ".gitmodules"],
+]);
+const dotted = (path) =>
+  path
+    .split("/")
+    .map((part) => DOTLESS.get(part.toLowerCase()) ?? part)
+    .join("/");
 
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
 // The paths the task-list items in `body`, with the wrapped text below each up
-// to its first nested bullet, name that apply-patch refuses under `names`
-// (issuePushRefusals), in order, each once, a bare name in `workflows`
-// (workflowFiles) read as that workflow's path. Pure.
+// to its first nested bullet outside a code fence, read as plainText, name
+// that apply-patch refuses under `names` (issuePushRefusals) in any case or
+// with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
+// name in `workflows` (workflowFiles) read as that workflow's path. Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
   const wrapped = (more) => {
-    const end = more.findIndex((index) => BULLET.test(lines[index]));
+    const end = more.findIndex((index) => blocks[index] === 0 && BULLET.test(lines[index]));
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens([text, ...wrapped(more)].join("\n"), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path }))),
+    pathTokens(plainText([text, ...wrapped(more)].join("\n")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
   );
   return [...new Set(paths)];
 }
 
 // The refusal reason for unrunnableCriteria's result, with the split it
-// recommends, or null when every item is runnable.
+// recommends, or null when every item is runnable. Host work goes to the host
+// queue (`host-run`); a paid eval, which can bill the owner, to the owner.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
   }
   const list = found.map(({ n, kind, text }) => `item ${n} (${kind}: "${text}")`).join(", ");
+  const to = found.some(({ kind }) => kind === PAID_EVAL) ? "the owner, since a paid eval can bill the owner" : `the host queue (\`${HOST_RUN}\`)`;
   const split =
     found.length === items
-      ? "no done-when item is left for the lane, so a person takes the issue"
-      : "recommended split: keep the other items here as the admissible issue and move these to a needs-human child issue";
+      ? `no done-when item is left for the lane, so it goes to ${to}`
+      : `recommended split: keep the other items here as the admissible issue and move these to a child issue for ${to}`;
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
@@ -518,6 +741,14 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
   const removedByOther = newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
   return names(labels).includes(UNTRUSTED) || removedByOther;
+}
+
+// Whether the newest add of `label` (a `labeled` event) is a listed human's
+// (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
+// `attended`. Pure.
+export function addedByTrusted(events, label, humans, appId) {
+  const actor = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1)?.actor;
+  return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
 }
 
 // Whether `attended` still holds though the label is off: its newest label
@@ -585,16 +816,21 @@ export function admissionSettled(labels, events, isMark) {
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), or done-when items a lane run cannot
-// perform, which refine splits only from needs-decision (refine.mjs splitOf).
+// person out of every other refusal), a paid-eval done-when item, or, on an
+// issue without a trusted `host-run` (addedByTrusted), done-when items a lane
+// run cannot perform beside items it can, which refine
+// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
+// admit() to add `host-run` on a refusal whose only reason is that no item is
+// left for the lane, with no wait or pending split.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
 // admissionFacts) skips the cost_private charge words. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
-// charge-words.json when not given; a file that does not read throws out of
-// decide, so no issue is admitted on a guess.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
+// charge-words.json when not given; a file that does not read, or a
+// patch-rules.json row that refuses no protected path (pushRefusalsOf),
+// throws out of decide, so no issue is admitted on a guess.
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -653,23 +889,38 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans, appId, rules["task-list"]).flatMap((text) => text.split("\n"));
+  // The body's checks a person runs (personChecks) leave the checks below.
+  // personChecks counts a refinement only on a body a listed human wrote, so
+  // that body is the first trusted text.
+  const texts = trustedSpecTexts(spec, humans, appId, rules["task-list"]);
+  const moved = personChecks(spec, humans, appId, rules["task-list"], webHosts);
+  if (moved.length > 0) {
+    texts[0] = withoutItems(texts[0], rules["task-list"], moved);
+  }
+  const lines = texts.flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
-  // A copied refinement breaks `://` and `www.` with a zero-width space so no
-  // link renders; the check reads the URL as written.
-  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
+  const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
+  const unrunnable = unrunnableReason(criteria);
+  // An issue a listed human or the App put in the host queue parks at
+  // status: confirmed. A paid eval can bill the owner, an owner stop reason
+  // (docs/conventions/loop-lane/README.md), so it holds for a person.
+  const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
+  const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
+  const queue = unrunnable !== null && !queued && !paid;
+  const hostRun = queue && criteria.found.length === criteria.items;
   if (unrunnable) {
     refuse.push(unrunnable);
-    hold = true;
+    hold ||= paid || (queue && !hostRun);
   }
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for
   // nothing; this refusal parks at status: confirmed, never with a person.
   // The title is not read: it names the subject, often a workflow whose
-  // script alone changes.
-  const unpushable = unpushablePaths(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], pushRefusals, workflows);
+  // script alone changes. Each text is read alone, so a fence one leaves open
+  // does not run on into the next.
+  const unpushable = [...new Set(texts.flatMap((text) => unpushablePaths(text, rules["task-list"], pushRefusals, workflows)))];
   if (unpushable.length > 0) {
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
@@ -708,6 +959,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (confirm) {
     refuse.push(confirm);
   }
+  // A merged Refs pull request since the newest decision or refinement may
+  // have done the work, so an agent checks it before a lane run repeats it;
+  // like any refusal no person must answer, it parks at status: confirmed.
+  if (doneBy.length > 0) {
+    refuse.push(doneReason(doneBy));
+  }
   const wait = [];
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
@@ -729,7 +986,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }) };
+    // host-run starts an unattended host run, so it goes only on an issue
+    // whose one obstacle is that no item is left for the lane: never beside a
+    // hold for a person, another refusal, a wait or a pending split.
+    return {
+      verdict: "refuse",
+      reasons: [...refuse, ...parked],
+      ...(hold && { hold }),
+      ...(attended && { attended }),
+      ...(hostRun && refuse.length === 1 && wait.length === 0 && parked.length === 0 && { hostRun }),
+      ...(doneBy.length > 0 && { done: doneBy }),
+    };
   }
   if (parked.length > 0) {
     return { verdict: "wait", reasons: parked, pulls: [] };
@@ -764,7 +1031,8 @@ export async function trustedElsewhere(github, blocker, humans) {
   }
 }
 
-async function parentOf(github, base) {
+// The issue at `base`'s native parent (REST), or null when it has none.
+export async function parentOf(github, base) {
   try {
     return await github("GET", `${base}/parent`);
   } catch (error) {
@@ -914,6 +1182,17 @@ export async function specOf(github, repository, number) {
 export const noTrustedSpec = (taskList) =>
   `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
+// splitChildBody's `spec.splitParent` for `parent`, a sub-issue's native
+// parent as parentOf reads it: {number, spec (specOf), appId}, or undefined
+// when it has none in this repository. Admission and the issue lane
+// (write-issue.mjs) read it here.
+export async function splitParentOf(github, repository, parent, appId) {
+  if (parent === null || !here(parent.repository_url, repository) || !Number.isInteger(parent.number)) {
+    return undefined;
+  }
+  return { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+}
+
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in
@@ -937,9 +1216,78 @@ const writtenBy = (humans) => {
   return (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
 };
 
+// Whether a User among `humans` wrote `item` (a body or comment as specOf
+// reads it), and last edited it if ever. Pure.
+export const humanWritten = (item, humans) => writtenBy(humans)(item);
+
 // The refinement comment that counts as spec on `spec`, or undefined: only on
 // a body a listed human wrote (refinementSpec).
 const countedRefinement = (spec, humans, appId) => (spec && writtenBy(humans)(spec) ? refinementSpec(spec.comments, appId) : undefined);
+
+// A refinement comment's second line: the issue body it is for.
+export const bodyVersion = (body) => `<!-- refined body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
+
+// A split refinement's third line: the body's done-when items (1-based, as
+// taskItems numbers them) a person runs and the lane does not.
+export const splitItemsLine = (moved) => `<!-- split items=${[...moved].sort((a, b) => a - b).join(",")} -->`;
+const SPLIT_ITEMS = /^<!-- split items=([1-9][0-9]{0,2}(?:,[1-9][0-9]{0,2})*) -->$/;
+
+// Whether a comment carries a split record (splitItemsLine) on its third line.
+export const carriesSplit = (body) => SPLIT_ITEMS.test(String(body ?? "").split("\n")[2] ?? "");
+
+// The body's done-when items (1-based, ascending) a person runs, from
+// intake's split refinement, or []: the refinement that counts as spec
+// (countedRefinement) names the body as it is now (bodyVersion), and its
+// items are exactly the ones the lane cannot perform under `webHosts`
+// (unrunnableCriteria), leaving at least one for the lane, so a record never
+// drops a runnable criterion. The body itself is never edited; this record is
+// the split. Admission (decide), the size split (splitTaskLines), pr-verify
+// (resolve-pr.mjs) and the issue lane (write-issue.mjs) honor only this.
+// `webHosts` may be a function returning them, called only when a record
+// stands, so a caller reads its config only then. Pure but for that call.
+export function personChecks(spec, humans, appId, taskList, webHosts) {
+  const rows = String(countedRefinement(spec, humans, appId)?.body ?? "").split("\n");
+  const match = rows[1] === bodyVersion(spec?.body) ? SPLIT_ITEMS.exec(rows[2] ?? "") : null;
+  if (!match) {
+    return [];
+  }
+  const moved = match[1].split(",").map(Number).sort((a, b) => a - b);
+  const count = taskItems(spec.body, taskList).length;
+  if (new Set(moved).size !== moved.length || moved.length >= count) {
+    return [];
+  }
+  const hosts = typeof webHosts === "function" ? webHosts() : webHosts;
+  const flagged = unrunnableCriteria(spec.body, taskList, hosts).found.map(({ n }) => n);
+  return moved.join() === flagged.join() ? moved : [];
+}
+
+// The issue lane's web hosts as a workflow passes them (ISSUE_LANE_WEB_HOSTS,
+// JSON: "any" or a list of host names; empty when web access is off), or
+// undefined when unset, which allows only GitHub and local hosts. Anything
+// else throws.
+export function webHostsFrom(text) {
+  if (text === undefined || text === "") {
+    return undefined;
+  }
+  const value = JSON.parse(text);
+  if (value === "any" || (Array.isArray(value) && value.every((host) => typeof host === "string"))) {
+    return value;
+  }
+  throw new Error("ISSUE_LANE_WEB_HOSTS is neither \"any\" nor a list of host names");
+}
+
+// The lines the items `moved` (1-based) own: each one's own line and its
+// deeper-indented lines, nested task-list lines included. Pure.
+export const ownedLines = (items, moved) => new Set(items.flatMap(({ line, more }, index) => (moved.includes(index + 1) ? [line, ...more] : [])));
+
+// `body` without the lines the items `moved` own. Pure.
+export const withoutItems = (body, taskList, moved) => {
+  const gone = ownedLines(taskItems(body, taskList), moved);
+  return String(body ?? "")
+    .split("\n")
+    .filter((_, index) => !gone.has(index))
+    .join("\n");
+};
 
 // The texts pr-verify will read as spec: the body and each comment written,
 // and last edited if ever, by a User among `humans`, and, when the body is
@@ -957,12 +1305,16 @@ export function trustedSpecTexts(spec, humans, appId, taskList) {
   return [spec, ...(spec.comments ?? [])].filter(own).map((item) => String(item.body ?? ""));
 }
 
-const hasTaskLine = (text, taskList) =>
-  String(text ?? "")
-    .split("\n")
-    .some((line) => line.trimStart().startsWith(taskList));
+// A task-list line read as taskItems reads one; in a code fence it renders as
+// code, not as a criterion.
+const hasTaskLine = (text, taskList) => {
+  const lines = String(text ?? "").split("\n");
+  const blocks = fenceBlocks(lines);
+  return lines.some((line, index) => blocks[index] === 0 && line.replace(INVISIBLE, "").trimStart().startsWith(taskList));
+};
 
-// Whether that text holds a `taskList` line: criterion 7. Pure.
+// Whether that text holds a `taskList` line outside a code fence: criterion
+// 7. Pure.
 export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
   trustedSpecTexts(spec, humans, appId, taskList).some((text) => hasTaskLine(text, taskList));
 
@@ -982,9 +1334,11 @@ export const trustedTaskLines = (spec, humans, taskList) => trustedSpecTexts(spe
 // {lines, human, source}: `human` counts the listed human's lines, which come
 // first, and `source` is the refinement's {id, updatedAt} when a line of it
 // follows, else null. A refinement with no readable id or update time adds no
-// line. Pure.
-export function splitTaskLines(spec, humans, taskList, appId) {
-  const own = trustedTaskLines(spec, humans, taskList);
+// line. The body's checks a person runs (personChecks under `webHosts`) are
+// left out. Pure.
+export function splitTaskLines(spec, humans, taskList, appId, webHosts) {
+  const moved = personChecks(spec, humans, appId, taskList, webHosts);
+  const own = trustedTaskLines(moved.length > 0 ? { ...spec, body: withoutItems(spec.body, taskList, moved) } : spec, humans, taskList);
   const refinement = countedRefinement(spec, humans, appId);
   const usable = Number.isSafeInteger(refinement?.databaseId) && typeof refinement.updatedAt === "string";
   const more = usable ? taskLinesOf(refinement.body, taskList) : [];
@@ -1199,8 +1553,10 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // Every fact decide() reads but the verdict, the rules and the caller's own
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
-// default it reads the blocker fresh.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId }) {
+// default it reads the blocker fresh. `doneBy(number)` answers the merged
+// Refs pull requests (mergedRefsReader): a pass over many issues passes its
+// own, so it reads them in one call; by default the issue is read alone.
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   // Anyone may close their own issue, so a blocking issue counts only with a
@@ -1224,8 +1580,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
   const parent = child || typed ? await parentOf(github, base) : null;
   // A size split's sub-issue counts as its parent's text (splitChildBody).
-  if (child && parent !== null && here(parent.repository_url, repository) && Number.isInteger(parent.number)) {
-    spec.splitParent = { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+  if (child) {
+    spec.splitParent = await splitParentOf(github, repository, parent, appId);
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
@@ -1240,6 +1596,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     trustedCloses,
     pulls: await openPullsFor(github, repository, number),
     subIssues: await openSubIssues(github, base, issue),
+    doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
     // Only a visibility that reads public skips the cost_private charge
     // words; a failed read counts the repository as private.
@@ -1277,7 +1634,17 @@ async function deferredAhead(github, repository, issue) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted: closedByTrusted({ github, repository, humans, appId }) });
+  const facts = await admissionFacts({
+    github,
+    repository,
+    number,
+    issue,
+    rules,
+    humans,
+    appId,
+    isTrusted: closedByTrusted({ github, repository, humans, appId }),
+    doneBy: mergedRefsReader({ github, repository, humans, appId, log }),
+  });
   const { comments } = facts;
   const decision = decide({
     ...facts,
@@ -1304,7 +1671,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
     const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
+    await github("POST", `${base}/labels`, { labels: [status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));

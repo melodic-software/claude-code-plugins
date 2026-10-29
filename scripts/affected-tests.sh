@@ -93,12 +93,19 @@
 #                    with no depth cap. A suite that names it is selected. This is
 #                    what carries a library change out to what sources it.
 #                    A Python `import`/`from` line names <stem>.py for each
-#                    dotted component and imported name equal to the stem
-#                    (`from harness.stub_harness import run` names
-#                    stub_harness.py), since an import never spells the file;
-#                    an AMBIGUOUS stem resolves to a module only when that
+#                    dotted component equal to the stem (`from
+#                    harness.stub_harness import run` names stub_harness.py),
+#                    since an import never spells the file. A name after the
+#                    `import` of `from m import name` names name.py only when
+#                    m's package directory holds it (`from harness import
+#                    stub_harness`, harness/stub_harness.py), since that name
+#                    is a submodule only there. The module must sit under the
+#                    importer's plugin or lib root (plugins/<p>/, lib/<l>/,
+#                    .github/scripts/<x>/), so a name never resolves across
+#                    plugins; an importer outside every root reaches the whole
+#                    tree. An AMBIGUOUS stem resolves to a module only when that
 #                    module is the one of its name in the nearest directory,
-#                    from the importer's up, that holds any.
+#                    from the importer's up to that root, that holds any.
 #   R4 other language a file in another language counts only where the naming
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
@@ -770,7 +777,7 @@ token_hits() {
       b = base_of($0)
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
-      if (b ~ /\.py$/) want_stem[substr(b, 1, length(b) - 3)] = 1
+      if (b ~ /\.py$/) { want_stem[substr(b, 1, length(b) - 3)] = 1; pl[b, ++npl[b]] = $0 }
       # A package initializer is reached through its package name (import_names).
       if (b == "__init__.py") rt[b, ++nrt[b]] = $0
       next
@@ -787,8 +794,9 @@ token_hits() {
       next
     }
     # R3 for a Python import, which names a module and never its file:
-    # `from a.b import c as d, e` names a.py, b.py, c.py and e.py, since an
-    # imported name can be a submodule. Same language, so no transition.
+    # `from a.b import c as d, e` names a.py and b.py, and c.py and e.py where
+    # the package a/b/ holds them, since an imported name can be a submodule.
+    # Same language, so no transition.
     FILENAME == impf {
       i = index($0, ":")
       if (i == 0) next
@@ -797,38 +805,75 @@ token_hits() {
       sub(/#.*/, "", text)
       gsub(/[(),\\]/, " ", text)
       n = split(text, w, /[ \t]+/)
+      from_line = 0; held = ""; mod = ""
       for (j = 1; j <= n; j++) {
         if (w[j] == "as") { j++; continue }
-        if (w[j] == "" || w[j] == "from" || w[j] == "import") continue
+        if (w[j] == "") continue
+        if (w[j] == "from") { from_line = 1; continue }
+        if (w[j] == "import") { if (from_line) held = from_pkg(path, mod); continue }
+        if (from_line && held == "") mod = w[j]
         m = split(w[j], comp, ".")
-        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k])
+        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k], held)
       }
       next
     }
+    # from_pkg: the package directory of `from m import`, as "=" and the exact
+    # directory for a relative m, or "~" and the trailing path for an absolute
+    # one. Never empty, so it marks the names after `import` too.
+    function from_pkg(path, m,   a, d, r) {
+      d = match(m, /^\.+/) ? RLENGTH : 0
+      r = substr(m, d + 1)
+      gsub(/\./, "/", r)
+      if (r != "") r = r "/"
+      if (d == 0) return "~" r
+      for (a = dir_of(path); d > 1; d--) sub(/[^\/]*\/$/, "", a)
+      return "=" a r
+    }
+    # in_pkg: whether directory dt is the package held, "" holding everything.
+    function in_pkg(dt, held,   wd) {
+      if (held == "") return 1
+      wd = substr(held, 2)
+      if (substr(held, 1, 1) == "=") return dt == wd
+      return dt == wd || ends(dt, "/" wd)
+    }
+    # root_of: the plugin or lib root holding p (plugins/<p>/, lib/<l>/,
+    # .github/scripts/<x>/), empty outside one. An import never leaves it.
+    function root_of(p) {
+      if (match(p, /^(plugins|lib)\/[^\/]+\//) || match(p, /^\.github\/scripts\/[^\/]+\//))
+        return substr(p, 1, RLENGTH)
+      return ""
+    }
     # import_names: module c, imported by path, names c.py when that is a
-    # frontier basename; an ambiguous c.py resolves when it is the only module
-    # of that name in the nearest directory, from the importer up, holding one.
-    function import_names(path, c,   b, k, key) {
+    # frontier path under the importer root; an ambiguous c.py resolves when it
+    # is the only module of that name in the nearest directory, from the
+    # importer up to its root, holding one. An imported name (held set) names
+    # only a module of the package held.
+    function import_names(path, c, held,   b, k, key, r) {
       b = c ".py"
-      if (c in want_stem) {
-        key = path SUBSEP b
-        if (!(key in kept)) order[++nkept] = key
-        kept[key] = 1
-      }
+      r = root_of(path)
+      if (c in want_stem) for (k = 1; k <= npl[b]; k++)
+        if ((r == "" || index(pl[b, k], r) == 1) && in_pkg(dir_of(pl[b, k]), held)) {
+          key = path SUBSEP b
+          if (!(key in kept)) order[++nkept] = key
+          kept[key] = 1
+          break
+        }
       if (b in nrt) for (k = 1; k <= nrt[b]; k++)
-        if (rt[b, k] != path && nearest_module(path, rt[b, k], "")) {
+        if (rt[b, k] != path && in_pkg(dir_of(rt[b, k]), held) && nearest_module(path, rt[b, k], "")) {
           key = path SUBSEP rt[b, k]
           if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
         }
       # Importing package c, or anything inside it, runs c/__init__.py.
       b = "__init__.py"
       if (b in nrt) for (k = 1; k <= nrt[b]; k++)
-        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && nearest_module(path, rt[b, k], c)) {
+        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && in_pkg(parent_of(rt[b, k]), held) &&
+          nearest_module(path, rt[b, k], c)) {
           key = path SUBSEP rt[b, k]
           if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
         }
     }
     function pkg_of(p) { p = dir_of(p); sub(/\/$/, "", p); return base_of(p) }
+    function parent_of(p) { p = dir_of(p); sub(/[^\/]*\/$/, "", p); return p }
     # uniq_suffix: the shortest path suffix, two components or more, that no
     # other file of the same basename ends in; empty when there is none.
     function uniq_suffix(t,   n, pa, k, j, suf, b, i, o, clash) {
@@ -874,12 +919,14 @@ token_hits() {
       return 0
     }
     # nearest_module: whether t is the one module of its name in the nearest
-    # directory, from the importer namer up to the root, that holds any. The
-    # importer reaches it through its own directory, a tests/ parent or a
-    # sys.path entry for its plugin lib/, never across two candidates.
+    # directory, from the importer namer up to its root (root_of, else the
+    # repository root), that holds any. The importer reaches it through its own
+    # directory, a tests/ parent or a sys.path entry for its plugin lib/, never
+    # across two candidates and never from another plugin.
     # With pkg set, t is a package __init__.py and only those of package pkg count.
-    function nearest_module(namer, t, pkg,   a, b, i, n, hit) {
+    function nearest_module(namer, t, pkg,   a, b, i, n, hit, r) {
       b = base_of(t)
+      r = root_of(namer)
       for (a = dir_of(namer); ; sub(/[^\/]*\/$/, "", a)) {
         n = 0; hit = 0
         for (i = 1; i <= nsame[b]; i++)
@@ -887,7 +934,7 @@ token_hits() {
             n++; if (same[b, i] == t) hit = 1
           }
         if (n > 0) return n == 1 && hit
-        if (a == "") return 0
+        if (a == r) return 0
       }
     }
     # runs_or_loads: R4. An interpreter or process API on the line, or a path

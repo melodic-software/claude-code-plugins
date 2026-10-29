@@ -10,6 +10,7 @@ cap; this page holds the rest of each step.
 - 1\. Find the control skill
 - 2\. Decide whether to run
 - 3\. Refuse an attended-only skill when unattended
+- Upkeep branch
 - 4\. Source wave
 - 5\. Live pass
 - 6\. Triage, then act
@@ -20,8 +21,9 @@ cap; this page holds the rest of each step.
 
 A pass ends in exactly one:
 
-- **clean**: the control skill matches the app. Nothing is edited or opened, and the pass is
-  recorded so the next one skips until HEAD moves.
+- **clean**: the control skill matches the app. Nothing is edited, pushed or opened, and the pass
+  is recorded so the next one skips until HEAD moves. The upkeep branch the pass created or merged
+  before step 4 stays local.
 - **changed**: control skill files were edited and committed: on the one upkeep branch for that
   skill and sent out through at most one pull request, or, for a pass started on a ticket branch,
   on that branch (§ Ticket branch).
@@ -80,9 +82,10 @@ on a ticket branch (§ Ticket branch), a flat-to-folder conversion is **blocked*
 written after the passes read the ticket's code; a pass from the default branch clears it. A legacy
 conversion goes ahead when the ticket branch has not changed the legacy map since it forked:
 `git diff --name-only <tip>...HEAD -- "<legacy dir>"` (tip per § Return to the starting branch)
-prints nothing. It then switches to the upkeep branch, cut from the tip, before step 4, so that pass reads the
-default branch's code and every edit rides the upkeep pull request. When it prints paths, the outcome
-is **blocked**, naming the changed paths: the conversion runs once the ticket merges.
+prints nothing. It then takes the upkeep branch, cut from the tip, before step 4 (§ Upkeep
+branch), so that pass reads the default branch's code and every edit rides the upkeep pull
+request. When it prints paths, the outcome is **blocked**, naming the changed paths: the
+conversion runs once the ticket merges.
 
 ## 2. Decide whether to run
 
@@ -104,15 +107,47 @@ a pass with no one present never drives the person's browser or sign-ins. The re
 needs a driving tool that runs inside the run's boundary, and that a person changes it. Never
 switch tools on your own. An attended pass may proceed.
 
+## Upkeep branch
+
+**A legacy conversion checks first.** Before anything switches, record `git status --porcelain`
+from the repository root. When `git status --porcelain -- "<legacy dir>"` prints any line not
+starting `??` (a tracked legacy file with uncommitted changes), the outcome is **blocked** and
+nothing is switched or written: the person commits or stashes those changes first. Otherwise an
+attended pass shows the planned conversion (the upkeep branch, each legacy file and its new path)
+and asks; declined, the outcome is **blocked** and nothing is switched or written.
+
+Before step 4, the pass switches to the control skill's upkeep branch when its start takes it
+(§ Return to the starting branch) or it is a legacy conversion started on a ticket branch (§ 1), so
+the source wave and the live pass read the tree the upkeep pull request ships. Any other
+ticket-branch pass stays on its branch (§ Ticket branch), and a pass from a detached HEAD off the
+tip reads that HEAD and commits nothing.
+
+The branch is `control-skill-upkeep/control-<slug>`, the control skill's full directory name
+(`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
+`control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local and
+remote `feature-map-upkeep/*` branch (`git branch --list 'feature-map-upkeep/*'` and
+`git branch -r --list '*/feature-map-upkeep/*'`) and report each one by name, with its open pull
+request if any; never check out, commit to, merge or adopt one.
+
+Create the upkeep branch from the tip (§ Return to the starting branch) when it does not exist;
+when it does, merge the tip into it, never a rebase. Before switching, run
+`git ls-files -- "<dir>"` and `git status --porcelain --untracked-files=all`:
+
+- status prints nothing: switch;
+- `ls-files` prints nothing and every status line is inside the control skill directory (or, for a
+  conversion, the legacy map directory): an **untracked** control skill. Its files move with the
+  switch and step 6.3 commits them;
+- otherwise **blocked** before switching, and neither pass runs. The blocker is each status line
+  outside those directories, or the tracked files there holding uncommitted changes.
+
+When git refuses the switch or merge, the outcome is **blocked** with git's stderr line; a merge
+left in progress is aborted (`git merge --abort`) before the return. Done when
+`git branch --show-current` prints the upkeep branch.
+
 ## 4. Source wave
 
 **A legacy conversion is written first.** Drive reads only control skills, so before the source
-wave of a legacy map's conversion, record `git status --porcelain` from the repository root. When
-`git status --porcelain -- "<legacy dir>"` prints any line not starting `??` (a tracked legacy file
-with uncommitted changes), the outcome is **blocked** and nothing is written: the person commits or
-stashes those changes first. Otherwise an attended pass shows the planned conversion (the upkeep
-branch, each legacy file and its new path) and asks; declined, the outcome is **blocked** and
-nothing is written. Approved, or unattended, do step 6.1 (branch, same rules), then copy the legacy
+wave of a legacy map's conversion, approved or unattended (§ Upkeep branch), copy the legacy
 directory into a new temporary directory outside the checkout (`mktemp -d`). Then move the legacy
 files into `.claude/skills/control-<slug>/` with `git mv` (plain move for an untracked map) and
 rewrite them in place per Converting a legacy map, re-running the
@@ -214,8 +249,9 @@ Sort every difference between the control skill and the app:
 
 Then the outcome:
 
-- Nothing to ship: **clean**. Open nothing, and run the `record` command from SKILL.md. A pass that
-  only found regressions or unmapped features is still clean.
+- Nothing to ship: **clean**. Open nothing, and run the `record` command from SKILL.md once the
+  pass is back at its starting point (§ Return to the starting branch), so it stores that point's
+  HEAD, which the next pass's step 2 compares. A pass that only found regressions or unmapped features is still clean.
 - A driver gap this pass observed (a `cli/` command that failed or was missing for a step the live
   pass ran) and left unwritten, in an unattended pass or after a failed re-drive: **blocked**, with
   the fix in the report. An entry already marked `not driven` is recorded state, not a gap. Run no `record`, so the next pass checks it again. Other edits from the same
@@ -224,25 +260,8 @@ Then the outcome:
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
   goes on. Started on a ticket branch with no legacy conversion, follow § Ticket branch instead of
   these four steps. Then:
-  1. **Branch.** A legacy conversion did this before step 4 and stays on that branch. The branch
-     is `control-skill-upkeep/control-<slug>`, the control skill's full directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
-     `control-skill-upkeep/shop`), the only branch a pass writes for that skill. List every local
-     and remote `feature-map-upkeep/*` branch (`git branch --list 'feature-map-upkeep/*'` and
-     `git branch -r --list '*/feature-map-upkeep/*'`) and report each one by name, with its open
-     pull request if any; never check out, commit to, merge or adopt one.
-     Create the upkeep branch from the tip (§ Return to the starting branch) when it does not
-     exist; when it does, merge the tip into it, never a rebase. Before switching, run
-     `git ls-files -- "<dir>"` and `git status --porcelain --untracked-files=all`:
-     - status prints nothing: switch;
-     - `ls-files` prints nothing and every status line is inside the control skill directory (or,
-       for a conversion, the legacy map directory): an **untracked** control skill. Its files move
-       with the switch and step 3 commits them;
-     - otherwise **blocked** before switching, with the edits in the report unwritten. The blocker
-       is each status line outside those directories, or the tracked files there holding
-       uncommitted changes.
-
-     When git refuses the switch or merge, the outcome is **blocked** with git's stderr line.
-     Done when `git branch --show-current` prints the upkeep branch.
+  1. **Branch.** The pass switched to the upkeep branch before step 4 (§ Upkeep branch) and stays
+     on it. Done when `git branch --show-current` prints the upkeep branch.
   2. **Write** the edits (for a legacy conversion, also the `sources` globs and `driven` marks),
      re-running the [real-path checks](naming.md#real-paths) before each write. Then run the Check steps in SKILL.md on the result; a structural finding
      in a file this pass wrote is fixed before the commit, and one it cannot fix makes the outcome
@@ -298,8 +317,8 @@ branch that may be stale. The pass records the start's type: the default branch,
 skill's upkeep branch, or a detached HEAD at the tip (all three take the upkeep branch), a ticket
 branch (§ Ticket branch), or a detached HEAD off the tip (report only). When there are several
 remotes and none is `origin`, or the read or fetch fails or names no branch, the outcome is
-**blocked** with the reason or git's stderr line, before step 1. After each control skill's step 6, whatever its outcome, it switches back to
-that point: `git switch <branch>`, or `git switch --detach <sha>` for a detached start. It does so
+**blocked** with the reason or git's stderr line, before step 1. When each control skill's pass
+ends, at step 6 or at an earlier blocked outcome, it switches back to that point: `git switch <branch>`, or `git switch --detach <sha>` for a detached start. It does so
 before the next skill's step 1, so no skill is refreshed on another skill's upkeep branch, and
 before the pass reports, so a caller such as `/testing:run-e2e` resumes on the commit it is
 verifying. Done when `git branch --show-current` prints the starting branch, or, for a detached

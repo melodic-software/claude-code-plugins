@@ -13,7 +13,7 @@ become a reusable workflow in `melodic-software/ci-workflows` that a consumer ca
 through its own convention config, one lane at a time.
 
 The owner decided the trust model on #7656
-([decision](https://github.com/melodic-software/claude-code-plugins/issues/7656#issuecomment-6418743610)):
+([decision](https://github.com/melodic-software/claude-code-plugins/issues/7656#issuecomment-6418576234)):
 one lanes App across the organization, rejecting one App per repository; an organization repository
 is admitted by one broker allowlist row plus one central grant entry in this repository; grants are
 read from this repository's main, so a consumer cannot grant itself more than its row; public
