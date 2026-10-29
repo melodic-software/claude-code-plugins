@@ -903,7 +903,7 @@ assert_eq "no-op update: it is not an Updated row" "0" \
 assert_contains "no-op update: the reason names the record's version and the catalog's" \
   "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "still at 0.1.0 and the catalog reads 0.2.0"
 assert_contains "no-op update: a linked worktree carries the uninstall label" \
-  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "update ineffective; uninstall clears it"
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "update ineffective, uninstall clears it"
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID="beta@market1")
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal2")
 assert_eq "no-op update: a record already at the catalog is not a failure" "0" \
@@ -1149,10 +1149,18 @@ assert_timings_shape "default path" "$out"
 # Cases: the Step 6 report is rendered by the script. Golden files under
 # fixtures/render/ hold the whole fixed-section report for each shape; a case
 # runs with --render, takes the report that follows the digest line, replaces
-# the run-specific paths and the timing figures, and diffs it against the
+# the run-specific paths, elides the timing figures, and diffs it against the
 # golden. A missing golden prints the actual report so a reviewer can freeze it.
 # ============================================================================
 GOLDEN_DIR="$SCRIPT_DIR/fixtures/render"
+# normalize_report <run_dir> <case_dir>: stdin's report with the run-specific
+# paths replaced, each Timing row elided and its sub-lines dropped.
+normalize_report() {
+  sed -e "s|$1|<run_dir>|g" -e "s|$(norm_path "$2")|<case>|g" -e "s|$2|<case>|g" \
+    -e 's/^Timing: .*/Timing: <elided>/' -e '/^  slowest step: /d' -e '/^  outside the named steps: /d' \
+    -e '/^  outside the marketplace blocks: /d' -e '/^  clock resolution: /d' -e '/^  first pass: /d' \
+    -e '/^  --only-install re-entry: /d' -e '/^  the wait between the passes /d'
+}
 # report_of <case_dir> <sync-run args...>: the normalized report from a
 # --render run. The digest line lands in REPORT_DIGEST, the exit status in
 # REPORT_RC, and the report body in REPORT_TEXT.
@@ -1163,9 +1171,7 @@ report_of() {
   REPORT_RC=$?
   REPORT_DIGEST=$(printf '%s\n' "$out" | head -n 1)
   run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST" 2>/dev/null)
-  REPORT_TEXT=$(printf '%s\n' "$out" | tail -n +3 |
-    sed -e "s|$run_dir|<run_dir>|g" -e "s|$(norm_path "$case_dir")|<case>|g" -e "s|$case_dir|<case>|g" \
-      -e 's/^Timing: .*/Timing: <elided>/')
+  REPORT_TEXT=$(printf '%s\n' "$out" | tail -n +3 | normalize_report "$run_dir" "$case_dir")
 }
 assert_golden() {
   local label="$1" golden="$GOLDEN_DIR/$2" actual="$3" d
@@ -1206,18 +1212,23 @@ assert_golden "render clean: the report matches the golden" clean-current.txt "$
 assert_eq "render: report.txt is written into the run directory on every run" "true" \
   "$([[ -s "$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/report.txt" ]] && echo true || echo false)"
 assert_eq "render: report.txt is the same render the flag printed" "$REPORT_TEXT" \
-  "$(sed -e "s|$(jq -r '.run_dir' <<<"$REPORT_DIGEST")|<run_dir>|g" -e "s|$(norm_path "$case_dir")|<case>|g" -e "s|$case_dir|<case>|g" -e 's/^Timing: .*/Timing: <elided>/' "$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/report.txt")"
+  "$(normalize_report "$(jq -r '.run_dir' <<<"$REPORT_DIGEST")" "$case_dir" <"$(jq -r '.run_dir' <<<"$REPORT_DIGEST")/report.txt")"
 assert_eq "render: a run without --render prints only the digest line" "1" \
   "$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" | wc -l | tr -d ' ')"
 # shellcheck disable=SC2016  # the literal placeholder token is the thing searched for
 assert_eq "render: the renderer carries no user_config placeholder token" "0" \
   "$(grep -c -F '${user_config' "$SCRIPT_DIR/render-report.jq")"
-# The Timing row's shape, asserted here because the golden elides its figures.
+# The Timing rows' shape, asserted here because the golden elides their figures:
+# each figure on its own line under the row.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
-assert_contains "render: the marketplace Timing row names the slowest step, the remainder and the clock" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps; clock resolution: (microseconds|nanoseconds|seconds)$' | head -n 1)" "Timing: "
-assert_contains "render: the run Timing row names the run total and its remainder" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s run total; [0-9.]+s outside the marketplace blocks; clock resolution: (microseconds|nanoseconds|seconds)$')" "run total"
+assert_eq "render: the marketplace Timing row names the slowest step, the remainder and the clock" "4" \
+  "$(printf '%s\n' "$out" | grep -A3 -E '^Timing: [0-9.]+s this marketplace$' | head -n 4 |
+    grep -c -E '^(Timing: [0-9.]+s this marketplace|  slowest step: [a-z_]+ [0-9.]+s|  outside the named steps: [0-9.]+s|  clock resolution: (microseconds|nanoseconds|seconds))$')"
+assert_eq "render: the run Timing row names the run total, its remainder and the clock" "3" \
+  "$(printf '%s\n' "$out" | grep -A2 -E '^Timing: [0-9.]+s run total$' |
+    grep -c -E '^(Timing: [0-9.]+s run total|  outside the marketplace blocks: [0-9.]+s|  clock resolution: (microseconds|nanoseconds|seconds))$')"
+assert_eq "render: a clean run opens with its verdict" "Result: clean, nothing changed and nothing under Action needed" \
+  "$(printf '%s\n' "$out" | sed -n 3p)"
 
 # --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1244,10 +1255,10 @@ assert_eq "quiet autoUpdate: the digest carries the names" '["other","market1"]'
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" \
   --quiet-auto-update other
 assert_contains "quiet autoUpdate: another marketplace's name leaves the suggestion" "$REPORT_TEXT" \
-  "(autoUpdate: off; enable it so the catalog refreshes automatically)"
+  $'(autoUpdate: off)\n  remedy: enable autoUpdate so the catalog refreshes automatically'
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 assert_contains "quiet autoUpdate: unset, the suggestion shows" "$REPORT_TEXT" \
-  "(autoUpdate: off; enable it so the catalog refreshes automatically)"
+  $'(autoUpdate: off)\n  remedy: enable autoUpdate so the catalog refreshes automatically'
 assert_eq "quiet autoUpdate: unset, the digest carries an empty list" "[]" \
   "$(jq -c '.quiet_auto_update' <<<"$REPORT_DIGEST")"
 # An --only-install re-entry renders the same slot from the run's saved flags.
@@ -1262,7 +1273,7 @@ report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$
 assert_eq "source pull policy: an invalid value runs as ask and is named" '["ask","sometimes"]' \
   "$(jq -c '[.source_pull, .source_pull_invalid]' <<<"$REPORT_DIGEST")"
 assert_contains "source pull policy: the invalid value renders under Action needed" "$REPORT_TEXT" \
-  'directory_source_pull value "sometimes" is not ask or never; this run used ask'
+  $'directory_source_pull value "sometimes" is not ask or never\n    this run used ask'
 
 # --- a self-update whose row is not the first moved row ------------------------
 # alpha sorts ahead of zeta, and zeta is the plugin running the sync, so the note
@@ -1400,7 +1411,7 @@ assert_eq "moved backward: the downgraded row carries the concurrent flag" \
   '[{"id":"alpha@market1","scope":"user","old":"0.2.0","new":"0.1.0","concurrent":true}]' \
   "$(jq -c '.marketplaces[0].downgraded' <<<"$REPORT_DIGEST")"
 assert_contains "moved backward: the report qualifies the downgrade" "$REPORT_TEXT" \
-  "  - alpha@market1 (user): 0.2.0 → 0.1.0 (moved during this run)"
+  "  - alpha@market1 (user): 0.2.0 -> 0.1.0 (moved during this run)"
 
 # A snapshot version that cannot be read leaves the id a noop and counts it.
 CASE_NUM=$((CASE_NUM + 1))
@@ -1592,7 +1603,7 @@ assert_eq "invalid policy re-entry: the superseding digest keeps the invalid val
   "$(jq -r '.install_new_invalid' <<<"$digest2")"
 assert_eq "invalid policy re-entry: and the policy the run used" "ask" "$(jq -r '.install_new' <<<"$digest2")"
 assert_contains "invalid policy re-entry: the superseding report still carries the warning" "$out2" \
-  'install_new value "bogus" is not all, none, or ask; this run used ask'
+  $'install_new value "bogus" is not all, none, or ask\n    this run used ask'
 assert_eq "invalid policy re-entry: the run timings name both passes" "first only_install" \
   "$(jq -r '.timings.passes | map(.pass) | join(" ")' <<<"$digest2")"
 assert_eq "invalid policy re-entry: the first pass row is the first digest's total" "$first_total" \
@@ -1601,9 +1612,9 @@ assert_eq "invalid policy re-entry: the run total is at least the first pass's t
   "$(jq -r --argjson first "$first_total" '.timings.total >= $first' <<<"$digest2")"
 assert_eq "invalid policy re-entry: the run total is the two passes summed" "true" \
   "$(jq -r '.timings | .total - (.passes[0].total + .passes[1].total) | . < 0.0015 and . > -0.0015' <<<"$digest2")"
-assert_contains "invalid policy re-entry: the run Timing row names both passes" \
-  "$(printf '%s\n' "$out2" | grep -E '^Timing: [0-9.]+s run total over both passes \(first pass [0-9.]+s, --only-install re-entry [0-9.]+s; the wait between them is not counted\); [0-9.]+s outside the marketplace blocks; clock resolution: (microseconds|nanoseconds|seconds)$')" \
-  "over both passes"
+assert_eq "invalid policy re-entry: the run Timing row names both passes" "6" \
+  "$(printf '%s\n' "$out2" | grep -A5 -E '^Timing: [0-9.]+s run total over both passes$' |
+    grep -c -E '^(Timing: [0-9.]+s run total over both passes|  first pass: [0-9.]+s|  --only-install re-entry: [0-9.]+s|  the wait between the passes is not counted|  outside the marketplace blocks: [0-9.]+s|  clock resolution: (microseconds|nanoseconds|seconds))$')"
 
 # --- an ask-policy re-entry where the human picked none of the offered plugins
 CASE_NUM=$((CASE_NUM + 1))
@@ -1634,7 +1645,7 @@ assert_exit "render ask partial pick: exit 0" 0 "$REPORT_RC"
 assert_contains "render ask partial pick: the declined install is a pending action" "$REPORT_TEXT" \
   "Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)"
 assert_contains "render ask partial pick: the declined plugin is named" "$REPORT_TEXT" \
-  "1 catalog plugin(s) offered and not installed (policy ask): gamma@market1;"
+  $'1 catalog plugin(s) offered and not installed (policy ask): gamma@market1\n    remedy: '
 assert_eq "render ask partial pick: the installed plugin is not in the gap bullet" "0" \
   "$(grep -c 'offered and not installed.*beta@market1' <<<"$REPORT_TEXT")"
 
@@ -1709,7 +1720,7 @@ needs_digest() {
 }
 needs_check() {
   local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" status="${6:-needs update}" text
-  text=$(needs_digest "$mode" "$patch" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+  text=$(needs_digest "$mode" "$patch" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
   assert_contains "needs: $label marks the marketplace" "$text" "Marketplace: m: $status (autoUpdate: on)"
   if [[ "$kind" == bullet ]]; then
     assert_contains "needs: $label has an Action needed bullet" "$text" $'Action needed:\n  - '
@@ -1732,7 +1743,7 @@ needs_check "failed enable" sync "{\"enabled\":[$failed_row]}" "enable failed (e
 needs_check "marketplace error" sync '{"errors":["boom"]}' "error: boom"
 pending_check "unfilled enable gap" sync '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 pending_check "project-scope enable gap" sync '{"project_enable_rows":[{"id":"b@m","project_path":"/w"}]}' \
-  "project-scope enable gap: (cd \"/w\" && claude plugin enable b@m -s project)"
+  $'project-scope enable gap: b@m in /w\n    remedy: (cd "/w" && claude plugin enable b@m -s project)'
 pending_check "installed but not enabled" sync '{"installed_disabled":["b@m"]}' "b@m: installed but not enabled"
 pending_check "delisted" sync '{"delisted":["b@m"]}' "delisted, absent from the catalog: b@m"
 pending_check "install gap under none" sync '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
@@ -1741,12 +1752,21 @@ needs_check "install gap under none beside a failed update" sync \
   bullet "needs update, 1 action(s) pending"
 needs_policy=ask
 pending_check "declined install gap under ask" sync '{"install_gap":["b@m","c@m"],"installed":[{"id":"b@m","rc":0}]}' \
-  "1 catalog plugin(s) offered and not installed (policy ask): c@m;"
+  $'1 catalog plugin(s) offered and not installed (policy ask): c@m\n    remedy: '
 needs_policy=none
 needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m","scope":"project","installed":"1"}]}}' \
   "would run: claude plugin update a@m" row
 pending_check "audit withheld downgrade" audit \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
+# The verdict: an audit withheld downgrade is a prediction, never clean, and an
+# audit predicting nothing says its prediction is a lower bound.
+assert_eq "needs: an audit whose only finding is a withheld downgrade does not read as clean" \
+  "Result: see the predictions below, nothing under Action needed" \
+  "$(needs_digest audit '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' |
+    jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' | head -n 1)"
+assert_eq "needs: an audit predicting nothing names the lower bound" \
+  "Result: no change predicted, a lower bound against the unrefreshed catalog" \
+  "$(needs_digest audit '{}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' | head -n 1)"
 pending_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
 needs_policy=all
 needs_check "audit would install" audit '{"install_gap":["b@m"]}' "would run: claude plugin install b@m -s user" row
@@ -1783,7 +1803,7 @@ assert_not_contains "stale render: local-scope records only name no worktree aud
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
 assert_contains "stale render: local-scope records are counted and named as unreaped" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
-  "  Of these, 2 local-scope record(s); nothing reaps them yet."
+  "  2 local-scope record(s), which nothing reaps yet"
 # Records keyed to a user home get their own row, and a digest with none omits it.
 assert_contains "user-home render: the records get a row of their own" \
   "$(needs_digest sync '{"user_home_records":{"total":1,"paths":["/mnt/c/Users/someone"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
@@ -1795,45 +1815,47 @@ pending_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_en
 # than the first moved row.
 assert_contains "self-update render: a digest without the row names no plugin" \
   "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
-    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this plugin moved during this run. The algorithm"
+    jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" $'Note: this plugin moved during this run\n  the algorithm'
 
-# --- the Divergences row splits its count by what can be done about each part --
+# --- the Divergences section splits its count by what can be done about each part
 # Rendered straight from a digest. Each fixture carries the attribution fields the
-# row has always read, so only the split decides the text.
+# section has always read, so only the split decides the text. div_row_of prints
+# the `Divergences:` row and the indented lines under it.
 div_row_of() {
-  needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | grep '^Divergences:' || true
+  needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r' |
+    awk '/^Divergences:/ { on = 1; print; next } on && /^ / { print; next } { on = 0 }'
 }
 div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
-# All actionable, a project resolved: converge is the only pointer.
+div_attr_lines=$'  4 pre-existing\n  1 newly created by this run\n    1 by the in-repo update\n    0 by the user-scope sweep'
+# Under the class split the same lines sit under their own heading.
+div_origin_lines=$'  by origin:\n    4 pre-existing\n    1 newly created by this run\n      1 by the in-repo update\n      0 by the user-scope sweep'
+# All actionable, a project resolved: converge is the only pointer, once for both parts.
 div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
-# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: all actionable points at converge only" \
-  'Divergences: 2 actionable here, 3 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 5 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  $'Divergences: 5 in all\n  5 actionable\n    2 here\n    3 elsewhere on this machine\n    remedy: run `/harness-ops:plugins converge`\n'"$div_origin_lines" \
   "$div_row"
 assert_not_contains "divergences split: all actionable has no worktree pointer" "$div_row" "/source-control:worktree"
 assert_not_contains "divergences split: all actionable has no blocked part" "$div_row" "blocked"
 # Mixed: three parts, and converge is named once, on the actionable part.
 div_row=$(div_row_of "{\"divergences\":{\"post\":10,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":2,\"in_worktrees\":3,\"blocked\":5}}")
-# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: mixed names each non-zero part" \
-  'Divergences: 2 actionable elsewhere on this machine → run `/harness-ops:plugins converge`; 3 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them; 5 blocked, path not present → see Stale project records below (of 10 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  $'Divergences: 10 in all\n  2 actionable\n    2 elsewhere on this machine\n    remedy: run `/harness-ops:plugins converge`\n  3 in linked worktrees\n    remedy: remove the worktree\n    remedy: /source-control:worktree audit (if installed) classifies them\n  5 blocked, path not present\n    remedy: see Stale project records below\n'"$div_origin_lines" \
   "$div_row"
 assert_eq "divergences split: mixed points at converge exactly once" "1" "$(grep -o 'plugins converge' <<<"$div_row" | wc -l | tr -d ' ')"
+assert_eq "divergences split: no line joins two parts with a semicolon" "0" "$(grep -c ';' <<<"$div_row" || true)"
 # Only blocked: no converge pointer at all.
 div_row=$(div_row_of "{\"divergences\":{\"post\":7,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":0,\"in_worktrees\":0,\"blocked\":7}}")
 assert_eq "divergences split: only blocked names the stale-records note" \
-  'Divergences: 7 blocked, path not present → see Stale project records below (of 7 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  $'Divergences: 7 in all\n  7 blocked, path not present\n    remedy: see Stale project records below\n'"$div_origin_lines" \
   "$div_row"
 assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
-# A digest written before the split: the text it always rendered.
+# A digest written before the split: its count, its interval lines and one converge remedy.
 div_old="\"post\":5,$div_attr"
-# shellcheck disable=SC2016  # the backticks are literal report text
-assert_eq "divergences split: an old digest without split fields renders as before" \
-  'Divergences: 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep) → run `/harness-ops:plugins converge`' \
+assert_eq "divergences split: an old digest without split fields renders its count and the remedy" \
+  $'Divergences: 5 actionable\n'"$div_attr_lines"$'\n  remedy: run `/harness-ops:plugins converge`' \
   "$(div_row_of "{\"divergences\":{$div_old}}")"
-# shellcheck disable=SC2016  # the backticks are literal report text
-assert_eq "divergences split: an old digest with a project leads with the here count" \
-  'Divergences: 2 behind here → run `/harness-ops:plugins converge`; on this whole machine 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep)' \
+assert_eq "divergences split: an old digest with a project names the here count under the machine-wide one" \
+  $'Divergences: 5 actionable on this whole machine\n  2 behind here\n'"$div_attr_lines"$'\n  remedy: run `/harness-ops:plugins converge`' \
   "$(div_row_of "{\"project_root\":\"/w\",\"divergences_here\":2,\"divergences\":{$div_old}}")"
 assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
   "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
@@ -1848,9 +1870,9 @@ div_by_path='{"post":6,"pre_existing":6,"new_total":0,"new_by_interval":{"in_rep
 div_text=$(needs_digest sync "{\"divergences\": $div_by_path}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_golden "divergence by path, no project root: the report matches the golden" divergence-by-path-no-root.txt "$div_text"
 assert_eq "divergence by path: one sub-line per path" "2" \
-  "$(grep -c '^  - /w/' <<<"$div_text")"
+  "$(grep -c '^    - /w/' <<<"$div_text")"
 assert_eq "divergence by path: exactly one sub-line is capped" "1" \
-  "$(grep -c '^  - /w/.*, +[0-9][0-9]* more$' <<<"$div_text")"
+  "$(tr -d '\r' <<<"$div_text" | grep -c '^    - /w/.*, +[0-9][0-9]* more$')"
 
 # --- the split computed from a real fleet ---------------------------------------
 # alpha carries one pin per class beside its user record, all behind the user
@@ -1907,10 +1929,10 @@ assert_exit "divergences real: exit 0" 0 "$REPORT_RC"
 assert_eq "divergences real: the digest splits the four rows by class" \
   '{"post":6,"actionable_here":1,"actionable_elsewhere":2,"in_worktrees":1,"blocked":2}' \
   "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
-assert_contains "divergences real: the row names the worktree part" "$REPORT_TEXT" \
-  "1 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them"
-assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT" \
-  "2 blocked, path not present → see Stale project records below"
+assert_contains "divergences real: the section names the worktree part" "$REPORT_TEXT" \
+  $'  1 in linked worktrees\n    remedy: remove the worktree\n    remedy: /source-control:worktree audit (if installed) classifies them'
+assert_contains "divergences real: the section names the blocked part" "$REPORT_TEXT" \
+  $'  2 blocked, path not present\n    remedy: see Stale project records below'
 # delta (a submodule .git file), epsilon (a separate git dir under a directory
 # named worktrees) are plain checkouts; zeta's present pin already sits at the
 # highest version, so only its absent pin is the skew and the row is blocked.
@@ -1935,9 +1957,9 @@ assert_eq "divergences real: a by_path entry counts its records and names its id
 assert_eq "divergences real: records[] does not carry the by_path class" "false" \
   "$(jq '[.marketplaces[0].divergences.records[] | has("class")] | any' <<<"$REPORT_DIGEST")"
 assert_contains "divergences real: an absent path's sub-line says it is not present" "$REPORT_TEXT" \
-  "  - <case>/gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
+  "    - <case>/gone (not present): 3 diverging record(s): alpha@market1, gamma@market1, zeta@market1"
 assert_contains "divergences real: a worktree path's sub-line says it is a linked worktree" "$REPORT_TEXT" \
-  "  - <case>/wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
+  "    - <case>/wt (linked worktree): 2 diverging record(s): alpha@market1, beta@market1"
 assert_eq "divergences real: one by_path entry per project path" "5" \
   "$(jq '.marketplaces[0].divergences.by_path | length' <<<"$REPORT_DIGEST")"
 
@@ -2078,7 +2100,7 @@ assert_eq "monitors: a nested experimental.monitors array on the updated build i
   '[{"id":"alpha@market1","scope":"user","monitors":1}]' \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_contains "monitors: the report calls the restart out under Action needed" "$REPORT_TEXT" \
-  "  - monitor(s) declared by updated plugin(s): alpha@market1 (1); restart the session to run the updated monitors, /reload-plugins does not switch them"
+  $'  - monitor(s) declared by updated plugin(s): alpha@market1 (1)\n    remedy: restart the session to run the updated monitors, /reload-plugins does not switch them'
 # The directory convention, and a manifest path string, count the same way.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
@@ -2279,11 +2301,12 @@ checkout_case() {
   assert_contains "checkout $label: status stays current" "$out" "Marketplace: market1: current (autoUpdate: on)"
 }
 git -C "$case_dir/mkt" checkout -q -b local-only
-checkout_case "no upstream" no_upstream "a git checkout on local-only with no upstream; freshness not checked; tracked files modified (this run does not fetch or pull it)"
+checkout_case "no upstream" no_upstream \
+  $'    a git checkout on local-only with no upstream, freshness not checked\n    tracked files modified\n    this run does not fetch or pull it'
 git -C "$case_dir/mkt" checkout -q --detach
-checkout_case "detached" detached "a git checkout at a detached HEAD; freshness not checked; tracked files modified"
+checkout_case "detached" detached $'    a git checkout at a detached HEAD, freshness not checked\n    tracked files modified'
 rm -rf "$case_dir/mkt/.git"
-checkout_case "not a repo" not_a_repo "not a git work tree; freshness not checked"
+checkout_case "not a repo" not_a_repo "    not a git work tree, freshness not checked"
 
 # --- a requested fast-forward of a directory source's checkout ---------------
 # ff_fixture <case_dir>: the fleet above with a clean clone two commits behind
@@ -2402,7 +2425,7 @@ assert_eq "failed pull: the digest records the failure" "failed true" \
   "$(head -n 1 <<<"$out" | jq -r '.marketplaces[0].source_pull | "\(.status) \(.rc != 0)"')"
 assert_contains "failed pull: the report names it" "$out" "failed (exit "
 assert_contains "failed pull: the source row says a pull was tried" "$out" \
-  "(a requested git pull --ff-only failed; see Action needed)"
+  "    a requested git pull --ff-only failed, see Action needed"
 assert_contains "failed pull: the behind bullet stays" "$out" "pull --ff-only\`, then rerun"
 assert_eq "failed pull: the checkout is untouched" "$before" "$(ff_state)"
 assert_contains "failed pull: the refresh still ran" \
@@ -2530,7 +2553,7 @@ assert_eq "disabled install: the stored output was truncated before the notice" 
 assert_contains "disabled install: the row says it is installed but not enabled" "$REPORT_TEXT" \
   "installed but not enabled: beta@market1"
 assert_contains "disabled install: the enable command is in the report" "$REPORT_TEXT" \
-  "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
+  $'beta@market1: installed but not enabled\n    remedy: claude plugin enable beta@market1 -s user'
 assert_eq "disabled install: policy all enables nothing the publisher left off" "0" \
   "$(grep -c 'plugin enable' "$case_dir/claude.log" || true)"
 # Every install is already not enabled, so the policy clause does not tell the
@@ -2568,7 +2591,7 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_S
   CLAUDE_STUB_INSTALL_DISABLED=beta@market1)
 report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
 assert_contains "mixed disabled install: the row gives the disable remedy beside the disabled id" "$REPORT_TEXT" \
-  "Installed: 2 new catalog plugin(s): beta@market1, gamma@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling) (installed but not enabled: beta@market1)"
+  $'Installed: 2 new catalog plugin(s): beta@market1, gamma@market1\n  policy install_new: all, so the next sync reinstalls any of these you uninstall\n    remedy: to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling\n  installed but not enabled: beta@market1'
 
 # What the policy clause promises under install_new: all. beta is installed and
 # disabled, so it stays installed. gamma was uninstalled, which leaves neither a
@@ -2683,9 +2706,9 @@ assert_eq "delisted sync: a true key with no install is settings-only" \
 assert_eq "delisted sync: the absent install is not swept" "0" \
   "$(grep -c 'plugin update provenance@market1' "$case_dir/claude.log" || true)"
 assert_contains "delisted sync: the report gives the uninstall remedy" "$REPORT_TEXT" \
-  "delisted, absent from the catalog: provenance@market1; uninstall each with \`claude plugin uninstall <id> -s user\`"
+  $'delisted, absent from the catalog: provenance@market1\n    remedy: uninstall each with `claude plugin uninstall <id> -s user`'
 assert_contains "delisted sync: the settings-only key gets the settings remedy" "$REPORT_TEXT" \
-  "enabled in settings, not installed, and absent from the catalog: ghost@market1; remove each key from enabledPlugins in the settings file that sets it"
+  $'enabled in settings, not installed, and absent from the catalog: ghost@market1\n    remedy: remove each key from enabledPlugins in the settings file that sets it'
 assert_eq "delisted sync: a false key with no install is not reported" "0" \
   "$(grep -c 'declined@market1' <<<"$REPORT_TEXT" || true)"
 CASE_NUM=$((CASE_NUM + 1))
@@ -2707,9 +2730,9 @@ assert_exit "delisted audit: exit 0" 0 "$REPORT_RC"
 assert_eq "delisted audit: the absent install is not a would-update" "0" \
   "$(jq -r '[.marketplaces[0].user_sweep.would_update[]?.id] | map(select(. == "provenance@market1")) | length' <<<"$REPORT_DIGEST")"
 assert_contains "delisted audit: the report names it as a prediction" "$REPORT_TEXT" \
-  "delisted, absent from the unrefreshed catalog: provenance@market1 (audit prediction; sync names any still absent after its refresh, with the remedy)"
+  $'delisted, absent from the unrefreshed catalog (audit prediction): provenance@market1\n    sync names any still absent after its refresh, with the remedy'
 assert_contains "delisted audit: the settings-only key is a prediction too" "$REPORT_TEXT" \
-  "enabled in settings, not installed, and absent from the unrefreshed catalog: ghost@market1 (audit prediction"
+  "enabled in settings, not installed, and absent from the unrefreshed catalog (audit prediction): ghost@market1"
 assert_eq "delisted audit: no unqualified uninstall command" "0" \
   "$(grep -c 'claude plugin uninstall' <<<"$REPORT_TEXT" || true)"
 
@@ -2742,11 +2765,11 @@ assert_eq "delisted in-repo sync: not swept" "0" \
 assert_eq "delisted in-repo sync: not enabled" "0" \
   "$(grep -c 'plugin enable stale@market1' "$case_dir/claude.log" || true)"
 assert_contains "delisted in-repo sync: the report gives the uninstall command" "$REPORT_TEXT" \
-  "delisted in this repo, absent from the catalog: (cd \"<case>\" && claude plugin uninstall stale@market1 -s project)"
+  $'delisted in this repo, absent from the catalog: stale@market1 (project)\n    remedy: (cd "<case>" && claude plugin uninstall stale@market1 -s project)'
 : >"$case_dir/claude.log"
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "delisted in-repo audit: the report names it as a prediction" "$REPORT_TEXT" \
-  "delisted in this repo, absent from the unrefreshed catalog: stale@market1 (project) (audit prediction"
+  "delisted in this repo, absent from the unrefreshed catalog (audit prediction): stale@market1 (project)"
 assert_eq "delisted in-repo audit: not a would-update" "0" \
   "$(jq -r '[.marketplaces[0].in_repo.would_update[]?.id] | map(select(. == "stale@market1")) | length' <<<"$REPORT_DIGEST")"
 
@@ -2789,30 +2812,30 @@ assert_eq "cache scope: the digest names the scope checked" "user" \
 assert_eq "cache scope: the always-zero project-path counter is not carried" "false" \
   "$(jq -r '.marketplaces[0].cache_content | has("skipped_absent_project_paths")' <<<"$out")"
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 0,
-  "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+  "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
 assert_contains "cache scope: the unverifiable-only row names user scope" "$cache_text" \
-  "Cache content: 7 of 10 user-scope install(s) compared, no disagreement found; 3 unverifiable, which is not a pass"
+  $'Cache content: 7 of 10 user-scope install(s) compared, no disagreement found\n  3 unverifiable, which is not a pass'
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 1,
   "unverifiable": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
-  jq -r -f "$SCRIPT_DIR/render-report.jq")
+  jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
 assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
-assert_contains "cache scope: the tally sub-line names user scope" "$cache_text" \
-  "(of 10 user-scope install(s): 7 match, 2 unverifiable; unverifiable is not a pass)"
+assert_contains "cache scope: the tally lines name user scope" "$cache_text" \
+  $'  10 user-scope install(s) checked\n    7 match\n    2 unverifiable, which is not a pass'
 # A record at a commit other than the clone's HEAD is not compared, and the row
 # says so in its own words rather than counting it unverifiable.
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 86, "match": 2, "stale_content": 0,
-  "unverifiable": 0, "not_checked": 84, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+  "unverifiable": 0, "not_checked": 84, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
 assert_contains "cache content: not-checked-only row" "$cache_text" \
-  "Cache content: 2 of 86 user-scope install(s) compared, no disagreement found; 84 not checked (recorded at an older commit)"
+  $'Cache content: 2 of 86 user-scope install(s) compared, no disagreement found\n  84 not checked (recorded at an older commit)'
 assert_not_contains "cache content: a not-checked record is not called unverifiable" "$cache_text" "unverifiable"
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 6, "stale_content": 1,
   "unverifiable": 1, "not_checked": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
-  jq -r -f "$SCRIPT_DIR/render-report.jq")
-assert_contains "cache content: the tally sub-line under a finding names both counts" "$cache_text" \
-  "(of 10 user-scope install(s): 6 match, 1 unverifiable, 2 not checked (recorded at an older commit); unverifiable is not a pass)"
+  jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
+assert_contains "cache content: the tally lines under a finding name both counts" "$cache_text" \
+  $'  10 user-scope install(s) checked\n    6 match\n    1 unverifiable, which is not a pass\n    2 not checked (recorded at an older commit)'
 assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
-  "Remediation: remove that version's directory"
+  "  remedy: remove that version's directory"
 
 # A plugin whose clone holds changelog fragments is labeled a pending release,
 # and its row gets no delete-cache repair; a mixed finding keeps the repair for
@@ -2823,13 +2846,13 @@ cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 1
 assert_contains "cache content: the pending row is labeled" "$cache_text" \
   "  - a@m 1.0.0: 2 file(s) differ (unreleased changes pending)"
 assert_contains "cache content: the pending note is shown" "$cache_text" "Unreleased changes pending:"
-assert_not_contains "cache content: no delete-cache repair for a pending release" "$cache_text" "Remediation"
+assert_not_contains "cache content: no delete-cache repair for a pending release" "$cache_text" "remove that version's directory"
 cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 8, "stale_content": 2,
   "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true},
   {"id": "b@m", "version": "2.0.0", "files_differ": 1, "unreleased_changes": false}], "stale_ids": ["a@m", "b@m"]}}' |
   jq -r -f "$SCRIPT_DIR/render-report.jq")
 assert_contains "cache content: mixed, the repair names the rows it covers" "$cache_text" \
-  "Remediation, for the rows not marked unreleased: remove"
+  "  remedy, for the rows not marked unreleased: remove"
 assert_not_contains "cache content: mixed, the other row is not labeled" "$cache_text" \
   "  - b@m 2.0.0: 1 file(s) differ (unreleased"
 
@@ -2847,9 +2870,13 @@ assert_golden "divergence split, project root: the report matches the golden" di
 # The number each split follows is the sum of its parts, in both variants.
 for variant in no-root project-root; do
   assert_eq "divergence split, $variant: the split sums to the count it follows" "true" \
-    "$(grep '^Divergences:' "$GOLDEN_DIR/divergence-split-$variant.txt" |
-      sed -E 's/.* ([0-9]+) actionable: ([0-9]+) pre-existing, ([0-9]+) newly created by this run \(([0-9]+) by the in-repo update, ([0-9]+) by the user-scope sweep\).*/\1 \2 \3 \4 \5/' |
-      awk '{print ($1 == $2 + $3 && $3 == $4 + $5) ? "true" : "false"}')"
+    "$(tr -d '\r' <"$GOLDEN_DIR/divergence-split-$variant.txt" | awk '
+      /^Divergences: [0-9]+ actionable/ { t = $2 }
+      /^  [0-9]+ pre-existing$/ { p = $1 }
+      /^  [0-9]+ newly created by this run$/ { n = $1 }
+      /^    [0-9]+ by the in-repo update$/ { r = $1 }
+      /^    [0-9]+ by the user-scope sweep$/ { s = $1 }
+      END { print (t != "" && t == p + n && n == r + s) ? "true" : "false" }')"
 done
 
 # ============================================================================
@@ -2859,14 +2886,14 @@ done
 CASE_NUM=$((CASE_NUM + 1))
 remedy_text=$(needs_digest audit '{"source_checkout": {"path": "/src", "state": "tracking", "branch": "main",
   "upstream": "origin/main", "ahead": 0, "behind": 2, "dirty": false},
-  "project_enable_rows": [{"id": "p@m", "project_path": "/w/repo"}]}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
-assert_eq "audit remedies: the header scopes the prefix to calls sync would make" \
+  "project_enable_rows": [{"id": "p@m", "project_path": "/w/repo"}]}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')
+assert_eq "audit remedies: the header after the verdict scopes the prefix to calls sync would make" \
   "Audit (read-only): every call sync would make is a prediction, prefixed would run:" \
-  "$(head -n 1 <<<"$remedy_text")"
+  "$(sed -n 2p <<<"$remedy_text")"
 assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_text" \
-  "and the catalog is read from it as it is: run \`git -C '/src' pull --ff-only\`"
+  $'and the catalog is read from it as it is\n    remedy: run `git -C \'/src\' pull --ff-only`'
 assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
-  "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
+  $'  - project-scope enable gap: p@m in /w/repo\n    remedy: (cd "/w/repo" && claude plugin enable p@m -s project)'
 
 # ============================================================================
 # Case: the pending-enable record. An `ask` pick is journaled before its install
@@ -3001,7 +3028,7 @@ for self_source in directory github; do
     assert_contains "self-sourced audit (directory): the report names the live read and the pin" "$REPORT_TEXT" \
       "alpha@market1 (project): read live from"
     assert_contains "self-sourced audit (directory): and the pinned version" "$REPORT_TEXT" \
-      "project record pinned at 0.1.0; the CLI will not update it"
+      "project record pinned at 0.1.0, which the CLI will not update"
     assert_eq "self-sourced audit (directory): the report predicts no in-repo update" "0" \
       "$(grep -c 'would run: claude plugin update alpha@market1 -s project' <<<"$REPORT_TEXT" || true)"
   else

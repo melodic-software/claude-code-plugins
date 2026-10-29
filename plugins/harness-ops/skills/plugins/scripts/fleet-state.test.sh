@@ -1851,10 +1851,10 @@ assert_eq "linkedWorktree: false for a separate-git-dir main checkout under a wo
 assert_eq "linkedWorktree: null for a user-scope record" \
   "null" "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "user") | .linkedWorktree' <<<"$out" 2>/dev/null)"
 assert_eq "label: a lagging linked-worktree record is labeled" \
-  "update ineffective; uninstall clears it" \
+  "update ineffective, uninstall clears it" \
   "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
 assert_eq "label: the same label rides divergences[].scopes[]" \
-  "update ineffective; uninstall clears it" \
+  "update ineffective, uninstall clears it" \
   "$(jq -r '.divergences[] | select(.id == "alpha@market1") | .scopes[] | select(.scope == "project") | .label' <<<"$out" 2>/dev/null)"
 assert_eq "label: a lagging record in a main checkout is not labeled" \
   "null" "$(jq -r '.installed[] | select(.id == "beta@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
