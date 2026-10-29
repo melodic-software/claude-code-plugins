@@ -184,11 +184,38 @@ Three properties, stated first because everything below depends on them:
 
 ## Phase 0: Preflight
 
-Refuse to proceed, with the specific remediation, when any of these fail. Under `--exercised`, run
-them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
+Resolve the config first, then refuse to proceed, with the specific remediation, when any check
+after it fails. Under `--exercised`, run them in the order
+[The exercised scope](#the-exercised-scope---exercised) gives.
 
-- **Config missing** → `/mutation-testing:setup apply`.
-- **Tool unavailable** → `/mutation-testing:setup check` names the install line.
+- **Config.** Read every layer the setup skill's
+  [config merge model](../setup/SKILL.md#the-config-merge-model) names, in its order, and merge
+  them as it says: a later layer overrides a scalar and unions a list. A layer that cannot be read
+  is reported unreadable and skipped. The scope report's `Config:` line names the layer that
+  supplied each value ([`templates/report.md`](templates/report.md)).
+- **No config at any layer** → fall back, never refuse. The defaults are `tool: manual` (the
+  single-operator protocol, [Phase 2](#phase-2-generate)); `diff-target` from
+  `git symbolic-ref --short refs/remotes/origin/HEAD`, never a hardcoded branch, and when that
+  does not resolve, ask the user for it (an unattended run stops, naming
+  `git remote set-head origin --auto`); `mutate` set to the changed source files minus test code,
+  or under `--exercised` every source file minus test code, so the mapping can reach unchanged
+  code; no `max-mutants`, so the effort cap applies
+  ([Effort](#effort-the-mutant-cap-of-last-resort)). Test code is what `/testing:audit --file`
+  claims when the `testing` plugin is installed; otherwise list the files you take as tests and
+  have the user confirm them with the test command. The `Config:` line reads
+  `no config: fallback defaults` and lists each default. **The test command is never guessed.**
+  Ask the user for it, or have them confirm one you propose, and state it to the user before the
+  baseline run; the report's `Config:` line carries it. It serves as `test-command` for this run,
+  so `--exercised` holds it to the same `{tests}` rule. The baseline runs exactly the confirmed
+  command, with `{tests}` filled by the test paths the user confirmed with it, never left empty.
+  Never run a whole-tree test command no one confirmed: in a .NET repository a bare `dotnet test`
+  can run test projects that reset or write shared environments. An unattended run with no test
+  command stops and asks for one.
+- **Tool unavailable** → name the install command as `/mutation-testing:setup check` does, and
+  offer to continue with `tool: manual` this run. Install nothing yourself. Refuse only when the
+  user declines both. A switch to `manual` with no configured `test-command` takes its test
+  command under the never-guessed rule above. An unattended run keeps the configured tool and
+  stops with the install command and the `tool: manual` offer.
 - **Working tree dirty in a file about to be mutated** → stop. A mutation harness reverts by
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.
