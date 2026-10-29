@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Your existing `~/Documents/Claude Learning/` home is adopted as the root, so the workspace goes to `~/Documents/Claude Learning/<project-slug>/topic/sourdough-baking/`.\n\nMission so far: one reliable weekly loaf, three in a row with an open crumb, 30 minutes a week. Does that capture it?",
+      "why": "adopts the home"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The workspace goes to the plugin data directory, `${CLAUDE_PLUGIN_DATA}/<project-slug>/topic/sourdough-baking/`.",
+      "why": "ignores the existing home"
+    },
+    {
+      "answer": "I can't verify your Claude Learning home from here, so the workspace goes to plugin data.",
+      "why": "echoes the prompt's name but does not adopt the home"
+    }
+  ]
+}
