@@ -87,20 +87,30 @@ const CODES = Object.keys(STOP_ROUTES)
   .filter((reason) => STOP_ROUTES[reason].code === true)
   .sort((a, b) => b.length - a.length)
   .map((code) => [code, code === "security-risk" ? /^security[-_\s]*risk/i : new RegExp(`^${code}(?![\\w-])`, "i")]);
-// A reason with no code that names security or a vulnerability, even inside
-// a word.
-const SECURITY_WORD = /security|vuln/i;
+// A reason that names a security concern, even inside a word.
+const SECURITY_WORD = /security|vuln|inject|credential|secret|token|exfiltrat|malicious/i;
+// The routes that end the lane's work on the issue rather than bring it back:
+// a security mention after one of their codes still reaches a person (owner
+// decision 2026-10-29). A wait or retry code comes back to the lane anyway.
+const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 
 // The code a run's stop reason opens with, read NFKC-normalized (so a
 // full-width letter reads as its ASCII one) past any emphasis, backticks and a
-// `Reason:` label. With none, security-risk when it names security or a
-// vulnerability, so a misformatted security code still reaches a person; else
-// "stopped". Intent, design and cost words are common in plain reasons, so
-// only their code holds for them.
+// `Reason:` label. A code whose route ends the lane's work, followed by text
+// that names security, is security-risk instead. With no code, security-risk
+// when it names security, so a misformatted security code still reaches a
+// person; else "stopped". Intent, design and cost words are common in plain
+// reasons, so only their code holds for them.
 export const runCode = (reason) => {
   const text = String(reason ?? "")
     .normalize("NFKC")
     .replace(/[\p{Cf}\p{Mn}]/gu, "")
     .replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
-  return CODES.find(([, code]) => code.test(text))?.[0] ?? (SECURITY_WORD.test(text) ? "security-risk" : "stopped");
+  for (const [name, code] of CODES) {
+    const match = code.exec(text);
+    if (match) {
+      return ENDING_ROUTES.has(STOP_ROUTES[name].route) && SECURITY_WORD.test(text.slice(match[0].length)) ? "security-risk" : name;
+    }
+  }
+  return SECURITY_WORD.test(text) ? "security-risk" : "stopped";
 };

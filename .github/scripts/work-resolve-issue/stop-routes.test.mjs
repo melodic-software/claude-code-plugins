@@ -135,8 +135,33 @@ test("a reason with no code that names intent, design or cost stays stopped", ()
   }
 });
 
+// Owner decision 2026-10-29 (Q4): a security mention always reaches the
+// owner. A close, host-run or attended code whose text names security holds;
+// a wait or retry code comes back to the lane anyway, so it keeps its route.
+test("a close, host-run or attended reason that names security holds as security-risk", () => {
+  for (const reason of [
+    "report-delivered: security audit found CRITICAL leak",
+    "host-only: vulnerability in X",
+    "already-done: fixed the token leak in #5",
+    "already-done: the security fix is on main",
+    "manual-external: rotate the leaked credential",
+    "patch-protected-path: the workflow could exfiltrate secrets",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+    assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+  assert.equal(runCode("blocked-by-pr: #5 fixes the injection"), "blocked-by-pr", "a wait code keeps its route");
+  assert.equal(runCode("already-done: both items are on main at abb359be"), "already-done", "a close that names no security");
+  assert.equal(runCode("host-only: needs the desktop's GPU"), "host-only", "a host-run that names no security");
+});
+
+test("a reason with no code that names a security word holds", () => {
+  for (const reason of ["credential printed to the log", "a malicious dependency", "the prompt could inject commands", "the TOKEN is in the URL", "a secret in the fixture"]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+});
+
 test("a reason that opens with another code keeps it, and one naming no owner reason stays stopped", () => {
-  assert.equal(runCode("already-done: the security fix is on main"), "already-done");
   assert.equal(runCode("blocked-by-pr: #5 settles the design"), "blocked-by-pr");
   assert.equal(runCode("The tests failed twice on a flaky network read."), "stopped");
   assert.equal(runCode("The designer's costs and insecure intents"), "stopped", "only the whole word counts");

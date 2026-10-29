@@ -1728,12 +1728,14 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
 
 const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 
-// A close that counts as done: by a listed human or a merge, or the lanes
+// A close that counts as done: by a listed human or a merge, the lanes App's
+// already-done close whose evidence still holds (owner Q9), or the lanes
 // App's close of a size split's parent once each sub-issue's close counts
 // (admit.mjs splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
-  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, humans, trusted });
+  const isApp = (actor) => actor?.login === bot;
+  return (await closedByHumanOrMerge(github, repo, issue, humans, isApp)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
 }
 
 // For each issue in `closed` (on the sweep, only one a listed human or a

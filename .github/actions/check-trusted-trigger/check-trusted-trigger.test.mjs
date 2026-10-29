@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -2983,4 +2983,75 @@ test("ci-status re-run: the record vouches only for the upstream run, never this
   });
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
   assert.deepEqual(github.calls, [commitPulls]);
+});
+
+// isTrustedClose and the lanes App's already-done close (owner Q9,
+// 2026-10-29): the close counts only when report-outcome's close comment
+// names already-done and the pull request it cites is still merged into the
+// default branch with a merge commit that closes the issue. The comment body
+// is the shape report-outcome writes on close (its round-trip test pins it).
+const isLanesApp = (actor) => actor?.id === LANES_APP.id;
+const MERGE_SHA = "3333333333333333333333333333333333333333";
+const closeComment = (stop, words, user = LANES_APP) => ({
+  user,
+  body: [
+    "<!-- work-resolve-issue outcome=closed run=555 -->",
+    `The work-resolve-issue lane stopped on this issue (\`${stop}\`): the run found the issue's work already on the default branch.`,
+    "It closes the issue as completed.",
+    "",
+    "In the run's words:",
+    "",
+    `> ${words}`,
+  ].join("\n"),
+});
+const APP_CLOSED = { number: 77, state: "closed", closed_by: LANES_APP };
+const appCloseRoutes = ({ comments = [closeComment("already-done", "already-done: ＃5 shipped it")], message = "fix: tidy (#5)\n\nCloses #77", merged = true } = {}) => ({
+  "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } },
+  "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
+  "GET /repos/o/r/issues/77": { number: 77, created_at: "2026-10-01T00:00:00Z" },
+  "GET /repos/o/r": { default_branch: "main" },
+  "GET /repos/o/r/pulls/5": { merged_at: merged ? "2026-10-20T00:00:00Z" : null, base: { ref: "main" }, merge_commit_sha: MERGE_SHA },
+  [`GET /repos/o/r/commits/${MERGE_SHA}`]: { commit: { message } },
+});
+const routeClient = (routes, failOn = "") => async (method, path) => {
+  const key = `${method} ${path}`;
+  if (key === failOn) {
+    throw new GitHubError(502, key);
+  }
+  if (!Object.hasOwn(routes, key)) {
+    throw new GitHubError(404, key);
+  }
+  return routes[key];
+};
+
+test("isTrustedClose: the lanes App's already-done close counts when its merged pull request still closes the issue", async () => {
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
+});
+
+test("isTrustedClose: the lanes App's already-done close counts for nothing once its evidence no longer verifies", async () => {
+  const humans = new Set();
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the merge commit closes nothing");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ merged: false })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the pull request is not merged");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, humans), false, "a caller that names no App");
+  const forged = [closeComment("already-done", "already-done: ＃5 shipped it", STRANGER)];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: forged })), "o/r", APP_CLOSED, humans, isLanesApp), false, "a close comment the App did not write");
+  const reopened = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
+});
+
+test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {
+  const comments = [closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+});
+
+test("isTrustedClose: a read that fails leaves the lanes App's close untrusted", async () => {
+  for (const failOn of [
+    "GET /repos/o/r/issues/77/comments?per_page=100&page=1",
+    "GET /repos/o/r/issues/77",
+    "GET /repos/o/r",
+    "GET /repos/o/r/pulls/5",
+    `GET /repos/o/r/commits/${MERGE_SHA}`,
+  ]) {
+    assert.equal(await isTrustedClose(routeClient(appCloseRoutes(), failOn), "o/r", APP_CLOSED, new Set(), isLanesApp), false, failOn);
+  }
 });

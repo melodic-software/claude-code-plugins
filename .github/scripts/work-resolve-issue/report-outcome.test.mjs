@@ -38,6 +38,7 @@ import {
   unmarkedAnswer,
   waitedPull,
 } from "./report-outcome.mjs";
+import { closeStop } from "../lib/done-evidence.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
@@ -3290,6 +3291,13 @@ test("route close: already-done and report-delivered close the issue as complete
     assert.match(plan.comment, /closes the issue as completed/);
     assert.ok(plan.comment.includes(reason), plan.comment);
   }
+  // The close comment reads back as its stop and the run's own reason, which
+  // isTrustedClose re-checks (owner Q9, 2026-10-29).
+  const done = stoppedPlan("already-done: #5 shipped it\nand abb359be too", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
+  assert.deepEqual(closeStop(done.comment), { stop: "already-done", reason: "already-done: ＃5 shipped it\nand abb359be too" });
+  const report = stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
+  assert.equal(closeStop(report.comment).stop, "report-delivered");
+  assert.equal(closeStop(stoppedPlan("the tests failed").comment), null, "a retry comment is no close");
   // A report closes only a read-only issue the run committed nothing for.
   assert.equal(stoppedPlan("report-delivered: the report is below").action, "retry");
   assert.equal(stoppedPlan("report-delivered: the report is below", { issueLabels: ["agent-ready"], branch: "" }).action, "retry");

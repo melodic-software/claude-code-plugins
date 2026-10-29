@@ -2131,6 +2131,10 @@ files its sub-issues (owner Q93). What changes from the PR flow:
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
   `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
+  A security mention always reaches the owner: a reason with no code, or one whose code's route is
+  `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
+  `credential`, `secret`, `token`, `exfiltrat` or `malicious`, in any case and even inside a word)
+  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
   `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
   carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
@@ -2156,7 +2160,10 @@ files its sub-issues (owner Q93). What changes from the PR flow:
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
   and its commit message closes the issue, and `report-delivered` only on a
   `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
-  report; either retries otherwise. `fail` removes `agent-ready`, adds no label and comments
+  report; either retries otherwise. Dependents and split parents count the lanes App's
+  `already-done` close as trusted only while that evidence re-checks true when they read it
+  (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
+  `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker

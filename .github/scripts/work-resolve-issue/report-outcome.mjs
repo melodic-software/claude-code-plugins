@@ -135,8 +135,11 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
+import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
+
+export { doneEvidence };
 
 export const HOLD_LINE = "Hold: a human merges this";
 // The work class of an issue that asks for a report and no change.
@@ -509,7 +512,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   const exit = ROUTE_OUTCOME[route];
   const lines = [
     `<!-- work-resolve-issue outcome=${exit}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
-    `The work-resolve-issue lane stopped on this issue (\`${stop}\`): ${stopWhy(shown)}.`,
+    `${stopLine(stop)} ${stopWhy(shown)}.`,
     ...(why ? [why] : []),
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
@@ -519,7 +522,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
-    lines.push("", "In the run's words:", "", quoted(words));
+    lines.push("", RUN_WORDS, "", quoted(words));
   }
   // A closed issue's result is the run's report, which its summary holds.
   if (route === "close" && outcome.reason && outcome.summary) {
@@ -1611,71 +1614,6 @@ const openPull = (github, repo, pr, { bot, humans }) =>
         () => "",
       )
     : Promise.resolve("");
-
-// Whether `text` closes issue `number` as GitHub reads a closing keyword:
-// close, fix or resolve in any tense and case, an optional colon, then
-// `#<number>`. A `Refs:` line, a follow-up or a squash suffix closes nothing.
-// branch-cleanup's linkedIssues takes the same keywords and `Refs` too, and a
-// script activity runs from a copy of its own directory, so it is restated here.
-const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?!\\w)`, "i").test(text);
-
-// Whether the commit or pull request an already-done reason cites is on the
-// default branch and closes the issue: a pull request (`#<n>`) merged into
-// the default branch, or a commit SHA the default branch contains (the
-// compare from it is ahead or identical), merged or committed after the issue
-// opened, whose commit message closes the issue (closesIssue). A pull request
-// is read by its merge commit, which a squash fills from the body, since its
-// title and body stay editable after the merge. Lane pull requests carry
-// `Closes #N`, so nothing else counts: a release commit once closed an issue
-// it never touched (run 40844966342). A read that fails, or a reason that
-// cites neither, proves nothing. The first three cited numbers other than the
-// issue are tried, so a duplicate cited before the closing pull request is no
-// cover.
-export async function doneEvidence(github, repo, reason, issueNumber) {
-  const prs = [...new Set([...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]))]
-    .filter((number) => Number(number) !== issueNumber)
-    .slice(0, 3);
-  // A SHA holds a letter, so a run id or other number is never read as one;
-  // the first three such words are tried, so a hex-looking word is no cover.
-  const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
-  if (prs.length === 0 && shas.length === 0) {
-    return false;
-  }
-  const issue = await github("GET", `${repo}/issues/${issueNumber}`).catch(() => null);
-  const base = await github("GET", repo).then((answer) => answer?.default_branch, () => "");
-  const opened = Date.parse(issue?.created_at);
-  if (!Number.isFinite(opened) || typeof base !== "string" || base === "") {
-    return false;
-  }
-  const tied = (commit, at) => Date.parse(at) > opened && closesIssue(String(commit?.commit?.message ?? ""), issueNumber);
-  for (const pr of prs) {
-    if (
-      await github("GET", `${repo}/pulls/${pr}`)
-        .then(
-          async (pull) =>
-            Boolean(pull?.merged_at) &&
-            pull.base?.ref === base &&
-            /^[0-9a-f]{40}$/.test(pull.merge_commit_sha ?? "") &&
-            tied(await github("GET", `${repo}/commits/${pull.merge_commit_sha}`), pull.merged_at),
-        )
-        .catch(() => false)
-    ) {
-      return true;
-    }
-  }
-  for (const sha of shas) {
-    const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(base)}`).catch(() => null);
-    if (
-      (comparison?.status === "ahead" || comparison?.status === "identical") &&
-      (await github("GET", `${repo}/commits/${encodeURIComponent(sha)}`)
-        .then((commit) => tied(commit, commit?.commit?.committer?.date))
-        .catch(() => false))
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
 
 // A stop plan's edits. A wait on a pull request that is not open or that
 // neither the lanes App nor a listed human opened, and an already-done close
