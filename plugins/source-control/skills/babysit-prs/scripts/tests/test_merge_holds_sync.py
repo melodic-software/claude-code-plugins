@@ -1350,7 +1350,7 @@ _SHARED_OLD = {
     "status": "modified",
     "patch": "@@ -93,6 +93,13 @@ let root;\n context\n+mine",
 }
-_SHARED_HEAD = _SHARED_OLD | {"patch": "@@ -98,6 +98,13 @@ let root;\n context\n+mine"}
+_SHARED_HEAD = _SHARED_OLD | {"patch": "@@ -98,6 +98,13 @@ let root;\n context the base edited\n+mine"}
 _SHARED_BASE = {
     "filename": _SHARED,
     "status": "modified",

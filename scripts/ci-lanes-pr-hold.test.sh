@@ -519,10 +519,9 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
 done
 # ci-status's own workflow is in the merge-enforcement set: ci-status holds it
 # for a person.
-for path in .github/workflows/pr-require-checks.yml; do
-  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
-done
+path=.github/workflows/pr-require-checks.yml
+STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
 # Owner decision Q7: a lane-armed gate path (a job-token dispatcher of a gated
 # workflow, the rate guard, a gate script, an agent instruction file) is the
 # merge gate's, which holds it for a person until both lanes are bound to a

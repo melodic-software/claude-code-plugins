@@ -793,12 +793,17 @@ const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastE
 
 // Whether two compare answers (base...head) show the same net change of the
 // pull request: the same filenames, each with the same status,
-// previous_filename and patch. A list of 300 files or more (the compare
+// previous_filename and patch. Each hunk header's line numbers are dropped
+// before the patches compare (HUNK_LINES), so a base merge that edits the
+// same file above the pull request's hunk, shifting its offsets, carries;
+// the hunk bodies, their context lines and the hunk count still compare
+// exactly. A list of 300 files or more (the compare
 // API's cap), a file with no patch, a filename listed twice, or an answer
 // with no file list is not the same (babysit_merge_policy.same_net_change).
 // The compare API reports no file mode, so a change that only flips a
 // file's mode (such as making it executable) reads as the same: a known
 // residual a merge can carry.
+const HUNK_LINES = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/gm;
 export function sameNetChange(decided, current) {
   const net = (compare) => {
     const files = compare?.files;
@@ -806,7 +811,7 @@ export function sameNetChange(decided, current) {
     const byName = new Map();
     for (const f of files) {
       if (typeof f?.filename !== "string" || typeof f.patch !== "string" || byName.has(f.filename)) return null;
-      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch]));
+      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch.replace(HUNK_LINES, "@@")]));
     }
     return byName;
   };

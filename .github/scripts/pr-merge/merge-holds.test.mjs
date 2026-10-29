@@ -875,6 +875,25 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(null, net(TF)), false);
 });
 
+// A base merge that edits the same file above the pull request's hunk shifts
+// the hunk header's line numbers and nothing else: the approval carries. Any
+// change to a hunk's body or context, or to the hunk count, does not.
+const SHIFT_FILE = (patch) => ({ filename: "docs/a.md", status: "modified", patch });
+const HUNK = "@@ -10,3 +10,4 @@ ## Section\n context\n+added\n more\n tail";
+test("sameNetChange ignores hunk header line numbers and nothing else", () => {
+  const shifted = HUNK.replace("@@ -10,3 +10,4 @@", "@@ -14,3 +14,4 @@");
+  assert.equal(sameNetChange(net(SHIFT_FILE(HUNK)), net(SHIFT_FILE(shifted))), true);
+  assert.equal(sameNetChange(net(SHIFT_FILE(`${HUNK}\n@@ -40 +41 @@\n-x\n+y`)), net(SHIFT_FILE(`${shifted}\n@@ -44 +45 @@\n-x\n+y`))), true);
+  for (const [name, other] of [
+    ["a body line", shifted.replace("+added", "+added!")],
+    ["a context line", shifted.replace(" context", " context!")],
+    ["the section heading", shifted.replace("## Section", "## Other")],
+    ["a second hunk", `${shifted}\n@@ -40 +41 @@\n-x\n+y`],
+  ]) {
+    assert.equal(sameNetChange(net(SHIFT_FILE(HUNK)), net(SHIFT_FILE(other))), false, name);
+  }
+});
+
 // The live link a pass binds, by the gate's rule (README "Eligibility"): one
 // closing issue in this repository, or, with none, one plain `Refs: #<n>`
 // issue; a pass binds only the issue it judged, linked the same way
@@ -1235,7 +1254,7 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
 // #10224's own patches: the pull request's hunks sit lower in the shared
 // file, so the base's hunk applies with the same header and context.
 const SHARED_AT_OLD = { filename: ".github/actions/collect-base-activity/collect-base-activity.test.mjs", status: "modified", patch: "@@ -93,6 +93,13 @@ let root;\n context\n+mine" };
-const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context\n+mine" };
+const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context the base edited\n+mine" };
 const SHARED_BASE = { filename: SHARED_AT_OLD.filename, status: "modified", patch: "@@ -10,6 +10,11 @@ import\n+theirs" };
 const REPLAY = { compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: merged([HELD_PATCH, SHARED_AT_HEAD]) }, across: ranges(brought([BASE_DOC, SHARED_BASE]), baseRange([SHARED_BASE, BASE_DOC])) };
 test("#10224's shape carries when the merges brought exactly the base's changes", async () => {

@@ -426,6 +426,31 @@ class CostDecision(unittest.TestCase):
         # A merge that drops one of its files is a change of its own.
         self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
 
+    def test_same_net_change_ignores_hunk_line_numbers_and_nothing_else(
+        self,
+    ) -> None:
+        # A base merge editing the same file above the hunk shifts its header
+        # numbers only (merge-holds.mjs `sameNetChange` reads it the same way).
+        hunk = "@@ -10,3 +10,4 @@ ## Section\n context\n+added\n more\n tail"
+        shifted = hunk.replace("@@ -10,3 +10,4 @@", "@@ -14,3 +14,4 @@")
+
+        def doc(patch: str) -> dict[str, Any]:
+            return {
+                "files": [
+                    {"filename": "docs/a.md", "status": "modified", "patch": patch}
+                ]
+            }
+
+        self.assertTrue(policy.same_net_change(doc(hunk), doc(shifted)))
+        for name, other in {
+            "a body line": shifted.replace("+added", "+added!"),
+            "a context line": shifted.replace(" context", " context!"),
+            "the section heading": shifted.replace("## Section", "## Other"),
+            "a second hunk": f"{shifted}\n@@ -40 +41 @@\n-x\n+y",
+        }.items():
+            with self.subTest(name):
+                self.assertFalse(policy.same_net_change(doc(hunk), doc(other)))
+
     def test_a_rebase_or_a_commit_of_its_own_with_the_same_net_change_re_holds(
         self,
     ) -> None:
