@@ -255,9 +255,9 @@ export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), un
 // scripts/sync-hold-floor.py, which writes this list); `gate`, the rest of the
 // merge gate's own code (the other pr-merge scripts and the rate guard), and
 // the review's own surface, which never takes the author lift: every workflow
-// holding a secret or a lane token, the review workflows among them, the
-// main-run review's scripts, and the agent settings and instruction files;
-// `enforcement`, the ci-status workflow, the other modules the
+// holding a secret or a lane token or granting `actions: write`, the review
+// workflows and ci-status among them, the main-run review's scripts, and the
+// agent settings and instruction files; `enforcement`, the other modules the
 // floored scripts import and the Python that decides the holds
 // (test_merge_holds_sync.py derives both closures and requires them here),
 // and the scripts that act on a pr-unblock stop's route (report-escalation.sh,
@@ -313,7 +313,6 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"],
   ["plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"],
-  [".github/workflows/pr-require-checks.yml", "enforcement"],
   ["docs/conventions/pr-pipeline.yaml", "trust"],
   [".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"],
   [".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"],
@@ -354,16 +353,22 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/standards/**", "gate"],
   [".github/workflows/dependabot-fragments.yml", "gate"],
   [".github/workflows/eval-browser-dispatch.yml", "gate"],
+  [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/post-merge-demotion-alert.yml", "gate"],
   [".github/workflows/post-merge-test-mutation.yml", "gate"],
+  [".github/workflows/pr-feedback-dispatch.yml", "gate"],
   [".github/workflows/pr-merge.yml", "gate"],
   [".github/workflows/pr-refine.yml", "gate"],
+  [".github/workflows/pr-require-checks.yml", "gate"],
   [".github/workflows/pr-review-hosted.yml", "gate"],
   [".github/workflows/pr-review-main.yml", "gate"],
   [".github/workflows/pr-review-security-hosted.yml", "gate"],
   [".github/workflows/pr-run-activity-read.yml", "gate"],
   [".github/workflows/pr-run-activity-write.yml", "gate"],
+  [".github/workflows/pr-unblock-dispatch.yml", "gate"],
   [".github/workflows/pr-unblock.yml", "gate"],
   [".github/workflows/pr-verify.yml", "gate"],
   [".github/workflows/release-publish-plugins.yml", "gate"],

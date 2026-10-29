@@ -3582,6 +3582,7 @@ def score_unattended(
         author_reviewed=reviewed,
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+        base_sha=json_object(pr.get("base")).get("sha"),
         **lane_switches,
     )
     risk = babysit_risk.score(risk_input)

@@ -512,10 +512,15 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/dependency-classify.mjs .github/scripts/apply-patch/apply-patch.mjs \
   .github/scripts/apply-patch/predicates.mjs .github/scripts/apply-patch/protected-paths.mjs \
   .github/scripts/apply-patch/retry-fetch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs \
-  .github/workflows/pr-require-checks.yml \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
+done
+# ci-status's own workflow, and a job-token dispatcher of a gated workflow, are
+# gate paths: ci-status holds them for a person.
+for path in .github/workflows/pr-require-checks.yml .github/workflows/intake-reenter.yml; do
+  STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"

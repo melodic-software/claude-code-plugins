@@ -716,8 +716,9 @@ class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
 
 
 class LongLineHolds(unittest.TestCase):
-    """A lane-source pull request whose patch holds a line longer than the
-    main-run review reads whole holds for a person (`long-line-review:`)."""
+    """A pull request the main-run review binds (`needs_main_review`) whose
+    patch holds a line longer than that review reads whole holds for a person
+    (`long-line-review:`)."""
 
     LONG = "+" + "x" * 2500
     SHORT = "+" + "x" * 1000
@@ -755,6 +756,29 @@ class LongLineHolds(unittest.TestCase):
     def test_a_pull_request_without_a_lane_source_is_not_this_hold(self):
         codes = self.codes(_file("app.py", patch=_patch(self.LONG)))
         self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
+    def test_only_a_path_the_main_run_review_binds_holds(self):
+        # A read-only workflow binds through the pull_request lanes, which read
+        # the whole diff, so its long line is no hold (`needs_main_review`).
+        from test_babysit_review_evidence import BASE, READ_ONLY
+        from test_babysit_review_evidence import WORKFLOW as LINT_DOCS
+
+        line = "-" + "x" * 2000
+
+        def codes(head, base_sha=BASE):
+            wf = _file(LINT_DOCS, patch=_patch(line), contents=(READ_ONLY, head))
+            result = score(_input(files=(wf,), base_sha=base_sha))
+            return [c for c in _codes(result) if c.startswith("long-line-review:")]
+
+        self.assertEqual(codes(READ_ONLY), [])
+        # A write scope, or no base to prove the read, needs the main-run review.
+        writer = READ_ONLY.replace(
+            "  contents: read\njobs:", "  contents: write\njobs:"
+        )
+        self.assertNotEqual(writer, READ_ONLY)
+        self.assertEqual(codes(writer), [f"long-line-review:{LINT_DOCS}"])
+        self.assertEqual(codes(READ_ONLY, None), [f"long-line-review:{LINT_DOCS}"])
 
 
 if __name__ == "__main__":

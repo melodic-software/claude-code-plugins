@@ -251,7 +251,6 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_util.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py
-        .github/workflows/pr-require-checks.yml
         docs/conventions/pr-pipeline.yaml
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
@@ -292,16 +291,22 @@ jobs:
         docs/standards/**
         .github/workflows/dependabot-fragments.yml
         .github/workflows/eval-browser-dispatch.yml
+        .github/workflows/intake-reenter.yml
         .github/workflows/intake-triage.yml
         .github/workflows/maintenance-audit-lane-runs.yml
+        .github/workflows/maintenance-reconcile-lost-runs.yml
+        .github/workflows/post-merge-demotion-alert.yml
         .github/workflows/post-merge-test-mutation.yml
+        .github/workflows/pr-feedback-dispatch.yml
         .github/workflows/pr-merge.yml
         .github/workflows/pr-refine.yml
+        .github/workflows/pr-require-checks.yml
         .github/workflows/pr-review-hosted.yml
         .github/workflows/pr-review-main.yml
         .github/workflows/pr-review-security-hosted.yml
         .github/workflows/pr-run-activity-read.yml
         .github/workflows/pr-run-activity-write.yml
+        .github/workflows/pr-unblock-dispatch.yml
         .github/workflows/pr-unblock.yml
         .github/workflows/pr-verify.yml
         .github/workflows/release-publish-plugins.yml

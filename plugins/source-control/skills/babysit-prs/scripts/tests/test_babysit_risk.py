@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 18, "gate": 42, "enforcement": 41},
+            {"trust": 18, "gate": 48, "enforcement": 40},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1812,6 +1812,12 @@ def _credentialed(text: str) -> bool:
         job.get("permissions") for job in (data.get("jobs") or {}).values()
     ]
     oidc = any(isinstance(p, dict) and p.get("id-token") == "write" for p in perms)
+    # `actions: write` dispatches the gated credentialed workflows; write-all
+    # grants it and id-token both.
+    dispatch = any(
+        p == "write-all" or (isinstance(p, dict) and p.get("actions") == "write")
+        for p in perms
+    )
     code = "\n".join(
         line.split(" #")[0]
         for line in text.splitlines()
@@ -1823,15 +1829,16 @@ def _credentialed(text: str) -> bool:
         for job in (data.get("jobs") or {}).values()
         for step in job.get("steps") or ()
     )
-    return oidc or bool(secrets - {"github_token"}) or lane_token
+    return oidc or dispatch or bool(secrets - {"github_token"}) or lane_token
 
 
 @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
 class CredentialedWorkflowsAreGate(unittest.TestCase):
     """Owner decision Q11 (A), 2026-10-28: the workflow `gate` class keeps
-    only the review workflows and those that hold a credential beyond the
-    job's GITHUB_TOKEN; a job-token writer leaves it, its widenings still
-    held by patch. Membership is derived from the files
+    only the review workflows, ci-status, those that hold a credential beyond
+    the job's GITHUB_TOKEN and those whose token can dispatch them
+    (`actions: write`); any other job-token writer leaves it, its widenings
+    still held by patch. Membership is derived from the files
     (scripts/sync-hold-floor.py `gate_workflows`), never kept by hand."""
 
     def gate(self):
@@ -1843,7 +1850,11 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         held_count = 0
         for wf in found:
             path = wf.relative_to(_REPO).as_posix()
-            want = wf.stem.startswith("pr-review") or _credentialed(wf.read_text())
+            want = (
+                wf.stem.startswith("pr-review")
+                or wf.stem == "pr-require-checks"
+                or _credentialed(wf.read_text())
+            )
             held_count += want
             with self.subTest(path):
                 self.assertEqual(path in self.gate(), want)
@@ -1853,10 +1864,47 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     in [r.code for r in person_reasons(result.reasons)],
                     want,
                 )
-        # A job-token writer is off the gate: ci-status, intake re-entry.
+        # ci-status, and the job-token dispatchers of gated workflows, are in.
         for name in ("pr-require-checks", "intake-reenter", "pr-feedback-dispatch"):
-            self.assertNotIn(f".github/workflows/{name}.yml", self.gate())
+            self.assertIn(f".github/workflows/{name}.yml", self.gate())
         self.assertLess(held_count, len(found))
+
+    def test_ci_status_holds_for_a_person_after_its_authors_clean_review(self):
+        # It posts ci-status and holds the hold step: a model verdict, or a
+        # trusted author's own commits, never clear it.
+        path = ".github/workflows/pr-require-checks.yml"
+        self.assertEqual(dict(babysit_risk.FLOOR_CLASSES).get(path), "gate")
+        result = score(_input(files=(_file(path),), author_reviewed=frozenset({path})))
+        self.assertIn(
+            f"high-path:{path}", [r.code for r in person_reasons(result.reasons)]
+        )
+        self.assertNotIn(f"review-path:{path}", _codes(result))
+        # Named by file, so trimming its permissions keeps it gated.
+        self.assertTrue(babysit_risk.gated_workflow("pr-require-checks", "on: push\n"))
+
+    def test_actions_write_moves_an_ungated_workflow_into_the_gate(self):
+        # It can dispatch a gated credentialed workflow.
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "    permissions:\n      actions: write\n",
+            "    permissions:\n      actions: write # dispatch y.yml\n",
+            "    permissions:\n      'actions': 'write'\n",
+            '    permissions:\n      "actions": "write"\n',
+            "    permissions: {actions: write, contents: read}\n",
+            "    permissions: write-all\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                top = text.replace("jobs:", added.replace("    ", "", 1) + "jobs:")
+                self.assertTrue(babysit_risk.gated_workflow("x", top))
+        for plain in (
+            "    permissions:\n      actions: read\n",
+            "    permissions:\n      contents: write\n",
+            "    permissions:\n      # actions: write\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
 
     def test_a_secret_moves_an_ungated_workflow_into_the_gate(self):
         text = "name: x\non: push\npermissions:\n  contents: write\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ${{ secrets.GITHUB_TOKEN }}\n"
@@ -2011,7 +2059,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 41)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 40)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

@@ -1000,12 +1000,17 @@ the rules that only tighten in
     beyond its job's `GITHUB_TOKEN`: a secret other than `GITHUB_TOKEN`, a lane token
     (`request-lane-token`), or an OIDC token (`id-token: write`), `pr-merge.yml` and
     `pr-unblock.yml` among them (owner decision Q11 (A), 2026-10-28: a job token dies with its job
-    and cannot push to main past branch protection, while an App key or PAT outlives the run).
+    and cannot push to main past branch protection, while an App key or PAT outlives the run). So
+    is ci-status, `pr-require-checks.yml`, which posts the required status and runs the hold step,
+    named by file, and each workflow whose job token has `actions: write` (or `write-all`), which
+    can dispatch those credentialed workflows, `intake-reenter.yml` and
+    `pr-feedback-dispatch.yml` among them: a logic edit inside scopes it already holds trips no
+    patch hold, so a model verdict alone never clears it. 23 workflows are gated.
     `scripts/sync-hold-floor.py` derives these rows from the workflow files with
-    `babysit_risk.gated_workflow`, so a workflow that gains a secret joins the gate, and `--check`
-    fails on a stale table. A workflow whose token only writes through its job token, such as
-    `pr-require-checks.yml` (an `enforcement` path), is off the gate: the main-run review binds it,
-    and a gained write scope, trigger, secret or model leg holds by its patch. Also what changes
+    `babysit_risk.gated_workflow`, so a workflow that gains a secret or `actions: write` joins the
+    gate, and `--check` fails on a stale table. A workflow whose job token writes other scopes
+    only is off the gate: the main-run review binds it, and a gained write scope, trigger, secret
+    or model leg holds by its patch. Also what changes
     what agents may do unattended or what later reviews judge against: `**/.claude/**` and
     `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
     commands, rules, output styles and memory, under owner decision Q11, which supersedes the
@@ -1024,8 +1029,7 @@ the rules that only tighten in
     and hold-table code and the scripts that apply the holds are `trust`, never `gate`, so they
     never take this lift: agents commit as the trusted owner, so a pull request that widens a lane
     token's scope, widens the lift, drops a floor row or weakens a hold waits for a person.
-  - `enforcement`, a clean security review clears it: `.github/workflows/pr-require-checks.yml`,
-    and every other module the floored scripts
+  - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
     reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
@@ -1071,7 +1075,9 @@ the rules that only tighten in
   and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when the
   run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
   line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
-  the merge gate holds such a lane-source pull request for a person as `long-line-review:<path>`,
+  the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
+  `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
+  whole diff) for a person as `long-line-review:<path>`,
   and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff
   uses `--no-renames`, so a renamed file is reviewed whole. A verdict binds only when the head
   also carries the record job's `pr-review-main: <lane>` check run with the same counts, so a run
