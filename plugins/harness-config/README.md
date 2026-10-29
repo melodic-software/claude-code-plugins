@@ -128,8 +128,8 @@ the model-era checks and routes hygiene findings to the `harness-memory` plugin'
 a documented fallback when it is not installed); upstream-owned plugin-cache and managed-file
 findings route to the owning repository rather than being edited in place.
 
-**Check I15 asks a different question with a different unit of judgment.** Do two surfaces
-contradict each other? A per-surface lane sees only one half of a pair, so it is answered by its own
+Check I15 asks whether two surfaces contradict each other, which is a different unit of judgment
+from the other checks. A per-surface lane sees only one half of a pair, so I15 is answered by its own
 pass over the pair set, against `skills/audit-instructions/reference/conflict-criteria.md`. The `conflicts` scope runs that
 pass alone, so a scheduled hygiene routine can compose it on its own token budget.
 
