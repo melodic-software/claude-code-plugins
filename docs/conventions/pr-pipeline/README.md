@@ -1867,11 +1867,13 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main, and after each one whose only failure is
+same-repository, non-draft pull request into main, and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
-widening; resolve-pr's `heldOnly` reads the run's jobs and the `ci-status` log). The person then
-approves a head pr-verify has judged; `ci-status` stays red until that approval, which no
-verdict replaces. It never runs the pull request's code: a model
+widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
+jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session
+holding the pull request with `do-not-merge` gets a verdict on each head it pushes. `ci-status`
+stays red until that approval and while the label is on, and the merge queue still removes a
+labeled pull request; no verdict replaces either. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue
