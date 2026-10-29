@@ -1057,7 +1057,7 @@ describe("admit", () => {
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a `host-run` child issue/);
   });
 
   test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
@@ -1527,10 +1527,50 @@ describe("unrunnableCriteria", () => {
   });
 });
 
-test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
-  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
-  assert.equal(result.verdict, "refuse");
-  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+// Host work goes to the host queue (`host-run`), parked at status: confirmed,
+// never to a person (docs/conventions/loop-lane/README.md, the three labels
+// that take work off the unattended path). Only a mixed issue lacking
+// host-run holds, so refine.mjs splitOf can split it from needs-decision.
+describe("host-run work", () => {
+  const HOST_ONLY = "- [ ] Run it on a Windows 11 host.";
+  const hostRun = (body, labels = [{ name: READY }]) => issueOf({ body, labels });
+
+  test("every done-when item unrunnable goes to the host queue: host-run added, no hold, no split", async () => {
+    const result = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, undefined);
+    assert.equal(result.hostRun, true);
+    assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so the host queue takes it \(`host-run`\)/);
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY) });
+    assert.equal((await go(fake)).status, CONFIRMED);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED, "host-run"] })}`);
+  });
+
+  // #9293: the owner released it with host-run added, and admission held it again.
+  test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
+    for (const body of [HOST_ONLY, CANARY]) {
+      const issue = hostRun(body, [{ name: READY }, { name: "host-run" }]);
+      const result = decide(facts({ issue }));
+      assert.equal(result.verdict, "refuse", body);
+      assert.equal(result.hold, undefined, body);
+      assert.equal(result.hostRun, undefined, body);
+      const fake = fakeGitHub({ issue });
+      assert.equal((await go(fake)).status, CONFIRMED, body);
+      assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`, body);
+    }
+  });
+
+  test("a hold for a person adds no host-run, so no unattended host run acts on held text", async () => {
+    const trusted = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(trusted.hostRun, true);
+    const issue = issueOf({ body: HOST_ONLY, user: { id: OUTSIDER } });
+    const held = decide(facts({ issue }));
+    assert.equal(held.hold, true);
+    assert.equal(held.hostRun, undefined);
+    const fake = fakeGitHub({ issue });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
 });
 
 describe("noteUnrunnable", () => {

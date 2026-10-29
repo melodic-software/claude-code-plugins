@@ -54,9 +54,11 @@
 //   OS, a paid eval (trigger probes and before-and-after eval numbers
 //   included), a live Claude Code CLI run, a run repeated N times, a
 //   measurement over time, a comment on the issue instead of a file change,
-//   or a page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue, which
-//   refine.mjs files when some items are left for the lane;
+//   or a page on a host outside resolve-issue's web-access domains. When some
+//   items are left for the lane and the issue lacks `host-run`, the refusal
+//   holds at needs-decision and recommends splitting those items off, which
+//   refine.mjs records; otherwise it parks at status: confirmed and adds
+//   `host-run`, the host queue's label, when no hold for a person applies;
 // - not already done: no pull request merged in this repository names the
 //   issue on a `Refs:` line (refsNames) after its newest decision or
 //   refinement comment, or since it opened when it has neither
@@ -132,6 +134,9 @@ export const CONFIRMED = "status: confirmed";
 // The owner-present label (owner decision 2026-10-28): only a listed human
 // removes it.
 export const ATTENDED = "attended";
+// The host queue's label (stop-routes.mjs): an unattended agent run on a host
+// builds the work.
+export const HOST_RUN = "host-run";
 // Opens the refinement line that records the work's external state
 // (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
@@ -707,7 +712,8 @@ export function unpushablePaths(body, taskList, names, workflows) {
 }
 
 // The refusal reason for unrunnableCriteria's result, with the split it
-// recommends, or null when every item is runnable.
+// recommends, or null when every item is runnable. Host work goes to the host
+// queue (`host-run`), never to a person.
 export function unrunnableReason({ items, found }) {
   if (found.length === 0) {
     return null;
@@ -715,8 +721,8 @@ export function unrunnableReason({ items, found }) {
   const list = found.map(({ n, kind, text }) => `item ${n} (${kind}: "${text}")`).join(", ");
   const split =
     found.length === items
-      ? "no done-when item is left for the lane, so a person takes the issue"
-      : "recommended split: keep the other items here as the admissible issue and move these to a needs-human child issue";
+      ? `no done-when item is left for the lane, so the host queue takes it (\`${HOST_RUN}\`)`
+      : `recommended split: keep the other items here as the admissible issue and move these to a \`${HOST_RUN}\` child issue`;
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
@@ -797,8 +803,11 @@ export function admissionSettled(labels, events, isMark) {
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
 // refusal that parks at needs-decision: an untrusted author or provenance or
 // a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
-// person out of every other refusal), or done-when items a lane run cannot
-// perform, which refine splits only from needs-decision (refine.mjs splitOf).
+// person out of every other refusal), or, on an issue without `host-run`,
+// done-when items a lane run cannot perform beside items it can, which refine
+// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` on a
+// refusal with no hold asks admit() to add `host-run`: no item is left for
+// the lane.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
@@ -878,10 +887,14 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
-  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts));
+  const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
+  const unrunnable = unrunnableReason(criteria);
+  // An issue already in the host queue parks at status: confirmed.
+  const queue = unrunnable !== null && !labels.includes(HOST_RUN);
+  const hostRun = queue && criteria.found.length === criteria.items;
   if (unrunnable) {
     refuse.push(unrunnable);
-    hold = true;
+    hold ||= queue && !hostRun;
   }
   // apply-patch refuses the issue lane's push of these paths
   // (patch-protected-path), so a run for such a criterion is spent for
@@ -955,7 +968,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: [...refuse, ...parked], ...(hold && { hold }), ...(attended && { attended }), ...(doneBy.length > 0 && { done: doneBy }) };
+    // A hold for a person adds no host-run: a host run would act on held text.
+    return {
+      verdict: "refuse",
+      reasons: [...refuse, ...parked],
+      ...(hold && { hold }),
+      ...(attended && { attended }),
+      ...(hostRun && !hold && { hostRun }),
+      ...(doneBy.length > 0 && { done: doneBy }),
+    };
   }
   if (parked.length > 0) {
     return { verdict: "wait", reasons: parked, pulls: [] };
@@ -990,7 +1011,8 @@ export async function trustedElsewhere(github, blocker, humans) {
   }
 }
 
-async function parentOf(github, base) {
+// The issue at `base`'s native parent (REST), or null when it has none.
+export async function parentOf(github, base) {
   try {
     return await github("GET", `${base}/parent`);
   } catch (error) {
@@ -1140,6 +1162,17 @@ export async function specOf(github, repository, number) {
 export const noTrustedSpec = (taskList) =>
   `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
 
+// splitChildBody's `spec.splitParent` for `parent`, a sub-issue's native
+// parent as parentOf reads it: {number, spec (specOf), appId}, or undefined
+// when it has none in this repository. Admission and the issue lane
+// (write-issue.mjs) read it here.
+export async function splitParentOf(github, repository, parent, appId) {
+  if (parent === null || !here(parent.repository_url, repository) || !Number.isInteger(parent.number)) {
+    return undefined;
+  }
+  return { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+}
+
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in
@@ -1162,6 +1195,10 @@ const writtenBy = (humans) => {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   return (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
 };
+
+// Whether a User among `humans` wrote `item` (a body or comment as specOf
+// reads it), and last edited it if ever. Pure.
+export const humanWritten = (item, humans) => writtenBy(humans)(item);
 
 // The refinement comment that counts as spec on `spec`, or undefined: only on
 // a body a listed human wrote (refinementSpec).
@@ -1523,8 +1560,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
   const parent = child || typed ? await parentOf(github, base) : null;
   // A size split's sub-issue counts as its parent's text (splitChildBody).
-  if (child && parent !== null && here(parent.repository_url, repository) && Number.isInteger(parent.number)) {
-    spec.splitParent = { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
+  if (child) {
+    spec.splitParent = await splitParentOf(github, repository, parent, appId);
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
@@ -1614,7 +1651,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
     const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: decision.attended ? [status, ATTENDED] : [status] });
+    await github("POST", `${base}/labels`, { labels: [status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
