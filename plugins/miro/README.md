@@ -214,7 +214,7 @@ Three supported routes:
 
    Every option here is `sensitive`, so rotate a credential through route 1, not this
    command: route 1 keeps a secret off the command line, where it would land in shell
-   history and the process table, and the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md) records no
+   history and the process table, and the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md) records no
    check of this command for a sensitive value. Do **not** `claude plugin uninstall`
    to reconfigure either: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
 
