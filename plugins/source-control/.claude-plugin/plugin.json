@@ -25,13 +25,13 @@
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",
       "title": "PR-body-linkage-gate hook",
-      "description": "Blocks a gh pr create or gh pr edit whose statically readable PR body would fail the repository's required PR-contract check: no closing keyword, or a missing or empty Summary, Fix, Verification, or Related section. On by default. A body the hook cannot read statically always passes.",
+      "description": "Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes.",
       "default": true
     },
     "pr_linkage_mcp_gate_enabled": {
       "type": "boolean",
       "title": "PR-linkage-MCP-gate hook",
-      "description": "Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body would fail the repository's required PR-contract check, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names.",
+      "description": "Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names.",
       "default": true
     },
     "branch_issue_pattern": {

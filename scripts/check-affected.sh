@@ -61,7 +61,9 @@
 #                          --check-bump, --check-preserved and --check-order
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
-#                          file changed
+#                          file changed; without --tests it sets
+#                          CHECK_SKILL_SKIP_SCRIPT_TESTS=1, so the skills'
+#                          scripts/*.test.sh are left to the test tier
 #   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
 #                          --budget <S> --base <base>, after
 #                          scripts/setup-env.sh --node installs any missing or
@@ -657,9 +659,13 @@ elif ((!skill_touched)); then
   skip changed-skills "no changed skill file"
 elif ((foreign)); then
   skip changed-skills "runs the checked tree's own skill-quality code"
-else
+elif ((run_tests)); then
   run_check changed-skills "scripts/check-changed-skills.sh $base" \
     "$tools/scripts/check-changed-skills.sh" "$base"
+else
+  # The lint tier leaves each skill's scripts/*.test.sh to --tests and CI's test lanes.
+  run_check changed-skills "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 scripts/check-changed-skills.sh $base" \
+    env CHECK_SKILL_SKIP_SCRIPT_TESTS=1 "$tools/scripts/check-changed-skills.sh" "$base"
 fi
 
 if ((run_tests && halt)); then

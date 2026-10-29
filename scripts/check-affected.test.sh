@@ -31,6 +31,9 @@ for s in check-shell-portability check-changelog-fragments check-stale-base-over
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
+# The changed-skills stub also echoes whether the skills' script tests are skipped.
+printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset}" >&2\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
+  >"$repo/scripts/check-changed-skills.sh"
 # The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
 # as the real one lists the selected suites it did not run.
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
@@ -426,8 +429,11 @@ git_test_config "$repo" commit -q -m skill
 run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
 # shellcheck disable=SC2034 # read by the eval in check
 plugin_base_sha="$(git_test_config "$repo" rev-parse plugin-base)"
-check "a changed skill file runs changed-skills against the base, resolved to its commit" \
-  '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
+check "a changed skill file runs changed-skills against the base, resolved to its commit, without script tests" \
+  '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"skip-script-tests=1"* && $ERR == *"Reproduce: CHECK_SKILL_SKIP_SCRIPT_TESTS=1 scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
+run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base --tests
+check "--tests runs changed-skills with the skills' script tests" \
+  '[[ $RC == 1 && $ERR == *"skip-script-tests=unset"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh $plugin_base_sha"* ]]'
 run PATH="$tmp/bin:$PATH" STUB_CHECK_CHANGELOG_FRAGMENTS=1 STUB_VALIDATE_PLUGINS=1 STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
 check "a failing static check reports at once, with validate-plugins and changed-skills skipped" \
   '[[ $RC == 1 && $ERR == *"FAIL changelog-fragments"* && $ERR == *"SKIP validate-plugins (a static check failed above)"* && $ERR == *"SKIP changed-skills (a static check failed above)"* && $ERR != *"validate-plugins ran"* && $ERR != *"check-changed-skills ran"* ]]'
