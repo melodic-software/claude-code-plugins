@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.3] - 2026-10-29
+
+### Changed
+
+- The interview's `question-shape.md` now points to SKILL.md's Stance for the basis, withheld and wording rules instead of restating them, and `surface.md`, `lane-page.md` and `lane-shared.md` point to it for the rules every lane shares, keeping only their own lane's rules.
+- The surface README's "Differences from the shared page" table adds the page-only decision vocabulary and the two `answerLine` texts, each with its reason.
+
+### Fixed
+
+- **The `--brief` gate fails a page-export Brief that lost its Intent, Decisions or the user's own words** ([#11029](https://github.com/melodic-software/claude-code-plugins/issues/11029)). `scripts/check-open-questions.sh --brief --procedure` used to pass a Brief with `### Intent`, `### Decisions` or every Ask and own-answer line removed. Under `--procedure`, a Brief with a `- Restatement:` stamp now needs `### Intent`. A new `--surface <data_dir>` option exports the Brief from the interview page again and fails (`procedure=fail`) when the Brief lacks a section that export writes, or a line of its Intent. The page lane's wrap-up runs the gate with it.
+
 ## [0.126.2] - 2026-10-29
 
 ### Changed

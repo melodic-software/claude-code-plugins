@@ -112,6 +112,17 @@ def held_by(
     reviews: object = (),
     humans: frozenset[int] = frozenset(),
 ) -> tuple[str, bool] | None:
+    held = scored(files, evidence, config, reviews, humans)
+    return None if held is None else held[:2]
+
+
+def scored(
+    files: tuple[ChangedFile, ...] = (DOC,),
+    evidence: object = None,
+    config: policy.PipelineConfig = CONFIG,
+    reviews: object = (),
+    humans: frozenset[int] = frozenset(),
+) -> tuple[str, bool, bool] | None:
     evidence = lanes() if evidence is None else evidence
     effect = evidence if isinstance(evidence, Exception) else None
     read = reviews if isinstance(reviews, Exception) else None
@@ -627,6 +638,13 @@ class LaneRiskRefusal(unittest.TestCase):
         )
         self.assertTrue(str(held).startswith("unreadable: "), held)
 
+    def test_a_failed_read_answers_all_three_fields(self) -> None:
+        held = scored(
+            evidence=babysit_merge.HeadPusherUnproven("head-pusher-unproven:abc")
+        )
+        self.assertEqual(len(held), 3, held)
+        self.assertEqual(held[1:], (False, False))
+
     def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
         # Owner rule 2026-10-26: unbound review evidence, the manifest review
         # and a failed read go back to the lanes; a CRITICAL finding and a
@@ -646,6 +664,51 @@ class LaneRiskRefusal(unittest.TestCase):
                 self.assertIs(held[1], person, held)
 
 
+# An enforcement floor path (babysit_risk.REVIEW_FLOOR) the gate holds as
+# `review-path:` until the security review binds clean (owner decision Q26
+# option B), as pull request #10908 was held: its security lane bound to the
+# head with open findings below CRITICAL that the lanes App resolved, which
+# only a clean whole review of the head closes (`whole_review_clears`).
+REVIEWED = dataclasses.replace(DOC, path=".github/scripts/pr-unblock/gate-source.mjs")
+
+
+def security(
+    *, total: int, critical: int = 0, clears: bool
+) -> tuple[LaneEvidence, ...]:
+    return (
+        LaneEvidence("claude-review", True, None, 0),
+        LaneEvidence("claude-security-review", True, None, total, clears, critical),
+    )
+
+
+class AWholeReviewClearsTheHold(unittest.TestCase):
+    def test_a_review_path_hold_a_whole_review_clears_says_so(self) -> None:
+        held = scored((DOC, REVIEWED), evidence=security(total=2, clears=True))
+        self.assertIsNotNone(held)
+        self.assertTrue(str(held[0]).startswith("review-path:"), held)
+        self.assertEqual(held[1:], (False, True))
+
+    def test_findings_reported_at_the_head_itself_want_no_whole_review(self) -> None:
+        held = scored((DOC, REVIEWED), evidence=security(total=2, clears=False))
+        self.assertEqual(held and held[1:], (False, False))
+
+    def test_a_high_path_a_trusted_approval_lifted_leaves_the_request(self) -> None:
+        evidence = security(total=2, clears=True)
+        lifted = scored(
+            (DOC, REVIEWED, FLOORED),
+            evidence=evidence,
+            reviews=[review("APPROVED")],
+            humans=TRUSTED,
+        )
+        self.assertEqual(lifted and lifted[1:], (False, True))
+        held = scored((DOC, REVIEWED, FLOORED), evidence=evidence)
+        self.assertEqual(held and held[1:], (True, False))
+
+    def test_another_holding_reason_wants_no_whole_review(self) -> None:
+        held = scored((DOC, REVIEWED, SYMLINK), evidence=security(total=2, clears=True))
+        self.assertEqual(held and held[1:], (True, False))
+
+
 class EvidenceCommandReadsTheRisk(unittest.TestCase):
     def cli(
         self,
@@ -655,6 +718,7 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
         head: str = HEAD,
         rung: str | None = "C2",
         person: bool = False,
+        whole: bool = False,
     ) -> dict[str, object]:
         out = io.StringIO()
         argv = ["evidence", "--lane-reviews", "--repo", REPO, "--base-sha", BASE]
@@ -669,7 +733,9 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
                 ve.Reader, "evidence", lambda self, n, h, pr=None: evidence
             ),
             mock.patch.object(
-                ve, "lane_risk_refusal", return_value=risk and (risk, person)
+                ve,
+                "lane_risk_refusal",
+                return_value=risk and (risk, person, whole),
             ) as read,
             contextlib.redirect_stdout(out),
         ):
@@ -698,6 +764,15 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
                 )
         unread = self.cli(passed, None, head="d" * 40)
         self.assertIs(unread["reviewsPerson"], False)
+
+    def test_the_line_says_whether_a_whole_review_clears_the_risk_hold(self) -> None:
+        passed = ve.Evidence(None, HEAD, (), 0)
+        hold = "review-path:x: x; a clean claude-security-review bound to this head clears it"
+        for risk, whole in ((hold, True), (hold, False), (None, False)):
+            with self.subTest(risk=risk, whole=whole):
+                report = self.cli(passed, risk, whole=whole)
+                self.assertIs(report["wholeReviewWanted"], whole)
+        self.assertIs(self.cli(passed, None, head="d" * 40)["wholeReviewWanted"], False)
 
     def test_no_rung_from_the_room_holds(self) -> None:
         for rung in (None, "off", "C9"):
@@ -755,7 +830,7 @@ class EvidenceCommandReadsTheQueueEjections(unittest.TestCase):
                 lambda self, n, h, pr=None: evidence or ve.Evidence(None, HEAD, (), 0),
             ),
             mock.patch.object(
-                ve, "lane_risk_refusal", return_value=risk and (risk, False)
+                ve, "lane_risk_refusal", return_value=risk and (risk, False, False)
             ),
             mock.patch.object(
                 babysit_merge,
