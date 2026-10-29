@@ -638,6 +638,13 @@ class LaneRiskRefusal(unittest.TestCase):
         )
         self.assertTrue(str(held).startswith("unreadable: "), held)
 
+    def test_a_failed_read_answers_all_three_fields(self) -> None:
+        held = scored(
+            evidence=babysit_merge.HeadPusherUnproven("head-pusher-unproven:abc")
+        )
+        self.assertEqual(len(held), 3, held)
+        self.assertEqual(held[1:], (False, False))
+
     def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
         # Owner rule 2026-10-26: unbound review evidence, the manifest review
         # and a failed read go back to the lanes; a CRITICAL finding and a

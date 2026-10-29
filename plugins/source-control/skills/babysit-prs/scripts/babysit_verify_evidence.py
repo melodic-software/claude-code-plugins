@@ -2444,7 +2444,7 @@ def lane_risk_refusal(
     try:
         identity = config.agent_identity
         if not identity:
-            return "unreadable: no agent identity", False
+            return "unreadable: no agent identity", False, False
         permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
@@ -2482,7 +2482,7 @@ def lane_risk_refusal(
             if decision:
                 risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
-        return f"unreadable: {type(exc).__name__}: {exc}", False
+        return f"unreadable: {type(exc).__name__}: {exc}", False, False
     held = babysit_risk.holding(risk)
     paths = [
         r
