@@ -124,8 +124,24 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
+      # at reset, projected at this window's burn rate, is under limits.api
+      # github-token pace (rate-limits.json), on even run numbers only, so the
+      # timer lanes slow to half cadence before the breaker stops every lane.
+      # Any other event, or a read that fails, runs as before
+      # (.github/actions/log-api-budget/pace.mjs).
+      - name: Pace the tick on the GITHUB_TOKEN burn rate
+        id: pace
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: node .base/.github/actions/log-api-budget/pace.mjs
+
       - name: Find lost runs
         id: plan
+        if: steps.pace.outputs.paced != 'true'
         env:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -174,6 +190,7 @@ jobs:
           retention-days: 1
 
       - name: Re-run lost runs
+        if: steps.pace.outputs.paced != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
