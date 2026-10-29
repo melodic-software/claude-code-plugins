@@ -656,8 +656,8 @@ function personReasons(body, head, label) {
   const lines = String(body ?? "").split("\n");
   const partial = isPartial(body, head);
   const open = lines.indexOf("```text");
-  const reasons = open < 0 ? [] : lines.slice(open + 1, partial ? -2 : -1);
-  return open >= 0 && refusalBody(true, reasons.join("\n"), head, label, null, partial) === body ? reasons : null;
+  const reasons = open < 0 ? [] : lines.slice(open + 1, lines.indexOf("```", open + 1));
+  return open >= 0 && refusalBody(true, reasons.join("\n"), head, label, null, partial, recordLines(body)) === body ? reasons : null;
 }
 
 // A person's refusal at `head` whose every reason is a hold path
@@ -772,8 +772,8 @@ async function liftBlocked(github, repo, number, options) {
 const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
 
 // A whole-review request's record line (babysit_whole_review.py RECORD_RE),
-// kept on every rewrite of a lane's comment, since it holds the once-per-head
-// and per pull request caps.
+// kept on every rewrite of the refusal comment, a person's included, since it
+// holds the once-per-head and per pull request caps.
 export const WHOLE_REVIEW_RECORD = /^Whole review requested at head `[0-9a-f]{40}` at \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ: .*$/;
 // Only outside the fenced reasons, which quote changed paths verbatim, so a
 // path holding a newline plants no record.
@@ -791,7 +791,7 @@ export const recordLines = (body) => {
     });
 };
 
-// `records`: a lane's comment's whole-review record lines, before its last.
+// `records`: the comment's whole-review record lines, before its last.
 export function refusalBody(person, reason, head, label, since = null, partial = false, records = []) {
   const who = person
     ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
@@ -804,7 +804,7 @@ export function refusalBody(person, reason, head, label, since = null, partial =
     "```text",
     fenced(reason),
     "```",
-    ...(person || records.length === 0 ? [] : ["", ...records]),
+    ...(records.length === 0 ? [] : ["", ...records]),
     ...(person || since === null ? [] : [laneSince(head, since)]),
     ...(person && partial ? [partialLine(head)] : []),
   ].join("\n");
@@ -847,8 +847,8 @@ function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
 // it there, is that comment: a read that did not come never narrows it.
 // `answered`: the verifier's answer came, so the comment carries no partial
 // mark even when the answer could not be scored. A label the pull request
-// already carries is not written again. A lane's comment keeps the prior
-// one's whole-review record lines, plus `record`, a new one.
+// already carries is not written again. The comment keeps the prior one's
+// whole-review record lines, plus `record`, a new one.
 export function refusalWrites(pull, comments, { clears, reason, comment, partial = false, answered = false, record = null }, { bot, label, now = Date.now() }) {
   // The gate's own marked comment (the queue-ejection one): edited in place,
   // with no label, as babysit_merge.upsert_marker_comment writes it.
@@ -860,7 +860,7 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
   const since = sinceAt(prior?.body, pull.headRefOid) ?? new Date(now).toISOString();
   const records = [...recordLines(prior?.body), ...(record === null ? [] : [record])];
   const lane = refusalBody(false, reason, pull.headRefOid, label, since, false, records);
-  const person = refusalBody(true, reason, pull.headRefOid, label, null, partial && !answered);
+  const person = refusalBody(true, reason, pull.headRefOid, label, null, partial && !answered, records);
   const body = clears === "person" ? person : lane;
   const carried = (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
   // The verifier's answer adding nothing to a partial refusal at the head:
@@ -1164,7 +1164,7 @@ export function pythonWholeReview(env, spawn = spawnSync) {
   const repo = ["--repo", env.GITHUB_REPOSITORY, "--identity", env.LANES_BOT_LOGIN];
   return {
     request: (pull, prior) => run(["request", ...repo, "--head", pull.headRefOid, "--node-id", pull.id], prior),
-    toggle: (pull) => run(["toggle", "--node-id", pull.id]),
+    toggle: (pull, humanGated) => run(["toggle", "--node-id", pull.id, "--human-gated", humanGated]),
     recover: (drafts) => run(["recover", ...repo, "--drafts", "/dev/stdin"], JSON.stringify(drafts)),
   };
 }
@@ -1557,7 +1557,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
       }
       if (record !== null) {
         try {
-          const toggled = whole.toggle(pull);
+          const toggled = whole.toggle(pull, humanGated);
           console.log(
             toggled?.toggled === true
               ? `enable-auto-merge: #${pull.number} whole review requested at ${pull.headRefOid}: drafted and marked ready again`

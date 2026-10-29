@@ -154,9 +154,10 @@ class RequestCommand(unittest.TestCase):
                 self.assertEqual(answer, {"toggled": False, "skipped": skipped})
 
     def test_toggle_reports_and_fails_on_a_stranded_draft(self) -> None:
-        argv = ["toggle", "--node-id", "PR_1"]
-        with mock.patch.object(wr, "toggle", return_value={"toggled": True}):
+        argv = ["toggle", "--node-id", "PR_1", "--human-gated", "needs-human"]
+        with mock.patch.object(wr, "toggle", return_value={"toggled": True}) as run:
             self.assertEqual(self.run_cli(argv), (0, {"toggled": True}))
+        run.assert_called_once_with("PR_1", human_gated="needs-human")
         stranded = {"toggled": False, "error": "stranded-draft: mark-ready failed"}
         with mock.patch.object(wr, "toggle", return_value=stranded):
             self.assertEqual(self.run_cli(argv), (1, stranded))
@@ -309,7 +310,7 @@ def pr_state(
 
 class Toggle(unittest.TestCase):
     def run_toggle(
-        self, answers: list[int], state: Any = None
+        self, answers: list[int], state: Any = None, human_gated: str = "needs-human"
     ) -> tuple[dict[str, Any], list[str]]:
         seen: list[str] = []
 
@@ -321,8 +322,22 @@ class Toggle(unittest.TestCase):
             return done({}, answers.pop(0))
 
         with mock.patch.object(wr, "gh_capture", side_effect=capture):
-            out, seen = wr.toggle("PR_1", sleep=lambda s: None), seen
+            out = wr.toggle("PR_1", human_gated=human_gated, sleep=lambda s: None)
         return out, [step for step in seen if step != "read"]
+
+    def test_the_human_gated_label_set_since_the_listing_is_never_undone(self) -> None:
+        # The tracker's role label holds as the other hold labels do, in any
+        # case and under a mapped name.
+        cases = {
+            "needs-human": (("needs-human",), "needs-human"),
+            "another case": (("Needs-Human",), "needs-human"),
+            "a mapped label": (("awaiting-owner",), "awaiting-owner"),
+        }
+        for name, (labels, gated) in cases.items():
+            with self.subTest(name):
+                out, writes = self.run_toggle([], pr_state(labels=labels), gated)
+                self.assertEqual(out, {"toggled": False, "skipped": "hold-label"})
+                self.assertEqual(writes, [])
 
     def test_the_state_is_read_just_before_the_draft(self) -> None:
         seen: list[str] = []
@@ -332,7 +347,7 @@ class Toggle(unittest.TestCase):
             return done(pr_state() if "labels(" in args[3] else {})
 
         with mock.patch.object(wr, "gh_capture", side_effect=capture):
-            wr.toggle("PR_1", sleep=lambda s: None)
+            wr.toggle("PR_1", human_gated="needs-human", sleep=lambda s: None)
         self.assertEqual(seen, ["read", "write", "write"])
 
     def test_a_draft_or_a_hold_set_since_the_listing_is_never_undone(self) -> None:

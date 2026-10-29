@@ -9,9 +9,11 @@ bump: patch
   closes, such as threads the lanes App resolved. Before, only a CRITICAL `security-finding` hold
   qualified, so such a hold waited for a person.
 - `babysit_whole_review.toggle` reads the pull request's draft state, labels and body just before
-  converting it, and refuses one already a draft, one with a merge-hold label or body hold, or one
-  that did not read, so a person's draft or hold is never undone. Record lines count only outside
-  the comment's fenced reasons, where a changed path could otherwise plant one.
+  converting it, and refuses one already a draft, one with a merge-hold label, the tracker's
+  human-gated label (`--human-gated`) or a body hold, or one that did not read, so a person's draft
+  or hold is never undone. Record lines count only outside the comment's fenced reasons, where a
+  changed path could otherwise plant one, and a person's refusal comment keeps them, so a head
+  recorded before an escalation is never toggled again.
 
 ### Added
 

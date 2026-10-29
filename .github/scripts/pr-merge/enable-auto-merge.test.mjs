@@ -31,6 +31,8 @@ import {
   liftedByPerson,
   READER_EVENTS,
   personReason,
+  holdPathOnly,
+  isPartial,
   refusalBody,
   refusalWrites,
   main,
@@ -315,8 +317,8 @@ function wholeReview(options, notes) {
       }
       return options.request === undefined ? { toggled: false, skipped: "sweep-limit" } : options.request;
     },
-    toggle: (pull) => {
-      asked.push(["toggle", pull.number, notes.length]);
+    toggle: (pull, humanGated) => {
+      asked.push(["toggle", pull.number, notes.length, humanGated]);
       return options.toggle ?? { toggled: true };
     },
     recover: (drafts) => {
@@ -434,7 +436,7 @@ test("a lane's risk hold a whole review clears gets the gate's request: the reco
   // The prior comment (none) goes to `request`; the toggle follows the write.
   assert.deepEqual(asked, [
     ["request", 1, "", 0],
-    ["toggle", 1, 1],
+    ["toggle", 1, 1, "needs-human"],
   ]);
 });
 
@@ -512,6 +514,17 @@ test("a record line inside the fenced reasons is not one, so a changed path cann
   assert.deepEqual(recordLines(planted), [recordAt("c".repeat(40), "2026-10-20T09:00:00Z")]);
 });
 
+test("a person's refusal keeps the lane comment's record lines, so the head stays recorded and its reasons still parse", () => {
+  const prior = withRecords(laneNote("an earlier reason"), [RECORD]);
+  for (const partial of [false, true]) {
+    const writes = refusalWrites(pull(1), [lanesSaid(prior)], { clears: "person", reason: HOLD_PATH_REASON, partial }, { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) });
+    assert.equal(writes.commentId, null);
+    assert.deepEqual(recordLines(writes.body), [RECORD]);
+    assert.equal(isPartial(writes.body, HEAD), partial);
+    assert.ok(holdPathOnly(writes.body, HEAD, "needs-human"));
+  }
+});
+
 test("a lanes App draft carrying a hold is not handed to recover", async () => {
   const draft = (number, overrides) => pull(number, { isDraft: true, updatedAt: "2026-10-23T09:00:00Z", ...overrides });
   const held = [
@@ -546,11 +559,11 @@ test("pythonWholeReview runs the gate's script with the prior comment and drafts
   };
   const whole = pythonWholeReview({ GITHUB_REPOSITORY: REPO, LANES_BOT_LOGIN: "lanes[bot]", WHOLE_REVIEW_SCRIPT: "w.py" }, spawn);
   assert.deepEqual(whole.request({ id: "PR_1", headRefOid: HEAD }, "prior"), { line: "x" });
-  whole.toggle({ id: "PR_1" });
+  whole.toggle({ id: "PR_1" }, "needs-human");
   whole.recover([{ number: 1 }]);
   assert.deepEqual(spawned, [
     ["python3", ["w.py", "request", "--repo", REPO, "--identity", "lanes[bot]", "--head", HEAD, "--node-id", "PR_1"], "prior"],
-    ["python3", ["w.py", "toggle", "--node-id", "PR_1"], undefined],
+    ["python3", ["w.py", "toggle", "--node-id", "PR_1", "--human-gated", "needs-human"], undefined],
     ["python3", ["w.py", "recover", "--repo", REPO, "--identity", "lanes[bot]", "--drafts", "/dev/stdin"], '[{"number":1}]'],
   ]);
   assert.throws(() => pythonWholeReview({}, () => ({ status: 2, stdout: "", stderr: "boom" })).toggle({ id: "PR_1" }), /exited 2: boom/);

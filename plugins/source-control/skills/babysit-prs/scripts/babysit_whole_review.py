@@ -260,10 +260,11 @@ HOLD_STATE = (
 )
 
 
-def _held(node_id: str) -> str | None:
+def _held(node_id: str, human_gated: str) -> str | None:
     """Why the pull request, read now, must not be toggled, or None: it is
     already a draft (a person's, whose hold a mark-ready would undo), carries
-    a merge-hold label or a body hold, or did not read whole."""
+    a merge-hold label, the tracker's `human_gated` role label or a body hold,
+    or did not read whole."""
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
 
     proc = gh_capture(
@@ -281,18 +282,22 @@ def _held(node_id: str) -> str | None:
         return "already-draft"
     if not whole:
         return "hold-state-unread"
-    if names & set(merge_policy.MERGE_HOLD_LABELS):
+    holds = {*merge_policy.MERGE_HOLD_LABELS, human_gated}
+    if names & {label.casefold() for label in holds}:
         return "hold-label"
     if merge_policy.BODY_MERGE_HOLD_RE.search(body):
         return "body-hold"
     return None
 
 
-def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
+def toggle(
+    node_id: str, *, human_gated: str, sleep: Any = time.sleep
+) -> dict[str, Any]:
     """Draft, then ready again; `ready_for_review` runs a whole review. The
-    draft state and holds are read just before, so a person's draft or hold
-    set since the caller's listing is never undone."""
-    held = _held(node_id)
+    draft state and holds, `human_gated` (the tracker's role label) among
+    them, are read just before, so a person's draft or hold set since the
+    caller's listing is never undone."""
+    held = _held(node_id, human_gated)
     if held is not None:
         return {"toggled": False, "skipped": held}
     if not _graphql(CONVERT, node_id):
@@ -451,6 +456,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     for cmd in (req, tog):
         cmd.add_argument("--node-id", required=True)
+    tog.add_argument("--human-gated", required=True)
     for name in ("--repo", "--identity", "--head"):
         req.add_argument(name, required=True)
     args = parser.parse_args(argv)
@@ -466,7 +472,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"line": lines[-1]} if answer == {"toggle": True} else answer))
         return 0
     if args.command == "toggle":
-        result = toggle(args.node_id)
+        result = toggle(args.node_id, human_gated=args.human_gated)
         print(json.dumps(result))
         return 0 if result["toggled"] else 1
     drafts = json.loads(Path(args.drafts).read_text())

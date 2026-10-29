@@ -4300,7 +4300,9 @@ def unattended_writes(
             # Recorded first, so a failed write never toggles twice at a head.
             if report["wholeReview"] == {"toggle": True}:
                 node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
-                report["wholeReview"] = whole_review.toggle(node_id)
+                report["wholeReview"] = whole_review.toggle(
+                    node_id, human_gated=human_gated_label(repo)
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
         if report.get("wholeReview") is None:
