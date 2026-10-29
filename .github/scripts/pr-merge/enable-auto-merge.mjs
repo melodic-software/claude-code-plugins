@@ -166,6 +166,7 @@
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
 //                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
+//   EVENT_PR             a pull_request_target run's pull request number, the only one it handles
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
 //                        when unknown: lane-room reads the report again)
@@ -279,6 +280,7 @@ export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
       reviewThreads(last: 100) { totalCount nodes { ${THREAD_FIELDS} } }
       timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT], last: 1) { nodes { ... on AutoMergeDisabledEvent { actor { __typename login } } } }
+      files(first: 100) { totalCount nodes { path changeType } }
     }
   }
 }`;
@@ -514,6 +516,19 @@ function trustedHumans(env) {
   } catch {
     return new Set();
   }
+}
+
+// The changed paths DETAIL_QUERY's `files` lists, or null when the REST
+// listing must be read: a list cut at one page, or a rename or copy, whose
+// old path only REST names (previous_filename).
+export function listedFiles(files) {
+  const nodes = files?.nodes;
+  if (!Array.isArray(nodes) || files.totalCount !== nodes.length || nodes.length >= 100) {
+    return null;
+  }
+  return nodes.every((node) => typeof node?.path === "string" && typeof node.changeType === "string" && !["RENAMED", "COPIED"].includes(node.changeType))
+    ? nodes.map((node) => node.path)
+    : null;
 }
 
 // The head's changed paths, null when a page did not read, and `capped`
@@ -1416,7 +1431,10 @@ export async function main({ env = process.env, github, actions, verify, room, w
     whole ??= pythonWholeReview(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const serve = cacheMode(env) === "serve";
-    const pulls = await listPulls(github, repo[1], repo[2]);
+    // A pull_request_target run handles only the pull request its event
+    // names, as the listing holds it; a scheduled or hand-started run, every one.
+    const listed = await listPulls(github, repo[1], repo[2]);
+    const pulls = env.EVENT_NAME === "pull_request_target" ? listed.filter((pull) => String(pull.number) === String(env.EVENT_PR ?? "")) : listed;
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     // Only a reader run arms, so only it reads the room.
     let lane = null;
@@ -1647,7 +1665,8 @@ export async function main({ env = process.env, github, actions, verify, room, w
             unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
-            const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+            const graphed = listedFiles(detail.files);
+            const { paths: files, capped } = graphed !== null ? { paths: graphed, capped: false } : await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             let lifters = headLifters(detail, humans, pull.headRefOid);

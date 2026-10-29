@@ -254,7 +254,9 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     }
     if (body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
-      return { data: { repository: { pullRequest: found?.cutDiscussion ?? detail(found?.discussion) } } };
+      // `graphFiles`: the changed files the query lists, absent by default.
+      const read = found?.cutDiscussion ?? detail(found?.discussion);
+      return { data: { repository: { pullRequest: found?.graphFiles === undefined ? read : { ...read, files: found.graphFiles } } } };
     }
     // The rest of a cut comment list, two to a page.
     if (body.query === DISCUSSION_PAGE_QUERIES.comments) {
@@ -405,6 +407,25 @@ test("a refusal a person must clear, a cost path or a configured denied path, is
   ]);
 });
 
+// GitHub Support's audit item 2: the discussion read lists the changed files
+// too, so a head whose files fit one page and include no rename (whose old
+// path only the REST listing names) reads no files page.
+const filesPages = (calls) => calls.filter(({ path }) => /\/pulls\/[0-9]+\/files\?/.test(path)).length;
+test("the discussion read's file list stands in for the files page, unless a rename or a cut list needs it", async () => {
+  const listed = (...nodes) => ({ totalCount: nodes.length, nodes });
+  const folded = await run([pull(1, { graphFiles: listed({ path: "infra/main.tf", changeType: "MODIFIED" }), files: [] })]);
+  assert.equal(filesPages(folded.calls), 0);
+  assert.deepEqual(folded.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
+  // A rename away from a cost path: only the REST page names the old path.
+  const renamed = await run([pull(1, { graphFiles: listed({ path: "docs/main.md", changeType: "RENAMED" }), files: [{ filename: "docs/main.md", previous_filename: "infra/main.tf" }] })]);
+  assert.equal(filesPages(renamed.calls), 1);
+  assert.deepEqual(renamed.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
+  // A list longer than the query read.
+  const cut = await run([pull(1, { graphFiles: { totalCount: 101, nodes: [{ path: "docs/a.md", changeType: "MODIFIED" }] }, files: COST_FILES })]);
+  assert.equal(filesPages(cut.calls), 1);
+  assert.deepEqual(cut.notes.slice(0, 1), [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } }]);
+});
+
 // Owner decision Q26 option B: the gate holds an enforcement floor path as
 // `review-path:` until the security review binds clean to the head; the lanes
 // run that review, so the refusal gets the comment and no label.
@@ -446,7 +467,7 @@ test("a whole review is requested only for a lane's risk hold the gate says one 
     "not wanted": [{ ...PATH_HELD, wholeReviewWanted: false }, {}],
     "a person's hold": [{ ...PATH_HELD, reviewsPerson: true }, {}],
     "report-only": [PATH_HELD, { REPORT_ONLY: "true" }],
-    "an event run": [PATH_HELD, { EVENT_NAME: "pull_request_target" }],
+    "an event run": [PATH_HELD, { EVENT_NAME: "pull_request_target", EVENT_PR: "1" }],
   };
   for (const [name, [verdict, env]] of Object.entries(cases)) {
     const { asked } = await run([pull(1, { verdict })], env, { request: { line: RECORD } });
@@ -506,7 +527,7 @@ test("a lanes App draft a toggle may have left goes to recover; another author's
   const { asked, lines } = await run([draft, other]);
   assert.deepEqual(asked, [["recover", [{ number: 1, id: "PR_1", head: HEAD, updatedAt: "2026-10-23T09:00:00Z", labels: ["ci"] }]]]);
   assert.ok(lines.includes("enable-auto-merge: #1 marked ready again: a whole-review toggle left it a draft"));
-  assert.deepEqual((await run([draft], { EVENT_NAME: "pull_request_target" })).asked, []);
+  assert.deepEqual((await run([draft], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" })).asked, []);
   assert.deepEqual((await run([draft], { REPORT_ONLY: "true" })).asked, []);
 });
 
@@ -1129,7 +1150,7 @@ test("a pr-verify-failed pull request is not armed, and an armed one is disarmed
   for (const EVENT_NAME of ["schedule", "pull_request_target"]) {
     const { code, writes } = await run(
       [pull(1, { labels: labels("pr-verify-failed") }), pull(2, { autoMergeRequest: armed, labels: labels("PR-Verify-Failed") })],
-      { EVENT_NAME },
+      { EVENT_NAME, EVENT_PR: "2" },
     );
     assert.equal(code, 0);
     assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], EVENT_NAME);
@@ -1972,7 +1993,7 @@ test("a person's own hold text and an event run write no note, and an event run 
   const { notes, writes } = await run([pull(1, { body: "Closes #5\n\nHold: waiting on a review", userContentEdits: person })]);
   assert.deepEqual(writes, []);
   assert.deepEqual(notes, []);
-  const event = await run([laneHeld(2, { autoMergeRequest: {} }), laneHeld(3)], { EVENT_NAME: "pull_request_target" });
+  const event = await run([laneHeld(2, { autoMergeRequest: {} }), laneHeld(3)], { EVENT_NAME: "pull_request_target", EVENT_PR: "2" });
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
   assert.deepEqual(event.notes, []);
   assert.ok(!event.calls.some(({ body }) => body?.query === DETAIL_QUERY));
@@ -1980,6 +2001,22 @@ test("a person's own hold text and an event run write no note, and an event run 
   const reader = await run([laneHeld(4, { autoMergeRequest: {} })]);
   assert.deepEqual(reader.writes, [{ mutation: "disarm", id: "PR_4" }]);
   assert.deepEqual(reader.notes, []);
+});
+
+// GitHub Support's audit item 5: a pull_request_target run handles only the
+// pull request its event names (EVENT_PR), as the listing holds it; the
+// scheduled run keeps the whole sweep.
+test("an event run handles only its own pull request", async () => {
+  const pulls = [laneHeld(2, { autoMergeRequest: {} }), laneHeld(3, { autoMergeRequest: {} })];
+  const event = await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "3" });
+  assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_3" }]);
+  // An event naming no listed pull request handles none.
+  assert.deepEqual((await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: "9" })).writes, []);
+  // The schedule handles both, whatever EVENT_PR says.
+  assert.deepEqual((await run(pulls, { EVENT_PR: "3" })).writes, [
+    { mutation: "disarm", id: "PR_2" },
+    { mutation: "disarm", id: "PR_3" },
+  ]);
 });
 
 // The start moves with the run number, so the pull requests past the
@@ -2180,7 +2217,7 @@ test("only the scheduled run and a hand-started one read the verdict and arm", (
 });
 
 test("an event run arms nothing and reads neither discussion nor verdict for an unarmed pull request", async () => {
-  const { code, writes, verified, lines } = await run([pull(1)], { EVENT_NAME: "pull_request_target" });
+  const { code, writes, verified, lines } = await run([pull(1)], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" });
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
   assert.deepEqual(verified, []);
@@ -2189,19 +2226,16 @@ test("an event run arms nothing and reads neither discussion nor verdict for an 
 
 test("an event run still disarms an armed pull request that now holds", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { writes, verified } = await run(
-    [
-      pull(1, { autoMergeRequest: armed, labels: labels("do-not-merge") }),
-      pull(2, { autoMergeRequest: armed, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
-      pull(3, { autoMergeRequest: armed }),
-    ],
-    { EVENT_NAME: "pull_request_target" },
-  );
-  assert.deepEqual(writes, [
-    { mutation: "disarm", id: "PR_1" },
-    { mutation: "disarm", id: "PR_2" },
-  ]);
-  assert.deepEqual(verified, []);
+  const pulls = [
+    pull(1, { autoMergeRequest: armed, labels: labels("do-not-merge") }),
+    pull(2, { autoMergeRequest: armed, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
+    pull(3, { autoMergeRequest: armed }),
+  ];
+  for (const [number, expected] of [[1, [{ mutation: "disarm", id: "PR_1" }]], [2, [{ mutation: "disarm", id: "PR_2" }]], [3, []]]) {
+    const { writes, verified } = await run(pulls, { EVENT_NAME: "pull_request_target", EVENT_PR: String(number) });
+    assert.deepEqual(writes, expected, String(number));
+    assert.deepEqual(verified, []);
+  }
 });
 
 test("a reader that fails, prints no JSON or reports another head arms nothing and disarms", async () => {
@@ -2408,7 +2442,7 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
 // Refs pull request on its link; the scheduled run judges it.
 test("an event run leaves an armed Refs pull request armed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { writes, verified } = await run([pull(1, { autoMergeRequest: armed, body: "Refs: #12\n\n## Summary" })], { EVENT_NAME: "pull_request_target" });
+  const { writes, verified } = await run([pull(1, { autoMergeRequest: armed, body: "Refs: #12\n\n## Summary" })], { EVENT_NAME: "pull_request_target", EVENT_PR: "1" });
   assert.deepEqual(writes, []);
   assert.deepEqual(verified, []);
 });
@@ -2548,7 +2582,7 @@ test("a held room in report-only names the armed pull request a disarm would hav
 // An event run reads no room, so it never disarms on one.
 test("an event run leaves an armed lane pull request armed whatever the room", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { writes } = await run([pull(2, { autoMergeRequest: armed })], { EVENT_NAME: "pull_request_target" }, {}, null);
+  const { writes } = await run([pull(2, { autoMergeRequest: armed })], { EVENT_NAME: "pull_request_target", EVENT_PR: "2" }, {}, null);
   assert.deepEqual(writes, []);
 });
 
@@ -2559,7 +2593,7 @@ test("an event run reads no room", async () => {
   console.log = () => {};
   try {
     await main({
-      env: { ...ENV, EVENT_NAME: "pull_request_target" },
+      env: { ...ENV, EVENT_NAME: "pull_request_target", EVENT_PR: "1" },
       github,
       room: async () => {
         asked += 1;
