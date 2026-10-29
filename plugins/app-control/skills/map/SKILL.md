@@ -188,9 +188,14 @@ conversion moves out of.
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" check --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
    A pending conversion, a feature id or a handed-in lesson runs regardless of a `skip` line.
 3. **Refuse** an attended-only control skill when unattended.
-4. **Source wave.** One `app-control:source-reader` agent (Read, Grep and Glob only) per feature
-   file, in waves capped at 6, each filled to the cap before the next starts: 8 features run as 6
-   then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
+4. **Source wave.** First switch to `control-skill-upkeep/control-<slug>`, named for the control
+   skill's directory, created from the default branch or with it merged in, never rebased, unless
+   the pass started on a ticket branch (a legacy conversion still switches) or a detached HEAD off
+   the default branch's tip (refresh.md § Upkeep branch), so the source wave and the live pass read
+   the tree the upkeep pull request ships. List every local and remote `feature-map-upkeep/*`
+   branch and report each one by name, never adopting it. One `app-control:source-reader` agent
+   (Read, Grep and Glob only) per feature file, in waves capped at 6, each filled to the cap
+   before the next starts: 8 features run as 6 then 2. The cap is fixed here. A legacy map is converted first (an attended pass asks before),
    uncommitted on the upkeep branch, so both passes read the control skill.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each drive, and every
@@ -198,18 +203,17 @@ conversion moves out of.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
    report or `/bugs:write`, never into the pull request. A driver gap's `cli/` fix ships only after a
    live re-drive passes, and attended only; unattended, the fix goes in the report unwritten and
-   nothing is driven again. Nothing to ship: clean, recorded with
+   nothing is driven again. Nothing to ship: clean, recorded after step 7's return with
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
-   Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
-   directory, from the default branch, merged into and never rebased; open or update one pull
-   request. List every local and remote `feature-map-upkeep/*` branch and report each one by
-   name, never adopting it. Started on a ticket branch, commit there instead, push nothing and
-   open nothing: the caller's push carries the commit into the ticket's pull request, so the
-   corrections merge with the code they describe. A legacy conversion still rides
-   the upkeep branch, and a flat-to-folder one is blocked there (refresh.md § 1).
-7. **Return.** After each control skill's step 6, switch back to where the pass started, the branch
-   or, from a detached HEAD, the commit (refresh.md § Return to the starting branch): before the
-   next skill starts, and before the pass reports, so a caller resumes where it was.
+   Otherwise commit on the upkeep branch; open or update one pull request. Started on a ticket
+   branch, commit there instead, push nothing and open nothing: the caller's push carries the
+   commit into the ticket's pull request, so the corrections merge with the code they describe. A
+   legacy conversion still rides the upkeep branch, and a flat-to-folder one is blocked there
+   (refresh.md § 1).
+7. **Return.** When each control skill's pass ends, at step 6 or blocked earlier, switch back to
+   where the pass started, the branch or, from a detached HEAD, the commit (refresh.md § Return to
+   the starting branch): before the next skill starts, and before the pass reports, so a caller
+   resumes where it was.
 
 ## Lessons
 
