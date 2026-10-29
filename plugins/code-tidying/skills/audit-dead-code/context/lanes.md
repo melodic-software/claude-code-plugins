@@ -198,7 +198,7 @@ non-source paths are not in the coverage total.
   Each shape yields a false dead, so both are tier 2.
 - **How the C# pass fails.** False dead: reflection by a computed name, DI or assembly scanning,
   MediatR-style handler discovery, a property only a serializer reads, a member a source generator
-  calls, a `[JSInvokable("alias")]` method JavaScript calls by the alias, a component only `@page`
+  calls, a <!-- spellchecker:off -->`[JSInvokable("alias")]`<!-- spellchecker:on --> method JavaScript calls by the alias, a component only `@page`
   routing reaches, and an entry-point `Main`. False alive: a dead name shared with any other
   identifier, string or comment in the repository.
 - **A hit adjacent to `$`, `-`, or `.` is never an automatic `alive`** during adjudication: inspect

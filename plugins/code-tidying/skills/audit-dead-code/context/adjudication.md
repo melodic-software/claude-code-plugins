@@ -15,7 +15,7 @@ analyzer in the roster can follow. Check each one before condemning a candidate.
 | DI / serialization | container registration, `__init__` injection, a constructor invoked only by a framework, a field populated only by a deserializer | C#, Python, TS |
 | Reflection | `getattr`, `globals()`, `importlib`, `Object.keys` over a module namespace, `eval`; `GetMethod`, `GetProperty`, `Activator.CreateInstance` with a built name | Python, JS, C# |
 | Assembly scanning | a type nothing names that implements an interface the composition root discovers: `GetTypes()` filtered by `IsAssignableFrom`, a DI scan registration, MediatR-style handler discovery | C# |
-| Markup and framework conventions | a handler a `.razor` or `.cshtml` view builds by name, a component only `@page` routing reaches, a `[JSInvokable]` alias, a property only a serializer reads, a partial member a source generator implements | C# |
+| Markup and framework conventions | a handler a `.razor` or `.cshtml` view builds by name, a component only `@page` routing reaches, a <!-- spellchecker:off -->`[JSInvokable]`<!-- spellchecker:on --> alias, a property only a serializer reads, a partial member a source generator implements | C# |
 | Decorator / route registration | `@app.route`, `@click.command`, `@pytest.fixture`, `@task`, where the decorator *is* the caller | Python |
 | Config-declared entry point | a name referenced from `pyproject.toml`, `package.json` `scripts`/`bin`, a CI workflow, a Dockerfile, a systemd unit, a cron entry | all |
 | Test-only usage | referenced only from a test file. Alive, but say so: a symbol whose only caller is its own test is a real finding of a different kind | all |
