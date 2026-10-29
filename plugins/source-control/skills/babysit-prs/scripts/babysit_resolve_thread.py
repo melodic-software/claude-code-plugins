@@ -76,7 +76,10 @@ Deterministic guards encoded here:
   other than the opener, with no comment by a self login (on an own PR, the
   self login is the person who opened it) and no truncated comment page.
   Anything else is `skipped-own-pr-not-lane-answered`. Without the flag, or
-  with an empty value, the own-PR refusal above is unchanged.
+  with an empty value, the lane login is the repository's `merge.agent-identity`
+  when the PR's base commit and the default branch head both declare the same
+  one (`repo_lane_identity`), never read from the PR head; with neither, the
+  own-PR refusal above is unchanged. The flag wins when set.
   `--independent-resolver` keeps the own-PR refusal with no exception.
 - `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
   relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
@@ -206,6 +209,7 @@ from babysit_gh import (
     fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
+    gh_json,
     gh_http_status as http_status_from_text,
     is_owner_repo_pair,
     parse_repo_number,
@@ -936,6 +940,25 @@ def verify_disposition(
     return False, "refused-evidence-unverifiable"
 
 
+def repo_lane_identity(repo: str, number: int) -> tuple[str | None, str]:
+    """The repository's `merge.agent-identity` for the own-PR exception when
+    `--own-pr-lane-logins` is unset, read at the PR's base commit and the
+    default branch head (`babysit_merge_policy.lane_identity`), never the PR
+    head. None, with the reason, when it cannot be established."""
+    try:
+        payload = gh_json(
+            ["pr", "view", str(number), "--repo", repo, "--json", "baseRefOid"]
+        )
+        base_sha = payload.get("baseRefOid") if is_json_object(payload) else None
+        if not isinstance(base_sha, str) or not base_sha:
+            return None, f"no base commit read for {repo}#{number}"
+        import babysit_merge_policy  # noqa: PLC0415 -- heavy; only this path needs it
+
+        return babysit_merge_policy.lane_identity(repo, base_sha)
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
     return frozenset(parse_csv_set(raw))
 
@@ -1304,12 +1327,18 @@ def main() -> int:
         )
 
     own_pr = False
+    lane_logins_source = "--own-pr-lane-logins" if lane_logins else None
     if args.autonomous or args.independent_resolver:
         try:
             pr_author = fetch_pull_request_author(repo, number)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             return _refuse(f"{type(exc).__name__}: {exc}")
         own_pr = is_self_login(pr_author, self_logins)
+        if own_pr and args.autonomous and not lane_logins:
+            # babysit_lane_logins unset: fall back to the repository's own
+            # lane identity, read only where a person merges it.
+            identity, lane_logins_source = repo_lane_identity(repo, number)
+            lane_logins = normalize_login_set([identity] if identity else [])
         if own_pr and not (args.autonomous and lane_logins):
             print(
                 json.dumps(
@@ -1317,6 +1346,7 @@ def main() -> int:
                         "pr": args.pr,
                         "prAuthor": pr_author,
                         "skippedOwnPr": True,
+                        "laneLoginsSource": lane_logins_source,
                         "eligibleCount": 0,
                         "humanThreadsActed": 0,
                         "threads": [],
@@ -1462,6 +1492,7 @@ def main() -> int:
                 "onlyOutdated": args.only_outdated,
                 "includeHuman": args.include_human,
                 "ownPr": own_pr,
+                "laneLoginsSource": lane_logins_source if own_pr else None,
                 # Count only threads whose OPENING author is human. `botOnly`
                 # (every comment in the thread is a bot) is the wrong gate: a
                 # bot-opened thread carrying a later human reply is `botOnly:

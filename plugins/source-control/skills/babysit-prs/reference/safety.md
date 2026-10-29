@@ -599,7 +599,11 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
   dismiss reviews.
 - **`--own-pr-lane-logins <lane-logins>` rides on every worker `--autonomous` resolve form** when
-  `babysit_lane_logins` is set; omit it when unset. `--autonomous` refuses a PR whose author is a
+  `babysit_lane_logins` is set; omit it when unset. Unset, the resolver takes the lane login from
+  the repository's `merge.agent-identity` in `docs/conventions/pr-pipeline.yaml`, only when the PR's
+  base commit and the default branch head declare the same one, never from the PR head: a person
+  merges that file, so a repository value that widens what the worker resolves stays reviewed
+  ([ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md)). The setting wins when set; with neither, the own-PR refusal holds. `--autonomous` refuses a PR whose author is a
   self login, because the resolver would be the actor whose permission slip it is. This flag is
   the one exception: on such a PR it admits a thread only when a lane login other than the opener
   has replied to it, so the claim that the finding is handled comes from the lane. Every other

@@ -670,6 +670,7 @@ class AutonomousSeverityGuard(unittest.TestCase):
             mock.patch.object(
                 rt, "fetch_pull_request_author", return_value="worker-bot"
             ),
+            mock.patch.object(rt, "repo_lane_identity", return_value=(None, "unset")),
             mock.patch.object(
                 sys,
                 "argv",
@@ -698,6 +699,7 @@ class AutonomousSeverityGuard(unittest.TestCase):
             mock.patch.object(
                 rt, "fetch_pull_request_author", return_value="worker-bot"
             ),
+            mock.patch.object(rt, "repo_lane_identity", return_value=(None, "unset")),
             mock.patch.object(
                 sys,
                 "argv",
@@ -2147,7 +2149,10 @@ def _own_pr_record(*comments: dict[str, object], outdated: bool = True) -> dict:
 
 
 def _own_pr_run(
-    record: dict[str, object], *extra: str, resolve: bool = False
+    record: dict[str, object],
+    *extra: str,
+    resolve: bool = False,
+    repo_identity: str | None = None,
 ) -> tuple[int, dict[str, object], mock.MagicMock]:
     """Drive `main` on an own PR (author == self login) through the REAL
     `project_thread`, so the projection and the own-PR branch both run."""
@@ -2180,6 +2185,11 @@ def _own_pr_run(
             side_effect=lambda repo, number, **kw: [kw["projection"](record)],
         ),
         mock.patch.object(rt, "fetch_pull_request_author", return_value=OWNER),
+        mock.patch.object(
+            rt,
+            "repo_lane_identity",
+            return_value=(repo_identity, "merge.agent-identity (test)"),
+        ),
         mock.patch.object(rt, "resolve_thread", return_value=(True, "")) as resolver,
         mock.patch.object(rt, "append_resolve_thread_audit"),
         mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
@@ -2311,6 +2321,70 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
         )
         _, result, _ = _own_pr_run(record, "--own-pr-lane-logins", "")
         self.assertTrue(result["skippedOwnPr"])
+
+    def test_repo_agent_identity_stands_in_when_the_setting_is_unset(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", "Fixed in abc1234."),
+        )
+        code, result, resolver = _own_pr_run(
+            record, resolve=True, repo_identity=f"{LANE}[bot]"
+        )
+        self.assertEqual(result["threads"][0]["action"], "resolved")
+        self.assertEqual(result["laneLoginsSource"], "merge.agent-identity (test)")
+        resolver.assert_called_once_with("T1")
+        self.assertEqual(code, 0)
+
+    def test_both_unset_keeps_the_own_pr_refusal(self) -> None:
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", "Fixed in abc1234."),
+        )
+        code, result, resolver = _own_pr_run(record, resolve=True, repo_identity=None)
+        self.assertTrue(result["skippedOwnPr"])
+        resolver.assert_not_called()
+        self.assertEqual(code, 2)
+
+    def test_the_user_setting_overrides_the_repo_identity(self) -> None:
+        # The setting names another lane, so the repo identity's reply does not
+        # count, and the repo identity is never read.
+        record = _own_pr_record(
+            _comment("github-actions", "Bot", "P2: rename this helper"),
+            _comment(LANE, "Bot", "Fixed in abc1234."),
+        )
+        with mock.patch.object(rt, "repo_lane_identity") as repo_read:
+            buffer = io.StringIO()
+            with (
+                mock.patch.object(
+                    rt,
+                    "fetch_review_threads",
+                    side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+                ),
+                mock.patch.object(rt, "fetch_pull_request_author", return_value=OWNER),
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "babysit_resolve_thread.py",
+                        "owner/repo#1",
+                        "--allowed-owners",
+                        "owner",
+                        "--self-logins",
+                        OWNER,
+                        "--autonomous",
+                        "--own-pr-lane-logins",
+                        "other-lane[bot]",
+                    ],
+                ),
+                redirect_stdout(buffer),
+            ):
+                rt.main()
+        result = json.loads(buffer.getvalue())
+        repo_read.assert_not_called()
+        self.assertEqual(result["laneLoginsSource"], "--own-pr-lane-logins")
+        self.assertEqual(
+            result["threads"][0]["action"], "skipped-own-pr-not-lane-answered"
+        )
 
     def test_flag_without_autonomous_is_refused(self) -> None:
         buffer = io.StringIO()
