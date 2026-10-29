@@ -740,6 +740,14 @@ class LowRatedShapes(_Finding):
         codes = _codes(_cost([_file(action, patch=repin)], public=True))
         self.assertNotIn(AGENT_SURFACE_CODE, codes)
 
+    def test_a_composite_action_with_no_patch_holds_for_security(self):
+        for action in (".github/actions/judge/action.yml", ".github/actions/judge/action.yaml"):
+            with self.subTest(action=action):
+                result = _cost([_file(action, patch=None)], public=True)
+                self.assertSecurityHold(result, AGENT_SURFACE_CODE)
+        other = _file(".github/actions/judge/run.mjs", patch=None)
+        self.assertNotIn(AGENT_SURFACE_CODE, _codes(_cost([other], public=True)))
+
     def test_new_secret_reference_shapes_hold_for_security(self):
         for lines in (
             ("+  ALL: ${{ secrets }}",),

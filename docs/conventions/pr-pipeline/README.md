@@ -1066,7 +1066,7 @@ the rules that only tighten in
   `run-claude-cli` or any `claude-code*` action or image (matched ignoring case) or a run line
   invoking `@anthropic-ai/claude-code` scores HIGH as `agent-surface-review`, each counted against
   the lines it removes, an expression split across a folded scalar read whole, so a moved line or
-  a repin is not new. These widen what a credential or an agent can reach, not only spend, so a
+  a repin is not new; so does a composite action file with no patch to read. These widen what a credential or an agent can reach, not only spend, so a
   person clears them and no cost decision does.
 
   Accepted: a `secrets` reference moved within one file is net zero and does not hold. New
