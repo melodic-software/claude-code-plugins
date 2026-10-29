@@ -13,12 +13,21 @@
 # design. A disabled workflow, any other failed run (a usage-limit stop
 # included), a timed-out one, or none in the window is not healthy.
 #
-# Usage:
-#   review-venue.sh [--repo <owner/repo>] [--max-age-days <n>]
+# With --head, a last `tests` line says whether CI's test lanes covered that
+# commit: the GitHub Actions check runs on it whose name is `test` or starts
+# `test-`, `test ` or `test(`, taking per name the newest run that did not
+# skip. It reads `ci` when every one finished as success, skipped or neutral
+# and at least one succeeded. None (a draft skips them), all skipped, any
+# unfinished, any other conclusion, or more than 500 check runs reads `local`.
 #
-# Output, one line per lane, code-review first:
+# Usage:
+#   review-venue.sh [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]
+#
+# Output, one line per lane, code-review first, then tests with --head:
 #   <lane> ci healthy: <detail>
 #   <lane> local absent|failing|stale: <detail>
+#   tests ci healthy: <detail>
+#   tests local absent|failing|pending: <detail>
 #
 # Exit codes:
 #   0  read; every lane has a line
@@ -39,7 +48,7 @@ die() {
   exit "$1"
 }
 
-REPO="{owner}/{repo}" MAX_AGE_DAYS=7
+REPO="{owner}/{repo}" MAX_AGE_DAYS=7 HEAD_SHA=""
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
@@ -53,6 +62,12 @@ while (($# > 0)); do
     (($# >= 2)) || die 1 "--max-age-days needs a value"
     [[ "$2" =~ ^[1-9][0-9]{0,2}$ ]] || die 1 "--max-age-days must be a whole number from 1 to 999"
     MAX_AGE_DAYS="$2"
+    shift 2
+    ;;
+  --head)
+    (($# >= 2)) || die 1 "--head needs a value"
+    [[ "$2" =~ ^[0-9a-f]{40}$ ]] || die 1 "--head must be a full 40-character commit sha"
+    HEAD_SHA="$2"
     shift 2
     ;;
   *) die 1 "unknown argument $(printf '%q' "$1") (use --help)" ;;
@@ -156,3 +171,40 @@ for i in "${!LANES[@]}"; do
     printf '%s local failing: newest run with a verdict, %s, concluded %s at %s (%s)\n' "$lane" "$rid" "$conclusion" "$created" "$path"
   fi
 done
+
+[[ -n "$HEAD_SHA" ]] || exit 0
+# filter=all, because a label or body edit re-runs the workflow on the same
+# commit and posts each test lane skipped: per name, the newest run that did
+# not skip is the lane's result, so a skip never hides a failure and a re-run
+# that passed replaces its failed attempt.
+CHECK_PAGES=5
+tests="[]" complete=false
+for ((page = 1; page <= CHECK_PAGES; page++)); do
+  checks=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?filter=all&per_page=100&page=$page") ||
+    die 2 "cannot list the check runs of $HEAD_SHA"
+  tests=$(jq -c --argjson acc "$tests" '$acc + [.check_runs[]
+    | select(.app.slug == "github-actions" and (.name | test("^test($|[- (])")))
+    | {id, name, status, conclusion}]' <<<"$checks") || die 2 "cannot parse the check runs of $HEAD_SHA"
+  if [[ "$(jq '.check_runs | length' <<<"$checks")" -lt 100 ]]; then
+    complete=true
+    break
+  fi
+done
+if [[ "$complete" != true ]]; then
+  printf 'tests local absent: %s has more than %s check runs, not all read\n' "$HEAD_SHA" "$((CHECK_PAGES * 100))"
+  exit 0
+fi
+verdict=$(jq -r --arg h "$HEAD_SHA" '
+  def names: map(.name | sub(" \\(.*\\)$"; "")) | unique | join(", ");
+  def finished: .conclusion | IN("success", "skipped", "neutral");
+  group_by(.name) | map((map(select(.conclusion != "skipped")) | max_by(.id)) // max_by(.id))
+  | if length == 0 then "local absent: no test-lane check run on \($h)"
+  elif any(.status != "completed") then map(select(.status != "completed")) as $open
+    | "local pending: \($open | length) of \(length) test-lane check runs on \($h) have not finished (\($open | names))"
+  elif any(finished | not) then map(select(finished | not)) as $bad
+    | "local failing: \($bad | names) concluded \($bad | map(.conclusion) | unique | join(", ")) on \($h)"
+  elif any(.conclusion == "success") | not then "local absent: every test-lane check run on \($h) skipped"
+  else map(select(.conclusion == "success")) as $ok
+    | "ci healthy: \($ok | length) test-lane check runs succeeded on \($h) (\($ok | names))"
+  end' <<<"$tests") || die 2 "cannot read the test lanes of $HEAD_SHA"
+printf 'tests %s\n' "$verdict"

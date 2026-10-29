@@ -169,9 +169,35 @@ const TIERS =
   '2 = secondary (vendor or expert blog, Q&A site, AI synthesis); 3 = recall with no fetched source, ' +
   'including a pattern book cited from memory. How many templates or repositories use a pattern is ' +
   'adoption, not correctness, and earns no tier.'
+const APPLIES_TO_RULE =
+  ' applies_to is "version-independent" or "<product> <range>" where a range is <v>, <v>-<v> or <v>+, ' +
+  'each <v> is dotted integers such as 2, 2.1 or 2.1.3, and a <v>-<v> range runs low to high.'
 const DATED =
-  ' Dates are YYYY, YYYY-MM or YYYY-MM-DD as the page states them, or "undated". applies_to is ' +
-  '"version-independent" or "<product> <range>" where a range is <v>, <v>-<v> or <v>+.'
+  ' Dates are YYYY, YYYY-MM or YYYY-MM-DD as the page states them, or "undated".' + APPLIES_TO_RULE
+
+// The applies_to grammar of check-source-applicability.py (APPLIES_TO and
+// applies_to()), which criterion 13 parses. The schema pattern states it to the
+// agent; appliesToOk() enforces it, since a schema pattern may go unchecked.
+const VERSION_INDEPENDENT = 'version-independent'
+const RANGE = '(.+?)\\s+(\\d+(?:\\.\\d+)*)(?:\\s*-\\s*(\\d+(?:\\.\\d+)*)|(\\+))?'
+const APPLIES_TO = new RegExp('^' + RANGE + '$')
+const APPLIES_TO_FIELD = { type: 'string', pattern: '^(?:' + VERSION_INDEPENDENT + '|' + RANGE + ')$' }
+function appliesToOk(value) {
+  if (typeof value !== 'string') return false
+  const v = value.trim()
+  if (v === VERSION_INDEPENDENT) return true
+  const m = APPLIES_TO.exec(v)
+  if (!m) return false
+  if (m[4] || !m[3]) return true
+  const low = m[2].split('.').map(Number)
+  const high = m[3].split('.').map(Number)
+  for (let i = 0; i <= Math.max(low.length, high.length); i++) {
+    const a = i < low.length ? low[i] : 0
+    const b = i < high.length ? high[i] : Infinity
+    if (a !== b) return a < b
+  }
+  return true
+}
 // A reader dates a living page that prints no date by the family method, and
 // names it in dated_by. A serve-time header is never a publication date.
 const DATED_BY =
@@ -363,7 +389,7 @@ const READ_SCHEMA = {
     tier: { type: 'integer', minimum: 0, maximum: 3 },
     published: { type: 'string' },
     dated_by: { type: 'string' },
-    applies_to: { type: 'string' },
+    applies_to: APPLIES_TO_FIELD,
     claims: {
       type: 'array',
       items: {
@@ -372,7 +398,7 @@ const READ_SCHEMA = {
           claim: { type: 'string' },
           quote: { type: 'string' },
           measures: { type: 'string' },
-          applies_to: { type: 'string' },
+          applies_to: APPLIES_TO_FIELD,
           qualifiers: { type: 'array', items: { type: 'string' } },
         },
         required: ['claim', 'quote'],
@@ -391,7 +417,7 @@ const CONSOLIDATE_SCHEMA = {
         type: 'object',
         properties: {
           claim: { type: 'string' },
-          applies_to: { type: 'string' },
+          applies_to: APPLIES_TO_FIELD,
           urls: { type: 'array', items: { type: 'string' } },
           qualifiers: { type: 'array', items: { type: 'string' } },
           loadBearing: { type: 'boolean' },
@@ -434,7 +460,7 @@ const CITED = {
     pool: { type: 'string' },
     published: { type: 'string' },
     dated_by: { type: 'string' },
-    applies_to: { type: 'string' },
+    applies_to: APPLIES_TO_FIELD,
     role: { type: 'string', enum: ['primary', 'corroborator'] },
     measures: { type: 'string' },
   },
@@ -452,7 +478,7 @@ const SYNTH_SCHEMA = {
           id: { type: 'string' },
           claim: { type: 'string' },
           confidence: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] },
-          applies_to: { type: 'string' },
+          applies_to: APPLIES_TO_FIELD,
           inference: { type: 'string' },
           qualifiers: { type: 'array', items: { type: 'string' } },
           sources: { type: 'array', items: CITED },
@@ -615,6 +641,7 @@ const tally = toVerify.map(c => {
   return { c, count, status, refutations: reasons }
 })
 const survived = tally.filter(t => t.status === 'survived')
+const tallyById = new Map(survived.map(t => [t.c.id, t]))
 const refuted = tally.filter(t => t.status === 'refuted').map(t => ({
   id: t.c.id, claim: t.c.claim, consensus: t.count, reasons: t.refutations,
 }))
@@ -651,6 +678,31 @@ const gaps = critique && Array.isArray(critique.gaps) ? critique.gaps : []
 // ---- Synthesize ----
 phase('Synthesize')
 
+const offGrammar = s => (s && Array.isArray(s.findings) ? s.findings : [])
+  .filter(f => f && tallyById.has(f.id))
+  .flatMap(f => [
+    ...(appliesToOk(f.applies_to) ? [] : [{ id: f.id, applies_to: f.applies_to ?? null }]),
+    ...(Array.isArray(f.sources) ? f.sources : [])
+      .filter(c => c && typeof c === 'object' && !appliesToOk(c.applies_to))
+      .map(c => ({ id: f.id, url: c.url ?? null, applies_to: c.applies_to ?? null })),
+  ])
+// A value still outside the grammar is recorded unstated, never guessed, and
+// the text as written goes to the finding's qualifiers.
+function settled(f) {
+  const kept = []
+  const fix = (v, where) => {
+    if (appliesToOk(v)) return v
+    if (typeof v === 'string' && v.trim() && v.trim() !== 'unstated') kept.push(where + 'applies_to as written: ' + v.trim())
+    return 'unstated'
+  }
+  const out = { ...f, applies_to: fix(f.applies_to, '') }
+  if (Array.isArray(f.sources)) {
+    out.sources = f.sources.map(s => (s && typeof s === 'object' ? { ...s, applies_to: fix(s.applies_to, (s.url || 'a source') + ' ') } : s))
+  }
+  if (kept.length) out.qualifiers = (Array.isArray(f.qualifiers) ? f.qualifiers : []).concat(kept)
+  return out
+}
+
 let synthesis = null
 if (survived.length || refuted.length || unverified.length) {
   const readIndex = new Map(readOk.map(r => [r.url, r]))
@@ -668,7 +720,7 @@ if (survived.length || refuted.length || unverified.length) {
       }
     }),
   }))
-  synthesis = await agentRetry(
+  const synthPrompt =
     'Stage: synthesize. Write the findings of this research run. The survived list below holds the ' +
     'claims that survived adversarial verification, with their sources. Return one finding per ' +
     'surviving claim, keyed by its id: the claim as the sources support it, a confidence (HIGH only ' +
@@ -682,10 +734,44 @@ if (survived.length || refuted.length || unverified.length) {
     'two or three sentences that answers the question from the findings only. Fetch nothing.' +
     TIERS + DATED + fence('question', QUESTION) + fence('survived', brief) +
     fence('refuted', refuted.map(t => ({ claim: t.claim, reasons: t.reasons }))) +
-    fence('unverified', unverified.map(t => t.claim)),
-    { label: 'synthesize', phase: 'Synthesize', schema: SYNTH_SCHEMA, ...opts(R.orchestrator.single) }
-  )
+    fence('unverified', unverified.map(t => t.claim))
+  const synthOpts = { phase: 'Synthesize', schema: SYNTH_SCHEMA, ...opts(R.orchestrator.single) }
+  synthesis = await agentRetry(synthPrompt, { ...synthOpts, label: 'synthesize' })
   if (synthesis == null) nulls.push('synthesize')
+  // A surviving finding or source whose applies_to is outside the grammar is
+  // asked for once more, with the grammar and the values named.
+  const off = offGrammar(synthesis)
+  if (off.length) {
+    const label = 'synthesize:r2'
+    secondRounds.push(label)
+    const again = await agentRetry(
+      synthPrompt + ' Your last result gave the applies_to values below, which do not match the grammar.' +
+      APPLIES_TO_RULE + ' Return the whole result again with every applies_to in that grammar, and move ' +
+      'scope text that does not fit it into the finding\'s qualifiers.' + fence('nonconforming', off),
+      { ...synthOpts, label },
+    ).catch(() => null)
+    // A finding the re-ask leaves out keeps its first-round form, and a
+    // first-round applies_to in the grammar is kept over a round-two value
+    // outside it, for the finding and for each of its sources by url.
+    if (again == null) nulls.push(label)
+    else {
+      const first = new Map(synthesis.findings.filter(f => f && tallyById.has(f.id)).map(f => [f.id, f]))
+      const conforming = (v, was) => (appliesToOk(v) || !appliesToOk(was) ? v : was)
+      const redone = (Array.isArray(again.findings) ? again.findings.filter(f => f && tallyById.has(f.id)) : []).map(f => {
+        const was = first.get(f.id)
+        if (!was) return f
+        const wasAt = new Map((Array.isArray(was.sources) ? was.sources : [])
+          .filter(s => s && typeof s === 'object' && typeof s.url === 'string').map(s => [s.url, s.applies_to]))
+        const out = { ...f, applies_to: conforming(f.applies_to, was.applies_to) }
+        if (Array.isArray(f.sources)) {
+          out.sources = f.sources.map(s => (s && typeof s === 'object' && wasAt.has(s.url) ? { ...s, applies_to: conforming(s.applies_to, wasAt.get(s.url)) } : s))
+        }
+        return out
+      })
+      const ids = new Set(redone.map(f => f.id))
+      synthesis = { ...synthesis, ...again, findings: redone.concat(synthesis.findings.filter(f => f && !ids.has(f.id))) }
+    }
+  }
 } else {
   log('Synthesize: no claim reached verification, so there is nothing to synthesize')
 }
@@ -693,12 +779,11 @@ if (survived.length || refuted.length || unverified.length) {
 // Consensus counts come from the tally, never from the synthesizer, and a
 // finding whose id did not survive is dropped. Each finding carries its own
 // fetch entries, keyed to the claim, from this run's fetch log.
-const tallyById = new Map(survived.map(t => [t.c.id, t]))
 const fetchByUrl = new Map(fetchLog.map(f => [f.url, f]))
 const findings = (synthesis && Array.isArray(synthesis.findings) ? synthesis.findings : [])
   .filter(f => f && tallyById.has(f.id))
   .map(f => ({
-    ...f,
+    ...settled(f),
     consensus: tallyById.get(f.id).count,
     fetches: (Array.isArray(f.sources) ? f.sources : []).map(s => ({
       claim: f.id,

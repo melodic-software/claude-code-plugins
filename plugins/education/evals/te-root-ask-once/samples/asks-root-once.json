@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Mission so far: one reliable weekly loaf, three in a row with an open crumb and no dense center, about 30 minutes a week.\n\nOne setup question before I create the workspace: where should learning state live? I suggest `~/Documents/Claude Learning/`; you can make the choice durable later with `/education:setup`.",
+      "why": "one root question"
+    },
+    {
+      "answer": "Before I create anything: where should your learning workspaces live: `~/Documents/Claude Learning/` or somewhere else?\n\nAnd where do you keep your starter now?",
+      "why": "colon inside the root question; the starter question is not about the root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mission so far: one reliable weekly loaf, three in a row with an open crumb and no dense center, about 30 minutes a week. Does that capture it? I'll create the workspace in plugin data.",
+      "why": "skips the question with a learner present"
+    },
+    {
+      "answer": "Where should learning state live? `~/Documents/Claude Learning/` is the default.\n\nAlso, which folder should hold codebase workspaces?",
+      "why": "asks twice"
+    }
+  ]
+}

@@ -302,6 +302,17 @@ jobs:
           json-schema-file: ${{ runner.temp }}/lane-sweep-schema.json
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
+
       # After a handoff, the denial check: a leg that hit a permission denial
       # hands nothing on; continue-on-error lets the report record the stop,
       # and "Fail without findings" carries the red.
@@ -620,6 +631,17 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
+
       # After a handoff, the denial check: a leg that hit a permission denial
       # hands nothing on; continue-on-error lets the report record the stop,
       # and "Fail without findings" carries the red.
@@ -924,6 +946,17 @@ jobs:
             Read(/${{ runner.temp }}/**)
           json-schema-file: ${{ runner.temp }}/lane-sweep-schema.json
           leg-timeout-minutes: "20"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'

@@ -45,6 +45,10 @@ Public interface:
   `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
   parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
   Stream each `path` through `iter_records`.
+- `iter_workflow_agents(main_path)` yields a `WorkflowAgent(workflow, path)` for each agent the
+  Workflow tool started, `<session>/subagents/workflows/wf_*/agent-*.jsonl`, in path order;
+  `workflow` is the `wf_*` directory name. Each workflow directory also holds a `journal.jsonl`,
+  whose records carry no timestamps. `iter_subagents` never yields these agents.
 - `first_cwd(path)` is the `cwd` of the first record that carries a non-empty string one, else None.
   It stops reading at that record, so a long transcript costs one or two lines.
 
@@ -200,6 +204,17 @@ def iter_subagents(main_path: Path) -> Iterator[Subagent]:
         except (OSError, ValueError):
             meta = None
         yield Subagent(path, meta if isinstance(meta, dict) else None)
+
+
+class WorkflowAgent(NamedTuple):
+    workflow: str
+    path: Path
+
+
+def iter_workflow_agents(main_path: Path) -> Iterator[WorkflowAgent]:
+    workflows = Path(main_path).with_suffix("") / "subagents" / "workflows"
+    for path in sorted(workflows.glob("wf_*/agent-*.jsonl")):
+        yield WorkflowAgent(path.parent.name, path)
 
 
 def _obj(value: object) -> dict:
