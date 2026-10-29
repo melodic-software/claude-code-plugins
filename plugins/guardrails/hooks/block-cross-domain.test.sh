@@ -473,7 +473,8 @@ id_deny "git config edit --global" 'git config edit --global'
 id_deny "git config --global --remove-section user" 'git config --global --remove-section user'
 id_deny "git config --global --rename-section to includeIf" \
   'git config --global --rename-section old "includeIf.gitdir:/placeholder/"'
-id_deny "a key in another case" 'git config --global USER.EMAIL a@example.invalid'
+id_deny "git config --global -t bool" 'git config --global -t bool user.email a@example.invalid'
+id_deny "a key in another case"'git config --global USER.EMAIL a@example.invalid'
 id_deny "a git config write behind sh -c" "bash -c 'git config --global user.email a@example.invalid'"
 id_deny "a git config write after another command" 'cd /placeholder && git config --global user.email a@example.invalid'
 id_deny "a redirection appends to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
@@ -498,6 +499,8 @@ id_deny "PowerShell: git config --global" 'git config --global user.email a@exam
 id_deny "PowerShell: a backtick continuation" $'git config `\n  --global user.email a@example.invalid' PowerShell
 id_deny 'PowerShell: Copy-Item -Destination:' 'Copy-Item -Destination:$HOME\.gitconfig -Path C:\placeholder\x' PowerShell
 id_deny 'PowerShell: Set-Content $HOME\.gitconfig' 'Set-Content -Path $HOME\.gitconfig -Value x' PowerShell
+id_deny 'PowerShell: Set-Content -Path:' 'Set-Content -Path:$HOME\.gitconfig -Value x' PowerShell
+id_deny 'PowerShell: Out-File -LiteralPath:' 'Out-File -LiteralPath:$HOME\.gitconfig -InputObject x' PowerShell
 id_deny 'PowerShell: Copy-Item -Destination' \
   'Copy-Item -Destination $env:USERPROFILE\.gitconfig -Path C:\placeholder\x' PowerShell
 

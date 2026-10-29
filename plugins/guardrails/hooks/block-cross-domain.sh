@@ -521,7 +521,7 @@ bcd::git_config() {
       ((i++))
       ;;
     --file=*) bcd::identity_file "${a#--file=}" && scope=$a ;;
-    --blob | --type | --default | --comment | --value | --url) ((i++)) ;;
+    --blob | -t | --type | --default | --comment | --value | --url) ((i++)) ;;
     --get | --get-all | --get-regexp | --get-urlmatch | --get-color | --get-colorbool | -l | --list) action="read" ;;
     -e | --edit) action="edit" ;;
     --remove-section | --rename-section) action="section" ;;
@@ -595,7 +595,10 @@ bcd::shell_write() {
     case "$c" in
     tee | rm | mv | touch | truncate | set-content | add-content | out-file | new-item | clear-content | \
       remove-item | move-item | sc | ac | ni | clc | ri | del | erase | mi | move)
-      [[ "$a" != -* ]] && bcd::identity_file "$a" && bcd::id_deny "$c writes $a" && return 0
+      # PowerShell binds a parameter's value after a colon: `-Path:<file>`.
+      t=$a
+      [[ "$t" == -*:* ]] && t=${t#*:}
+      [[ "$t" != -* ]] && bcd::identity_file "$t" && bcd::id_deny "$c writes $t" && return 0
       ;;
     sed | perl)
       [[ "$a" != -* && " ${w[*]} " =~ $BCD_IN_PLACE ]] && bcd::identity_file "$a" &&
