@@ -540,6 +540,44 @@
         "order": 15,
         "procedure": null
       }
+    },
+    {
+      "id": "accessibility",
+      "title": "Accessibility",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "accessibility",
+        "a11y",
+        "screen reader",
+        "keyboard navigation",
+        "tab order",
+        "focus visible",
+        "focus trap",
+        "aria-label",
+        "skip link",
+        "alt text",
+        "aria-live",
+        "inert"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/accessibility.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [
+        "accessibility-review"
+      ],
+      "audit": {
+        "order": 2,
+        "procedure": null
+      }
     }
   ]
 }

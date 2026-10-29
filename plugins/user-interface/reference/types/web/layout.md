@@ -55,8 +55,7 @@ The detail behind principles 5 to 8 lives in its own concern: copy in the plain-
 `../../principles.md`, tokens and color spaces in `color`, each state in `states`, and the floor in
 `accessibility`. Borders and shadows that recede rather than sit on top are the `shape-and-depth`
 concern. A finding against principles 5 to 8 takes its severity from that owner once the owner
-grades it; until then, the tags below grade generic copy and the floor items no other concern here
-grades.
+grades it; until then, the tag below grades generic copy.
 
 **Audit: Important.** More than one visually primary button in view.
 
@@ -66,9 +65,6 @@ shadows added where removing something would have made the important thing stand
 **Audit: Important.** Generic copy ("Submit", "Invalid input", "No items") where the specific
 outcome or fix is known. This holds until `../../principles.md` grades its plain-language copy
 rule.
-
-**Audit: Blocking.** An accessibility floor item missing: focus ring removed, or an error signaled
-by color alone. This holds until the `accessibility` concern lands.
 
 ## 3. Spacing
 
