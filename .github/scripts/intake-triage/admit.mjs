@@ -647,19 +647,30 @@ export function workflowFiles() {
 // root CODEOWNERS or .gitmodules (the latter with or without its dot), or the
 // bare name of a file in `workflows` (as that workflow's path), each in any
 // case, counts: any other bare file name or an absolute runner path names no
-// file of this repository.
+// file of this repository. Outside a backticked span a root name counts only
+// as `CODEOWNERS` or a dot-led `.gitmodules`, so prose such as "the
+// codeowners check" names no file.
 const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
+const isRootName = (token, quoted) => (quoted ? ROOT_NAMES.has(token.toLowerCase()) : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules");
 const pathTokens = (text, workflows) => {
   const workflowNames = new Set([...workflows].map((name) => name.toLowerCase()));
-  return [...[...text.matchAll(/`([^`]+)`/g)].map((m) => m[1]), ...text.replaceAll("`", " ").split(/\s+/)]
-    .map((token) =>
-      token
+  return [
+    ...[...text.matchAll(/`([^`]+)`/g)].map((m) => ({ token: m[1], quoted: true })),
+    ...text
+      .replaceAll("`", " ")
+      .split(/\s+/)
+      .map((token) => ({ token, quoted: false })),
+  ]
+    .map(({ token, quoted }) => ({
+      token: token
         .replace(/^["'(\[]+/, "")
         .replace(/[.,;:!?"')\]]+$/, "")
         .replace(/:\d+(-\d+)?$/, ""),
-    )
-    .map((token) => (workflowNames.has(token.toLowerCase()) ? `.github/workflows/${token}` : token))
-    .filter((token) => ROOT_NAMES.has(token.toLowerCase()) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")));
+      quoted,
+    }))
+    .map(({ token, quoted }) => ({ token: workflowNames.has(token.toLowerCase()) ? `.github/workflows/${token}` : token, quoted }))
+    .filter(({ token, quoted }) => isRootName(token, quoted) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")))
+    .map(({ token }) => token);
 };
 
 // The dot-led names the path rules read, matched without their dot too: to a

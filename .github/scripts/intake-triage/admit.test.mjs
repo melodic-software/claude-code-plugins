@@ -437,6 +437,8 @@ describe("decide", () => {
       ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
       ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+      ["- [ ] CODEOWNERS names the team.", "CODEOWNERS"],
+      ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
       // #9113's criterion: a bare name of a workflow on disk.
       ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
@@ -494,6 +496,10 @@ describe("decide", () => {
       // #9092's: a bare .yml name no workflow on disk has.
       "- [ ] No pr-test-macos.yml is added.",
       "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
+      // A root name in prose, outside backticks, names no file.
+      "- [ ] The codeowners check reports the missing team.",
+      "- [ ] Codeowners review is requested.",
+      "- [ ] The gitmodules parser skips comments.",
     ];
     for (const line of admitted) {
       test(`admits ${line}`, () => {
