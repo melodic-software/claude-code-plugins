@@ -470,6 +470,42 @@
         "order": 10,
         "procedure": null
       }
+    },
+    {
+      "id": "theming",
+      "title": "Theming and dark mode",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "dark mode",
+        "dark theme",
+        "light and dark",
+        "theme toggle",
+        "theme switch",
+        "prefers-color-scheme",
+        "color-scheme",
+        "theme-color",
+        "dark: variant",
+        "theme provider",
+        "next-themes",
+        "second theme"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/theming.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 13,
+        "procedure": null
+      }
     }
   ]
 }
