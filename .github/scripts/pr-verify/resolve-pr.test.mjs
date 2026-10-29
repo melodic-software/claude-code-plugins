@@ -1136,6 +1136,45 @@ test("the done-when items intake's split refinement lists as checks a person run
   const untrusted = await entry([split()], { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes });
   assert.equal(untrusted.body, null, "a body the lanes App last edited stays untrusted");
   assert.equal(untrusted.person_checks, undefined);
+
+  // A split row anywhere but the App's counted refinement names nothing.
+  const forged = `${REFINE_MARKER}\n${bodyVersion(body)}\n${splitItemsLine([2])}`;
+  const human = { ...split(), body: forged, author: { __typename: "User", login: "maintainer", databaseId: 100 } };
+  for (const [why, nodes, overrides] of [
+    ["a split row in the issue body", [], { body: `${body}\n${splitItemsLine([2])}` }],
+    ["a split row in a listed human's comment", [human]],
+  ]) {
+    assert.equal((await entry(nodes, overrides)).person_checks, undefined, why);
+  }
+
+  // A listed human's edit since the split: the body is trusted, the record
+  // names another body, so the refinement's prose split excuses nothing.
+  const stale = await entry([split()], { body: `${body}\n- [ ] Added since.`, lastEditedAt: "2026-10-16T00:00:00Z", editor: ISSUE.author });
+  assert.equal(stale.body, `${body}\n- [ ] Added since.`);
+  assert.equal(stale.person_checks, undefined);
+  assert.deepEqual(stale.comments, [], "the stale split refinement reaches the verifier in no form");
+});
+
+test("a split record holds only under the issue lane's configured web hosts", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Confirm https://example.com/page says 27.", "- [ ] Tests pass."].join("\n");
+  const split = {
+    databaseId: 5,
+    createdAt: "2026-10-15T00:00:00Z",
+    updatedAt: "2026-10-15T00:00:00Z",
+    body: `${REFINE_MARKER}\n${bodyVersion(body)}\n${splitItemsLine([2])}\n**Split.** Done-when item 2 of the issue body needs a person.`,
+    author: lanes,
+    lastEditedAt: null,
+    editor: null,
+  };
+  const entry = async (webHosts) =>
+    (await resolve({ issues: [{ ...ISSUE, body, comments: { totalCount: 1, nodes: [split] } }] }, { laneAppId: lanes.databaseId, taskList: TASK_LIST, webHosts })).specText[0];
+  assert.deepEqual((await entry([])).person_checks, ["Confirm https://example.com/page says 27."], "a host outside the list");
+  for (const hosts of [["example.com"], "any"]) {
+    const result = await entry(hosts);
+    assert.equal(result.person_checks, undefined, `hosts ${hosts}`);
+    assert.deepEqual(result.comments, [], `hosts ${hosts}: the refinement's split prose is left out`);
+  }
 });
 
 test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {

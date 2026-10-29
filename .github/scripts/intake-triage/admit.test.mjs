@@ -269,8 +269,31 @@ describe("decide", () => {
     });
 
     test("a size split leaves the item a person runs out of its parts", () => {
-      const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement()]), humans, RULES["task-list"], APP);
+      const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement()]), humans, RULES["task-list"], APP, HOSTS);
       assert.deepEqual(lines, [CANARY.split("\n")[2], CANARY.split("\n")[4]]);
+    });
+
+    test("a size split keeps every item the lane can perform, whatever the record names", () => {
+      const all = CANARY.split("\n").filter((row) => row.startsWith("- [ ]"));
+      for (const items of [[1], [1, 2], [2, 3]]) {
+        const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement(undefined, items)]), humans, RULES["task-list"], APP, HOSTS);
+        assert.deepEqual(lines, all, `items ${items}`);
+      }
+    });
+
+    test("a split row anywhere but the App's counted refinement excuses nothing", () => {
+      const row = `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([2])}`;
+      held(humanSpec(issueOf({ body: `${CANARY}\n${splitItemsLine([2])}` }), []));
+      held({ ...written(USER(HUMAN), { body: `${row}\n${CANARY}` }), comments: [] });
+      held(humanSpec(issue, [written(USER(HUMAN), { body: row })]));
+    });
+
+    test("a record holds only under the configured web hosts: an item they make runnable stays the lane's", () => {
+      const body = [CANARY.split("\n")[0], "", "- [ ] Line 3 says nineteen.", "- [ ] Confirm https://example.com/page says nineteen."].join("\n");
+      const spec = humanSpec(issueOf({ body }), [splitRefinement(body, [2])]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], []), [2]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], ["example.com"]), []);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], "any"), []);
     });
   });
 

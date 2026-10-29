@@ -270,7 +270,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   if (own === null && (issue.sub_issues_summary?.total ?? 0) > 0) {
     return decline("it already has sub-issues");
   }
-  const split = splitTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"], appId);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"], appId, () => splitConfig().webHosts);
   const { lines } = split;
   if (lines.length < 2) {
     return decline(`its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`);
@@ -779,7 +779,7 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 // leaves the split unfinished: what the issue blocks keeps its edge to the
 // issue, and the record stays unfiled so the next triage retries. The
 // record's `filed` list goes last, and is the guard that stops a later split.
-export async function applySizeSplit({ github, repository, number, appId, humans, rules, output, context, log = console.log, note = () => {} }) {
+export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const skip = (why) => {
@@ -800,7 +800,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body || String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
     return skip("changed while the model ran");
   }
-  const split = splitTaskLines(await specOf(github, repository, number), humans, rules["task-list"], appId);
+  const split = splitTaskLines(await specOf(github, repository, number), humans, rules["task-list"], appId, webHosts);
   const { lines } = split;
   const digest = splitDigest(split);
   if (digest !== context.size_split?.digest) {
@@ -945,7 +945,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
         if (context.size_split) {
           // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.
-          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), output: raw, context, note: summary });
+          const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+          const webHosts = () => issueLaneWebHostsFromBase(env);
+          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw, context, note: summary });
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
