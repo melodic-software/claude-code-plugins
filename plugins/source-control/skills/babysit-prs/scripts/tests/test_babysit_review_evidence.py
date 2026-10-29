@@ -2972,6 +2972,75 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 2)
                 self.assertEqual(result.blocking_findings, 2)
 
+    def test_an_earlier_links_summary_blocks_by_its_own_line(self) -> None:
+        # An incremental review of S over a whole review of S0 that reported
+        # four summary findings: S0's marker, posted inside its job, carries
+        # its line. The four stay open either way; only the severity changes.
+        runs = [
+            whole("claude-review", S),
+            run(self.SEC, S0, "findings=4 inline=0 scope=whole"),
+            run(
+                self.SEC,
+                S,
+                f"findings=0 inline=0 scope=incremental since={S0}",
+                created="2026-01-01T02:00:00Z",
+            ),
+        ]
+        for text, at, blocking in (
+            ("critical-findings: 0", "2026-01-01T00:00:00Z", 0),
+            ("critical-findings: 1", "2026-01-01T00:00:00Z", 1),
+            ("critical-findings: 9", "2026-01-01T00:00:00Z", 4),
+            ("no line", "2026-01-01T00:00:00Z", 4),
+            ("critical-findings: 0\ncritical-findings: 0", "2026-01-01T00:00:00Z", 4),
+            ("critical-findings: 0", "2025-12-31T23:00:00Z", 4),
+        ):
+            with self.subTest(text=text, at=at):
+                # Made first, so the head's markers stay the newest.
+                earlier = marker(self.SEC, S0)
+                earlier["created_at"] = at
+                earlier["body"] += f"\n\n{text}"
+                comments = [earlier, *self.summary_markers("critical-findings: 0")]
+                lanes = self.bind(runs, comments=comments)
+                self.assertEqual(lanes[self.SEC].open_findings, 4)
+                self.assertEqual(lanes[self.SEC].blocking_findings, blocking)
+                added = risk.ChangedFile(
+                    "plugins/foo/a.md", None, "added", 1, 0, True, "100644"
+                )
+                result = risk.score(
+                    risk.RiskInput(
+                        files=(added,),
+                        files_complete=True,
+                        max_changed_lines=200,
+                        high_paths=(),
+                        lanes=tuple(lanes.values()),
+                    )
+                )
+                codes = [r.code for r in result.reasons]
+                self.assertEqual("security-finding" in codes, blocking > 0, codes)
+
+    def test_an_older_marker_of_an_earlier_head_never_lowers_its_count(
+        self,
+    ) -> None:
+        # Only the newest marker naming S0 speaks for its review; an older
+        # one's `critical-findings: 0` in the same window does not.
+        runs = [
+            whole("claude-review", S),
+            run(self.SEC, S0, "findings=4 inline=0 scope=whole"),
+            run(
+                self.SEC,
+                S,
+                f"findings=0 inline=0 scope=incremental since={S0}",
+                created="2026-01-01T02:00:00Z",
+            ),
+        ]
+        older = marker(self.SEC, S0)
+        older["body"] += "\n\ncritical-findings: 0"
+        newer = marker(self.SEC, S0)
+        comments = [older, newer, *self.summary_markers("critical-findings: 0")]
+        result = self.bind(runs, comments=comments)[self.SEC]
+        self.assertEqual(result.open_findings, 4)
+        self.assertEqual(result.blocking_findings, 4)
+
     def test_a_summary_comment_the_review_posted_carries_the_line(self) -> None:
         # The probe fixture's producer shape: the Claude App posts the summary
         # and the head marker is a separate status comment.

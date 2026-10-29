@@ -552,6 +552,7 @@ def _bind_lane(
             chain,
             head_file,
             [(None, marker), *_summary_comments(lane, comments)],
+            _lane_markers(lane, comments),
         )
     except Unbound as exc:
         return _unbound(
@@ -620,6 +621,7 @@ def _carried_blocking(
                 chain,
                 head_file,
                 [(None, marker), *_summary_comments(SEVERITY_LANE, comments)],
+                _lane_markers(SEVERITY_LANE, comments),
             )
         except Exception:  # noqa: BLE001 - this head does not bind; try older
             continue
@@ -1101,6 +1103,29 @@ def _summary_comments(
     return found
 
 
+def _lane_markers(
+    lane: str, comments: Sequence[Mapping[str, Any]]
+) -> list[tuple[datetime | None, str, str]]:
+    """Per head, the newest reviewed-head marker of `lane` naming it (the
+    order `_require_marker` uses), with its creation time, the head and its
+    body, which carries that review's summary: an older review's marker never
+    speaks for the newest. The caller has run `_require_marker`, which unbinds
+    on a marker another identity edited."""
+    newest: dict[str, tuple[tuple[str, int], datetime | None, str]] = {}
+    for comment in comments:
+        user = comment.get("user")
+        if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
+            continue
+        body = str(comment.get("body") or "")
+        match = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if not match or match[1] != lane:
+            continue
+        key = (str(comment.get("created_at") or ""), int(comment.get("id") or 0))
+        if match[2] not in newest or key > newest[match[2]][0]:
+            newest[match[2]] = (key, _time(comment.get("created_at")), body)
+    return [(at, sha, body) for sha, (_, at, body) in newest.items()]
+
+
 def _require_marked_runs(
     lane: str,
     lane_runs: list[Mapping[str, Any]],
@@ -1129,6 +1154,7 @@ def _open_findings(
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
     summaries: Sequence[tuple[datetime | None, str]] = (),
+    markers: Sequence[tuple[datetime | None, str, str]] = (),
 ) -> tuple[int, bool, int]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
@@ -1171,16 +1197,19 @@ def _open_findings(
     `reviewed`'s tree reported a finding, and none of them was a whole
     review; and how many open findings are CRITICAL (`SEVERITY_RE`): open
     threads whose comment is not marked IMPORTANT or SUGGESTION, every inline
-    finding whose thread is gone, and the summary findings, of which only the
-    covering review's own may count fewer, when no other review of its tree
-    reported a summary finding: its one `critical-findings:` line, read from
-    `summaries` (the reviewed-head marker, which carries the summary, and
-    each Claude App summary comment posted inside that review's job). An
-    earlier review's summary is not read, so all its findings count."""
+    finding whose thread is gone, and the summary findings. Each chain tree's
+    summary findings count down to its newest link's one `critical-findings:`
+    line, when no other review of that tree reported a summary finding. The
+    covering review's line is read from `summaries`: the reviewed-head marker
+    (no time), which carries the summary, and each summary comment posted
+    inside that review's job. An earlier link's line is read from the summary
+    comments and the `markers` (time, head, body) naming its head, posted
+    inside its own job. A link without exactly one such line counts all its
+    summary findings."""
     if threads is None:
         raise Unbound("threads-unread")
-    # The covering review's job window, to place its summary comments.
-    span: tuple[datetime | None, datetime | None] | None = None
+    # Each chain link's job window, to place its summary comments.
+    spans: dict[_Record, tuple[datetime | None, datetime | None]] = {}
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
     # The tree per window, to count missing ones on the chain.
@@ -1227,8 +1256,8 @@ def _open_findings(
             if rec.findings > rec.inline:  # type: ignore[operator]
                 summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
             started = _time(job.get("started_at"))
-            if rec == chain[0]:
-                span = (started, rec.completed)
+            if rec in chain:
+                spans[rec] = (started, rec.completed)
             windows.append(
                 (
                     started,
@@ -1298,28 +1327,44 @@ def _open_findings(
         for tree in chain_trees
     )
     count = summary + unresolved + held + missing
-    # The covering review's summary findings, when it was the head's only
-    # summary count and its line reads no more than it reported.
-    own = chain[0].findings - chain[0].inline  # type: ignore[operator]
-    start, end = span or (None, None)
-    lines = [
-        line
-        for at, body in summaries
-        if at is None or (start and end and start <= at <= end)
-        for line in SUMMARY_CRITICAL_RE.findall(body)
-    ]
-    rest = summary - summary_max.get(chain_trees[0], 0)
-    if (
-        own == summary_max.get(chain_trees[0], 0)
-        and summary_reviews.get(chain_trees[0], 0) <= 1
-        and len(lines) == 1
-    ):
-        summary = rest + min(int(lines[0]), own)
+    # Per chain tree, its newest link's summary findings, counted down when
+    # that link's review was the tree's only summary count and its line reads
+    # no more than it reported.
+    summary = 0
+    for tree in chain_trees:
+        most = summary_max.get(tree, 0)
+        link = next(rec for rec in chain if trees[rec.sha] == tree)
+        covering = link is chain[0]
+        span = spans.get(link)
+        texts = [
+            body
+            for at, body in summaries
+            if (at is None and covering) or _within(at, span)
+        ]
+        if not covering:
+            texts += [
+                body
+                for at, sha, body in markers
+                if sha == link.sha and _within(at, span)
+            ]
+        lines = [line for body in texts for line in SUMMARY_CRITICAL_RE.findall(body)]
+        own = link.findings - link.inline  # type: ignore[operator]
+        if own == most and summary_reviews.get(tree, 0) <= 1 and len(lines) == 1:
+            most = min(int(lines[0]), own)
+        summary += most
     return (
         count,
         count > 0 and not unresolved and not head_spent,
         summary + critical + missing,
     )
+
+
+def _within(
+    at: datetime | None, span: tuple[datetime | None, datetime | None] | None
+) -> bool:
+    """Whether `at` falls inside a job window whose ends are both known."""
+    start, end = span or (None, None)
+    return bool(start and end and at and start <= at <= end)
 
 
 def _tree(item: Mapping[str, Any]) -> str:
