@@ -4,7 +4,8 @@
 #                                             address on stderr, the way cloudflared 2026.9.3 does
 #   tunnel --no-autoupdate run --token-file F a named tunnel: prints "Registered tunnel connection" with
 #                                             the fields connection/observer.go logs once F is readable,
-#                                             and exits 1 when it is not
+#                                             and exits 1 when it is not; first "Generated Connector ID: <uuid>"
+#                                             (FAKE_CF_CONNECTOR, else a new one), as cmd/cloudflared/tunnel/configuration.go logs it
 # Either form exits 2 when TUNNEL_TOKEN, TUNNEL_TOKEN_FILE, CLOUDFLARE_API_TOKEN or CF_API_TOKEN reaches it:
 # tunnel.py must not pass them on.
 #   FAKE_CF_DELAY  seconds before the banner or the connection line (default 0)
@@ -21,6 +22,7 @@ if [[ "$1 $2 $3 $4" == "tunnel --no-autoupdate run --token-file" && -n "${5:-}" 
     echo "$ts ERR cannot read the tunnel token file $5" >&2
     exit 1
   }
+  echo "$ts INF Generated Connector ID: ${FAKE_CF_CONNECTOR:-00000000-0000-4000-8000-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')}" >&2
   sleep "${FAKE_CF_DELAY:-0}"
   [[ -z "${FAKE_CF_NOURL:-}" ]] &&
     echo "$ts INF Registered tunnel connection connIndex=0 connection=00000000-0000-4000-8000-000000000000 event=0 ip=192.0.2.10 location=fake01 protocol=quic" >&2

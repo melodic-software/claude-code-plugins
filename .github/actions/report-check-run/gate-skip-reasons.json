@@ -1,5 +1,5 @@
 {
-  "kill-switch": "prerequisite-missing",
+  "kill-switch": "kill-switch",
   "list-unreadable": "prerequisite-missing",
   "fork": "untrusted-trigger",
   "no-pr": "untrusted-trigger",

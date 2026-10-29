@@ -5,6 +5,7 @@
       "codeowners",
       "gitmodules",
       "settings",
+      "lane-grants",
       "symlink",
       "gitlink",
       "rename-into-refused"
@@ -35,6 +36,7 @@
       "codeowners",
       "gitmodules",
       "settings",
+      "lane-grants",
       "symlink",
       "gitlink",
       "rename-into-refused"
@@ -65,6 +67,7 @@
       "codeowners",
       "gitmodules",
       "settings",
+      "lane-grants",
       "symlink",
       "gitlink",
       "rename-into-refused"

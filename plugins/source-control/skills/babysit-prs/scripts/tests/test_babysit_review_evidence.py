@@ -409,6 +409,8 @@ class LaneSourceTests(Base):
             "plugins/foo/.gitattributes",
             "docs/standards/README.md",
             "docs/standards/simpler-code.md",
+            "docs/contracts/instruction-exception-register/README.md",
+            "docs/contracts/untrusted-content/README.md",
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             ".claude-lane/pr-context.md",
@@ -3076,6 +3078,128 @@ class SeverityTests(Base):
             self.SEC
         ]
         self.assertEqual(result.blocking_findings, 1)
+
+    # #10817: a whole review at S0 reported one IMPORTANT summary finding with
+    # `critical-findings: 0`, then an incremental review at S found none. The
+    # lane edits one marker in place, so S0's summary lives in its history.
+    ACTIONS_BOT = {"__typename": "Bot", "login": "github-actions"}
+
+    def earlier_link(self) -> list[dict[str, Any]]:
+        early = attempt(
+            self.SEC, S0, 1, [record(self.SEC, S0, "findings=1 inline=0 scope=whole")]
+        )
+        late = attempt(
+            self.SEC,
+            S,
+            1,
+            [record(self.SEC, S, f"findings=0 inline=0 scope=incremental since={S0}")],
+        )
+        late["jobs"][0]["started_at"] = "2026-01-01T02:00:00Z"
+        late["jobs"][0]["completed_at"] = "2026-01-01T03:00:00Z"
+        return [
+            whole("claude-review", S),
+            run(self.SEC, S0, attempts=[early]),
+            run(self.SEC, S, attempts=[late], created="2026-01-01T02:00:00Z"),
+        ]
+
+    def edited_marker(
+        self, earlier: str | None, history: Any = None
+    ) -> list[dict[str, Any]]:
+        """Both markers, the security one edited from S0's summary (`earlier`)
+        to S's clean one; `history` replaces the edit history whole."""
+        current = (
+            f"<!-- claude-lane-reviewed-head lane={self.SEC} sha={S} -->\n"
+            "reviewed: 0 finding(s).\n\ncritical-findings: 0"
+        )
+        old = (
+            f"<!-- claude-lane-reviewed-head lane={self.SEC} sha={S0} -->\n"
+            f"reviewed: 1 finding(s).\n\n{earlier}"
+        )
+        if history is None:
+            history = {
+                "totalCount": 2,
+                "nodes": [
+                    {"editedAt": "2026-01-01T02:30:00Z", "deletedAt": None,
+                     "editor": self.ACTIONS_BOT, "diff": current},
+                    {"editedAt": "2026-01-01T00:30:00Z", "deletedAt": None,
+                     "editor": self.ACTIONS_BOT, "diff": old},
+                ],
+            }  # fmt: skip
+        found = both_markers()
+        for item in found:
+            if f"lane={self.SEC}" in item["body"]:
+                item["body"] = current
+                item["edit"] = {
+                    "lastEditedAt": "2026-01-01T02:30:00Z",
+                    "editor": self.ACTIONS_BOT,
+                    "history": history,
+                }
+        return found
+
+    def test_an_earlier_links_summary_blocks_only_when_critical_or_unreadable(
+        self,
+    ) -> None:
+        for earlier, blocking in (
+            ("critical-findings: 0", 0),
+            ("critical-findings: 1", 1),
+            ("critical-findings: 7", 1),
+            ("no line", 1),
+            ("critical-findings: 0\ncritical-findings: 0", 1),
+        ):
+            with self.subTest(earlier=earlier):
+                comments = self.edited_marker(earlier)
+                result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.open_findings, 1)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_an_unreadable_marker_history_counts_the_earlier_summary_in_full(
+        self,
+    ) -> None:
+        good = self.edited_marker("critical-findings: 0")[1]["edit"]["history"]
+        nodes = good["nodes"]
+        for name, history in (
+            ("absent", "missing"),
+            ("truncated", {"totalCount": 3, "nodes": nodes}),
+            ("deleted", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "deletedAt": "2026-01-01T04:00:00Z"}]}),
+            ("no diff", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "diff": None}]}),
+            ("another editor", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "editor": MAINTAINER}]}),
+            ("outside the job", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "editedAt": "2026-01-01T01:30:00Z"}]}),
+        ):  # fmt: skip
+            with self.subTest(name=name):
+                comments = self.edited_marker("critical-findings: 0", history)
+                if name == "absent":
+                    del comments[1]["edit"]["history"]
+                result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.blocking_findings, 1)
+
+    def test_a_revision_for_another_head_does_not_read_for_the_earlier_link(
+        self,
+    ) -> None:
+        # S's own revision falls in S0's window: it names S, not S0.
+        comments = self.edited_marker("no line")
+        history = comments[1]["edit"]["history"]
+        history["nodes"][0]["editedAt"] = "2026-01-01T00:40:00Z"
+        result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 1)
+
+    def test_the_covering_reviews_line_still_reads_beside_the_history(self) -> None:
+        # The newest revision is the current marker body: it must not count
+        # as a second line for the covering review.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+        comments = self.summary_markers("critical-findings: 0")
+        sec = comments[1]
+        sec["edit"] = {
+            "lastEditedAt": "2026-01-01T00:30:00Z",
+            "editor": self.ACTIONS_BOT,
+            "history": {"totalCount": 1, "nodes": [
+                {"editedAt": "2026-01-01T00:30:00Z", "deletedAt": None,
+                 "editor": self.ACTIONS_BOT, "diff": sec["body"]},
+            ]},
+        }  # fmt: skip
+        result = self.bind(runs, comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 0)
 
     def test_claude_review_findings_all_block(self) -> None:
         runs = [whole("claude-review", S, n=1, k=0), whole(self.SEC, S)]

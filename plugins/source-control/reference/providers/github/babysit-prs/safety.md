@@ -58,3 +58,15 @@ release changes how `gh pr merge` treats a queue base, or the GraphQL schema cha
 ## Rerun a rate-limited review
 
 Rerun the whole workflow run with `gh run rerun <run-id>`, never `gh run rerun --failed`.
+
+## Resolve identity on a person-opened PR
+
+The spoke's own-PR exception resolves a lane-answered thread under the PR author's login, and the
+lanes App does not resolve threads on a PR a person opened.
+
+- **Pointer**: when deciding which identity can resolve a thread on a person-opened PR, fetch
+  [Resolving conversations](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/commenting-on-a-pull-request#resolving-conversations)
+  live; the probe is [pr-unblock run 40737011221](https://github.com/melodic-software/claude-code-plugins/actions/runs/40737011221)
+  (`publish-feedback / run`, a lanes App resolve on a person-opened PR that failed). **As of**:
+  2026-10-28. **Recheck trigger**: a lanes App resolve on a person-opened PR succeeds, or that
+  section changes who may resolve a conversation.

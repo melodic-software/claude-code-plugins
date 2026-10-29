@@ -1844,6 +1844,14 @@ for (const [name, why, message] of [
   });
 }
 
+test("patch rules: a row that does not refuse lane-grants is rejected, so no lane patch can change the central grants (ADR 0085 Decision 6)", () => {
+  const refuse = PATCH_RULES.default.refuse.filter((name) => name !== "lane-grants");
+  assert.throws(
+    () => checkPatchRules({ ...PATCH_RULES, default: { ...PATCH_RULES.default, refuse } }, PATCH_RULES_SCHEMA),
+    (error) => error instanceof Rejection && error.code === "patch-rules" && /row `default` does not refuse lane-grants$/.test(error.message),
+  );
+});
+
 test("patch rules: a missing registry or schema is rejected", () => {
   assertRejected(() => checkPatchRules(undefined, PATCH_RULES_SCHEMA), "patch-rules");
   assertRejected(() => checkPatchRules(PATCH_RULES, undefined), "patch-rules");

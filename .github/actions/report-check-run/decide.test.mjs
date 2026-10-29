@@ -19,9 +19,10 @@ const SKIP_REASONS = [
   "superseded-sha",
   "disabled-by-config",
   "untrusted-trigger",
+  "kill-switch",
 ];
 const GATE_SKIP_REASONS = {
-  "kill-switch": "prerequisite-missing",
+  "kill-switch": "kill-switch",
   "list-unreadable": "prerequisite-missing",
   fork: "untrusted-trigger",
   "no-pr": "untrusted-trigger",
@@ -257,7 +258,7 @@ test("an empty env head SHA with a reason other than no-pr posts on the fallback
 
 test("each gate reason maps to its contract skip reason", () => {
   const expected = [
-    ["kill-switch", "kill-switch", "prerequisite-missing"],
+    ["kill-switch", "kill-switch", "kill-switch"],
     ["trigger", "list-unreadable", "prerequisite-missing"],
     ["trigger", "fork", "untrusted-trigger"],
     ["trigger", "bot-actor", "untrusted-trigger"],
@@ -538,6 +539,15 @@ test("every key of the shipped gate-skip-reasons.json posts neutral with its map
     assert.equal(report.conclusion, "neutral", reason);
     assert.equal(report.output.summary, `Skip reason: ${skip}`, reason);
   }
+});
+
+// request-lane-token's kill-switch-ok: the broker refused the mint for a
+// switch turned on after the kill step proceeded, so no gate stopped the run
+// and the token step's skip reason alone names it.
+test("a broker kill-switch refusal after the gates proceeded posts neutral kill-switch", () => {
+  const report = posted(decide(verdict({ "skip-reason": "kill-switch" }), inputs({ actOutcome: "skipped" })));
+  assert.equal(report.conclusion, "neutral");
+  assert.equal(report.output.title, "Skipped: kill-switch");
 });
 
 test("a skip-reason outside the enum posts failure", () => {
