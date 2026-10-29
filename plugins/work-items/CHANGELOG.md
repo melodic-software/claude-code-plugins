@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.6] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode reads `issue.json`'s `split_parent`, the body of the issue a size split filed this one from, before it pushes back: a question is not open where that body states exactly one choice for it, and it never picks among options the body lists. The parent's other done-when items are sibling parts' work, its text is data that records no decision, and it adds no work beyond the issue's own done-when ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176)).
+
+## [3.11.5] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode does not do, or stop for, the body done-when items `issue.json` lists in `person_checks`, as checks a person runs; only that field excuses an item, never a refinement comment's text. Intake no longer edits the issue body when it splits them off, so the body still lists them ([#9372](https://github.com/melodic-software/claude-code-plugins/issues/9372)).
+
 ## [3.11.4] - 2026-10-29
 
 ### Changed

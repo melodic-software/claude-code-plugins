@@ -543,6 +543,46 @@
         "The save-point records `schema-diff` as still running and marks its pending result `UNVERIFIED (schema-diff still running)` or an equivalent `UNVERIFIED` marker",
         "The response neither cancels the subagent itself nor states a schema diff result it never received"
       ]
+    },
+    {
+      "id": 40,
+      "name": "conversation-bound-goal-is-warned-and-kept-verbatim",
+      "narration": true,
+      "prompt": "/session-flow:handoff file export-retry\n\n(Context: earlier this session I ran `/goal the CSV export retries a failed upload three times and every claim is proven by output you produced in this conversation`. It is still active. The retry code is committed at a1b2c3d, the test log is saved at notes/retry-proof.md, and two edge cases remain.)",
+      "expected_output": "A /goal is active, so the prompt holds a goal region after the resume region. Its condition ties proof to output produced in this conversation, which the next session's conversation will not hold, so a warning line sits above the goal region's instruction line, outside the rails. The warning says the next session must re-produce every earlier proof and suggests rewording the proof as at commit a1b2c3d or in notes/retry-proof.md, shown in the conversation. The condition between the rails is the original text, unchanged, followed by the `Read @` directive line.",
+      "files": [],
+      "expectations": [
+        "A warning line sits above the goal region's instruction line, outside the rails, saying the next session must re-produce every earlier proof",
+        "The warning suggests commit- or file-anchored wording, naming a1b2c3d or notes/retry-proof.md",
+        "The condition between the goal region's rails is the original condition, word for word, not a rewording",
+        "The goal region still ends with the resume region's `Read @` directive line, and `save_point.py validate` exits 0"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "goal-met-at-recorded-commit-with-only-user-decisions-gets-no-region",
+      "narration": true,
+      "prompt": "/session-flow:handoff file pricing-flag\n\n(Context: earlier this session I ran `/goal the pricing flag is wired behind the config switch, its unit tests pass, and the README documents it`. It is still active. All three are done at commit 9f8e7d6, which the test log at notes/pricing-tests.md shows. What is left is my call: whether to turn the flag on by default, and which release it ships in.)",
+      "expected_output": "Every criterion of the active goal is met at commit 9f8e7d6, which the save-point records along with notes/pricing-tests.md, and the only remaining actions are the user's two decisions. So the prompt has no goal region: only the resume region is emitted. Below its bottom rail, a note says the goal region was left out because its criteria are met at the recorded commit, and lists the two pending decisions.",
+      "files": [],
+      "expectations": [
+        "No goal region is emitted: the prompt has one pair of rails, the resume region's",
+        "A note below the resume region's bottom rail says the goal region was left out because its criteria are met at the recorded commit or file",
+        "The note lists both pending decisions: turning the flag on by default, and the release it ships in",
+        "The save-point records commit 9f8e7d6 or notes/pricing-tests.md as the evidence for the met criteria"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "ordinary-goal-is-carried-without-a-warning",
+      "prompt": "/session-flow:handoff file auth-tests\n\n(Context: earlier this session I ran `/goal all tests in test/auth pass and the lint step is clean`. It is still active. Two auth tests still fail.)",
+      "expected_output": "A /goal is active and its condition names a test result and a lint result, with no wording that ties proof to this conversation, and work remains. The goal region is emitted after the resume region exactly as for any carried goal, with no warning line above it, and its condition is carried word for word.",
+      "files": [],
+      "expectations": [
+        "The goal region is emitted after the resume region, with the condition 'all tests in test/auth pass and the lint step is clean' word for word",
+        "No warning about re-producing proof appears above the goal region",
+        "No note says the goal region was left out"
+      ]
     }
   ]
 }

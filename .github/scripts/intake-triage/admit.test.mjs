@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader } from "./admit.mjs";
+import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -109,6 +112,20 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
     });
 
+    test("a task list only inside a code fence is refused, and one after the fence is admitted", () => {
+      // A shorter fence line inside a longer fence does not close it.
+      for (const [open, inner, close] of [
+        ["```", [], "```"],
+        ["~~~", ["```"], "~~~"],
+        ["````markdown", ["```", "- [ ] Another item."], "````"],
+      ]) {
+        const fenced = issueOf({ body: ["## Done when", "", open, "- [ ] Line 3 says nineteen.", ...inner, close].join("\n") });
+        assert.deepEqual(decide(facts({ issue: fenced })), { verdict: "refuse", reasons: [NO_SPEC] }, open);
+        const after = issueOf({ body: [...fenced.body.split("\n"), "", "- [ ] Line 3 says nineteen."].join("\n") });
+        assert.deepEqual(decide(facts({ issue: after })), { verdict: "admit", reasons: [] }, open);
+      }
+    });
+
     test("admit() writes nothing when the text read answers an unexpected shape", async () => {
       for (const spec of ["no-issue", "no-body"]) {
         const { github, calls } = fakeGitHub({ spec });
@@ -139,6 +156,98 @@ describe("decide", () => {
     for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
       assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
     }
+  });
+
+  // The hold is a constant of decide, so no rules file loadRules accepts
+  // lifts it, one whose `classes` names the class included.
+  test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
+    const dir = tempDir("admit-rules-");
+    const widened = [
+      { ...RULES, classes: [...RULES.classes, UNTRUSTED_CLASS] },
+      { ...RULES, classes: [UNTRUSTED_CLASS], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+    ];
+    widened.forEach((content, index) => {
+      const path = join(dir, `rules-${index}.json`);
+      writeFileSync(path, JSON.stringify(content));
+      const rules = loadRules(path);
+      for (const overrides of [{ verdict: { ...VERDICT, workClass: UNTRUSTED_CLASS } }, { issue: issueOf({ labels: [{ name: READY }, { name: UNTRUSTED_CLASS }] }) }]) {
+        const result = decide(facts({ rules, ...overrides }));
+        assert.equal(result.verdict, "refuse", path);
+        assert.equal(result.hold, true, path);
+        assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
+      }
+    });
+  });
+
+  // The work-unblock sweep re-admits a deferred issue on no verdict comment,
+  // so what changed since its newest admission-deferred add refuses.
+  describe("a deferred issue re-admitted with no fresh verdict", () => {
+    const DEFERRED_AT = "2026-10-20T09:00:00Z";
+    const event = (kind, name, id, at) => ({ event: kind, label: { name }, actor: { id }, created_at: at });
+    const deferredAdd = event("labeled", DEFERRED, APP, DEFERRED_AT);
+    const deferredIssue = (...more) => issueOf({ labels: [{ name: READY }, { name: DEFERRED }, ...more.map((name) => ({ name }))] });
+    const SECURITY = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
+    const EDITED = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+
+    test("admits a deferred issue nothing changed on", () => {
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: [deferredAdd] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses for a person a deferred issue that now carries do-not-merge, needs-human or the hold class, whatever the rules say", () => {
+      const bare = { ...RULES, "refuse-labels": [] };
+      for (const [label, reason] of [
+        ["do-not-merge", "it carries do-not-merge"],
+        ["needs-human", "it carries needs-human"],
+        [UNTRUSTED_CLASS, `${UNTRUSTED_CLASS} work needs a person`],
+      ]) {
+        for (const rules of [RULES, bare]) {
+          assert.deepEqual(decide(facts({ rules, issue: deferredIssue(label), events: [deferredAdd] })), { verdict: "refuse", reasons: [reason], hold: true }, label);
+        }
+      }
+      const removed = [deferredAdd, event("labeled", UNTRUSTED_CLASS, APP, DEFERRED_AT), event("unlabeled", UNTRUSTED_CLASS, OUTSIDER, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: removed })), { verdict: "refuse", reasons: [`${UNTRUSTED_CLASS} work needs a person`], hold: true });
+    });
+
+    test("a deferred issue that lost status: ready lapses, and decide skips it", () => {
+      const lost = issueOf({ labels: [{ name: DEFERRED }] });
+      assert.deepEqual(deferralLapsed({ labels: lost.labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), [
+        { reason: `it lost ${READY} while deferred`, kind: "not-ready", hold: false },
+      ]);
+      assert.deepEqual(deferralLapsed({ labels: deferredIssue().labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), []);
+      assert.deepEqual(decide(facts({ issue: lost, events: [deferredAdd] })), { verdict: "skip", reasons: [`no ${READY}`] });
+    });
+
+    test("refuses for a person a deferred issue that gained area: security after its deferral", () => {
+      const after = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: after })), { verdict: "refuse", reasons: [SECURITY], hold: true });
+      const before = [event("labeled", "area: security", HUMAN, "2026-10-20T08:00:00Z"), deferredAdd];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: before })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses a deferred issue whose body was edited after its deferral", () => {
+      const issue = deferredIssue();
+      const editedAt = (at) => ({ ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: at }), comments: [] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "refuse", reasons: [EDITED] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T08:00:00Z") })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a fresh verdict judges the security area and the body itself", () => {
+      const issue = deferredIssue("area: security");
+      const events = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      const spec = { ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: "2026-10-20T10:00:00Z" }), comments: [] };
+      const verdict = { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" };
+      assert.deepEqual(decide(facts({ issue, events, spec, verdict })), { verdict: "admit", reasons: [] });
+    });
+  });
+
+  test("an issue row in patch-rules.json that refuses no protected path fails admission closed", () => {
+    const dir = tempDir("admit-patch-rules-");
+    for (const row of [{ refuse: [] }, { refuse: ["symlink", "gitlink"] }, {}]) {
+      const path = join(dir, "patch-rules.json");
+      writeFileSync(path, JSON.stringify({ [PATCH_ROW]: row }));
+      assert.throws(() => pushRefusalsOf(path), /row refuses no protected path/, JSON.stringify(row));
+    }
+    assert.ok(issuePushRefusals().length > 0);
   });
 
   test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
@@ -219,6 +328,83 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), reason);
     });
   }
+
+  // #9372: intake's split never edits the body, so it stays the listed
+  // human's text; the split refinement alone takes the person-only item out.
+  describe("intake's split refinement", () => {
+    const issue = issueOf({ body: CANARY });
+    const SPLIT = { exact: true, outcome: "Line 9 says 27 checks.", criteria: [], dependencies: [], related: [], questions: [], sources: [], split: [2], external: { state: "none", repo: "", class: "", what: "" } };
+    const splitRefinement = (body = CANARY, items = [2], extra = {}) => {
+      const output = validateOutput({ ...SPLIT, split: items }, new Set(), { count: 3, items: items.map((n) => ({ n })) });
+      return written(APP_ACTOR, { body: render(output, { body, checks: ["- [ ] a check"], retriage: true }), ...extra });
+    };
+    const held = (spec) => {
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true);
+      assert.match(result.reasons.join("; "), /item 2 \(a run on a host the lane is not/);
+    };
+
+    test("admits the human's untouched body once the refinement lists the item a person runs", () => {
+      const spec = humanSpec(issue, [splitRefinement()]);
+      assert.deepEqual(decide(facts({ issue, spec })), { verdict: "admit", reasons: [] });
+      assert.equal(spec.body, CANARY, "the body is as its author wrote it");
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), [2]);
+    });
+
+    test("holds the item again when the record does not stand", () => {
+      held(humanSpec(issue, [splitRefinement(`${CANARY}\n- [ ] Added since.`)]));
+      held(humanSpec(issue, [splitRefinement(undefined, undefined, { editor: APP_ACTOR })]));
+      held(humanSpec(issue, [splitRefinement(), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\nA newer one.` })]));
+      held(humanSpec(issue, [written(USER(OUTSIDER), { body: splitRefinement().body })]));
+    });
+
+    test("never drops a runnable criterion: the items must be exactly the ones the lane cannot perform", () => {
+      for (const items of [[1], [2, 3], [1, 2]]) {
+        const result = decide(facts({ issue, spec: humanSpec(issue, [splitRefinement(undefined, items)]) }));
+        assert.equal(result.verdict, "refuse", `items ${items}`);
+        assert.equal(result.hold, true);
+      }
+      const all = written(APP_ACTOR, { body: `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([1, 2, 3])}` });
+      assert.deepEqual(personChecks(humanSpec(issue, [all]), humans, APP, RULES["task-list"]), [], "a record leaving no item for the lane");
+    });
+
+    test("a body another account last edited stays untrusted, the record with it", () => {
+      const spec = { ...written(USER(HUMAN), { body: CANARY, editor: APP_ACTOR }), comments: [splitRefinement()] };
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"]), []);
+      const result = decide(facts({ issue, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join("; "), /no trusted-human acceptance criteria/);
+    });
+
+    test("a size split leaves the item a person runs out of its parts", () => {
+      const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement()]), humans, RULES["task-list"], APP, HOSTS);
+      assert.deepEqual(lines, [CANARY.split("\n")[2], CANARY.split("\n")[4]]);
+    });
+
+    test("a size split keeps every item the lane can perform, whatever the record names", () => {
+      const all = CANARY.split("\n").filter((row) => row.startsWith("- [ ]"));
+      for (const items of [[1], [1, 2], [2, 3]]) {
+        const { lines } = splitTaskLines(humanSpec(issue, [splitRefinement(undefined, items)]), humans, RULES["task-list"], APP, HOSTS);
+        assert.deepEqual(lines, all, `items ${items}`);
+      }
+    });
+
+    test("a split row anywhere but the App's counted refinement excuses nothing", () => {
+      const row = `${REFINE_MARKER}\n${bodyVersion(CANARY)}\n${splitItemsLine([2])}`;
+      held(humanSpec(issueOf({ body: `${CANARY}\n${splitItemsLine([2])}` }), []));
+      held({ ...written(USER(HUMAN), { body: `${row}\n${CANARY}` }), comments: [] });
+      held(humanSpec(issue, [written(USER(HUMAN), { body: row })]));
+    });
+
+    test("a record holds only under the configured web hosts: an item they make runnable stays the lane's", () => {
+      const body = [CANARY.split("\n")[0], "", "- [ ] Line 3 says nineteen.", "- [ ] Confirm https://example.com/page says nineteen."].join("\n");
+      const spec = humanSpec(issueOf({ body }), [splitRefinement(body, [2])]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], []), [2]);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], ["example.com"]), []);
+      assert.deepEqual(personChecks(spec, humans, APP, RULES["task-list"], "any"), []);
+    });
+  });
 
   // Owner Q93 settled Size Large without a person: the split happens at intake,
   // so the issue parks at status: ready (a wait with no pull request).
@@ -389,6 +575,8 @@ describe("decide", () => {
       ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
       ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
+      ["- [ ] CODEOWNERS names the team.", "CODEOWNERS"],
+      ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
       // #9113's criterion: a bare name of a workflow on disk.
       ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
       ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
@@ -413,6 +601,31 @@ describe("decide", () => {
       }
     });
 
+    const evasions = [
+      ["a case change", "- [ ] `.GitHub/Workflows/a.yml` reads the new input.", ".GitHub/Workflows/a.yml"],
+      ["a case change in .gitmodules", "- [ ] `.GITMODULES` drops the old submodule.", ".GITMODULES"],
+      ["a case change in a bare workflow name", "- [ ] PR-Require-Checks.yml pins that release.", ".github/workflows/PR-Require-Checks.yml"],
+      ["a missing leading dot", "- [ ] github/workflows/a.yml reads the new input.", "github/workflows/a.yml"],
+      ["a missing leading dot on .gitmodules", "- [ ] `vendor/gitmodules` drops the old submodule.", "vendor/gitmodules"],
+      ["fullwidth characters", "- [ ] ．github／workflows／a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters", "- [ ] .git​hub/work⁠flows/a﻿.yml reads the new input.", ".github/workflows/a.yml"],
+      ["URL encoding", "- [ ] %2Egithub%2Fworkflows%2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["fullwidth percent signs", "- [ ] ％2Egithub％2Fworkflows％2Fa.yml reads the new input.", ".github/workflows/a.yml"],
+      ["zero-width characters in the task-list prefix", "​- [ ]​ .github/workflows/a.yml reads the new input.", ".github/workflows/a.yml"],
+      ["a case change in a root CODEOWNERS", "- [ ] `codeowners` names the team.", "codeowners"],
+      ["a root .gitmodules without its dot", "- [ ] `gitmodules` drops the old submodule.", "gitmodules"],
+    ];
+    for (const [name, line, path] of evasions) {
+      test(`still refuses a protected path written with ${name}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
+    test("still refuses a protected path in a code fence under a criterion, past its blank and bullet-like lines", () => {
+      const issue = withCriteria("- [ ] Apply this change:", "  ```diff", "  - timeout-minutes: 3", "", "  + see .github/workflows/a.yml", "  ```");
+      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")] });
+    });
+
     const admitted = [
       // #9137's shape.
       "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
@@ -421,6 +634,10 @@ describe("decide", () => {
       // #9092's: a bare .yml name no workflow on disk has.
       "- [ ] No pr-test-macos.yml is added.",
       "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
+      // A root name in prose, outside backticks, names no file.
+      "- [ ] The codeowners check reports the missing team.",
+      "- [ ] Codeowners review is requested.",
+      "- [ ] The gitmodules parser skips comments.",
     ];
     for (const line of admitted) {
       test(`admits ${line}`, () => {
@@ -901,7 +1118,7 @@ describe("admit", () => {
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a child issue for the host queue \(`host-run`\)/);
   });
 
   test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
@@ -1356,12 +1573,124 @@ describe("unrunnableCriteria", () => {
     assert.ok(text.includes("@\u200bowner"));
     assert.equal(text.length, 80);
   });
+  test("still flags an item written with a case change, fullwidth or zero-width characters or URL encoding", () => {
+    for (const line of [
+      "RUN IT ON A WINDOWS 11 HOST.",
+      "Run it on a \uff37\uff49\uff4e\uff44\uff4f\uff57\uff53 11 host.",
+      "Run it on a Win\u200bdo\u200cws 11\u2060 host.",
+      "Run it on%20a%20Windows%2011%20host.",
+    ]) {
+      assert.deepEqual(kinds(line), ["a run on a host the lane is not"], line);
+    }
+    // An invisible character in the task-list prefix still leaves an item.
+    assert.equal(unrunnableCriteria("​- [ ]​ Run it on a Windows 11 host.", "- [ ] ", HOSTS).found.length, 1);
+    assert.deepEqual(kinds("The page at https://exa\u200bmple.com/docs shows the new flag."), ["a page on example.com, outside the lane's web hosts"]);
+  });
 });
 
-test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
-  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
-  assert.equal(result.verdict, "refuse");
-  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+// Host work goes to the host queue (`host-run`), parked at status: confirmed,
+// never to a person (docs/conventions/loop-lane/README.md, the three labels
+// that take work off the unattended path). Only a mixed issue lacking
+// host-run holds, so refine.mjs splitOf can split it from needs-decision.
+describe("host-run work", () => {
+  const HOST_ONLY = "- [ ] Run it on a Windows 11 host.";
+  const hostRun = (body, labels = [{ name: READY }]) => issueOf({ body, labels });
+  const queued = (body) => hostRun(body, [{ name: READY }, { name: "host-run" }]);
+  const addedBy = (id) => [{ event: "labeled", label: { name: "host-run" }, actor: { id }, created_at: "2026-10-21T00:00:00Z" }];
+
+  test("every done-when item unrunnable goes to the host queue: host-run added, no hold, no split", async () => {
+    const result = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(result.verdict, "refuse");
+    assert.equal(result.hold, undefined);
+    assert.equal(result.hostRun, true);
+    assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so it goes to the host queue \(`host-run`\)/);
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY) });
+    assert.equal((await go(fake)).status, CONFIRMED);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED, "host-run"] })}`);
+  });
+
+  // #9293: the owner released it with host-run added, and admission held it again.
+  test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
+    for (const [body, by] of [
+      [HOST_ONLY, HUMAN],
+      [CANARY, HUMAN],
+      [CANARY, APP],
+    ]) {
+      const issue = queued(body);
+      const result = decide(facts({ issue, events: addedBy(by) }));
+      assert.equal(result.verdict, "refuse", body);
+      assert.equal(result.hold, undefined, body);
+      assert.equal(result.hostRun, undefined, body);
+      const fake = fakeGitHub({ issue, events: addedBy(by) });
+      assert.equal((await go(fake)).status, CONFIRMED, body);
+      assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`, body);
+    }
+  });
+
+  // host-run starts an unattended host run, so it goes only on an issue whose
+  // one obstacle is that no item is left for the lane.
+  test("host work with another refusal, a wait or a pending split parks at status: confirmed with no host-run", async () => {
+    const issue = hostRun(HOST_ONLY);
+    for (const [why, overrides] of [
+      ["Uncertainty unknown", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+      ["a duplicate label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) }],
+      ["an attended label", { issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "attended" }]) }],
+      ["an open pull request", { pulls: [5] }],
+      ["a pending size split", { verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }],
+    ]) {
+      const result = decide(facts({ issue, ...overrides }));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, undefined, why);
+      assert.equal(result.hostRun, undefined, why);
+    }
+    const fake = fakeGitHub({ issue: hostRun(HOST_ONLY, [{ name: READY }, { name: "duplicate" }]) });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [CONFIRMED] })}`);
+  });
+
+  // A host-run label counts only when a listed human or the lanes App added it
+  // last, as attendedHold judges `attended`'s provenance.
+  test("a host-run label an unlisted account added does not lift the split hold", () => {
+    for (const events of [addedBy(OUTSIDER), []]) {
+      const result = decide(facts({ issue: queued(CANARY), events }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.hold, true, JSON.stringify(events));
+    }
+    assert.equal(decide(facts({ issue: queued(CANARY), events: addedBy(HUMAN) })).hold, undefined);
+  });
+
+  // Billing is an owner stop reason (docs/conventions/loop-lane/README.md, when
+  // work stops for the owner), so a paid eval keeps the person hold; any other
+  // unrunnable kind, an off-allowlist page included, goes to the host queue.
+  test("a paid-eval item keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
+    const PAID = "- [ ] Run a paid eval of the skill and record the delta.";
+    for (const [why, input] of [
+      ["paid eval alone", { issue: hostRun(PAID) }],
+      ["paid eval beside a host item", { issue: hostRun(`${HOST_ONLY}\n${PAID}`) }],
+      ["paid eval on an issue carrying host-run", { issue: queued(`${HOST_ONLY}\n${PAID}`), events: addedBy(HUMAN) }],
+    ]) {
+      const result = decide(facts(input));
+      assert.equal(result.verdict, "refuse", why);
+      assert.equal(result.hold, true, why);
+      assert.equal(result.hostRun, undefined, why);
+      assert.match(result.reasons.join("; "), /the owner, since a paid eval can bill the owner/, why);
+    }
+    const page = decide(facts({ issue: hostRun("- [ ] Confirm it matches https://example.com/docs.") }));
+    assert.equal(page.hold, undefined);
+    assert.equal(page.hostRun, true);
+  });
+
+  test("a hold for a person adds no host-run, so no unattended host run acts on held text", async () => {
+    const trusted = decide(facts({ issue: hostRun(HOST_ONLY) }));
+    assert.equal(trusted.hostRun, true);
+    const issue = issueOf({ body: HOST_ONLY, user: { id: OUTSIDER } });
+    const held = decide(facts({ issue }));
+    assert.equal(held.hold, true);
+    assert.equal(held.hostRun, undefined);
+    const fake = fakeGitHub({ issue });
+    await go(fake);
+    assert.equal(writes(fake.calls)[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+  });
 });
 
 describe("noteUnrunnable", () => {

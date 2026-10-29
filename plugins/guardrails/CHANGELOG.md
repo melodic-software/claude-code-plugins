@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.1] - 2026-10-29
+
+### Changed
+
+- reference-verify judges a stacked branch only on what it adds to the pushed branch below it
+
+  The pre-push reference-verify entry now moves each range's base up to the nearest of the remote's tracking refs between that base and the tip. A new branch stacked on a pushed branch no longer re-verifies every file the branches below it changed, so each push in a stack of branches verifies only its own files. The README row states that those tracking refs are trusted as verified, another author's included. The README's reference-verify row also documents the ssh `ServerAliveInterval` setting. It keeps a long push's idle connection open; a dropped connection leaves a push that reports success but creates no ref.
+
+### Fixed
+
+- `block-dangerous-git` lets a plain `git reset --hard` or `git clean -f` through on the Bash tool when git places both the work tree's top level and the common git directory under the system temp directory (`$TMPDIR`, `$TMP`, `$TEMP` or `/tmp`), the scratch repositories agents create and throw away ([#9779](https://github.com/melodic-software/claude-code-plugins/issues/9779)). `/var/tmp` persists across reboots, so a repository there still blocks unless one of those variables names it. The command has to be that one git invocation alone. It still blocks when `HOME` is under a temp root, in a linked worktree of a repository outside it, in a repository outside it, when the command carries a `-c` global, runs git through a wrapper or alias, or holds a separator, quote, escape, expansion, redirection or glob character, and on the PowerShell tool.
+- `block-root-delete-target` reads `rm -rf "$S"` as the literal `S` was set to when the command opens with `S=<literal>` and one `&&`, `;` or newline, even with other statements between the assignment and the delete (#9779). The binding still needs every `$S` to be a whole double-quoted word and the rest of the command to hold no quote, backslash, `$`, backtick, glob or brace character, and a second assignment to `S`, arithmetic, `let`, `unset`, `for`, `getopts`, a zsh setter such as `foreach`, `vared` or `print -v`, a `{S}>` redirection or any other builtin that sets a variable by name drops it, so the operand blocks as a bare variable as before.
+
 ## [0.63.0] - 2026-10-29
 
 ### Added

@@ -226,5 +226,6 @@ PowerShell delete ran unprompted in the resumed process
 ([#9853](https://github.com/melodic-software/claude-code-plugins/issues/9853)). Run each approved
 manual-lane delete in the same process that ran the skill. When a session resumed after this skill
 ran, the plugin's resume notice says so at session start: make no delete or overwrite until the user
-types `/disk-hygiene:clean` again. Both registration surfaces, the kill switch, the resume record, and
+types `/disk-hygiene:clean` again, whether the user typed it or Claude loaded it through the Skill
+tool. Both registration surfaces, the kill switch, the resume record, and
 what the belt does and does not bound: see [`safety-model.md`](safety-model.md).

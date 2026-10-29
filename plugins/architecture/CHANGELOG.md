@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-10-29
+
+### Changed
+
+- `/architecture:improve` cites the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
 ## [1.1.2] - 2026-10-27
 
 ### Security

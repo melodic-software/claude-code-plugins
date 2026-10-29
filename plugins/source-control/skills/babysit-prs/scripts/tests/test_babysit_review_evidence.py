@@ -877,13 +877,457 @@ jobs:
             )
         )
         self.assertHeld(result)
-        self.assertTrue(risk_unbindable(result))
+        # The scorer holds it until a main-run review binds (MainRunReviewTests).
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertTrue(risk.holds(scored))
 
 
-def risk_unbindable(result: dict[str, Any]) -> bool:
-    """Whether the scorer reads the security lane's unbind as one only a
-    person clears."""
-    return risk._security_review_unbindable(tuple(result.values()))
+REPO = "owner/repo"
+PR = 42
+MAIN_SHA = "c3" * 20
+HEAD_TREE = tree_of(S)
+CONTEXT = {
+    "repo": REPO,
+    "pr": PR,
+    "tree": HEAD_TREE,
+    "branch": "main",
+    "carried_critical": {lane: 0 for lane in LANES},
+}
+
+
+def recorded(reviews: Any, context: Any) -> Any:
+    """`context` with the record job's check runs for each review in
+    `reviews` on the head, as a completed run leaves them, unless the test
+    set `head_records` itself."""
+    if not isinstance(context, dict) or "head_records" in context:
+        return context
+    records: dict[str, list[list[int]]] = {lane: [] for lane in LANES}
+    for review in reviews or ():
+        verdict = review.get("verdict") if isinstance(review, dict) else None
+        if isinstance(verdict, dict) and verdict.get("lane") in records:
+            records[verdict["lane"]].append(
+                [verdict.get("findings"), verdict.get("critical")]
+            )
+    return dict(context, head_records=records)
+
+
+def main_review(
+    lane: str,
+    *,
+    head: str = S,
+    tree: str = HEAD_TREE,
+    findings: int = 0,
+    critical: int = 0,
+    max_line_bytes: Any = 120,
+    **run_fields: Any,
+) -> dict[str, Any]:
+    """A main-run review record as `babysit_gh.collect_main_reviews` reads
+    it: the artifact, its run and its verdict.json, each field a value the
+    workflow and GitHub's artifact and run records carry."""
+    run_id = next(_ids)
+    run_record = {
+        "id": run_id,
+        "path": ".github/workflows/pr-review-main.yml",
+        "event": "workflow_run",
+        "head_branch": "main",
+        "head_sha": MAIN_SHA,
+        "status": "completed",
+        "conclusion": "success",
+        "repository": {"full_name": REPO},
+        "head_repository": {"full_name": REPO},
+    }
+    run_record.update(run_fields)
+    return {
+        "lane": lane,
+        "on_branch": True,
+        "artifact": {
+            "id": next(_ids),
+            "name": f"pr-review-main-{lane}-{PR}-{tree}",
+            "expired": False,
+            "workflow_run": {"id": run_id},
+        },
+        "run": run_record,
+        "verdict": {
+            "schema": 1,
+            "lane": lane,
+            "pr": PR,
+            "head_sha": head,
+            "tree": tree,
+            "findings": findings,
+            "critical": critical,
+            "max_line_bytes": max_line_bytes,
+        },
+    }
+
+
+class MainRunReviewTests(Base):
+    """A pull request that changes a lane source binds a lane only on a review
+    that ran from main's copy of pr-review-main.yml (owner direction
+    2026-10-28): the run's identity, never a comment's author."""
+
+    SOURCE = ".github/workflows/deploy.yml"
+
+    def main_bind(
+        self,
+        reviews: Any,
+        *,
+        comments: list[dict[str, Any]] | None = None,
+        context: Any = CONTEXT,
+        threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
+    ) -> dict[str, Any]:
+        return by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers() if comments is None else comments,
+                list(threads) if threads is not None else None,
+                is_human=is_human,
+                changed_paths=("app.py", self.SOURCE),
+                head_file=fixed_head,
+                main_reviews=reviews,
+                main_context=recorded(reviews, context),
+            )
+        )
+
+    def test_a_verdict_with_no_matching_record_on_the_head_does_not_bind(
+        self,
+    ) -> None:
+        # A run cancelled before `record` left a verdict but no check run, so
+        # its CRITICAL would not carry to a later head: it binds nothing.
+        reviews = [main_review(lane, findings=1, critical=1) for lane in LANES]
+        for records in (
+            {lane: [] for lane in LANES},
+            {lane: [[0, 0]] for lane in LANES},
+            {},
+            None,
+        ):
+            with self.subTest(records=records):
+                result = self.main_bind(
+                    reviews, context=dict(CONTEXT, head_records=records)
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+        matched = self.main_bind(
+            reviews,
+            context=dict(CONTEXT, head_records={lane: [[1, 1]] for lane in LANES}),
+        )
+        for lane in LANES:
+            self.assertTrue(matched[lane].bound, lane)
+
+    def test_a_clean_main_run_review_of_the_head_binds_both_lanes(self) -> None:
+        result = self.main_bind([main_review(lane) for lane in LANES])
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason)
+            self.assertEqual(result[lane].open_findings, 0)
+        self.assertEqual(result["claude-security-review"].blocking_findings, 0)
+
+    def test_a_verdict_on_a_diff_with_a_line_past_the_cap_does_not_bind(self) -> None:
+        # Read may cut a 2,500-byte line short, so a review of that diff saw
+        # part of it; a 1,000-byte line is read whole.
+        clean = self.main_bind(
+            [main_review(lane, max_line_bytes=1000) for lane in LANES]
+        )
+        for lane in LANES:
+            self.assertTrue(clean[lane].bound, lane)
+        for longest in (2500, ev.LONG_LINE_BYTES + 1, None, "1000", True):
+            with self.subTest(longest=longest):
+                result = self.main_bind(
+                    [main_review(lane, max_line_bytes=longest) for lane in LANES]
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_forged_marker_on_pull_request_runs_still_unbinds(self) -> None:
+        # Clean pull_request records and markers by github-actions[bot], which
+        # any write-token workflow in the head can post, bind nothing.
+        forged = [*both_markers(), marker("claude-security-review", S)]
+        result = self.main_bind(None, comments=forged)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+        self.assertEqual(self.main_bind([]), self.main_bind(None))
+
+    def test_one_lane_reviewed_from_main_binds_only_that_lane(self) -> None:
+        result = self.main_bind([main_review("claude-review")])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertUnbound(result["claude-security-review"], "lane-source-changed")
+
+    def test_a_review_of_another_head_or_tree_does_not_bind(self) -> None:
+        for review in (
+            main_review("claude-review", head=S1),
+            main_review("claude-review", tree=tree_of(S1)),
+        ):
+            with self.subTest(review["verdict"]):
+                result = self.main_bind([review])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_a_run_not_from_mains_definition_does_not_bind(self) -> None:
+        for fields in (
+            {"event": "pull_request"},
+            {"head_branch": "feature"},
+            {"path": ".github/workflows/pr-review-hosted.yml"},
+            {"repository": {"full_name": "fork/repo"}},
+            {"head_repository": {"full_name": "fork/repo"}},
+            {"head_sha": "not-a-sha"},
+        ):
+            with self.subTest(fields):
+                result = self.main_bind([main_review("claude-review", **fields)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_an_artifact_or_verdict_that_does_not_match_its_run_does_not_bind(
+        self,
+    ) -> None:
+        def changed(edit: Any) -> dict[str, Any]:
+            review = main_review("claude-review")
+            edit(review)
+            return review
+
+        for name, edit in (
+            ("head not on main", lambda r: r.update(on_branch=False)),
+            ("on_branch unread", lambda r: r.pop("on_branch")),
+            (
+                "another run's artifact",
+                lambda r: r["artifact"]["workflow_run"].update(id=1),
+            ),
+            ("expired", lambda r: r["artifact"].update(expired=True)),
+            (
+                "other lane's name",
+                lambda r: r["artifact"].update(
+                    name=f"pr-review-main-claude-security-review-{PR}-{HEAD_TREE}"
+                ),
+            ),
+            ("other pull request", lambda r: r["verdict"].update(pr=PR + 1)),
+            ("other tree in verdict", lambda r: r["verdict"].update(tree=tree_of(S1))),
+            (
+                "other lane in verdict",
+                lambda r: r["verdict"].update(lane="claude-security-review"),
+            ),
+            ("unknown schema", lambda r: r["verdict"].update(schema=2)),
+            ("negative count", lambda r: r["verdict"].update(findings=-1)),
+            ("bool count", lambda r: r["verdict"].update(findings=True)),
+            ("critical over findings", lambda r: r["verdict"].update(critical=1)),
+            ("short head", lambda r: r["verdict"].update(head_sha=S[:12])),
+        ):
+            with self.subTest(name):
+                result = self.main_bind([changed(edit)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_no_context_binds_nothing(self) -> None:
+        reviews = [main_review(lane) for lane in LANES]
+        for context in (None, {}, dict(CONTEXT, tree="x"), dict(CONTEXT, pr="42")):
+            with self.subTest(context):
+                result = self.main_bind(reviews, context=context)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_clean_verdict_from_a_run_that_did_not_succeed_does_not_bind(
+        self,
+    ) -> None:
+        for fields in ({"status": "in_progress"}, {"conclusion": "failure"}):
+            with self.subTest(fields):
+                result = self.main_bind([main_review("claude-review", **fields)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_a_finding_from_a_failed_run_still_counts(self) -> None:
+        # A run fails as a whole when either lane's job fails, after the
+        # other lane uploaded; its findings still count, as pr-verify's FAIL
+        # does, so failing one lane and re-running cannot clear the other's.
+        result = self.main_bind(
+            [
+                main_review("claude-review"),
+                main_review(
+                    "claude-security-review",
+                    findings=1,
+                    critical=1,
+                    conclusion="failure",
+                ),
+                main_review("claude-security-review"),
+            ]
+        )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (1, 1))
+
+    def test_findings_count_the_most_any_review_of_the_tree_reported(self) -> None:
+        # A re-run, or an empty commit with the same tree, never clears one.
+        result = self.main_bind(
+            [
+                main_review("claude-review", findings=2),
+                main_review("claude-review", findings=0),
+                main_review("claude-security-review", findings=3, critical=1),
+                main_review("claude-security-review", head=S0, findings=0),
+            ]
+        )
+        self.assertEqual(result["claude-review"].open_findings, 2)
+        security = result["claude-security-review"]
+        self.assertEqual((security.open_findings, security.blocking_findings), (3, 1))
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn("security-finding", [r.code for r in risk.holding(scored)])
+
+    def test_a_critical_thread_the_pull_request_review_left_still_holds(self) -> None:
+        # The pull_request review's own CRITICAL finding can only add a hold.
+        threads = [
+            thread(
+                "severity: CRITICAL\nbad",
+                author={"__typename": "Bot", "login": "claude"},
+            )
+        ]
+        runs_review = main_review("claude-security-review")
+        result = by_lane(
+            ev.bind(
+                S,
+                [
+                    whole("claude-review", S),
+                    whole("claude-security-review", S, n=1, k=1),
+                ],
+                both_markers(),
+                threads,
+                is_human=is_human,
+                changed_paths=(self.SOURCE,),
+                head_file=fixed_head,
+                main_reviews=[main_review("claude-review"), runs_review],
+                main_context=recorded(
+                    [main_review("claude-review"), runs_review], CONTEXT
+                ),
+            )
+        )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+
+    def test_a_critical_an_earlier_head_recorded_holds_after_a_clean_re_roll(
+        self,
+    ) -> None:
+        # A whitespace push makes a new tree whose clean review would bind at
+        # zero; the CRITICAL the record job left on the earlier head holds.
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
+        )
+        result = self.main_bind([main_review(lane) for lane in LANES], context=context)
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (2, 2))
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn(
+            "security-finding",
+            [r.code for r in risk.person_reasons(risk.holding(scored))],
+        )
+
+    def test_a_recorded_critical_holds_with_no_verdict_at_the_head(self) -> None:
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 1}
+        )
+        security = self.main_bind([], context=context)["claude-security-review"]
+        self.assertFalse(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+
+    def test_unread_recorded_counts_bind_no_lane(self) -> None:
+        reviews = [main_review(lane) for lane in LANES]
+        for carried in (
+            None,
+            {},
+            {"claude-review": 0},
+            {"claude-review": 0, "claude-security-review": -1},
+        ):
+            with self.subTest(carried):
+                context = {k: v for k, v in CONTEXT.items() if k != "carried_critical"}
+                if carried is not None:
+                    context["carried_critical"] = carried
+                result = self.main_bind(reviews, context=context)
+                self.assertUnbound(
+                    result["claude-security-review"], "lane-source-changed"
+                )
+
+    def test_a_retargeted_pull_request_still_binds_nothing(self) -> None:
+        result = by_lane(
+            ev.bind(
+                S,
+                [],
+                [],
+                [],
+                is_human=is_human,
+                base_changed=True,
+                changed_paths=(self.SOURCE,),
+                main_reviews=[main_review(lane) for lane in LANES],
+                main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
+            )
+        )
+        for lane in LANES:
+            self.assertUnbound(result[lane], "base-retargeted")
+
+    def test_a_clean_main_run_review_makes_an_ordinary_workflow_edit_mergeable(
+        self,
+    ) -> None:
+        # End to end through the scorer: a workflow edit that adds no write
+        # scope, trigger or secret, off the gate, merges on a clean review.
+        result = self.main_bind([main_review(lane) for lane in LANES])
+        text = "name: deploy\non: push\npermissions: {}\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        changed = risk.ChangedFile(
+            path=self.SOURCE,
+            previous_path=None,
+            status="modified",
+            additions=1,
+            deletions=1,
+            has_patch=True,
+            mode="100644",
+            previous_mode="100644",
+            patch="@@ -1,1 +1,1 @@\n-name: old\n+name: deploy",
+            contents=(text.replace("deploy", "old", 1), text),
+        )
+        scored = risk.score(
+            risk.RiskInput(
+                files=(changed,),
+                files_complete=True,
+                max_changed_lines=1000,
+                high_paths=(),
+                lanes=tuple(result.values()),
+                public=True,
+            )
+        )
+        self.assertEqual(risk.holding(scored), [], scored.reasons)
+        unbound = self.main_bind(None)
+        scored = risk.score(
+            risk.RiskInput(
+                files=(changed,),
+                files_complete=True,
+                max_changed_lines=1000,
+                high_paths=(),
+                lanes=tuple(unbound.values()),
+                public=True,
+            )
+        )
+        self.assertTrue(risk.holds(scored))
+
+    def test_needs_main_review_matches_what_bind_reads(self) -> None:
+        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None))
+        self.assertTrue(ev.needs_main_review(None, fixed_head, None))
+        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None))
+        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None))
+        self.assertFalse(ev.needs_main_review([], fixed_head, None))
 
 
 class RunSelectionTests(Base):
