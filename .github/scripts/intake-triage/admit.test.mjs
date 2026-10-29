@@ -684,7 +684,7 @@ describe("decide", () => {
       }
     });
 
-    // docs/conventions/loop-lane/README.md:331-338: model usage under the
+    // docs/contracts/loop-lane/README.md: model usage under the
     // Claude subscriptions is not cost; a plan or seat change and a paid
     // purchase are.
     test("holds only for a charge the owner's cost list names", () => {
