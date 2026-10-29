@@ -2380,7 +2380,8 @@ bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
 
 # `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`, but
-# only when the whole command is exactly `NAME=LITERAL SEP rm WORD...`.
+# only when the command opens with `NAME=LITERAL SEP` and nothing after it can
+# change NAME.
 expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
 expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
 expect_both "X='build' && rm -rf \"\$X/out\" allowed" 0 "${RDT_CWD[@]}" --command "X='build' && rm -rf \"\$X/out\""
@@ -2396,7 +2397,7 @@ expect "attended: an unquoted operand asks" 0 "${RDT_CWD[@]}" \
   --command 'X=build && rm -rf $X' -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended: an unquoted operand's decision is ask" ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
-# Outside that exact shape nothing binds, and the variable blocks as on main.
+# Outside that shape nothing binds, and the variable blocks as a bare variable.
 expect_both 'X="build" && rm -rf "${X}" blocks (a braced expansion)' 2 "${RDT_CWD[@]}" \
   --command 'X="build" && rm -rf "${X}"'
 expect_both 'two literals, then rm -rf "$A" "$B" blocks' 2 "${RDT_CWD[@]}" \
@@ -2404,9 +2405,11 @@ expect_both 'two literals, then rm -rf "$A" "$B" blocks' 2 "${RDT_CWD[@]}" \
 expect_both 'readonly, then the literal, blocks' 2 "${RDT_CWD[@]}" --command 'readonly X=/etc; X=build; rm -rf "$X"'
 expect_both 'export NAME=literal && rm blocks' 2 "${RDT_CWD[@]}" --command 'export X=build && rm -rf "$X"'
 expect_both 'a second variable in the delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X" "$Y"'
-expect_both 'a second delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X" && rm -rf "$X"'
+expect_both 'a second delete of the bound variable allowed (#9779)' 0 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf "$X" && rm -rf "$X"'
 expect_both 'a glob after the variable blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X*'
-expect_both 'a comment after the delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # c'
+expect_both 'a comment after the delete allowed (#9779)' 0 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # c'
+expect_both 'a comment naming $X unquoted blocks' 2 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # $X'
 expect_both 'a line continuation before the separator blocks' 2 "${RDT_CWD[@]}" \
   --command $'X=build\\\n&& rm -rf "$X"'
 expect_both 'a group around the literal blocks' 2 "${RDT_CWD[@]}" --command '{ X=build; } && rm -rf "$X"'
@@ -2429,8 +2432,54 @@ for rdt_cmd in 'X=build && rm -rf "$X" "$Y"' '{ X=build; } && rm -rf "$X"' 'X=bu
   assert_eq "attended: outside the shape, the decision is ask: $rdt_cmd" ask \
     "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 done
-expect_both 'a literal several statements before the delete blocks (not adjacent)' 2 "${RDT_CWD[@]}" \
+# #9779: the literal binds across later statements that cannot change it.
+expect_both 'a literal several statements before the delete allowed' 0 "${RDT_CWD[@]}" \
   --command 'S=build; mkdir -p "$S/x"; git status; rm -rf "$S"'
+expect_both 'a temp scratch literal used, then deleted, allowed' 0 "${RDT_CWD[@]}" \
+  --command $'S=/tmp/rdt-scratch\nmkdir -p "$S/a" && touch "$S/a/f"\nls "$S" | wc -l\nrm -rf "$S"'
+expect_both 'a temp scratch literal deleted inside a subshell allowed' 0 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch && (cd "$S" && ls) && rm -rf "$S"'
+# Still blocked: a literal outside the allowed roots, a value the command can
+# change before the delete, and an assignment that does not run first.
+expect_both 'a literal outside the tree, several statements before, blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/etc; ls "$S"; rm -rf "$S"'
+expect_both 'a later reassignment to a root blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; mkdir -p "$S"; S=/; rm -rf "$S"'
+expect_both 'an unquoted use of the name elsewhere blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; echo $S; rm -rf "$S"'
+expect_both 'the name inside a longer quoted word blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; echo "at $S"; rm -rf "$S"'
+expect_both 'arithmetic on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; (( S = 1 )); rm -rf "$S"'
+expect_both 'let on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; let S=1; rm -rf "$S"'
+expect_both 'a {NAME}> redirection blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; exec {S}>/dev/null; rm -rf "$S"'
+expect_both 'getopts on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; getopts a S; rm -rf "$S"'
+expect_both 'a ${NAME:=} default blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; unused="${S:=/}"; rm -rf "$S"'
+expect_both 'an assignment after another statement blocks' 2 "${RDT_CWD[@]}" \
+  --command 'mkdir -p /tmp/rdt-scratch; S=/tmp/rdt-scratch; rm -rf "$S"'
+expect_both 'the bound name in a child shell blocks' 2 "${RDT_CWD[@]}" \
+  --command "S=/tmp/rdt-scratch; ls \"\$S\"; sh -c 'rm -rf \"\$S\"'"
+expect_both 'a different variable beside the bound one blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; mkdir -p "$S"; rm -rf "$T"'
+# A builtin spelled through quotes, an escape, an expansion or a glob still
+# reads as itself to bash, so any of those characters outside the bound words
+# drops the binding.
+expect_both 'a quoted-apart printf -v blocks' 2 "${RDT_CWD[@]}" \
+  --command $'S=/tmp/rdt-scratch; pri\'\'ntf -v S %s /; rm -rf "$S"'
+expect_both 'an escaped read blocks' 2 "${RDT_CWD[@]}" \
+  --command $'S=/tmp/rdt-scratch; rea\\d S < f; rm -rf "$S"'
+expect_both 'a builtin name built from a variable blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; P=pri; ${P}ntf -v S %s /; rm -rf "$S"'
+expect_both 'a quoted dot command blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; "." ./f; rm -rf "$S"'
+expect_both 'a globbed builtin name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; builtin pri?tf -v S %s /; rm -rf "$S"'
+expect_both 'an arithmetic subscript on the name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; a[S++]=x; rm -rf "$S"'
 expect_both 'a literal built from another variable blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=build; P=$S/probe; rm -rf $P'
 # A later statement that may change the variable drops the binding.

@@ -9,8 +9,17 @@ set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/block-dangerous-git.sh"
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# The fixtures live OUTSIDE the system temp directory, under the checkout's
+# gitignored .work/: a plain reset --hard or clean -f in a repository under the
+# temp directory is allowed (#9779), and the rows below assert the block.
+# TEMP_TMPDIR holds the cases that need the temp tree, and NOT_A_REPO, which
+# must have no repository above it.
+BDG_TOP=$(git -C "$HOOK_DIR" rev-parse --show-toplevel)
+BDG_TOP="${BDG_TOP//$'\r'/}"
+mkdir -p "$BDG_TOP/.work"
+TEST_TMPDIR="$(mktemp -d "$BDG_TOP/.work/block-dangerous-git-test.XXXXXX")"
+TEMP_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR" "$TEMP_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -28,8 +37,15 @@ unset CLAUDE_CODE_SESSION_ATTENDED
 # directory that is no repository at all.
 REPO_SHA1="$TEST_TMPDIR/repo-sha1"
 REPO_SHA256="$TEST_TMPDIR/repo-sha256"
-NOT_A_REPO="$TEST_TMPDIR/not-a-repo"
+NOT_A_REPO="$TEMP_TMPDIR/not-a-repo"
 mkdir -p "$REPO_SHA1" "$REPO_SHA256" "$NOT_A_REPO"
+# The same temp roots hook::under_temp_root reads.
+for bdg_root in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
+  bdg_root="${bdg_root%/}"
+  if [[ -n "$bdg_root" && "$TEST_TMPDIR" == "$bdg_root"/* ]]; then
+    bad "fixture: the checkout is under the temp root $bdg_root, so a reset or clean row here cannot assert a block"
+  fi
+done
 git init -q --object-format=sha1 "$REPO_SHA1" ||
   bad "fixture: could not create the SHA-1 repository"
 # SHA-256 repositories are git 2.29+. A missing fixture is a hard failure rather
@@ -382,6 +398,53 @@ run "git clean -f -- --dry-run (dry-run pathspec after --, blocked)" "git clean 
 run "git clean --dry-run --no-dry-run -f (negated dry run, blocked)" "git clean --dry-run --no-dry-run -f" 2
 run "git clean --no-dry-run -n -f (dry run after negation, allowed)" "git clean --no-dry-run -n -f" 0
 run "git clean -f --ex --dry-run (abbrev exclude eats dry-run, blocked)" "git clean -f --ex --dry-run" 2
+
+# --- a scratch repository under the system temp directory (#9779) -------------
+# Agents reset and clean disposable repositories they create under the temp
+# tree, and the work there goes with it. Those two forms pass in such a
+# repository; the rows above, in repositories outside the temp tree, still
+# block, and so does every shape below whose repository the probe cannot see.
+SCRATCH_REPO="$TEMP_TMPDIR/scratch"
+mkdir -p "$SCRATCH_REPO/sub"
+git init -q "$SCRATCH_REPO" || bad "fixture: could not create the temp scratch repository"
+run_in "$SCRATCH_REPO" "temp scratch repo: git reset --hard (allowed)" "git reset --hard" 0
+run_in "$SCRATCH_REPO" "temp scratch repo: git reset --hard HEAD~1 (allowed)" "git reset --hard HEAD~1" 0
+run_in "$SCRATCH_REPO" "temp scratch repo: git clean -fdx (allowed)" "git clean -fdx" 0
+run_in "$SCRATCH_REPO" "temp scratch repo: git clean --force (allowed)" "git clean --force" 0
+run_in "$SCRATCH_REPO/sub" "temp scratch repo: from a subdirectory (allowed)" "git reset --hard" 0
+run "git -C <temp scratch repo> reset --hard from a repository outside temp (allowed)" "git -C $SCRATCH_REPO reset --hard" 0
+run "git -C <temp scratch repo> clean -fd from a repository outside temp (allowed)" "git -C $SCRATCH_REPO clean -fd" 0
+expect_both "temp scratch repo: reset --hard allowed under the dispatcher too" 0 \
+  --command "git reset --hard" --cwd "$SCRATCH_REPO" --chdir "$SCRATCH_REPO"
+# The dangerous neighbours: the repository git touches is outside the temp tree,
+# or the probe cannot be sure which one it is.
+run "git reset --hard in a repository outside the temp directory (blocked)" "git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: git -C <repo outside temp> reset --hard (blocked)" "git -C $REPO_SHA1 reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: --work-tree outside temp (blocked)" "git --work-tree=$REPO_SHA1 reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: cd elsewhere first (blocked)" "cd $REPO_SHA1 && git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: an escaped cd elsewhere first (blocked)" "c\\d $REPO_SHA1 && git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: a GIT_ name built from a variable (blocked)" \
+  "P=GIT; export \${P}_DIR=$REPO_SHA1/.git; git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: a quoted git word (blocked)" "'git' reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: a cd after the reset still keeps the block (blocked)" "git clean -fd; cd .." 2
+run_in "$SCRATCH_REPO" "temp scratch repo: a GIT_DIR prefix (blocked)" "GIT_DIR=$REPO_SHA1/.git git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: GIT_WORK_TREE exported first (blocked)" "export GIT_WORK_TREE=$REPO_SHA1; git clean -fd" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: -c core.worktree (blocked)" "git -c core.worktree=$REPO_SHA1 reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: a wrapper ahead of git (blocked)" "env git reset --hard" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: an inline alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
+run_in "$SCRATCH_REPO" "temp scratch repo: HOME under the temp root (blocked)" "git reset --hard" 2 "HOME=$TEMP_TMPDIR"
+run_in "$NOT_A_REPO" "not a repository under the temp directory (probe fails, blocked)" "git reset --hard" 2
+expect "temp scratch repo: the PowerShell tool keeps the block" 2 \
+  --tool PowerShell --command "git reset --hard" --cwd "$SCRATCH_REPO" --chdir "$SCRATCH_REPO"
+KEPT_MAIN="$TEST_TMPDIR/kept-main"
+if git init -q "$KEPT_MAIN" &&
+  git -C "$KEPT_MAIN" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false \
+    commit -q --allow-empty -m init &&
+  git -C "$KEPT_MAIN" worktree add -q "$TEMP_TMPDIR/linked" 2>/dev/null; then
+  run_in "$TEMP_TMPDIR/linked" "a linked worktree under temp whose repository is outside it (blocked)" "git reset --hard" 2
+else
+  bad "fixture: could not create a linked worktree under the temp directory"
+fi
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2

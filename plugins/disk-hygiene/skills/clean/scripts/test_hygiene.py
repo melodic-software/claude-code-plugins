@@ -10851,7 +10851,6 @@ class GuardTests(unittest.TestCase):
         )
 
     def test_engine_gate_defers_the_read_only_forms_the_denial_advertises(self) -> None:
-        engine = guard._display_path(guard._engine_script_path())
         relative = "plugins/disk-hygiene/skills/clean/scripts/hygiene.py"
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
@@ -10861,13 +10860,68 @@ class GuardTests(unittest.TestCase):
                 "rg foo hygiene.py",
             ):
                 self.assertFalse(guard._engine_gate_relevant(command, "Bash"), command)
+
+    def test_engine_gate_defers_a_reader_list_naming_the_engine(self) -> None:
+        """#9779: readers that name the engine, even by its own path, read it.
+
+        Every command here gated before #9779: an absolute or resolving engine
+        path gated whatever the command word, and a list or pipeline gated
+        whenever a word carried the engine filename.
+        """
+        engine = guard._display_path(guard._engine_script_path())
+        relative = "plugins/disk-hygiene/skills/clean/scripts/hygiene.py"
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
                 f'grep foo "{engine}"',
                 f'cat "{engine}"',
                 f'git show "{engine}"',
+                f"head -n 3 '{engine}' ",
+                f'gh issue create --body "{engine}"',
                 f"grep foo {relative} | tail",
+                f'grep -n "def main" "{engine}" | head -20',
+                "gh pr diff 5 | grep hygiene.py",
+                "git show 'hygiene.py (x)' | grep foo",
+                f"rg foo {relative} && wc -l {relative}",
+                f"sed -n '120,180p' {engine}",
+                f"sed -n 40p {relative}; sed -n '1,9p' {relative}",
+                "gh pr comment 5 --body-file - <<'EOF'\n"
+                f"python3 {engine} apply --execute\nEOF",
+                'gh issue comment 5 --body-file - <<"EOF"\n$(hygiene.py)\nEOF\n',
+                "cat <<-'EOF' | gh pr comment 5 --body-file -\n\thygiene.py\n\tEOF",
             ):
-                self.assertTrue(guard._engine_gate_relevant(command, "Bash"), command)
+                with self.subTest(command=command):
+                    self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
+
+    def test_engine_gate_keeps_gating_an_engine_call_beside_readers(self) -> None:
+        """#9779: the reader rule stops at the first command that is not a reader."""
+        engine = guard._display_path(guard._engine_script_path())
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                # An engine call that is not the exact shape, beside a reader.
+                f'grep foo x && python3 "{engine}" scan',
+                f'cat x | python3 "{engine}" apply',
+                f'cat "{engine}" & python3 "{engine}" apply',
+                # A here-document bash expands, an unterminated one, and
+                # commands after the body.
+                f"cat <<EOF\n$(python3 {engine} apply)\nEOF",
+                "cat <<'EOF'\nhygiene.py\n",
+                "gh pr comment 5 --body-file - <<'EOF'\nx\nEOF\n"
+                f"python3 {engine} apply",
+                "cat '<<\"EOF\"'\npython3 hygiene.py apply\nEOF",
+                # Bash joins a quoted delimiter to what is glued on.
+                f"cat <<'E'OF\nEOF\npython3 {engine} apply\nE",
+                f"cat <<'EOF'X\nEOFX\npython3 {engine} apply\nEOF",
+                f"cat <<< 'python3 {engine} apply'",
+                # A sed script other than a line-range print, or an edit.
+                f"sed 's/x/y/e' \"{engine}\"",
+                f"sed -i 1p \"{engine}\"",
+                f"sed -n 1p \"{engine}\" -i",
+                f"sed -n 1p \"{engine}\" | sh",
+                # A backslash outside a body.
+                f'grep "a\\" x | python3 "{engine}" apply',
+            ):
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
 
     def test_engine_gate_gates_a_relative_word_that_resolves_to_the_engine(
         self,
@@ -10877,12 +10931,13 @@ class GuardTests(unittest.TestCase):
         relative = engine.relative_to(plugin_root).as_posix()
         rev_form = f"git show origin/main:{relative}"
         cases = (
-            (engine.parent, "rg foo hygiene.py"),
-            (engine.parent, "git grep foo -- hygiene.py"),
-            (plugin_root, f"grep foo {relative}"),
+            (engine.parent, "rg foo hygiene.py", "less hygiene.py"),
+            (engine.parent, "git grep foo -- hygiene.py", "echo hygiene.py"),
+            (plugin_root, f"grep foo {relative}", f"less {relative}"),
         )
-        for cwd, command in cases:
+        for cwd, reader, command in cases:
             with self.subTest(cwd=cwd.name, command=command), chdir_context(cwd):
+                self.assertFalse(guard._engine_gate_relevant(reader, "Bash"))
                 self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
                 self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
                 self.assertIn(
@@ -10913,11 +10968,9 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_keeps_gating_what_the_string_data_rule_does_not_cover(
         self,
     ) -> None:
-        engine = guard._display_path(guard._engine_script_path())
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
-                # A pipeline stays fail-closed.
-                "git show 'hygiene.py (x)' | grep foo",
+                # A list with a command outside the reader set stays fail-closed.
                 "gh issue create --title 'hygiene.py' && echo done",
                 "gh issue create --title 'hygiene.py'; echo done",
                 # Readers outside the allowlist read as written.
@@ -10943,10 +10996,6 @@ class GuardTests(unittest.TestCase):
                 # A subcommand outside the allowlist.
                 "gh api -X POST 'hygiene.py (x)'",
                 "git push 'hygiene.py (x)'",
-                # Identity is read on the command as written.
-                f"cat '{engine}'",
-                f'gh issue create --body "{engine}"',
-                f"head -n 3 '{engine}' ",
             ):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
@@ -11902,13 +11951,16 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_engine_gate_quoted_marker_free_link_gates_a_reader(self) -> None:
-        """A quoted word naming a marker-free link to the engine gates a reader.
+    def test_engine_gate_quoted_marker_free_link_gates_a_powershell_reader(
+        self,
+    ) -> None:
+        """A quoted word naming a marker-free link to the engine gates on PowerShell.
 
         Blanking string data would hide the quoted name from the marker-free
-        branch, so identity is read on the command as written, for both shells.
-        `@@` holds no path-legal character, so no marker token reaches it and
-        only the whole-word scan sees it.
+        branch, so identity is read on the command as written. `@@` holds no
+        path-legal character, so no marker token reaches it and only the
+        whole-word scan sees it. A Bash reader never runs what it names, so
+        there the link is a mention (#9779).
         """
         for name in ("cleanup", "@@"):
             command = f"gh issue create --title 'x' '{name}'"
@@ -11919,7 +11971,9 @@ class GuardTests(unittest.TestCase):
                             gated = guard._engine_gate_relevant
                             self.assertFalse(gated(command, shell))
                             self._hard_link_or_skip(Path(tmp) / name)
-                            self.assertTrue(gated(command, shell))
+                            self.assertEqual(
+                                shell == "PowerShell", gated(command, shell)
+                            )
 
     def test_engine_gate_marker_free_probes_each_distinct_word_twice(self) -> None:
         """Counted `os.path.samefile` calls for marker-free commands.
