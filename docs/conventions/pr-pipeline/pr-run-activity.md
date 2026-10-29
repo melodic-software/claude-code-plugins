@@ -2146,12 +2146,15 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
   when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
   `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
-  decides nothing), puts no label on it (the work class stays on the issue), and adds
+  decides nothing), and adds
   `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  A PR with that line also gets the `human-merge-hold` label right after it opens, or when the run
+  reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
+  and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,

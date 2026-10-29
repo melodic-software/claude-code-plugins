@@ -909,6 +909,88 @@ class TestOpenFindings(unittest.TestCase):
             table=False,
         )
 
+    # #5901 slice 7: the runtime chunk's helpers define on objects they are
+    # given. Each quoted shape is 2.1.310's, the rest Bun's runtime source;
+    # the chunk is /b.js.
+    HELPERS = (
+        "var k=Object.create;"
+        "var{getPrototypeOf:l,defineProperty:f,getOwnPropertyNames:m}=Object;"
+        "var h=Object.prototype.hasOwnProperty;function n(a){return this[a]}"
+        "var Ce=(a,b,c)=>{c=a!=null?k(l(a)):{};"
+        'let e=b||!a||!a.__esModule?f(c,"default",{value:a,enumerable:!0}):c;'
+        "for(let g of m(a))if(!h.call(e,g))f(e,g,{get:n.bind(a,g),enumerable:!0});"
+        "return e};var q=(a)=>a;function r(a,b){this[a]=q.bind(null,b)}"
+        "var $r=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})},"
+        "ovi=(a,b)=>{for(var c in b)"
+        "f(a,c,{get:b[c],enumerable:!0,configurable:!0,set:r.bind(b,c)})};"
+        "export{Ce,$r,ovi};"
+    )
+    INCLUDES = 'import{pY}from"/a.js";pY.includes("x");'
+    PATCH = '{includes:()=>function(){this.push("B");return!0}}'
+
+    def test_the_bun_runtime_helpers_on_fresh_objects_stay_partial_on_computed_reads(
+        self,
+    ) -> None:
+        """`Ce` and `$r` define only on fresh objects here, but the verbatim
+        chunk's getters read by a computed key: `this[a]` in `n`, `b[c]` in
+        `$r` and in `ovi`. Each key may spell `require`, so each read is a
+        load the parser cannot name, and the list reads partial."""
+        importer = 'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
+        self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+        h = self.HELPERS
+        reads = [
+            h.index("this[a]", h.index("function n(")),
+            h.index("b[c]", h.index("var $r=")),
+            h.index("b[c]", h.index("ovi=")),
+        ]
+        found = type(self).reader.sinks(h, 0, len(h), ["includes"])
+        self.assertEqual(
+            sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
+        )
+
+    def test_a_named_import_passing_a_fresh_object_clears_a_helper(self) -> None:
+        """A helper with no computed read, defining by a computed key on its
+        parameter, clears when its one importer imports it by name and
+        passes a fresh `var X={}` (#9990): a named import is no whole load."""
+        helper = (
+            "var{defineProperty:f}=Object;"
+            "var $r=(a,b)=>{for(var c in b)f(a,c,{value:1})};export{$r};"
+        )
+        self.assert_across_modules(
+            False, helper, 'import{$r}from"/b.js";var X={};$r(X,{q:1});', self.INCLUDES
+        )
+
+    def test_a_runtime_helper_on_a_builtin_prototype_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";$r(Array.prototype,{self.PATCH});',
+            self.INCLUDES,
+        )
+
+    def test_a_runtime_helper_on_a_parameter_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True,
+            self.HELPERS,
+            f'import{{$r}}from"/b.js";function g(o){{$r(o,{self.PATCH})}}g(Array.prototype);',
+            self.INCLUDES,
+        )
+
+    def test_an_escaped_runtime_helper_stays_partial(self) -> None:
+        self.assert_across_modules(
+            True, self.HELPERS, 'import{$r}from"/b.js";var e=$r;s(e);', self.INCLUDES
+        )
+
+    def test_a_namespace_load_of_the_runtime_module_stays_partial(self) -> None:
+        """A whole load of the chunk hands `$r` out unseen."""
+        for importer in (
+            f'import*as R from"/b.js";R.$r(Array.prototype,{self.PATCH});',
+            f'var R=import.meta.require("/b.js");R.$r(Array.prototype,{self.PATCH});',
+        ):
+            with self.subTest(importer=importer):
+                self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
+
     def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
         """A `.require` read that is only tested never hands the loader on:
         a `&&` operand other than the last, an `if`, loop or `?:` test, a
