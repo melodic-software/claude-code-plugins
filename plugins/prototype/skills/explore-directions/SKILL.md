@@ -105,8 +105,9 @@ page with synthetic data and an in-page switcher. Assemble one per task:
 
 1. **N variant containers**. One block per variant, all in the single page, each marked with
    `data-variant` (its key) and `data-variant-label` (its name). Inside each variant, one block
-   per planned state, marked with `data-state` (its key, the same in every variant) and
-   `data-state-label` (its name). A run that covers several screens writes one page per screen
+   per planned state, marked with `data-screen-state` (its key, the same in every variant) and
+   `data-screen-state-label` (its name), never `data-state`, which component libraries set on
+   their own parts. A run that covers several screens writes one page per screen
    into the same run directory, named for the route with slashes as hyphens (`holds-new.html`).
 2. **The bundled in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL.
    Inline [assets/variant-switcher.html](assets/variant-switcher.html) whole, just before

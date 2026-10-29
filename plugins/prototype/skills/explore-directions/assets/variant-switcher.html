@@ -2,8 +2,10 @@
   Variant switcher for the explore-directions HTML mockup. Paste this whole fragment just before
   </body>. Each variant is an element carrying data-variant (its key) and data-variant-label (its
   name), for example: <section data-variant="A" data-variant-label="Quiet">...</section>. Inside a
-  variant, each screen state is an element carrying data-state (its key, the same in every variant)
-  and data-state-label, for example: <div data-state="empty" data-state-label="Empty">...</div>.
+  variant, each screen state is an element carrying data-screen-state (its key, the same in every
+  variant) and data-screen-state-label, for example:
+  <div data-screen-state="empty" data-screen-state-label="Empty">...</div>. The attribute is not
+  data-state, which component libraries (Radix, Headless UI) set on their own open/closed parts.
   Keys 1-N and the left and right arrows switch variants (wrapping around), the state button and
   the up and down arrows step through the current variant's states (wrapping around, kept across a
   variant switch), R replays the current variant's entrance, and keys are ignored while a field has
@@ -85,7 +87,7 @@
   .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
   .vs-state { color: #fff; }
   .vs-state-part[hidden] { display: none; }
-  [data-variant][hidden], [data-state][hidden] { display: none !important; }
+  [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
 </style>
 <script>
   (() => {
@@ -122,16 +124,16 @@
     }
 
     // Queried on each use, since remounting replaces the state elements.
-    const states = () => [...variants[current].querySelectorAll("[data-state]")];
+    const states = () => [...variants[current].querySelectorAll("[data-screen-state]")];
 
     // Falls back to the first state for display only, so the pick survives a variant without it.
     function applyState() {
       const all = states();
       stateParts.forEach((p) => { p.hidden = all.length === 0; });
       if (all.length === 0) return;
-      const shown = all.find((s) => s.dataset.state === stateKey) || all[0];
+      const shown = all.find((s) => s.dataset.screenState === stateKey) || all[0];
       all.forEach((s) => { s.hidden = s !== shown; });
-      const text = `state · ${shown.dataset.stateLabel || shown.dataset.state}`;
+      const text = `state · ${shown.dataset.screenStateLabel || shown.dataset.screenState}`;
       stateButton.textContent = text;
       stateButton.setAttribute("aria-label", `${text}, next state (down arrow)`);
     }
@@ -139,8 +141,8 @@
     function stepState(step) {
       const all = states();
       if (all.length < 2) return false;
-      const i = Math.max(0, all.findIndex((s) => s.dataset.state === stateKey));
-      stateKey = all[(i + step + all.length) % all.length].dataset.state;
+      const i = Math.max(0, all.findIndex((s) => s.dataset.screenState === stateKey));
+      stateKey = all[(i + step + all.length) % all.length].dataset.screenState;
       applyState();
       return true;
     }
