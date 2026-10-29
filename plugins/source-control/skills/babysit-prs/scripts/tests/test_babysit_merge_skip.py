@@ -392,6 +392,14 @@ class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
                 {"7": _stored(key, reason="verify:earlier-fail")},
                 {"pass_at_head": True},
             ),
+            "repeated-fail with a PASS at the head": (
+                {"7": _stored(key, reason="verify:repeated-fail")},
+                {"pass_at_head": True},
+            ),
+            "too-old with a PASS at the head": (
+                {"7": _stored(key, reason="verify:too-old")},
+                {"pass_at_head": True},
+            ),
             "no record": ({}, {}),
             "a malformed record": ({"7": {"at": "yesterday", "value": []}}, {}),
         }
@@ -412,6 +420,9 @@ class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
                 key, reason="verify:missing"
             ),
             "verify fail": _stored(key, reason="verify:fail"),
+            "repeated-fail with no PASS at the head": _stored(
+                key, reason="verify:repeated-fail"
+            ),
         }.items():
             with self.subTest(name):
                 kept, rows, _ = _select(

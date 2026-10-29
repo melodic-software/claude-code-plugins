@@ -15,16 +15,22 @@ from a completed, successful one. Any other artifact is ignored.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- the pull request was created more than `TOO_OLD_DAYS` ago:
-  `verify:too-old`, since a verdict may already have expired;
+- the pull request was created more than `TOO_OLD_DAYS` ago, and the items
+  below would refuse it for any reason but one in `NEEDS_HUMAN`:
+  `verify:too-old`, since a verdict may already have expired. A pass the
+  items below allow clears it: every artifact still listed is younger than
+  the retention, so an expired FAIL predates that pass;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the item after next): `verify:repeated-fail`, whatever a pass
-  says, a FAIL at the head included. Before a FAIL at the head or a pass
+  (tied as in the item after next): `verify:repeated-fail`, a FAIL at the
+  head included, unless the head has no counted FAIL and counted passes
+  whose runs were all created after every counted FAIL's run there (each
+  time read fresh, as for `verify:earlier-fail`): the fix loop that FAILed
+  has ended in a pass, and the items below decide. Before a FAIL at the head or a pass
   decides, FAILs of other pull requests in this repository, open or closed, that close one of its
   issues (its closing issues, or its `Refs:` issue) count too, at their own
   heads, and so does every FAIL whose name carries one of those issues, a
   `Refs:` pull request's FAILs among them (a FAIL among them whose run cannot
-  be read is `verify:unreadable`);
+  be read is `verify:unreadable`), and a pass clears them the same way;
 - a counted FAIL at the head, under any pull request number: `verify:fail`,
   unless it is superseded (`_superseded`): every counted FAIL there is this
   pull request's, every counted pass there was created after them and records
@@ -94,8 +100,9 @@ https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventio
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear, so the gate never merges such a pull request
-unattended, and address-feedback's own round cap bounds the fix rounds. A
+`verify:too-old` wait for pr-verify to pass a head pushed after the last
+FAIL; while FAILs keep coming the cap holds, and address-feedback's and
+fix-ci's own round caps bound the pushes that re-judge. A
 `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
@@ -155,8 +162,7 @@ again and saved), except the gate's own candidate's, which babysit_merge.py
 judges `provisional` on the listing at hand at any age: an allow stands on
 it until the gate would allow the candidate, when babysit_merge.py calls
 `refresh()` and judges it again on a listing of its own, and so does a
-refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
-cap, an old pull request). Any other refusal is judged again on a recent
+refusal no later upload clears (`STANDING`: a FAIL at the head). Any other refusal is judged again on a recent
 listing, so none dequeues the candidate's queued entry on an older one. A
 candidate the gate refuses for anything else lists nothing more; queued
 entries are judged on a recent listing. A listing that got a 5xx or a fast network
@@ -374,11 +380,10 @@ INTENT_PULL_REQUEST = "pull-request"
 # LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
 # The refusals no upload after the listing clears (`Reader.evidence`): a
-# counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them, and a pull request's age only
-# grows. A pass uploaded later can clear any other refusal, and a read may
-# answer otherwise.
-STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
+# counted FAIL at the head stays counted whatever is uploaded later. A pass
+# uploaded later can clear any other refusal, the cap and an old pull
+# request included, and a read may answer otherwise.
+STANDING = (FAIL,)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -1880,8 +1885,17 @@ class Reader:
         pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
-        if now - created > timedelta(days=TOO_OLD_DAYS):
-            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
+        judged = self._verdicts(number, head, pr)
+        if now - created > timedelta(days=TOO_OLD_DAYS) and judged.refusal not in (
+            None,
+            *NEEDS_HUMAN,
+        ):
+            return replace(
+                judged, refusal=TOO_OLD, detail=f"created {created.isoformat()}"
+            )
+        return judged
+
+    def _verdicts(self, number: int, head: str, pr: dict[str, Any]) -> Evidence:
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
@@ -1901,6 +1915,9 @@ class Reader:
         # The same by each issue a FAIL's name carries (`named_issues`).
         failed_by_issue: dict[int, set[str]] = {}
         unread_issues: set[int] = set()
+        # The runs of those FAILs by head, for the cap's clearing pass
+        # (`capped`).
+        fail_runs: dict[str, set[int]] = {}
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
             match = verdict_name(name)
@@ -1954,6 +1971,7 @@ class Reader:
                     ignored += 1
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
+            fail_runs.setdefault(sha, set()).add(run_id)
             for issue in named_issues(match):
                 failed_by_issue.setdefault(issue, set()).add(sha)
             if not tied and match[4] is not None:
@@ -1986,14 +2004,27 @@ class Reader:
             )
             return self._superseded(number, sha, fail_artifacts, at)
 
+        def capped(heads: set[str]) -> bool:
+            """FAILs at `max_fails` or more of `heads` and no pass that ends
+            them: a counted pass at a head with no counted FAIL, every pass
+            run created after every FAIL run at those heads."""
+            return len(heads) >= self.max_fails and (
+                head in failed
+                or not self._passes_after(
+                    set().union(*(fail_runs.get(sha, set()) for sha in heads)),
+                    passes,
+                )
+            )
+
         refusal: str | None
         detail = unreadable
-        if len(failed) >= self.max_fails:
+        if capped(failed):
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
         elif head in failed and not superseded(head):
             # A FAIL here gets a fix round, so the cap counts the other pull
-            # requests for its issues first: a round past it cannot merge.
+            # requests for its issues first: past it, only a pass judged after
+            # every FAIL merges.
             _, elsewhere = self._elsewhere(
                 number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
             )
@@ -2025,7 +2056,7 @@ class Reader:
             live, elsewhere = self._elsewhere(
                 number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
             )
-            if len(failed | elsewhere) >= self.max_fails:
+            if capped(failed | elsewhere):
                 refusal = REPEATED_FAIL
                 detail = (
                     f"fails at {len(failed | elsewhere)} heads of this and other "
@@ -2130,9 +2161,15 @@ class Reader:
         before a later FAIL (head B passes, A fails, the branch returns to B)
         never clears it, re-attempted or not, and a missing time clears
         nothing."""
+        return self._passes_after({v.run_id for v in fails}, passes)
+
+    def _passes_after(
+        self, fail_runs: set[int], passes: list[tuple[int, str, Any]]
+    ) -> bool:
+        """`_passes_follow` over FAIL run ids."""
         if not passes:
             return False
-        starts = [self._fresh_created(v.run_id) for v in fails]
+        starts = [self._fresh_created(run_id) for run_id in fail_runs]
         begun = [self._fresh_created(run_id) for run_id, _, _ in passes]
         if None in starts or None in begun:
             return False
@@ -3020,10 +3057,10 @@ def _kept_report(
     object comparing it with the kept one."""
     fresh = None
     if look.key is not None and answer_cacheable(report):
-        # A pull request already too old stays so; any other answer is read
-        # again once it turns too old.
+        # An answer is read again once its pull request turns too old; one
+        # already too old stays so.
         limits = [now + ANSWER_TTL, look.pass_expiry]
-        limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
+        limits.append(look.too_old if look.too_old and look.too_old > now else None)
         fresh = {
             "key": look.key,
             "readAt": now.isoformat(),

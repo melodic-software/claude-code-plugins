@@ -1038,10 +1038,11 @@ merge:
   skip-unchanged:
     max-minutes: 60
     max-skips: 3
-  # pr-verify FAILs at this many distinct heads of one PR hold it, never to
-  # merge unattended, whatever a later pass says, so pushing until the
-  # verifier passes once does not merge it (owner decision 2026-10-21). The
-  # hold is the lanes', with no label (owner rule 2026-10-27).
+  # pr-verify FAILs at this many distinct heads of one PR hold it while they
+  # keep coming, so pushing until the verifier passes once does not merge it
+  # (owner decision 2026-10-21). The hold is the lanes', with no label (owner
+  # rule 2026-10-27), and a pass at a head with no FAIL, judged after every
+  # FAIL, ends it; the lanes' round caps bound the pushes that re-judge.
   max-verify-fails: 3
   # Days a suite failing on main outside the merges' affected set stays
   # quarantined: its quarantine issue excuses its failures from demotion
