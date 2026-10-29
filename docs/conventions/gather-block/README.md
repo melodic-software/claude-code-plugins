@@ -42,5 +42,5 @@ commands are submitted to the shell; the worktrees page drops the command-shape 
 scoping it to git; a release note names skill shell injection or worktree isolation;
 or `check-skill-precompute-compose.sh` stops refusing the git-plus-multiple-lines shape.
 
-**Scope.** The composition claim is the load-bearing half. The isolation half is documented
+**Scope.** The composition claim is the half this record has to defend. The isolation half is documented
 upstream and stands on the worktrees page alone.
