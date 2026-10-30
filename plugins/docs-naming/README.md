@@ -48,7 +48,7 @@ JSON file under `.claude/` it used to live in, with a WARN row from
 `/docs-naming:setup check`; the YAML wins when both exist, and
 `/docs-naming:setup apply` moves the settings across. A layer with neither file
 under the `docs-naming` name but present under the retired `docs-hygiene` name
-(`.claude/docs-hygiene.json`) is read from there too, with a warning from the
+(`docs-hygiene.json` under `.claude/`) is read from there too, with a warning from the
 resolver. Move or rename the file to retire the warning.
 
 ## Renames are gated per file
