@@ -1734,7 +1734,8 @@ line `<!-- lane-run-report activity=<lane>/<activity> run=<run id> rung=<0|1> le
 `github-actions[bot]`'s comments, so a re-run edits it and each model rung and runner leg keeps its own. It lists the activity, the run job's result and `act-outcome`, the
 write file's `pushed-commit`, and the run job's `api-failures` output: each GitHub API call its
 scripts saw fail (`recordFailure` in `retry-fetch.mjs` and `rate-guard.mjs`, path only, status 0 for
-a network error), kept to 50 rows of a fixed shape in the run job and checked again here. A failed
+a network error), kept to distinct rows of a fixed shape in the run job (its first 64 KiB) and checked
+again here, where each path folds into its template before the cap of 50 rows. A failed
 post warns and leaves the job green.
 
 In the read file the run job is hostile (its head code can tamper with the runner before its

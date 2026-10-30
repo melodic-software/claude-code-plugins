@@ -2240,9 +2240,11 @@ jobs:
       # The failed GitHub API calls this job's scripts recorded (recordFailure
       # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
       # report comment. The model shares RUNNER_TEMP and could plant or change
-      # the file, and PATH with it, so only rows of the recorded shape pass, at
-      # most 50 distinct, with the rest counted as dropped, and post.mjs checks
-      # them again and shows each path only as a template.
+      # the file, and PATH with it, so only rows of the recorded shape pass,
+      # each distinct row once, with the rest counted as dropped. post.mjs checks
+      # them again, folds each path into its template and only then caps the
+      # rows at 50, so many failures on distinct ids cannot crowd out a later,
+      # different one. The 64 KiB read bounds the output.
       - name: Carry the failed API calls to the report job
         id: api-failures
         if: always()
@@ -2263,7 +2265,7 @@ jobs:
                   and .status >= 0 and .status <= 599)
                 | {method, path, status}]
                 | reduce .[] as $r ([]; if index([$r]) then . else . + [$r] end)) as $rows
-              | {rows: $rows[:50], dropped: (($lines | length) - ([($rows | length), 50] | min))}') || rows=$none
+              | {rows: $rows, dropped: (($lines | length) - ($rows | length))}') || rows=$none
           fi
           echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
 
