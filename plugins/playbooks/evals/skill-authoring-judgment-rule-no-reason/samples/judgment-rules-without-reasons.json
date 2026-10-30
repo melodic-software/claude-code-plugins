@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense.\n- Lead each entry with the user-visible effect, not the code change.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "## Writing entries\n\n- Past tense.\n- Open with what the user sees change; the code change, if any, comes after.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense: readers scan the notes after the release ships, so the entry describes something that already happened.\n- Lead each entry with the user-visible effect, not the code change.",
+      "why": "first rule carries its reason"
+    },
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense.\n- Lead with the user-visible effect, because most readers stop after the first clause.",
+      "why": "second rule carries its reason"
+    },
+    {
+      "answer": "## Writing entries\n\n- Entries could be in past tense.\n- Try to lead with the user-visible effect.",
+      "why": "rules still hedged"
+    }
+  ]
+}
