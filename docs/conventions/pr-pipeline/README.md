@@ -394,7 +394,8 @@ ends the run unless that retry's patch applied cleanly: the retry's own reason, 
 `ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
 status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
 through a path the lane token may not push, or by weakening a required check), which go to a
-person. A cancelled run applies no label: the write
+person. `ci-fix-escalated` also queues the PR with `needs-session`: once its same-head retry is
+spent, a session builder makes the change the lane could not. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
 person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
@@ -648,7 +649,8 @@ security-review `SUGGESTION` is adjudicated like a code-review finding), or any 
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
 holds it for a person. Every other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
-no label, a failing commit status on the head the activity gated (`pr-unblock/conflict` for
+no human-gated label (an entry naming `"label": "needs-session"` adds that label first, the
+session-builder queue, which no merge gate reads), a failing commit status on the head the activity gated (`pr-unblock/conflict` for
 `resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
