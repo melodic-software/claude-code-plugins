@@ -103,6 +103,67 @@ test("an escalation more than a minute after the label is unknown", () => {
   assert.equal(source([label("labeled", APP, "2026-10-18T10:00:00Z"), escalation("2026-10-18T10:05:00Z")]), "unknown");
 });
 
+// ci-status (pr-require-checks.yml, "Fail a review-lane hold an untrusted
+// account lifted") lifts a review-lane hold only on a removal by a `human` of
+// trusted-actors.json, not through an App, and counts github-actions[bot]'s or
+// claude[bot]'s `labeled` event as a hold. OWNER is that list's one human.
+const STRANGER = { login: "drive-by", id: 99, type: "User" };
+const CLAUDE = { login: "claude[bot]", id: 209825114, type: "Bot" };
+const afterLift = (remover) => [hold(OLD, "2026-10-18T08:00:00Z"), label("unlabeled", remover, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+
+test("only a trusted person's unlabel lifts a review-lane hold", () => {
+  assert.equal(source(afterLift(OWNER)), "lane-escalation");
+  assert.equal(source(afterLift(STRANGER)), "review-hold");
+  assert.equal(source(afterLift(APP)), "review-hold");
+  const viaApp = afterLift(OWNER).map((item) => (item.event === "unlabeled" ? { ...item, performed_via_github_app: { slug: "some-app" } } : item));
+  assert.equal(source(viaApp), "review-hold");
+  // `trusted` replaces the base's list.
+  assert.equal(gateSource({ timeline: afterLift(STRANGER), label: "needs-human", head: HEAD, isLanesApp, trusted: new Set([STRANGER.id]) }).source, "lane-escalation");
+  assert.equal(gateSource({ timeline: afterLift(OWNER), label: "needs-human", head: HEAD, isLanesApp, trusted: new Set() }).source, "review-hold");
+});
+
+test("a review lane's labeled event is a hold until a trusted person unlabels it", () => {
+  for (const bot of [ACTIONS, CLAUDE]) {
+    const held = [label("labeled", bot, "2026-10-18T08:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+    const gate = gateSource({ timeline: held, label: "needs-human", head: HEAD, isLanesApp });
+    assert.deepEqual(gate, { source: "review-hold", reason: `a review lane's hold is open: needs-human added by ${bot.login}` });
+    const lifted = [held[0], label("unlabeled", OWNER, "2026-10-18T09:00:00Z"), ...held.slice(1)];
+    assert.equal(source(lifted), "lane-escalation", bot.login);
+    const stranger = [held[0], label("unlabeled", STRANGER, "2026-10-18T09:00:00Z"), ...held.slice(1)];
+    assert.equal(source(stranger), "review-hold", bot.login);
+  }
+  // Another bot's labeled event is no hold.
+  assert.equal(source([label("labeled", { login: "dependabot[bot]", id: 49699333, type: "Bot" }, "2026-10-18T08:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()]), "lane-escalation");
+});
+
+const badHold = (sha, at) => commented(ACTIONS, `<!-- claude-lane-hold lane=claude-review sha=${sha} criteria=Cost_Gate -->\nHeld.\n\nclaude-lane: claude-review`, at);
+
+test("a malformed hold a trusted person lifted on an older head leaves a later lane escalation workable", () => {
+  const timeline = [badHold(OLD, "2026-10-18T08:00:00Z"), label("unlabeled", OWNER, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  assert.equal(source(timeline), "lane-escalation");
+});
+
+test("a malformed hold that is open, or names the current head, is unknown", () => {
+  const open = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation(), badHold(OLD, "2026-10-18T10:30:00Z")];
+  assert.equal(source(open), "unknown");
+  const atHead = [badHold(HEAD, "2026-10-18T08:00:00Z"), label("unlabeled", OWNER, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  assert.equal(source(atHead), "unknown");
+  const unlifted = [badHold(OLD, "2026-10-18T08:00:00Z"), label("unlabeled", STRANGER, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  assert.equal(source(unlifted), "unknown");
+});
+
+test("the newest labeled event is read by its time, not its place in the list", () => {
+  // A person's later label, listed first, is the one that went on last.
+  const timeline = [label("labeled", OWNER, "2026-10-18T11:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  assert.deepEqual(gateSource({ timeline, label: "needs-human", head: HEAD, isLanesApp }), {
+    source: "unknown",
+    reason: "needs-human was last added by kyle-sexton, not the lanes App",
+  });
+  // The lanes App's later label, listed first, pairs with its escalation.
+  const reordered = [label("labeled", APP, "2026-10-18T10:00:00Z"), label("labeled", OWNER, "2026-10-18T09:00:00Z"), escalation()];
+  assert.equal(source(reordered), "lane-escalation");
+});
+
 // An escalation comment as report-escalation.sh writes it, with its Reason line.
 const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
   commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
@@ -326,7 +387,11 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
       pageInfo: { hasNextPage: true, endCursor: "c1" },
     },
     {
-      nodes: [{ __typename: "UnlabeledEvent", createdAt: "2026-10-18T11:00:00Z", label: { name: "needs-human" }, actor: { __typename: "User", login: OWNER.login, databaseId: OWNER.id } }],
+      nodes: [
+        { __typename: "UnlabeledEvent", createdAt: "2026-10-18T11:00:00Z", label: { name: "needs-human" }, actor: { __typename: "User", login: OWNER.login, databaseId: OWNER.id } },
+        // GraphQL names a Bot without the `[bot]` REST gives it.
+        { __typename: "LabeledEvent", createdAt: "2026-10-18T12:00:00Z", label: { name: "needs-human" }, actor: { __typename: "Bot", login: "github-actions", databaseId: ACTIONS.id } },
+      ],
       pageInfo: { hasNextPage: false, endCursor: null },
     },
   ];
@@ -339,6 +404,7 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
   assert.deepEqual(events, [
     label("labeled", APP, "2026-10-18T10:00:00Z"),
     label("unlabeled", OWNER, "2026-10-18T11:00:00Z"),
+    label("labeled", ACTIONS, "2026-10-18T12:00:00Z"),
   ]);
   assert.deepEqual(asked, [
     { owner: "o", name: "r", number: 7, after: null },

@@ -842,8 +842,9 @@ limits:
   # GitHub's documented GITHUB_TOKEN limit); plan and read-floor are shares of
   # it, writer-pause and breaker shares of the header's limit; content-creation
   # adds per-minute and per-hour. The rate guard reads only read-floor and
-  # limit-cap, to warn; the others are thresholds meant for
-  # the hub's limits sampler, which nothing here enforces. Their
+  # limit-cap, to warn; github-token's pace (projected share left at reset)
+  # paces timer-driven lanes (log-api-budget/pace.mjs); the others are
+  # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
 

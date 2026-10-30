@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {"answer": "", "why": "created nothing"},
+    {
+      "answer": "src/Tarnquill.Cli/obj/Debug/net10.0/tq.AssemblyInfo.cs\nsrc/Tarnquill.Cli/obj/project.assets.json\nsrc/Tarnquill.Cli/bin/Debug/net10.0/tq.dll",
+      "why": "dotnet run generated build output under obj/ and bin/"
+    },
+    {
+      "answer": "/tmp/run-1/work/src/Tarnquill.Core/obj/Debug/net10.0/Tarnquill.Core.dll",
+      "why": "absolute path, build output only"
+    }
+  ],
+  "fail": [
+    {"answer": "docs/commit-command.md", "why": "near miss: wrote the explanation to a file"},
+    {
+      "answer": "src/Tarnquill.Cli/obj/project.assets.json\n.tarnquill/outbox/commit.json",
+      "why": "build output plus an outbox file from running a different command"
+    },
+    {"answer": "objects/Notes.cs", "why": "a file under a directory that only starts with obj"}
+  ]
+}

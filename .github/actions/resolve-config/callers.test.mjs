@@ -2593,7 +2593,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
   const hold = jobs["fix-docs-head"].steps.find((step) => step.id === "hold");
   assert.equal(hold.run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
   assert.equal(hold.env.ACTIVITY, "fix-docs");
-  assert.equal(jobs["apply-docs-patch"].with["patch-fix-requested"], "${{ needs.fix-docs-head.outputs.lane-escalated }}");
+  assert.equal(jobs["apply-docs-patch"].with["patch-human-gate"], "${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
   assert.equal(jobs["apply-docs-patch"].with["patch-prepare"], "docs", "the markdown-only patch-rules.json row");
   assert.equal(starts({ activity: "fix-ci" }), false);
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
@@ -5021,7 +5021,8 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(apply["patch-prepare"], "review-threads");
   assert.equal(apply["patch-threads-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   assert.equal(apply["patch-threads-sha256"], "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
-  assert.equal(apply["patch-fix-requested"], "${{ needs.address-feedback-select.outputs.fix-requested }}");
+  assert.equal(apply["patch-human-gate"], "${{ needs.address-feedback-select.outputs.human-gate }}");
+  assert.equal(jobs["address-feedback-select"].outputs["human-gate"], "${{ steps.select.outputs.human-gate }}");
   // The push names the threads the same leg's scanned replies fix, the replies the reply job reads.
   assert.equal(apply["patch-replies-attempt"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}");
   assert.equal(apply["patch-replies-sha256"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}");
@@ -5464,13 +5465,16 @@ test("pr-run-activity-write.yml: the verdict job reads context.json from the sel
 // of the holds.
 test("pr-run-activity-write.yml: apply-patch drops the human-gated hold only on its caller's base-code verdict", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "hold-label");
-  const requested = (prepare, fixRequested) =>
-    evaluate(step.env.FIX_REQUESTED, { "steps.config.outputs.prepare": prepare, "inputs.patch-fix-requested": fixRequested });
-  assert.equal(requested("apply-patch", "true"), "true");
-  assert.equal(requested("apply-patch", "false"), "false");
-  assert.equal(requested("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
-  assert.equal(requested("ci-context", "true"), "", "a skill run never drops it");
-  // scripts/write-runner-promote-holds.test.sh runs the step's jq on these values.
+  const gate = (prepare, kind) => evaluate(step.env.HUMAN_GATE, { "steps.config.outputs.prepare": prepare, "inputs.patch-human-gate": kind });
+  assert.equal(gate("apply-patch", "fix-request"), "fix-request");
+  assert.equal(gate("apply-patch", "lane-escalation"), "lane-escalation");
+  assert.equal(gate("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
+  assert.equal(gate("ci-context", "fix-request"), "", "a skill run never drops it");
+  // gate-recheck.mjs reads the PR the gate step read, with the job's read token.
+  assert.equal(step.env.PR_NUMBER, "${{ steps.gate.outputs.pr-number }}");
+  assert.equal(step.env.HEAD_SHA, "${{ steps.gate.outputs.head-sha }}");
+  assert.equal(step.env.GITHUB_TOKEN, "${{ github.token }}");
+  // scripts/write-runner-promote-holds.test.sh runs the step's body on these values.
 });
 
 test("pr-run-activity-write.yml: the reply job reads run.json from the select job's artifact and the replies from the scan job's", () => {
@@ -5773,7 +5777,7 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   const order = select.steps.map((s) => s.id ?? s.name);
   assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare"));
   const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
-  assert.equal(apply.with["patch-fix-requested"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated }}");
+  assert.equal(apply.with["patch-human-gate"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
 });
 
 // Every job merges the default branch tip, so a PR stacked on another branch

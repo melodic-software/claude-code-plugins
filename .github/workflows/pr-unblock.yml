@@ -586,9 +586,9 @@ jobs:
       patch-merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
       patch-merge-state: ${{ needs.resolve-conflicts-select.outputs.merge-state }}
       patch-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
-      # true drops the human-gated label from the holds: another lane's
-      # escalation put it on (lane-hold.mjs).
-      patch-fix-requested: ${{ needs.resolve-conflicts-select.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as another lane's escalation (lane-hold.mjs).
+      patch-human-gate: ${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
 
   # A conflicted round whose answering leg handed on no patch state, which a
   # scan that refused the model's output (a leak-scan block, an oversize
@@ -673,7 +673,7 @@ jobs:
       head-sha: ${{ steps.head.outputs.sha }}
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
-      fix-requested: ${{ steps.select.outputs.fix-requested }}
+      human-gate: ${{ steps.select.outputs.human-gate }}
       # "1" for a same-head retry after the reply job stopped there
       # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.select.outputs.model-rung }}
@@ -1088,10 +1088,11 @@ jobs:
       # The same leg's scanned replies, whose VALID threads the commit names.
       patch-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       patch-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
-      # true drops the human-gated label from the holds: the select job kept
-      # only threads a trusted person with write access asked to fix, or a
-      # lane escalation put the label on (gate-source.mjs).
-      patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
+      # fix-request drops the human-gated label from the holds: the select job
+      # kept only threads a trusted person with write access asked to fix;
+      # lane-escalation drops it while the write runner reads it again as a
+      # lane escalation (gate-source.mjs).
+      patch-human-gate: ${{ needs.address-feedback-select.outputs.human-gate }}
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
   # The adjudicator, after the model job and before the reply job, only when
@@ -2365,9 +2366,10 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      # true drops the human-gated label from the holds: another lane's
-      # escalation put it on (fix-ci-context.mjs).
-      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as another lane's escalation
+      # (fix-ci-context.mjs).
+      patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
@@ -2578,7 +2580,7 @@ jobs:
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
+      patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
       # A weaken-required stop here still takes the head's fresh fixer round.

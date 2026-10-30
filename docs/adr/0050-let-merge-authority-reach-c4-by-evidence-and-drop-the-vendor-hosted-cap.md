@@ -11,7 +11,7 @@ Three absolutes cap what an unattended lane may merge:
 - **C4 never.** Structural work (refactors, migrations, contract changes) needs human review and
   human merge "always" (`plugins/autonomy/reference/guardrails/work-classes.md:35-37`). The
   loop-lane convention repeats it: "no rung, no tracked config, and no invocation argument ever
-  reaches them" (`docs/conventions/loop-lane/README.md:50-52`).
+  reaches them" (`docs/contracts/loop-lane/README.md:50-52`).
 - **C5 never.** Untrusted-provenance work is human-merged under the same clause.
 - **Vendor-hosted executors cap at human-gated merge**, whatever the work class
   (`plugins/autonomy/reference/trigger-dispatch.md:200-201`).

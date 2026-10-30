@@ -12,7 +12,8 @@
 #   scripts/check-affected.sh --budget S      time the selected shell suites against
 #                                             an S-second budget (default:
 #                                             $CHECK_AFFECTED_BUDGET, else 120); a
-#                                             suite over its share fails
+#                                             suite over its share is a warning,
+#                                             not a failure
 #                                             (scripts/run-plugin-tests.sh BUDGET)
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
@@ -706,7 +707,8 @@ elif ((run_tests)); then
     local -a pkgs=() exclusions=() node=() unrun=()
     # Suites run only when the data tree is this tree, so CHECK_DATA_ROOT adds nothing here, and a suite
     # that inherits it points its checkers at the real tree instead of its fixtures.
-    env -u CHECK_DATA_ROOT "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
+    # A suite that passes on a loaded host but runs past its share is a warning here.
+    env -u CHECK_DATA_ROOT PLUGIN_TEST_SHARE_WARN_ONLY=1 "$tools/scripts/affected-tests.sh" --run --jobs "$jobs" --budget "$budget" --base "$base" --write-not-run "$out.not-run" || rc=$?
     ((rc == 3)) || return "$rc"
     # shellcheck source=lib/read-list.sh
     . "$tools/scripts/lib/read-list.sh" &&

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-windows-drive-tmp.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/block-windows-drive-tmp.schema.json",
   "title": "block-windows-drive-tmp telemetry data",
   "description": "Per-hook `data` payload for the block-windows-drive-tmp guard. Discovered from the envelope `hook` value \"block-windows-drive-tmp\". Evolves additive-only. Carries NO full command string.",
   "type": "object",

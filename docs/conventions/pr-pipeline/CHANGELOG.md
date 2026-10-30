@@ -1,5 +1,82 @@
 # Changelog for the PR pipeline convention
 
+## [8.4.0] - 2026-10-30
+
+### Added
+
+- `limits.api` github-token `pace` (default 0.2, in rate-limits.json; set it in pr-pipeline.yaml,
+  0 turns pacing off): the lost-run reconciler
+  and pr-unblock-dispatch skip every other scheduled tick (the even run numbers) while the
+  GITHUB_TOKEN pool's remaining at its reset, projected from the window's burn rate so far, is
+  under that share of the header's limit, so the timer lanes slow to half cadence before the
+  breaker stops every lane. Any other event, or a failed read, runs as before.
+
+### Changed
+
+- pr-verify runs its read-only resolver before its trigger gate, so a run the resolver skips (a
+  head already judged or moved past, a draft, a run red for anything an approval does not lift,
+  an author it does not judge) no longer spends the gate's reads. A judged run makes the same
+  reads as before.
+
+### Fixed
+
+- enable-auto-merge's refusal comment wraps each reason line to 100 columns at a space, its
+  continuations indented two spaces, and folds more than 20 lines into a `<details>` block, so
+  GitHub no longer scrolls a long reason sideways. The marker lines and the line naming the head
+  are unchanged. Every reader joins a wrapped reason back into one line and still reads a comment
+  posted before the change, and a refusal whose reason is unchanged writes nothing new, so a
+  person-removed label stays off. clear-escalations reads the whole reason, so a person's code
+  after a wrapped "; " still keeps the label.
+- `quote` and `wrapLine` move from verify-notes.mjs into address-feedback.mjs; verify-notes'
+  comments are unchanged.
+
+## [8.3.0] - 2026-10-30
+
+### Changed
+
+- enable-auto-merge leaves an unarmed lanes App pull request on its lane refusal (a risk-score hold
+  or a pr-unblock stop) with no read when nothing it reads has changed since the last reader run:
+  head, `updatedAt`, labels, check and status rollup, reviews, comments, review threads, rung and
+  main's code and config. It reuses `merge.skip-unchanged` (max-minutes, max-skips), never skips
+  past the refusal's escalation to a failing status, never skips an armed one, and logs
+  `enable-auto-merge: skip-unchanged skipped=N recorded=M keyed=K of L`. The records ride in the
+  `pr-merge-verify-answers` artifact.
+- enable-auto-merge's discussion read lists the changed files, so a head with no rename reads no
+  REST files page.
+- A `pull_request_target` run of pr-merge handles only the pull request its event names; the
+  15-minute schedule keeps the full sweep. A pending event run no longer supersedes another one.
+- The merge job lists its candidates with one `gh pr list` and a jq author filter in place of one
+  `gh pr list --author` call per author.
+
+## [8.2.0] - 2026-10-30
+
+### Added
+
+- pr-merge's scheduled `clear-escalations` removes a human-gated label a review lane added when every hold comment since the label was last removed names an earlier head, as `stale-review-hold`. At the current head it needs a trusted move (every push since the one that landed the newest held head is by a `human` of the base trusted-actor list, never the lanes App), a whole review from both lanes that passed (each caller's newest run's status job succeeded with a review-complete notice and no hold notice for the head, on a head that changes neither review caller), no HIGH or CRITICAL finding: `critical-findings: 0` from the security lane, every finding inline for the security lane and any lane a hold names, and no unresolved lane thread at `CRITICAL` or `IMPORTANT` (for those strict lanes, none with no readable severity either), one of the pull request's own commits since each held head (not reachable from `main`) that is not a merge, and for a `critical-security` hold at least one `CRITICAL` inline finding of its lane at the held head, each in a file one of those commits changed. A label it keeps on the re-read gets no clear comment. It reads the head and the hold comments again just before the removal. A lane that still finds the cause holds the new head again.
+- `ci-status`'s review-lane lift check counts the lanes App's removal only after its own newest `stale-review-hold` comment since the hold names a head no hold comment since the label's last removal names, while none names the event's head, and only when the base commit's `clear-escalations.mjs` `recheckStaleHold`, the same predicate, passes again with the job's own token at the head that comment names, as it was when the App removed the label, including the check-signed-commits hold, other lanes App markers and a person speaking up to the removal. A later head is judged by its own review lanes, so a clean push after the clear stays green before they run. The App's comment only points at the hold; ci-status does not take its judgment on trust.
+
+### Fixed
+
+- A hand dispatch of `pr-unblock.yml` with `activity: resolve-conflicts` on a mergeable pull
+  request now merges the default branch tip into its head when the head is behind, through the
+  same no-model clean-merge push a conflicting pull request gets, instead of skipping it as
+  `not-applicable`. A head that already holds the tip is skipped as `up-to-date` and gets no
+  check run. The draft, hold, protected-path, repeat-cap and lanes App identity gates are
+  unchanged, and the dispatcher still sends only conflicting pull requests.
+- `resolve-conflicts` skips a pull request whose base is not the default branch, such as a stacked
+  layer, as `not-applicable`, so a hand dispatch never merges the default branch into it.
+
+### Security
+
+- The issue lane no longer works from an outsider's issue text once a listed human applies
+  `agent-ready`: the admit job's `check-blockers.mjs` stops the run for good, through the existing
+  `Stop on untrusted provenance` step, when the issue's author is neither a listed human nor the
+  lanes App. `report-skip` then runs `report-outcome` with `dimension-skip: outside-author`, which
+  removes `agent-ready` and comments that a listed human re-files the work as a new issue, adding
+  no label. `write-issue.mjs` also fails the run on such an issue. Admission, intake refinement and
+  verdicts, the issue lane and intake re-entry now share one author check, `admit.mjs`
+  `authorAdmitted`, which also refuses an issue with no author.
+
 ## [8.1.1] - 2026-10-30
 
 ### Fixed

@@ -75,7 +75,7 @@ test("live config: resolve-conflicts holds no write token; its push job may only
   assert.deepEqual(push.needs, ["resolve-conflicts"]);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["do-not-merge"] }).applies, false);
   // The write runner holds needs-human itself unless the select job read
-  // another lane's escalation (patch-fix-requested).
+  // another lane's escalation (patch-human-gate).
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["needs-human"] }).applies, true);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { draft: true }).applies, false);
 });
