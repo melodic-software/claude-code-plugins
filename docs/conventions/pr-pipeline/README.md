@@ -922,9 +922,10 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
-on the issue instead: `research-first` and `probe-first` get `needs-human`, no `agent-ready`, and
-a comment naming the next step, and `split-required` goes back through intake, whose split files
-its sub-issues ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
+on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
+`status: ready` and park at `status: confirmed` beside admission's comment naming the next step,
+as admission parks the same refusal, and `split-required` goes back through intake, whose split
+files its sub-issues ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 

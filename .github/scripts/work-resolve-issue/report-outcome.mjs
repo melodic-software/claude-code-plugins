@@ -30,7 +30,10 @@
 //   pull request that is not open, or that neither the lanes App nor a
 //   listed human opened, retries instead); intake removes
 //   agent-ready and status: ready, so the triage sweep sends the issue back
-//   through intake; close closes the issue as completed (an already-done
+//   through intake; park removes them too and parks the issue at
+//   status: confirmed beside admission's comment naming the reason, as
+//   admission parks a refusal no person answers; close closes the issue as
+//   completed (an already-done
 //   stop only once its cited commit or pull request is on the default
 //   branch and its commit message closes the issue, doneEvidence, else it
 //   retries); fail removes agent-ready and adds no label. A
@@ -83,16 +86,16 @@
 //             The runner's check results are listed and never stop it: the
 //             PR always carries the hold line, so a human reads them.
 //   refused  a done run whose patch apply-issue-patch refused
-//             (ESCALATION_REASON patch-protected-path, patch-invalid or
-//             patch-not-applied), or whose apply job failed before giving one
-//             (patch-apply-failed), stops like stopped, naming the reason;
+//             (ESCALATION_REASON patch-protected-path, patch-credential,
+//             patch-invalid or patch-not-applied), or whose apply job failed
+//             before giving one (patch-apply-failed), stops like stopped,
+//             naming the reason; only patch-credential reaches a person.
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
-//             (DIMENSION_SKIP): takes the reason's route; a hold comments
-//             the next step with an outcome=<reason> marker, adds the
-//             human-gated label and removes agent-ready, and split-required
-//             goes back through intake, whose split files its sub-issues.
-//             No outcome file is read.
+//             (DIMENSION_SKIP): takes the reason's route, naming the next
+//             step, with no person: research-first and probe-first park at
+//             status: confirmed, and split-required goes back through intake,
+//             whose split files its sub-issues. No outcome file is read.
 //   outside  the admit job stopped the run because the issue's author is
 //             neither a listed human nor the lanes App (DIMENSION_SKIP
 //             outside-author): comments that a listed human re-files the work
@@ -157,6 +160,7 @@ import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
+import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
@@ -574,20 +578,23 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // The comment and labels of a stop whose route is not hold, which carries no
 // escalation marker: retry and wait keep agent-ready (work-unblock restarts it
 // and the next run resumes the branch), host-run and attended add their
-// label, intake removes the status labels admission reads, close and fail add
-// none; all but retry and wait remove agent-ready.
-const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
-const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
+// label, intake removes the status labels admission reads, park removes them
+// and adds status: confirmed (finishStop writes admission's comment first),
+// close and fail add none; all but retry and wait remove agent-ready.
+const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
+const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park: "status: confirmed" };
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-const ROUTE_REMOVES = { intake: ["agent-ready", "status: ready", "admission-deferred"] };
+const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
+const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
   "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
   attended: `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`,
   intake:
     "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
   "intake-security": "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage.",
+  park: `It removed \`agent-ready\` and \`status: ready\` and added \`status: confirmed\`, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
@@ -647,8 +654,16 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
+    ...(route === "park" && { admission: parkReason(stop, why || stopWhy(shown)) }),
   };
 }
+
+// The reason a park's admission comment gives (refusalText), as
+// admission words a refusal: lowercase, no closing period.
+const parkReason = (stop, why) => {
+  const said = why.replace(/\.$/, "");
+  return `the work-resolve-issue lane stopped on it (\`${stop}\`); ${said.charAt(0).toLowerCase()}${said.slice(1)}`;
+};
 
 // A stop routed by stop-routes.json, or by `route` in its place; `args` are
 // handBack's. A retry, wait or intake past limits.stop-retries, or the row's
@@ -683,7 +698,8 @@ export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
 export const PATCH_REASONS = {
   "patch-empty": "the run wrote no change",
   "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
-  "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
+  "patch-invalid": "the run's output was not a valid patch to push: missing, too large or made on another commit",
+  "patch-credential": "the patch, or a file it writes, carries a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
   "patch-apply-failed": "apply-issue-patch failed before it committed or refused the patch",
 };
@@ -716,31 +732,6 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
     lines.push("", `Run: ${runUrl}`);
   }
   return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
-}
-
-// A run its issue dimensions skipped before any model turn: the issue goes to
-// a person with the next step, and agent-ready comes off.
-function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
-  const [reasonMarker, reasonLine] = personReasonLines(LANE, stopReasonCode(reason));
-  const lines = escalated([
-    `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
-    reasonMarker,
-    `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]}`,
-    "",
-    reasonLine,
-  ]);
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
-  lines.push("", `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`);
-  return {
-    action: "hand-back",
-    exit: reason,
-    issueNumber,
-    comment: lines.join("\n"),
-    addLabels: [humanLabel],
-    removeLabels: ["agent-ready"],
-  };
 }
 
 // A run the usage limit stopped: one marker comment, agent-ready kept, no
@@ -1370,7 +1361,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
-  // so it is passed over, and so is a dimension skip or an outside-author stop, which ran nothing. The
+  // so it is passed over, and so is a dimension skip (a parked one included) or an outside-author stop, which ran nothing. The
   // first other marker decides: a resumable one
   // whose run's branch still passes resumes it; anything else (a pushback, a
   // marker naming no run, or a branch deleted or failing a check) starts
@@ -1381,6 +1372,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       (marker) =>
         !(marker.onResumed && RESUMABLE.has(marker.outcome)) &&
         !Object.hasOwn(DIMENSION_STEPS, marker.outcome) &&
+        marker.outcome !== ROUTE_OUTCOME.park &&
         marker.outcome !== OUTSIDE_AUTHOR &&
         !RETIRED_SKIPS.has(marker.outcome),
     );
@@ -1846,6 +1838,12 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
     );
     return;
   }
+  // A park writes admission's comment before its labels, as label-unblocked's
+  // parkDone does: intake-reenter lifts status: confirmed only beside it.
+  if (plan.action === "park") {
+    const base = `${repo}/issues/${plan.issueNumber}`;
+    await sayWhy(github, repo.slice("/repos/".length), base, (await read()).comments, refusalText(plan.admission), bot);
+  }
   await applyHandBack(github, repo, plan);
   if (plan.action === "close") {
     await github("PATCH", `${repo}/issues/${plan.issueNumber}`, { state: "closed", state_reason: "completed" }, { safeToResend: true });
@@ -1894,10 +1892,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (dimensionSkip) {
       const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
       const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
-      const plan =
-        stopRoute(dimensionSkip) === "hold"
-          ? dimensionSkipPlan({ reason: dimensionSkip, issueNumber, humanLabel, runUrl, runId })
-          : routeStop(dimensionSkip, { outcome: stopped(DIMENSION_STEPS[dimensionSkip]), issueNumber, branch: "", humanLabel, runUrl, runId });
+      const plan = routeStop(dimensionSkip, { outcome: stopped(""), issueNumber, branch: "", humanLabel, runUrl, runId }, { why: DIMENSION_STEPS[dimensionSkip] });
       await finishStop(github, repo, plan, { bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]", humans: readHumansOrNone(env.TRUSTED_ACTORS), runId, limits: readLimits(resolved) });
       return 0;
     }

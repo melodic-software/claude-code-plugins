@@ -1158,6 +1158,32 @@ test("a credential inside a binary patch is caught in the patched blob", async (
   assert.deepEqual(api.calls, []);
 });
 
+// The issue row names a credential shape apart from any other invalid patch
+// (owner decision on #11021): a credential is a token-leak path the owner keeps
+// a hold on, patch-credential; any other invalid patch is patch-invalid, which
+// the issue lane retries. Rows without patch-credential keep patch-invalid.
+test("issue target: a credential shape in the patch or a patched blob escalates patch-credential", async (t) => {
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  const api = fakeApi(text.repo, text.head, { labels: READY });
+  assert.deepEqual(await pushIssue(text, api), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+  const selected = select({ row: issueRow(), patchState: "written", patchSha256: text.sum, patchHeadSha: text.head, headSha: text.head, patchDir: dirname(text.patchFile) });
+  assert.deepEqual(selected, { proceed: false, skipReason: "awaiting-human", escalationReason: "patch-credential" });
+  const binary = repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])])));
+  assert.deepEqual(await pushIssue(binary, fakeApi(binary.repo, binary.head, { labels: READY })), { outcome: "escalate", escalationReason: "patch-credential" });
+});
+
+// A patch whose bytes carry a credential holds whatever else is wrong with it,
+// so a SHA-256 mismatch cannot turn the hold into a retry.
+test("issue target: a credential shape outranks a SHA-256 mismatch, and a mismatch alone is patch-invalid", (t) => {
+  const leaky = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  const clean = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const at = (fix) => ({ row: issueRow(), patchState: "written", patchSha256: "0".repeat(64), patchHeadSha: fix.head, headSha: fix.head, patchDir: dirname(fix.patchFile) });
+  assert.equal(select(at(leaky)).escalationReason, "patch-credential");
+  assert.equal(select(at(clean)).escalationReason, "patch-invalid");
+  assert.equal(select({ ...at(leaky), row: row("default") }).escalationReason, "patch-invalid", "a row without patch-credential");
+});
+
 // --- a head that moved since the model job ---
 
 test("a moved tip takes the patch with --3way when the moved commits touch no patched path", async (t) => {

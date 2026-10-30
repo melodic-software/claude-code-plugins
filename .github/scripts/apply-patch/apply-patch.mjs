@@ -445,22 +445,30 @@ export function commitMessage(row, values, threads = []) {
 
 const sha256Of = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-// Why the patch file is not to be applied, or "" when it is: a regular file of
-// at most MAX_PATCH_BYTES with the SHA-256 given and no credential shape.
+// Why the patch file is not to be applied, as {kind, why}, or null when it is:
+// a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
+// credential shape. A credential shape in a regular file's bytes is kind
+// `credential` whatever else is wrong with it; anything else is `invalid`.
 export function patchProblem(file, expected) {
-  if (!/^[0-9a-f]{64}$/.test(String(expected)) || !existsSync(file)) {
-    return "the patch or its SHA-256 is missing";
+  const invalid = (why) => ({ kind: "invalid", why });
+  if (!existsSync(file)) {
+    return invalid("the patch or its SHA-256 is missing");
   }
-  const stat = lstatSync(file);
-  if (!stat.isFile() || stat.size === 0 || stat.size > MAX_PATCH_BYTES) {
-    return "the patch is not one regular file of at most 1 MiB";
+  if (!lstatSync(file).isFile()) {
+    return invalid("the patch is not one regular file of at most 1 MiB");
   }
   const bytes = readFileSync(file);
-  if (sha256Of(bytes) !== expected) {
-    return "the patch does not match its SHA-256";
-  }
   const credential = credentialIn(bytes.toString("latin1"));
-  return credential ? `the patch carries a ${credential} shape` : "";
+  if (credential) {
+    return { kind: "credential", why: `the patch carries a ${credential} shape` };
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(expected))) {
+    return invalid("the patch or its SHA-256 is missing");
+  }
+  if (bytes.length === 0 || bytes.length > MAX_PATCH_BYTES) {
+    return invalid("the patch is not one regular file of at most 1 MiB");
+  }
+  return sha256Of(bytes) === expected ? null : invalid("the patch does not match its SHA-256");
 }
 
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
@@ -513,8 +521,9 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   } catch {
     names = [];
   }
-  if (names.length !== 1 || names[0] !== "patch.diff" || patchProblem(join(patchDir, "patch.diff"), patchSha256)) {
-    return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+  const problem = names.length === 1 && names[0] === "patch.diff" ? patchProblem(join(patchDir, "patch.diff"), patchSha256) : { kind: "invalid" };
+  if (problem) {
+    return decide(false, "awaiting-human", reasonFor(row, problem.kind));
   }
   // A written patch pushes a new head, and the report's escalations are about
   // the old one: the new head's CI decides. A red new head gets its own run,
@@ -694,7 +703,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (merge.state === "conflicted") {
       const problem = patchProblem(patchFile, patchSha256);
       if (problem) {
-        return escalate("invalid", problem);
+        return escalate(problem.kind, problem.why);
       }
       tree = applyOnto(git, merge.conflictTree, patchFile, false);
       if (!tree) {
@@ -735,7 +744,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     }
     const leaked = written.find((entry) => credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
     if (leaked) {
-      return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
+      return escalate("credential", `the patched ${leaked.path} carries a credential shape`);
     }
     // Every conflicted path still in the tree is resolved.
     const listed = merge.unmerged.size === 0 ? [] : git(["ls-tree", "-z", "--full-tree", "-r", tree, "--", ...merge.unmerged]).toString("utf8").split("\0").filter(Boolean);
@@ -863,7 +872,7 @@ export async function push({
   }
   const problem = patchProblem(patchFile, patchSha256);
   if (problem) {
-    return escalate("invalid", problem);
+    return escalate(problem.kind, problem.why);
   }
   const git = gitRunner(cwd, gitBin);
   const moved = patchHeadSha !== headSha;
@@ -944,7 +953,7 @@ export async function push({
   const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
   if (leaked) {
-    return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
+    return escalate("credential", `the patched ${leaked.entry.path} carries a credential shape`);
   }
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.

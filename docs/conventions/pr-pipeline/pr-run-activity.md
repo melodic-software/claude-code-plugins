@@ -1538,7 +1538,9 @@ and the `issue` row of `patch-rules.json`. The caller passes `patch-base-sha` an
 `patch-resume-tip` instead of `patch-head-sha`; the start commit is the resume tip, else the base,
 which a step before the mint checks is on the default branch. The select step and the script run
 from the base with that start commit as both heads, so a patch made on another commit is refused
-`patch-invalid`, never applied with `--3way`. The hold-label step also outputs the activity's
+`patch-invalid`, never applied with `--3way`. A credential shape in the patch or a patched blob
+escalates `patch-credential` instead, a reason only the `issue` row names; any other row escalates
+its `-invalid` reason for it. The hold-label step also outputs the activity's
 `applies-when.labels` (`agent-ready`). After the universal checks, the script re-reads the issue's
 labels and stops uncommitted (`awaiting-human`) when a hold label is on it or `agent-ready` is
 gone, creates the commit `Resolve issue #<n>` with the trailer
@@ -2085,9 +2087,11 @@ listing and re-fires the issue on main's files, once per version of the two file
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
-`dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
-issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
-and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
+`dimension-skip`, and the reason takes its route, to no person: `research-first` and
+`probe-first` take the `park` route, which writes admission's comment naming the next step (so
+`intake-reenter` lifts the park on a listed human's decision comment), adds `status: confirmed`,
+removes `agent-ready`, `status: ready` and `admission-deferred`, and comments under an
+`outcome=parked` marker; `split-required` takes the `intake` route, so intake's split
 files its sub-issues (owner Q93), or says on the issue why it cannot; a sub-issue that split filed
 runs at `split-child-size` instead ([Models](README.md#models)). When the admit job stops the run because the issue's author is
 neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
@@ -2203,9 +2207,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
-  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
+  patch it refused (`patch-protected-path`, `patch-credential`, `patch-invalid` or `patch-not-applied`), or whose apply job failed before
   giving a reason (`patch-apply-failed`, which the caller sets from the job's result), stops the issue naming
-  that reason, and opens no PR, from a resumed branch either. A `stopped` run whose `reason` starts `patch-protected-path`
+  that reason, and opens no PR, from a resumed branch either. Only `patch-credential`, a patch or patched file
+  carrying a credential shape, reaches a person; `patch-invalid` retries like `patch-apply-failed`. A `stopped` run whose `reason` starts `patch-protected-path`
   (the early stop the preamble asks for) stops the same way, naming that reason before the run's words. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip

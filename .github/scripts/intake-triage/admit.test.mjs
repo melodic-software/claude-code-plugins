@@ -2451,6 +2451,61 @@ test("trustedSplitChild reads the issue and its native parent and applies splitC
   assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
 });
 
+// Owner decision on #11021: a trusted size-split child that admission admits
+// at Size large is not refused as split-required. The issue lane reads its
+// split-child fact through trustedSplitChild (check-blockers.mjs), and that
+// fact moves a Large child to split-child-size (dimensions.mjs
+// splitChildDims), so trustedSplitChild must answer as admission's
+// splitChildBody does on every case.
+describe("trustedSplitChild agrees with admission", () => {
+  const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
+  const reader = ({ child, parent: parentNode, parentLink }) => async (method, path, body) => {
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: body.variables.number === 8 ? child : parentNode } } };
+    }
+    if (method === "GET" && path === "/repos/o/r/issues/8/parent") {
+      if (parentLink === null) {
+        throw Object.assign(new Error("404"), { status: 404 });
+      }
+      return parentLink;
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  for (const vector of VECTORS.cases) {
+    test(`split-child vector through trustedSplitChild: ${vector.name}`, async () => {
+      const appId = ("app_id" in vector ? vector.app_id : VECTORS.app_id) ?? undefined;
+      const parent = VECTORS.parents[vector.parent];
+      const github = reader({
+        child: { body: vector.child.body, lastEditedAt: vector.child.last_edited_at, author: actorOf(vector.child.author), editor: actorOf(vector.child.editor), comments: { totalCount: 0, nodes: [] } },
+        parent: parent && { body: parent.body, lastEditedAt: null, author: actorOf(parent.author), editor: null, comments: { totalCount: parent.comments.length, nodes: parent.comments.map(commentOf) } },
+        parentLink: vector.child.parent === null ? null : { number: vector.child.parent.number, repository_url: `https://api.github.com/repos/${vector.child.parent.repo ?? "o/r"}` },
+      });
+      assert.equal(await trustedSplitChild(github, "o/r", 8, new Set(VECTORS.humans), appId, RULES["task-list"]), vector.expect.trusted, vector.expect.reason);
+    });
+  }
+
+  // A parent a listed human filed whose body someone else edited since, with
+  // its criteria in a listed human's own comment: admission takes the child's
+  // copy of those lines at Size large, so the lane's fact must too.
+  test("a child of a parent whose body another account edited, its lines from a listed human's comment, is admitted at Size large and trusted by the lane", async () => {
+    const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
+    const decision = { databaseId: 77, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z", body: `**Decision recorded.**\n\n${lines.join("\n")}`, lastEditedAt: null, author: USER(HUMAN), editor: null };
+    const parentSpec = { ...written(USER(HUMAN), { body: "## Done when\n\nSee the decision below.", editor: USER(OUTSIDER) }), commentCount: 1, comments: [decision] };
+    const childBody = `${splitChildHeader(5, 1, 2)}\n${lines[0]}`;
+    const app = { __typename: "Bot", databaseId: APP };
+    const spec = { body: childBody, lastEditedAt: null, author: app, editor: null, comments: [], splitParent: { number: 5, spec: parentSpec, appId: APP } };
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    assert.deepEqual(decide(facts({ issue: issueOf({ user: { id: APP }, body: childBody }), spec, verdict: large })), { verdict: "admit", reasons: [] });
+    const github = reader({
+      child: { body: childBody, lastEditedAt: null, author: app, editor: null, comments: { totalCount: 0, nodes: [] } },
+      parent: { body: parentSpec.body, lastEditedAt: parentSpec.lastEditedAt, author: parentSpec.author, editor: parentSpec.editor, comments: { totalCount: 1, nodes: [decision] } },
+      parentLink: { number: 5, repository_url: "https://api.github.com/repos/o/r" },
+    });
+    assert.equal(await trustedSplitChild(github, "o/r", 8, humans, APP, RULES["task-list"]), true);
+  });
+});
+
 // A split made by hand (no App split record): a listed human linked two
 // sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
 // item citing a sub-issue counts as covered; an uncited one may be more work.

@@ -110,11 +110,13 @@ import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trus
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
+
+export { ADMIT_MARKER, refusalText };
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
-export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The last line of each refinement refine.mjs renders: `questions` closes one
@@ -580,11 +582,6 @@ export const taskItems = (body, taskList) => {
   });
   return items;
 };
-
-// The admission comment's text for a refusal, after ADMIT_MARKER: each reason
-// names what admission needs; only a security or intent reason asks a person.
-export const refusalText = (reasons) =>
-  `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform, each item's text read as plainText. `webHosts` is resolve-issue's
@@ -1324,23 +1321,8 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
   }
 }
 
-// One App comment carrying ADMIT_MARKER, edited in place on a later run.
-export async function sayWhy(github, repository, base, comments, text) {
-  const body = `${ADMIT_MARKER}\n${text}`;
-  const own = comments.find(
-    (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
-  );
-  if (own?.body === body) {
-    return;
-  }
-  if (own) {
-    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, {
-      body,
-    });
-  } else {
-    await github("POST", `${base}/comments`, { body });
-  }
-}
+// The lanes App's one admission comment (../lib/admission-comment.mjs).
+export const sayWhy = (github, repository, base, comments, text) => writeWhy(github, repository, base, comments, text, LANES_APP_LOGIN);
 
 // The body, the comment count and the first 100 comments, each with its
 // author, last editor and edit time: the first 100 comments are what pr-verify
@@ -1385,8 +1367,10 @@ export async function splitParentOf(github, repository, parent, appId) {
 
 // Whether issue `number` is a trusted size-split sub-issue: the lanes App
 // (`appId`) filed it with SPLIT_CHILD_MARKER and splitChildBody counts it
-// against its native parent. work-resolve-issue's check-blockers.mjs reads it
-// and hands it to resolve-config as the splitChild fact (pr-pipeline.yaml
+// against its native parent, exactly as admission (decide) does, so a child
+// admission takes at Size large is not skipped as split-required.
+// work-resolve-issue's check-blockers.mjs reads it and hands it to
+// resolve-config as the splitChild fact (pr-pipeline.yaml
 // models.issue-dimensions.split-child-size). Reads only.
 export async function trustedSplitChild(github, repository, number, humans, appId, taskList) {
   const spec = await specOf(github, repository, number);
@@ -1394,7 +1378,7 @@ export async function trustedSplitChild(github, repository, number, humans, appI
     return false;
   }
   const parent = await splitParentOf(github, repository, await parentOf(github, `/repos/${repository}/issues/${Number(number)}`), appId);
-  return parent !== undefined && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
+  return parent !== undefined && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
 }
 
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
