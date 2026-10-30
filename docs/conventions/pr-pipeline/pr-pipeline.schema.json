@@ -1147,8 +1147,8 @@
           "type": "array",
           "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
           "uniqueItems": true,
-          "default": [],
-          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
+          "minItems": 1,
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. It needs at least one entry, because the shared ci-workflows hold fails on an empty list; a login no App holds turns the hold off."
         },
         "diff-check": {
           "type": "object",
@@ -1177,7 +1177,7 @@
             "path-holds": {
               "type": "boolean",
               "default": false,
-              "description": "pr-merge lane only: true holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
+              "description": "Controls the pr-merge lane's path holds and ci-status's exempt-author and App holds on trust-gate paths. True holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it, except that ci-status still holds a Dependabot pull request that changes a trust-gate path; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
             },
             "c2-contradictions": {
               "type": "boolean",

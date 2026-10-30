@@ -15,7 +15,9 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
 - the review callers' `hold-paths`: the trusted-actor list, every floor glob, then the
   security review's own files (scrutiny only).
 - ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
-  (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`).
+  (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
+  `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
+  every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
 - `.github/trust-path-hold.json`, the whole file, which ci-workflows'
   pr-require-checks-trust-paths reads at the base SHA: `.github/**`, then the `hold_patterns`
   outside `.github/`, and `merge.trust-path-hold-apps` from pr-pipeline.yaml as `apps`. Its
@@ -100,10 +102,38 @@ def hold_paths(indent: str) -> list[str]:
     return [f"{indent}hold-paths: |", *(f"{indent}  {g}" for g in HOLD_PATHS)]
 
 
-def hold_patterns(indent: str) -> list[str]:
+def path_holds() -> bool:
+    """pr-pipeline.yaml's `merge.diff-check.path-holds`: absent is false."""
+    found = subprocess.run(
+        ["bash", str(ROOT / "lib/parse-concern-value.sh"), "--strict"]
+        + [str(ROOT / PIPELINE), "merge.diff-check.path-holds", "false"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    value = found.stdout.strip()
+    if found.returncode != 0 or value not in ("true", "false"):
+        raise SystemExit(
+            f"sync-hold-floor: merge.diff-check.path-holds in {PIPELINE} is not true or false: {found.stderr}"
+        )
+    return value == "true"
+
+
+# dependabot[bot] in trusted-actors.json. Its pull requests bump third-party action pins, so
+# ci-status holds its trust-gate paths with path holds off too (owner decision Q24, 2026-10-29).
+DEPENDABOT_ID = "49699333"
+
+
+def hold_patterns(indent: str, holds: bool | None = None) -> list[str]:
     globs = [g for g in HOLD_PATHS if g not in SCRUTINY_ONLY]
     quoted = " ".join(f"'{p}'" for g in globs for p in bash_patterns(g))
-    return [f"{indent}hold_patterns=({quoted})"]
+    lines = [f"{indent}hold_patterns=({quoted})"]
+    if not (path_holds() if holds is None else holds):
+        lines += [
+            f"{indent}# merge.diff-check.path-holds is false: only Dependabot stays held.",
+            f'{indent}[ "$AUTHOR_ID" = {DEPENDABOT_ID} ] || hold_patterns=()',
+        ]
+    return lines
 
 
 def trust_path_hold() -> str:
