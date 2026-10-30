@@ -138,12 +138,38 @@ jobs:
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
+      # The base config's limits.api, in resolve-config's output shape, for
+      # the pacer; a failed read leaves rate-limits.json's defaults.
+      - name: Read the pace override from the base config
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
+
+      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
+      # at reset, projected at this window's burn rate, is under limits.api
+      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
+      # on even run numbers only, so the timer lanes slow to half cadence
+      # before the breaker stops every lane. Any other event, or a read that
+      # fails, runs as before (.github/actions/log-api-budget/pace.mjs).
+      - name: Pace the tick on the GITHUB_TOKEN burn rate
+        id: pace
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: node .base/.github/actions/log-api-budget/pace.mjs
+
       # dispatch.mjs reads the base config's `limits` through the base's
       # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       # The newest record a run of this workflow saved; none on the first run.
@@ -151,6 +177,7 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -185,6 +212,7 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
