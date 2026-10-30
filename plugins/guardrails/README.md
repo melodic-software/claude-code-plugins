@@ -1207,7 +1207,7 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
   point a blocking guard fails **closed** (`exit 2` with a `BLOCKED:` reason)
   whatever arrived, rather than let an unscanned tool call through; the same
   holds for text that is not JSON. The one allowed shape is a well-formed JSON
-  prefix on a pipe that then **closes**: that is the harness's payload cut
+  prefix on a pipe that then **closes**. That is the harness's payload cut
   short in transit, a fault the command did not cause and the agent cannot
   stage, so the guard allows the call with a visible notice instead of
   blocking it. A stall on the same prefix is deliberately not given that
@@ -1257,7 +1257,7 @@ repo-specific policy of their own:
   `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` environment variable (`bin1,bin2,…`) in the
   committing environment and skip binaries with `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS`.
   `npm` is **excluded by default**, alongside
-  `git` and `npx`: every npm config key is a flag on every subcommand
+  `git` and `npx`, because every npm config key is a flag on every subcommand
   (`npm <command> --key=value`), so per-subcommand `--help` is non-exhaustive by
   design and the authoritative list (`npm config ls -l`) prints `prefix = "…"`
   rather than `--prefix`. A generic `--help` parser cannot consume it, and
@@ -1439,7 +1439,7 @@ matches, and a glob option the shell had on before the command (a shell snapshot
 prefixes) and for `cmd /c rd /s` / `rmdir /s`, without loading the shared PowerShell classifier.
 
 **`block_root_delete_target_allowed_roots`.** The list ADDS TO the temp roots and the session
-scratchpad the guard already allows. Only you set it: it is read from the hook's own environment,
+scratchpad the guard already allows. Only you set it, because it is read from the hook's own environment,
 never from the command text, so an agent cannot grant itself a root with a `VAR=...` prefix or a
 flag. Targets are compared by real path, so a symlinked root or target is judged where it lands, a
 sibling that only shares the name prefix is refused, and a symlink under a root that points outside

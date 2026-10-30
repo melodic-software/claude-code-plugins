@@ -10,7 +10,7 @@ commits and no finding reaches Claude per edit.
 
 It uses **your repository's own markdownlint configuration**. It ships none and imposes
 no rules of its own. A repository with no discoverable markdownlint config has chosen no
-Markdown style, so nothing runs there: carrying a config **is** the opt-in.
+Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
 
 ## Behavior
 
