@@ -142,7 +142,7 @@ test("ci-status's recheck accepts the App's removal while the hold still no long
 test("ci-status's recheck fails a valid marker once a CRITICAL thread opened after the clear", async () => {
   const { code, log } = await run(world({ threads: [thread("severity: SUGGESTION"), thread("severity: CRITICAL")] }));
   assert.equal(code, 1);
-  assert.match(log, /the hold stands at .*: 1 unresolved claude-security-review finding\(s\) at CRITICAL or IMPORTANT/);
+  assert.match(log, /the hold stands at .*: 1 unresolved claude-security-review finding\(s\) at CRITICAL/);
 });
 
 test("ci-status's recheck fails a valid marker when a lane has no run at the head", async () => {

@@ -1,9 +1,10 @@
 // Expected values come from the owner's needs-human brief, Part A2
 // (2026-10-29): a review-lane hold recorded against an older head clears once
-// a new head's review lanes pass with no HIGH or CRITICAL finding, stays when
+// a new head's review lanes pass with no CRITICAL finding, stays when
 // the new head still carries the finding or the lanes have not passed there,
 // and a lanes App push alone never clears it (only a trusted move does).
-// Security-review IMPORTANT counts as HIGH (R47). Notice and comment shapes are
+// Only a CRITICAL finding holds (owner decision on #11020, which supersedes
+// R47's IMPORTANT-as-HIGH). Notice and comment shapes are
 // the ones the review lanes post (#10743's security lane comments).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -61,7 +62,7 @@ const summary = (critical = "critical-findings: 0") =>
 const baseTimeline = () => [{ event: "labeled", actor: ACTIONS_BOT, label: { name: "needs-human" }, created_at: LABELED_AT }, hold(OLD), summary()];
 
 // Review threads, root comment first. The fixture's one open security finding
-// is a SUGGESTION, so a clear shows the bar is HIGH or CRITICAL, not any finding.
+// is a SUGGESTION, so a clear shows the bar is CRITICAL, not any finding.
 // A thread carries its file and the commit its root comment was made on.
 // A thread carries its file, the commit its root comment was made on and the line it names there.
 const thread = (isResolved, author, body, path = "plugins/x/z.py", commit = HEAD, line = 12) => ({
@@ -192,7 +193,7 @@ const assertKept = async (w, why) => {
   assert.match(log, new RegExp(`#7 kept: ${why}`));
 };
 
-test("a hold at an older head comes off once a person's push passes both review lanes with no HIGH or CRITICAL finding", async () => {
+test("a hold at an older head comes off once a person's push passes both review lanes with no CRITICAL finding", async () => {
   const w = world();
   const { code } = await run(w);
   assert.equal(code, 0);
@@ -209,8 +210,8 @@ test("the hold stays when the new head still carries the finding", async () => {
   await assertKept(world({ timeline: [...baseTimeline(), hold(HEAD, "2026-10-18T11:30:00Z")] }), `a review lane holds the current head ${HEAD}`);
   const notes = [completeNotice("claude-security-review"), { annotation_level: "notice", message: `claude-lane-hold lane=claude-security-review sha=${HEAD} criteria=critical-security label=needs-human` }];
   await assertKept(world({ lanes: { ...baseLanes(), "pr-review-security-hosted.yml": { ...baseLanes()["pr-review-security-hosted.yml"], notes } } }), `claude-security-review holds ${HEAD}`);
-  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "no severity line"]) {
-    await assertKept(world({ threads: [...baseThreads(), securityThread(severity)] }), "1 unresolved claude-security-review finding\\(s\\) at CRITICAL or IMPORTANT");
+  for (const severity of ["severity: CRITICAL", "no severity line"]) {
+    await assertKept(world({ threads: [...baseThreads(), securityThread(severity)] }), "1 unresolved claude-security-review finding\\(s\\) at CRITICAL");
   }
   await assertKept(world({ timeline: [...baseTimeline().slice(0, 2), summary("critical-findings: 1")] }), `the security lane's summary of ${HEAD} does not read critical-findings: 0`);
 });
@@ -255,13 +256,23 @@ test("an incremental review by either lane keeps the hold: a finding at the held
   await assertKept(world({ lanes: { ...lanes, "pr-review-hosted.yml": { ...lanes["pr-review-hosted.yml"], notes: incremental } } }), `claude-review reviewed only part of ${HEAD}`);
 });
 
-test("an open code-lane thread at CRITICAL or IMPORTANT keeps the hold, and so does an unrated one when the hold names the code lane", async () => {
+test("an open code-lane thread at CRITICAL keeps the hold, and so does an unrated one when the hold names the code lane", async () => {
   const codeAt = (severity) => thread(false, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA code finding.\n\nclaude-lane: claude-review`);
-  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL"]) {
-    await assertKept(world({ threads: [...baseThreads(), codeAt(severity)] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or IMPORTANT");
-  }
+  await assertKept(world({ threads: [...baseThreads(), codeAt("severity: CRITICAL")] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL");
   const codeHold = commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=critical-security -->\nHeld.\n\nclaude-lane: claude-review`, "2026-10-18T10:00:02Z");
-  await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or IMPORTANT");
+  await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL");
+});
+
+// Only a CRITICAL finding holds (owner decision on #11020): an open IMPORTANT
+// thread from either lane is reported and no longer keeps the hold.
+test("an open IMPORTANT security-lane or code-lane thread no longer keeps the hold", async () => {
+  const codeAt = (severity) => thread(false, { __typename: "Bot", login: "github-actions" }, `${severity}\n\nA code finding.\n\nclaude-lane: claude-review`);
+  for (const extra of [securityThread("severity: IMPORTANT"), codeAt("severity: IMPORTANT")]) {
+    const w = world({ threads: [...baseThreads(), extra] });
+    const { code } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+  }
 });
 
 // A kept label gets no comment saying it came off (threads PRRT_kwDOTCGFQM6xqa-M, PRRT_kwDOTCGFQM6xqmzn).

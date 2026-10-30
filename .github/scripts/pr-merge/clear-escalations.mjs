@@ -103,7 +103,7 @@
 // last, it clears as `stale-review-hold` when staleHoldEvidence (below) finds every
 // hold since the label was last removed no longer standing at the current head
 // (a trusted move off the held head, both lanes' whole reviews passing there
-// with no HIGH or CRITICAL finding), check-signed-commits does not hold it, no
+// with no CRITICAL finding), check-signed-commits does not hold it, no
 // lanes App marker but an address-feedback round's was written since the
 // label, and no person spoke since. Just before the delete, the head and the
 // hold comments are read again: a moved head or a new hold keeps the label.
@@ -502,8 +502,9 @@ const newestById = (items) => items.reduce((newest, item) => (newest === undefin
 // is a whole review. The security lane's newest reviewed-head marker names
 // the head, is unedited (an edit's author is not read), and carries one
 // `critical-findings: 0` line. Every unresolved review thread opens with one
-// `severity: SUGGESTION` line: a CRITICAL, IMPORTANT or unreadable one, as on
-// a claude-review or a person's thread, keeps it. For a clear that a push no
+// readable `severity:` line below CRITICAL: a CRITICAL or unreadable one, as
+// on a person's thread, keeps it (only a CRITICAL finding holds, owner
+// decision on #11020). For a clear that a push no
 // trusted person made may lift.
 async function reviewLanesClean(context) {
   const { read, repo, pull, timeline } = context;
@@ -557,12 +558,12 @@ async function reviewLanesClean(context) {
   const open = await context.threads();
   const severe = (thread) => {
     const found = [...String(thread?.opening?.nodes?.[0]?.body ?? "").matchAll(SEVERITY)];
-    return found.length !== 1 || found[0][1] !== "SUGGESTION";
+    return found.length !== 1 || found[0][1] === "CRITICAL";
   };
   if (open === null || open.some(severe)) {
     return null;
   }
-  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity";
+  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL or unreadable severity";
 }
 
 // main's tip when the newest `reason` escalation was written, when the head
@@ -746,11 +747,11 @@ function pairedWithPrMerge(appComments, since) {
 //   head, from this repository, has its status job succeeded, recording one
 //   review-complete notice for the lane and the head and no hold notice;
 // - every lane's review was whole, so a finding at an older head was looked
-//   at again, and none leaves a HIGH or CRITICAL finding: the security lane's
+//   at again, and none leaves a CRITICAL finding: the security lane's
 //   summary reads `critical-findings: 0`; a strict lane (the security lane, or
 //   one a hold names) counted every finding inline; and no unresolved thread a
-//   lane opened is at CRITICAL or IMPORTANT (IMPORTANT counts as HIGH), or,
-//   for a strict lane, has no one readable `severity:` line.
+//   lane opened is at CRITICAL, or, for a strict lane, has no one readable
+//   `severity:` line. Only a CRITICAL finding holds (owner decision on #11020).
 // A read that fails, or a listing that may be cut short, keeps the hold.
 
 export const STALE_HOLD = "stale-review-hold";
@@ -879,12 +880,12 @@ async function laneReview({ checks, repo, head }, [file, check]) {
   }
 }
 
-// Why a lane's review of `head` may leave a HIGH or CRITICAL finding, or null
+// Why a lane's review of `head` may leave a CRITICAL finding, or null
 // when none does. Every lane's review must be whole, so a finding at an older
 // head was looked at again. A lane is strict when it is the security lane or a
 // hold names it: every finding it counted must be inline, and an open thread
 // of it with no one readable `severity:` line counts as CRITICAL. Any lane's
-// open thread at CRITICAL or IMPORTANT counts (IMPORTANT as HIGH).
+// open thread at CRITICAL counts.
 function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
   for (const review of reviews) {
     if (!review.whole) {
@@ -906,10 +907,10 @@ function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
     const blocking = open.filter(
       (thread) =>
         (thread.lane === lane || thread.lane === ANY_LANE) &&
-        (thread.severity.length === 1 ? thread.severity[0] !== "SUGGESTION" : strict || thread.severity.some((value) => value !== "SUGGESTION")),
+        (thread.severity.length === 1 ? thread.severity[0] === "CRITICAL" : strict || thread.severity.includes("CRITICAL")),
     ).length;
     if (blocking > 0) {
-      return `${blocking} unresolved ${lane} finding(s) at CRITICAL or IMPORTANT`;
+      return `${blocking} unresolved ${lane} finding(s) at CRITICAL`;
     }
   }
   return null;
@@ -1236,7 +1237,7 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
     ...cleared(timeline, bot, since, [STALE_HOLD], head, [
     `it held \`${evidence.held.join("`, `")}\``,
     evidence.moved,
-    "both review lanes passed on it with a whole review and no open HIGH or CRITICAL finding",
+    "both review lanes passed on it with a whole review and no open CRITICAL finding",
   ]),
     holds: evidence.holds,
   };
