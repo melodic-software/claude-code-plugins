@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.\n",
+      "why": "CLAUDE.md as seeded"
+    },
+    {
+      "answer": "# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.",
+      "why": "the same file without a final newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@AGENTS.md\n\n# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.\n",
+      "why": "near miss: the import line turn 1 printed was added, which apply never does"
+    },
+    {
+      "answer": "# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.\n- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `docs/conventions/developer-experience.md`.\n",
+      "why": "near miss: a pointer line written into CLAUDE.md"
+    },
+    {
+      "answer": "",
+      "why": "CLAUDE.md emptied or removed"
+    }
+  ]
+}
