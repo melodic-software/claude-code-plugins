@@ -736,7 +736,7 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.match(plan.comment, /Which file\?/);
 });
 
-// Owner direction §2: a pre-edit question reaches a person only as an intent
+// The owner's rule for when work stops for the owner: a pre-edit question reaches a person only as an intent
 // question, which the run names with `cause: "intent"`; a choice of means or a
 // design detail, or a pushback naming no cause, is the lane's to decide.
 test("a pushback without cause intent goes back through intake instead of reaching a person", () => {
