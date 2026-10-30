@@ -454,10 +454,10 @@ test("refuses a path under a skills/ directory at any depth, in any case, and a 
   }
 });
 
-test("only the docs row names the skills and skill-md refusals, and no row has to", () => {
+test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, and no row has to", () => {
   for (const name of Object.keys(RULES)) {
     const named = RULES[name].refuse.filter((refusal) => REFUSALS[refusal].optional);
-    assert.deepEqual(named, name === "docs" ? ["skills", "skill-md"] : [], name);
+    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit"] }[name] ?? [], name);
   }
   const refuse = RULES.docs.refuse.filter((name) => !REFUSALS[name].optional);
   assert.doesNotThrow(() => checkRow(row("docs", { refuse })));
@@ -2205,4 +2205,136 @@ test("main reads the merge's conflicted paths from the checkout and takes no pat
   };
   await main([], cleanEnv, { api: fakeApi(clean.repo, clean.head), cwd: clean.repo, gitBin: "git", log: () => {} });
   assert.match(readFileSync(cleanEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+});
+
+// --- review-threads file modes (#10080): no new executable bit, and a mode
+// change only back to the merge base's ---
+
+test("new-exec-bit is optional: it refuses a mode that gains the executable bit only where a row names it", () => {
+  const names = ["new-exec-bit"];
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100644", "100755"), names), ["new-exec-bit"]);
+  assert.deepEqual(refusalsOf(entry("scripts/new.sh", "000000", "100755"), names), ["new-exec-bit"]);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100755", "100755"), names), []);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100755", "100644"), names), []);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100644", "100755")), [], "not in the default set");
+  assert.equal(REFUSALS["new-exec-bit"].optional, true);
+  assert.deepEqual(Object.keys(RULES).filter((name) => RULES[name].refuse.includes("new-exec-bit")), ["review-threads"]);
+});
+
+// A PR whose merge base holds `path` at `baseMode`, whose head holds it at
+// `headMode`, and a model patch that leaves it at `patchMode`; the fake API
+// reads the merge base's trees from the repository, as GitHub would.
+// `newInHead` leaves `path` out of the merge base, so the PR adds it.
+function modeFix(t, { path = "plugins/p/scripts/lib.sh", baseMode, headMode, patchMode, newInHead = false, edit = () => {} }) {
+  const repo = scratch(t);
+  git(repo, ["init", "-q", "-b", "main"]);
+  git(repo, ["config", "user.email", "t@example.com"]);
+  git(repo, ["config", "user.name", "t"]);
+  git(repo, ["config", "core.fileMode", "true"]);
+  writeFileSync(join(repo, "README.md"), "# r\n");
+  const place = (mode) => {
+    mkdirSync(join(repo, dirname(path)), { recursive: true });
+    writeFileSync(join(repo, path), "x=1\n");
+    chmodSync(join(repo, path), mode);
+  };
+  if (!newInHead) {
+    place(baseMode);
+  }
+  const base = commitAll(repo, "base");
+  if (newInHead) {
+    place(headMode);
+  }
+  chmodSync(join(repo, path), headMode);
+  writeFileSync(join(repo, "README.md"), "# pr\n");
+  const head = commitAll(repo, "head");
+  chmodSync(join(repo, path), patchMode);
+  edit(repo);
+  git(repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", head], { cwd: repo, encoding: "utf8" });
+  git(repo, ["reset", "-q", "--hard", head]);
+  const patchFile = join(scratch(t), "patch.diff");
+  writeFileSync(patchFile, text);
+  return { repo, head, base, path, patchFile, sum: sha256(text) };
+}
+
+const modeApi = (fix) => {
+  const api = fakeApi(fix.repo, fix.head, { pull: { draft: false, head: { repo: { full_name: "o/r" } }, base: { sha: "e".repeat(40) } } });
+  api.compares = [];
+  api.compare = async (from, to) => {
+    api.compares.push([from, to]);
+    return { merge_base_commit: { sha: fix.base, commit: { tree: { sha: git(fix.repo, ["rev-parse", `${fix.base}^{tree}`]) } } } };
+  };
+  api.getTree = async (sha) => ({
+    tree: git(fix.repo, ["ls-tree", sha])
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [meta, name] = line.split("\t");
+        const [mode, type, object] = meta.split(" ");
+        return { path: name, mode, type, sha: object };
+      }),
+  });
+  return api;
+};
+const modePush = (fix, api, threads = [{ path: fix.path }]) => pushWith(fix, api, { row: row("review-threads"), context: { keptThreads: keptOf(threads), fixedThreads: [] } });
+
+test("review-threads: reverting an executable bit the PR introduced pushes the merge base's mode", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
+  assert.deepEqual(api.compares, [["e".repeat(40), fix.head]]);
+});
+
+test("review-threads: dropping the executable bit from a file the PR added pushes 100644", async (t) => {
+  const fix = modeFix(t, { headMode: 0o755, patchMode: 0o644, newInHead: true });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
+});
+
+test("review-threads: a patch that sets an executable bit the head lacks is refused before any write", async (t) => {
+  for (const [label, fix] of [
+    ["a mode change", modeFix(t, { baseMode: 0o755, headMode: 0o644, patchMode: 0o755 })],
+    ["a new file", modeFix(t, { baseMode: 0o644, headMode: 0o644, patchMode: 0o644, edit: (repo) => { writeFileSync(join(repo, "plugins/p/scripts/new.sh"), "#!/bin/sh\n"); chmodSync(join(repo, "plugins/p/scripts/new.sh"), 0o755); } })],
+  ]) {
+    const api = modeApi(fix);
+    assert.deepEqual(await modePush(fix, api, [{ path: fix.path }, { path: "plugins/p/scripts/new.sh" }]), { outcome: "escalate", escalationReason: "patch-protected-path" }, label);
+    assert.deepEqual(writes(api), [], label);
+  }
+});
+
+test("review-threads: removing an executable bit the merge base also had is refused", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o755, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.deepEqual(await modePush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("review-threads: a mode revert on a path outside every kept thread's scope is refused", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.deepEqual(await modePush(fix, api, [{ path: "README.md" }]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("review-threads: a content-only fix reads no merge base", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o755, edit: (repo) => writeFileSync(join(repo, "plugins/p/scripts/lib.sh"), "x=2\n") });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  assert.deepEqual(api.compares, []);
+});
+
+test("createGitHubApi reads a comparison and a tree", async () => {
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method} ${url}`);
+    return new Response(JSON.stringify({ ok: 1 }), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} });
+  await api.compare("a".repeat(40), "b".repeat(40));
+  await api.getTree("c".repeat(40));
+  assert.deepEqual(sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`, `GET https://api/repos/o/r/git/trees/${"c".repeat(40)}`]);
 });

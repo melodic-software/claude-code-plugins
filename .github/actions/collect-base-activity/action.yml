@@ -619,11 +619,14 @@ runs:
               printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
                 "$lane/feedback/threads.json" "$lane/feedback/state/replies.jsonl" "$lane/scratch" "$WORKSPACE" "$lane/feedback/feedback-thread.sh" >"$STAGE/feedback/bin/feedback-thread"
               chmod +x "$STAGE/feedback/bin/feedback-thread"
-              allowed+=("Bash($tool *)" "Bash(\"$tool\" *)")
+              # chmod -x only removes a bit; apply-patch's review-threads row
+              # refuses a new executable bit and admits a mode change only
+              # back to the merge base's (new-exec-bit, pr-mode-revert).
+              allowed+=("Bash($tool *)" "Bash(\"$tool\" *)" "Bash(chmod -x *)")
               for file in threads.json run.json feedback-thread.sh "bin/**" "state/**"; do
                 denied+=("Edit(./.lane/feedback/$file)" "Write(./.lane/feedback/$file)" "NotebookEdit(./.lane/feedback/$file)")
               done
-              preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
+              preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record. To revert an executable bit the pull request added, run chmod -x on that file: the fix carries the mode, and only a mode back to the base's is pushed."
               # The fresh fixer round past the round cap: the select job's
               # fixed brief (address-feedback.mjs FRESH_ROUND_BRIEF), never
               # text a head, a finding or a model wrote.

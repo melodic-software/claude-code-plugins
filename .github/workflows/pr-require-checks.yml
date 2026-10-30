@@ -1221,7 +1221,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2055,7 +2055,7 @@ jobs:
       # pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
 
@@ -2199,7 +2199,7 @@ jobs:
       # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2701,7 +2701,7 @@ jobs:
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2969,7 +2969,7 @@ jobs:
         with:
           filter: blob:none
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3096,7 +3096,7 @@ jobs:
       # from, so a change to any one of them invalidates the cache the others
       # share.
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -4122,6 +4122,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.node-version
+            /.github/actions/setup-pinned-node/
             /plugins/source-control/skills/babysit-prs/scripts/*.py
             /plugins/source-control/lib/parse-concern-value.sh
             /plugins/source-control/lib/yaml-subset.awk
@@ -4135,10 +4136,9 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label, the trusted-actor list names who
       # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
@@ -5351,7 +5351,8 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR) while the base's
+      # merge.diff-check.path-holds is true (owner decision Q15), so a push after
       # arming is held on its own pull request event; a person on the
       # trusted-actor list (as main has it) lifts it by approving the head, and
       # the approval carries to a later head whose every change since is a
@@ -5662,6 +5663,13 @@ jobs:
             echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
             exit 1
           }
+          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
+          # hold paths off (merge-holds.mjs pathHoldsOf).
+          PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
+            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            exit 1
+          }
+          export PATH_HOLDS
           read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
             --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }

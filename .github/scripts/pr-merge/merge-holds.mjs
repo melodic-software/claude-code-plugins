@@ -71,7 +71,8 @@
 // line; the files file one changed file per line, its path, renamed-from
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
-// trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
+// trusted-actors.json. PATH_HOLDS "false" turns the hold paths off
+// (pathHoldsOf). Each hold prints as an ::error:: and exits 1; no hold
 // exits 0. Who wrote a body that holds, a changed trusted-actor list, a
 // cost path with a decision link in the body, and the approvals of earlier
 // heads when no approval of the head lifts a hold path, are read with
@@ -392,11 +393,27 @@ export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) =>
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
 // or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
-export const pathHold = (files, holdPaths) => pathHoldKind(files, holdPaths)?.reason ?? null;
+// `on` false (pathHoldsOf) matches no hold path.
+export const pathHold = (files, holdPaths, on = true) => pathHoldKind(files, holdPaths, on)?.reason ?? null;
+
+// merge.diff-check.path-holds (owner decision Q15): absent or false, no
+// changed path holds for its path alone; any other value keeps every hold
+// path, as babysit_merge_policy's switch() reads it.
+export const pathHoldsOf = (value) => ![undefined, null, false, "false"].includes(value);
+
+// The switch from a resolve-config output file; unreadable keeps the holds.
+export function readPathHolds(path) {
+  try {
+    return pathHoldsOf(JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"]);
+  } catch {
+    return true;
+  }
+}
 
 // pathHold's answer with its kind: `hold-path` for a changed file a hold
 // path matches, `unread` for a list that could not be read or checked.
-export function pathHoldKind(files, holdPaths) {
+// With `on` false a readable list matches nothing.
+export function pathHoldKind(files, holdPaths, on = true) {
   if (!Array.isArray(holdPaths)) {
     return { kind: "unread", reason: "the hold paths could not be read" };
   }
@@ -405,6 +422,9 @@ export function pathHoldKind(files, holdPaths) {
   }
   if (typeof posix.matchesGlob !== "function") {
     return { kind: "unread", reason: "this Node has no path.matchesGlob, so its hold paths cannot be checked" };
+  }
+  if (on === false) {
+    return null;
   }
   const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
   const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
@@ -1296,13 +1316,13 @@ export function pathLifters(items, humans, head) {
 // hold path but not an unreadable file list or hold-path list, nor a cost
 // path, which only the owner's `decision` lifts. It lifts `widened`
 // (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
-// can hold.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
+// can hold; `pathHolds` false (pathHoldsOf) holds no hold path.
+export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null, pathHolds = true) {
   const reasons = [];
   if (widened && !lifters.length) {
     reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`);
   }
-  const pathReason = pathHold(files, holdPaths);
+  const pathReason = pathHold(files, holdPaths, pathHolds);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
@@ -1596,13 +1616,20 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }
     const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
-    const held = pathHold(files, holdPaths);
+    // PATH_HOLDS, merge.diff-check.path-holds as the base has it: only
+    // "false" turns the hold paths off.
+    const pathHolds = env.PATH_HOLDS !== "false";
+    const skipped = pathHolds ? null : pathHoldKind(files, holdPaths);
+    if (skipped?.kind === "hold-path") {
+      console.log(`#${number}: path holds are off (merge.diff-check.path-holds), so nothing holds it for this: ${escape(skipped.reason)}.`);
+    }
+    const held = pathHold(files, holdPaths, pathHolds);
     let lifted = { lifters: [] };
     if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);

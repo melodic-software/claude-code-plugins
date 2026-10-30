@@ -1178,6 +1178,26 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   proceeds(runCheck(run, ""));
 });
 
+// A fresh start past a stale lane branch (report-outcome --find-prior): the
+// issue file gets that branch's work at the tip issue-prior checked, and
+// lane.json names the branch for report-outcome's once-per-branch comment
+// only while no lanes App comment names it (stale-noted).
+test("pr-run-activity-read.yml: issue-prior's stale branch reaches write-issue, and lane.json only while unnoted", () => {
+  const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
+  const write = steps.find((step) => step.id === "write-issue");
+  assert.equal(write.env.STALE_BRANCH, "${{ steps.issue-prior.outputs.stale-branch }}");
+  assert.equal(write.env.STALE_TIP, "${{ steps.issue-prior.outputs.stale-tip }}");
+  const collect = steps.find((step) => step.name === "Collect the issue outcome");
+  const stale = (noted) =>
+    evaluate(collect.env.LANE_STALE, { "steps.issue-prior.outputs.stale-noted": noted, "steps.issue-prior.outputs.stale-branch": "work-resolve-issue/issue-7-1-1" });
+  assert.equal(stale("false"), "work-resolve-issue/issue-7-1-1");
+  assert.equal(stale("true"), "");
+  assert.equal(stale(""), "");
+  const out = tempDir("lane-json-");
+  spawnSync("bash", ["-c", collect.run], { encoding: "utf8", env: { ...process.env, OUT_DIR: out, SCRATCH_OUTCOME: join(out, "absent"), LANE_STALE: "work-resolve-issue/issue-7-1-1", LANE_RESUME: "" } });
+  assert.equal(JSON.parse(readFileSync(join(out, "lane.json"), "utf8")).stale, "work-resolve-issue/issue-7-1-1");
+});
+
 // The issue lane's model jobs hold no write token. resolve-issue and its
 // subscription call run on the read runner, whose run job (the one that runs
 // the model) gets only the job's read-only GITHUB_TOKEN; the App token is

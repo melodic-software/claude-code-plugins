@@ -2475,28 +2475,40 @@ def collect_main_reviews(
 
 
 # The check run pr-review-main.yml's record job posts per lane on each head it
-# reviewed, titled with its counts.
+# reviewed, titled with its counts, or with the designed stop that left that
+# head without a verdict (a diff the review cannot read whole).
 MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+MAIN_REVIEW_STOP_TITLE = re.compile(r"verdict=none reason=(too-large|binary|long-line)")
+
+# One record: (findings, CRITICAL), ("stop", reason), or None when unread.
+MainReviewRecord = tuple[int, int] | tuple[str, str] | None
+
+
+def main_review_stop(record: MainReviewRecord) -> str | None:
+    """The stop reason a record carries, or None for any other record."""
+    if isinstance(record, tuple) and len(record) == 2 and record[0] == "stop":
+        return str(record[1])
+    return None
 
 
 def collect_main_review_counts(
     repo: str,
-    shas: Iterable[str],
+    shas: Mapping[str, Iterable[str]],
     names: Mapping[str, str],
     env_overrides: Mapping[str, str] | None = None,
-) -> dict[str, dict[str, list[tuple[int, int] | None]]]:
-    """Per head SHA and lane, the (findings, CRITICAL) counts of every check
-    run named `names[lane]` on that head, None for a title that does not
-    read, counting only runs the github-actions app posted. `filter=all`
-    reads every run of the name, since the default
-    returns only the latest, which a re-run or a forged clean record would
-    replace. A failed read raises `RuntimeError`."""
-    found: dict[str, dict[str, list[tuple[int, int] | None]]] = {}
-    for sha in dict.fromkeys(shas):
-        if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
-            raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
-        found[sha] = {}
-        for lane, name in names.items():
+) -> dict[str, dict[str, list[MainReviewRecord]]]:
+    """Per head SHA and lane, the records of every check run named
+    `names[lane]` on that head, read only on the heads `shas[lane]` lists:
+    (findings, CRITICAL) for a counts title, ("stop", reason) for a designed
+    stop's title, None for a title that does not read, counting only runs the
+    github-actions app posted. `filter=all` reads every run of the name, since
+    the default returns only the latest, which a re-run or a forged clean
+    record would replace. A failed read raises `RuntimeError`."""
+    found: dict[str, dict[str, list[MainReviewRecord]]] = {}
+    for lane, name in names.items():
+        for sha in dict.fromkeys(shas.get(lane, ())):
+            if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
+                raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
             runs = fetch_paginated_api(
                 f"repos/{repo}/commits/{sha}/check-runs"
                 f"?check_name={quote(name, safe='')}&filter=all&per_page=100",
@@ -2504,31 +2516,38 @@ def collect_main_review_counts(
                 items_key="check_runs",
                 env_overrides=env_overrides,
             )
-            counts: list[tuple[int, int] | None] = []
+            counts: list[MainReviewRecord] = []
             for check in runs:
                 # Only the record job's own token posts as github-actions.
                 app = json_object(check.get("app")).get("slug")
                 if check.get("name") != name or app != "github-actions":
                     continue
                 title = str(json_object(check.get("output")).get("title") or "")
-                match = MAIN_REVIEW_CHECK_TITLE.fullmatch(title)
-                counts.append((int(match[1]), int(match[2])) if match else None)
-            found[sha][lane] = counts
+                if match := MAIN_REVIEW_CHECK_TITLE.fullmatch(title):
+                    counts.append((int(match[1]), int(match[2])))
+                elif match := MAIN_REVIEW_STOP_TITLE.fullmatch(title):
+                    counts.append(("stop", match[1]))
+                else:
+                    counts.append(None)
+            found.setdefault(sha, {})[lane] = counts
     return found
 
 
 def main_review_critical(
-    counts: Mapping[str, Mapping[str, list[tuple[int, int] | None]]],
+    counts: Mapping[str, Mapping[str, list[MainReviewRecord]]],
     names: Iterable[str],
 ) -> dict[str, int]:
     """Per lane, the most CRITICAL findings any head's record carries; a
     record whose title did not read counts one, so a doubtful record holds
-    rather than clears."""
+    rather than clears. A designed stop carries no verdict and counts none."""
     found = dict.fromkeys(names, 0)
     for by_lane in counts.values():
         for lane in found:
             for each in by_lane.get(lane, ()):
-                found[lane] = max(found[lane], 1 if each is None else each[1])
+                if each is None:
+                    found[lane] = max(found[lane], 1)
+                elif main_review_stop(each) is None:
+                    found[lane] = max(found[lane], int(each[1]))
     return found
 
 
@@ -2543,8 +2562,12 @@ def collect_main_review_critical(
     has no delete, so a count recorded once stays readable after its verdict
     artifact expires or is deleted (`collect_main_review_counts`). A failed
     read raises `RuntimeError`."""
+    heads = list(shas)
     return main_review_critical(
-        collect_main_review_counts(repo, shas, names, env_overrides), names
+        collect_main_review_counts(
+            repo, {lane: heads for lane in names}, names, env_overrides
+        ),
+        names,
     )
 
 
