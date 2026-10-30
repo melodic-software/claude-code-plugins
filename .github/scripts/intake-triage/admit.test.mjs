@@ -708,6 +708,46 @@ describe("decide", () => {
       });
     }
 
+    // A clause that says a protected path is left alone asks for no push to it.
+    const negated = [
+      // #7540's refinement criterion.
+      "- [ ] No file under .github/workflows is edited.",
+      // #8279's 2026-10-30T15:05Z record.
+      "- [ ] `scripts/sync-hold-floor.py` reads the built-in rows plus the config rows. Run on the branch, it leaves every generated copy byte-identical to main, so the diff touches no `.github/workflows`, `.github/scripts` or `.github/trust-path-hold.json` file.",
+      "- [ ] The diff changes no .github/workflows/a.yml line.",
+      "- [ ] The fix edits no file in `.github/workflows`.",
+      "- [ ] The script does not edit .github/workflows/a.yml.",
+      "- [ ] It doesn’t touch .github/CODEOWNERS.",
+      "- [ ] No change to .gitmodules is made.",
+    ];
+    for (const line of negated) {
+      test(`admits the negated ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "admit", reasons: [] });
+      });
+    }
+
+    test("admits #7540: its App refinement names .github/workflows only in a negated criterion", () => {
+      const thin = issueOf({ body: "Bind the convention home." });
+      const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] AGENTS.md binds docs/conventions.\n- [ ] No file under .github/workflows is edited.` });
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement]) })), { verdict: "admit", reasons: [] });
+    });
+
+    // The negation ends where the clause turns back to a change.
+    const turned = [
+      ["- [ ] No file other than .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] No file outside .github/workflows is edited.", ".github/workflows"],
+      ["- [ ] The diff touches no docs file but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] It does not change the tests; it edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited, and .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited. .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml so it does not change the timeout.", ".github/workflows/a.yml"],
+    ];
+    for (const [line, path] of turned) {
+      test(`still refuses ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
     // A title names the subject, not the change: #8682 and #9054 named an
     // existing workflow in theirs and changed only scripts.
     test("admits an issue whose title alone names an existing workflow", () => {

@@ -11,7 +11,8 @@
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
 // words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
-// lane cannot push (unpushablePaths). This checks the rest:
+// lane cannot push (unpushablePaths), named outside a clause that leaves them
+// unchanged ("no file under X is edited"). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -722,11 +723,25 @@ const dotted = (path) =>
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
+// A clause that says a path is left alone ("No file under X is edited", "the
+// diff touches no X or Y file", "does not change X"), from its negation to
+// the clause's end: a sentence end, `;`, `: `, a blank line, a fence, or a
+// word that turns it back toward a change (but, except, other than, outside,
+// and, ...). A path it names asks for no push.
+const VERBS = "touch|change|edit|modify|alter";
+const NEGATED = new RegExp(
+  String.raw`\b(?:no\s+(?:files?|paths?|changes?|edits?)\b|(?:${VERBS})(?:e?s|ing)?\s+no\b|(?:does|do|must|should|will|may|shall)\s+not\s+(?:${VERBS})\b|(?:doesn|don|mustn|shouldn|won)['’]t\s+(?:${VERBS})\b|never\s+(?:${VERBS})(?:e?s)?\b)` +
+    String.raw`[\s\S]*?(?=[;!?]|\.(?:\s|$)|:\s|\n\s*\n|\x60{3}|~{3}|\b(?:but|except|other\s+than|besides|apart\s+from|aside\s+from|outside|beyond|and|while|so|then|unless|yet|whereas|instead)\b|$)`,
+  "gi",
+);
+const withoutNegated = (text) => text.replace(NEGATED, " ");
+
 // The paths the task-list items in `body`, with the wrapped text below each up
 // to its first nested bullet outside a code fence, read as plainText, name
 // that apply-patch refuses under `names` (issuePushRefusals) in any case or
 // with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
-// name in `workflows` (workflowFiles) read as that workflow's path. Pure.
+// name in `workflows` (workflowFiles) read as that workflow's path. A path
+// named only in a negated clause (NEGATED) is left out. Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
@@ -735,7 +750,7 @@ export function unpushablePaths(body, taskList, names, workflows) {
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens(plainText([text, ...wrapped(more)].join("\n")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+    pathTokens(withoutNegated(plainText([text, ...wrapped(more)].join("\n"))), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
   );
   return [...new Set(paths)];
 }
