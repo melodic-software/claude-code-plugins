@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Unwanted-behavior and state-driven coverage went unexamined (unattended run).",
+      "why": "the coverage note in the Brief"
+    },
+    {
+      "answer": "Locked. Note: unwanted-behavior and state-driven coverage was not examined, since nobody could answer.",
+      "why": "summary wording, not examined"
+    },
+    {
+      "answer": "Unexamined: unwanted-behavior and state-driven acceptance-criteria coverage.",
+      "why": "unexamined first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "### Acceptance criteria\n- AC1: When the nightly job runs, every file older than 30 days is deleted.\n- AC2: Newer files remain.",
+      "why": "coverage check dropped silently"
+    },
+    {
+      "answer": "Are the criteria missing an unwanted-behavior case or a state-driven case?",
+      "why": "asks the prompt on an unattended run instead of reporting it unexamined"
+    }
+  ]
+}
