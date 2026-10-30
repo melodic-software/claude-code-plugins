@@ -12,8 +12,9 @@
 - [Category H: Model and effort settings](#category-h-model-and-effort-settings)
 - [Category I: Deep-link registration](#category-i-deep-link-registration)
 - [Category J: Known-issues fix versions](#category-j-known-issues-fix-versions)
+- [Category K: Suppression age](#category-k-suppression-age)
 
-Detailed checks for each Phase 2 category (A–J). SKILL.md Phase 2 names the categories + points here;
+Detailed checks for each Phase 2 category (A–K). SKILL.md Phase 2 names the categories + points here;
 this file carries the per-check criteria. Run each category's checks and record findings with severity
 ratings.
 
@@ -58,7 +59,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   and enabled is not enough, a `Bash` hook does not cover a `Read`-pattern family, and coverage of one
   command family says nothing about a neighboring one. Where no hook inventory was taken, state the
   finding as conditional rather than as an assertion
-- **The liveness reading is Category D's, and Category D runs after this one.** A–J is presentation
+- **The liveness reading is Category D's, and Category D runs after this one.** A–K is presentation
   order, not a dependency ban: pull Category D's hook-suppression lever reading forward before taking
   the third narrowing, or defer the downgrade until Category D has run and revise the severity then.
   What you may not do is take the narrowing on an unread lever. On a scope-filtered run that excludes
@@ -434,3 +435,12 @@ versions". What governs the category:
   severity stays `info`
 - **The other direction is Phase 3.2's.** An issue whose live thread names a fix release the file
   does not record is compared by hand there
+
+## Category K: Suppression age
+
+Row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "K. Suppression age". The
+engine decides every row: each well-formed suppression entry, at every layer, is aged from its
+`date` against `exceptions.max_days` (default 90; the team YAML sets another). An entry past it is a
+`warning` that asks for reconfirmation; it still suppresses, and the audit removes nothing, since an
+entry whose finding is gone already goes stale by the record's own dispositions. The model's part is
+the report: name each aged entry so the operator re-dates or removes it.
