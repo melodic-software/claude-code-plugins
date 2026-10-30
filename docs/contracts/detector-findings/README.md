@@ -776,7 +776,7 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - `/review:fanout fix`: the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
-- [`docs/conventions/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
+- [`docs/contracts/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
 - [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its revisit trigger fires at.
 - `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.

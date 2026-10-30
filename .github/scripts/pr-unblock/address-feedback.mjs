@@ -820,10 +820,11 @@ export async function select({
     modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
     rounds,
     maxRounds: bound,
-    // True drops the human-gated label from the write runner's holds: every
-    // kept thread carries a write-access fix request, or a lane escalation
-    // that lets this activity work put the label on.
-    fixRequested: labeled,
+    // The gate the round works past on a PR carrying the human-gated label,
+    // which the write runner's holds read: fix-request when every kept thread
+    // carries a write-access fix request, lane-escalation when a lane
+    // escalation that lets this activity work put the label on.
+    humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
     reviewedHeads: [...heads].sort(),
@@ -1315,9 +1316,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only
-    // when this is true: every kept thread carries a write-access fix request,
-    // or a lane escalation put the label on.
-    output("fix-requested", String(result.fixRequested === true));
+    // on fix-request (every kept thread carries a write-access fix request),
+    // or on lane-escalation (a lane escalation put the label on) while it
+    // reads that again right before its push.
+    output("human-gate", result.humanGate ?? "");
     output("model-rung", result.modelRung ?? "");
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
     output("escalation-reason", result.escalationReason ?? "");
