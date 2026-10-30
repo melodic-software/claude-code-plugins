@@ -70,8 +70,10 @@ const runRefusal = (step, settingsJson) =>
 // Evaluates a workflow expression in a run that was not cancelled, with each
 // context reference replaced by its value. Covers only the operators these
 // callers use (&&, ||, ==, !=, !), which JavaScript evaluates the same way
-// for the string and boolean operands here.
+// for the string and boolean operands here. A context that names no issue
+// number is a PR-mode run.
 function evaluate(expression, context) {
+  context = { "inputs.issue-number": "", ...context };
   let body = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true").replaceAll("always()", "true");
   for (const [name, value] of Object.entries(context)) {
     body = body.replaceAll(name, JSON.stringify(value));
@@ -1112,7 +1114,12 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   const stop = steps.find((step) => step.name === "Stop on stale workflow files");
   assert.ok(index("workflow-current") < steps.indexOf(stop) && steps.indexOf(stop) < index("issue-prior"));
   const prior = steps[index("issue-prior")];
-  const issueSkill = { "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill" };
+  const issueSkill = {
+    "inputs.issue-number": "7",
+    "steps.config.outputs.applies": "true",
+    "steps.config.outputs.kind": "skill",
+    "needs.broker-check.outputs.lease": "held",
+  };
   for (const [stale, stops] of [["true", true], ["", false]]) {
     const context = { ...issueSkill, "steps.workflow-current.outputs.stale": stale };
     assert.equal(evaluate(stop.if, context), stops, `stop step, stale=${stale}`);
@@ -1262,12 +1269,13 @@ test("work-resolve-issue.yml: the resolve-issue model jobs receive no App token 
   }
   assert.ok(!run.steps.some((s) => String(s.uses ?? "").startsWith("anthropics/claude-code-action@")), "no claude-code-action step");
   // No job of the read runner holds a write permission but the report job's
-  // checks and issues and the broker-check job's id-token, none of which runs
-  // the model.
+  // checks and issues (also the lease release) and the broker-check job's
+  // id-token and issues (the issue lease, before any model turn), none of
+  // which runs the model.
   for (const [name, job] of Object.entries(read.jobs)) {
     for (const [scope, level] of Object.entries(job.permissions ?? {})) {
       if (level === "write") {
-        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
+        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && (scope === "id-token" || scope === "issues")), `${name} ${scope}`);
       }
     }
   }
@@ -2212,6 +2220,11 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
       "github.repository": "o/r",
       "format('{0}', github.event.sender.id)": "1",
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+      "needs.broker-check.outputs.lease-comment-id": "",
+      "needs.broker-check.outputs.lease": "",
+      "inputs.caller-releases-lease": false,
+      "needs.issue-fields.outputs.issue-run-started": "",
+      "needs.issue-fields.outputs.reuse-branch": "",
     });
   assert.equal(report("true"), false);
   assert.equal(report("false"), true);
@@ -4189,15 +4202,17 @@ test("work-resolve-issue.yml: the prune job deletes from the default branch tip 
   }
 });
 
-test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan or issue-fields job's", () => {
+test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan, issue-fields or broker-check job's", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-prune-branches", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["lease-comment-id", "scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-prune-branches", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   // The subscription call's are the same outputs, read in the same picks.
   assert.deepEqual(read("resolve-issue-subscription"), names);
-  for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
+  for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields|broker-check)\.outputs\.[\w-]+ \}\}$/, name);
+  // Only the lease handle comes from broker-check, which runs no model.
+  for (const name of names.filter((n) => /broker-check/.test(outputs[n].value))) assert.equal(name, "lease-comment-id");
 });
 
 test("scan job: a re-run at another attempt of the same run opens; a bundle from another run, or opened with another key, fails closed without rotation", async (t) => {
@@ -4389,7 +4404,7 @@ test("pr-run-activity-read.yml: the patch and reply outputs come from the scan j
 
 test("pr-run-activity-read.yml: the report needs the scan job, and a failed scan fails the check after a green run job", () => {
   const { report } = workflow("pr-run-activity-read.yml").jobs;
-  assert.deepEqual(report.needs, ["broker-check", "run", "scan"]);
+  assert.deepEqual(report.needs, ["broker-check", "run", "issue-fields", "scan", "summary"]);
   const post = report.steps.find((s) => s.name === "Post the check run");
   const result = (broker, run, scan) =>
     evaluate(post.with["run-result"], { "steps.head.outputs.forged": "false", "steps.head.outputs.not-run-reason": "", "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });

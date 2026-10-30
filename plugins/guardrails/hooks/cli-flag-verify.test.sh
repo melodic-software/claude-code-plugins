@@ -573,7 +573,7 @@ for _round in 1 2 3 4 5 6; do
       bash "$VERIFIER" --quiet fakebig --tail-sentinel >/dev/null 2>&1 &
   done
   while jobs -r %% >/dev/null 2>&1; do
-    if [[ -s "$big_cache" ]] && ! tail -c 40 "$big_cache" 2>/dev/null | grep -q -- '--tail-sentinel'; then
+    if [[ -s "$big_cache" ]] && ! grep -q -- '--tail-sentinel' < <(tail -c 40 "$big_cache" 2>/dev/null); then
       torn=$((torn + 1))
       break
     fi
