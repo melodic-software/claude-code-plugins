@@ -3,7 +3,7 @@
 # edit the canonical source, then rerun the script.
 # SessionStart hook: install the plugin's hash-locked Python packages (requirements.txt) into
 # ${CLAUDE_PLUGIN_DATA} on demand, so its skills run against them and nothing fetches a package
-# while a skill runs (docs/conventions/on-demand-dependencies, Python). A no-op once the set
+# while a skill runs (docs/contracts/on-demand-dependencies, Python). A no-op once the set
 # loads. A failed install is a user notice with the repair line, never a silent skip; the model
 # hears nothing here, since pydeps.py run prints the same repair line when a skill runs.
 # Always exits 0: a failed install must not block the session. The plugin's wording (its name,

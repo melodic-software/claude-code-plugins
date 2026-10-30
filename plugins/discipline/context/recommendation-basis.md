@@ -2,7 +2,7 @@
 
 The plugin-shipped statement of the recommendation-basis convention. The full
 convention, with its boundary and adopters, is
-`docs/conventions/recommendation-basis/README.md` in the marketplace repository.
+`docs/contracts/recommendation-basis/README.md` in the marketplace repository.
 
 - **Recommendation.** An option, verdict, default, or next step put to the
   user for a decision.

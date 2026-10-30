@@ -437,7 +437,7 @@ hook::require() {
 # hook::prereq_notice_to <model-var> <user-var> <id> <input> [--label <name>]
 #                        [--where <phrase>] [--install <text>] [--no-path]
 # Composes the notice for a missing prerequisite <id> from the plugin's
-# prerequisites.json entry (docs/conventions/prerequisites/) and latches it per
+# prerequisites.json entry (docs/contracts/prerequisites/) and latches it per
 # channel through hook::notice_once with key `<label>-<id>`. Returns 0 when a
 # notice is due (each var holds its text, or "" when that channel is already
 # told), 1 when neither channel is due. The caller emits, usually through

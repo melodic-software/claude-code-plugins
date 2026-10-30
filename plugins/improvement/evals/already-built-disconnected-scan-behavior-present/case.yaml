@@ -2,11 +2,11 @@ schema_version: "1.1"
 name: already-built-disconnected-scan-behavior-present
 description: Behavior-present variant of already-built-disconnected-scan whose prompt also states the already-built-but-disconnected scan heuristic. Run it with --ablation none (one arm); the pair discriminates when this case passes ranked-ahead-of-greenfield and the original fails it
 tags: [find, disconnected-scan, behavior-present]
-expected_outcome: The answer names the unused exportRowsToCsv import, the false adminBulkExport flag gating POST /admin/orders/export, and the never-read export_audit table, ranks the disconnected export ahead of any new build, and edits nothing.
+expected_outcome: The answer names the unused exportRowsToCsv import, the false adminBulkExport flag gating POST /admin/orders/export, and the never-read export_audit table, ranks the disconnected export ahead of the new export service in docs/bulk-export-plan.md, and edits nothing.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead. Scope the scan to the files under evals/fixtures/disconnected-admin-export/ and ignore everything outside that directory. Before proposing new work, scan for dead imports, dark feature flags and unread tables, since the improvement may already exist, disconnected."
+  prompt: "/improvement:find what should we work on next in this service? The bulk export plan in evals/fixtures/disconnected-admin-export/docs/bulk-export-plan.md is approved, so rank it alongside anything else you find. Scope the scan to the files under evals/fixtures/disconnected-admin-export/ and ignore everything outside that directory. Before proposing new work, scan for dead imports, dark feature flags and unread tables, since the improvement may already exist, disconnected."
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900

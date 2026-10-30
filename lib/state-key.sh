@@ -41,7 +41,7 @@
 # NOT a substitute for a per-run filename. Keying stops cross-project collision;
 # it does not stop a same-project rerun overwriting yesterday's report. A caller
 # that needs history writes one file per run under this key and appends a line
-# to a history file — see docs/conventions/plugin-data-report-keying/.
+# to a history file — see docs/contracts/plugin-data-report-keying/.
 #
 # Usage:
 #   state-key.sh [--root <path>] [--explain]

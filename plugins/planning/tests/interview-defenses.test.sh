@@ -777,8 +777,10 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 # product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 38 grades a first-question shape that licenses no silent capture or fudged gap
 # Adds case 39 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold
+# Case 40 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
+# Merge of main composes both sides: keeps cases 38 and 39 and adds main case person-deferred-routes-to-questionnaire as case 40, which defers the DBA question and resolves nothing on her behalf, so cases 15 and 16 still hold
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "3405519471bf723eaf129703cc1b2ee044d829842acf3ee98158c2fe0206e8c5"
+  "4b3215b8aa71014d992180db5b7d16267bd4e8e5e8b8ca389de1f7041e13279a"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

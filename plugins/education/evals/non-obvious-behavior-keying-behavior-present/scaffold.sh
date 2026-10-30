@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Seeds the eval workspace with the quiz-me skill's auth-middleware-change fixture.
+# Seeds the same workspace as non-obvious-behavior-keying, so the pair differs only in prompt.
 set -euo pipefail
 
-mkdir -p evals/fixtures
-cp -R "$(dirname "${BASH_SOURCE[0]}")/../../skills/quiz-me/evals/fixtures/auth-middleware-change" evals/fixtures/
+bash "$(dirname "${BASH_SOURCE[0]}")/../non-obvious-behavior-keying/scaffold.sh"
