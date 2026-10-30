@@ -2686,10 +2686,17 @@ def _run_open(authority: str | None, session_id: str | None) -> bool:
     return time.time() - written < _RUN_IDLE_TIMEOUT_SECONDS
 
 
-def _belt_released(command: str, tool_name: str, session_id: str | None) -> bool:
-    """Belt mode, no engine reference in the command, and no open run."""
+def _belt_released(
+    command: str, tool_name: str, session_id: str | None, enabled: bool
+) -> bool:
+    """Belt mode, execution enabled, no engine reference, and no open run.
+
+    The kill switch wins over the release: in audit-only mode the belt keeps
+    every lane's deletion deny whether or not a run is open.
+    """
     return (
-        resolve_mode() != _MODE_ENGINE_GATE
+        enabled
+        and resolve_mode() != _MODE_ENGINE_GATE
         and not _engine_gate_relevant(command, tool_name)
         and not _run_open(resolve_authorized_data_root(), session_id)
     )
@@ -3322,7 +3329,7 @@ def _decide(
 
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
-        if verdict and _belt_released(command, tool_name, session_id):
+        if verdict and _belt_released(command, tool_name, session_id, enabled):
             return _stand_down(command, tool_name, start)
         if verdict:
             _settle(
@@ -3414,7 +3421,7 @@ def _decide(
             f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
             "permitted.",
         )
-    if _belt_released(command, tool_name, session_id):
+    if _belt_released(command, tool_name, session_id, enabled):
         return _stand_down(command, tool_name, start)
     return _settle(
         command,

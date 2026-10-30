@@ -11199,6 +11199,25 @@ class GuardTests(unittest.TestCase):
         old = time.time() - guard._RUN_IDLE_TIMEOUT_SECONDS - 1
         os.utime(self._run_marker(), (old, old))
 
+    def test_kill_switch_off_denies_deletions_with_no_open_run(self) -> None:
+        self._scan()
+        self.assertFalse(self._run_marker().exists())
+        for command, tool_name in (
+            ("Remove-Item -Recurse -Force C:/junk", "PowerShell"),
+            ("rm -rf /tmp/junk", "Bash"),
+        ):
+            with self.subTest(tool_name=tool_name):
+                result = self._invoke_guard(
+                    command, tool_name=tool_name, enabled=False, session_id="s"
+                )
+                assert result is not None
+                self.assertEqual(
+                    "deny",
+                    cast(dict[str, object], result["hookSpecificOutput"])[
+                        "permissionDecision"
+                    ],
+                )
+
     def test_belt_stands_down_after_an_audit_only_scan(self) -> None:
         self._scan()
         self.assertIsNone(self._belt("gh issue list"))

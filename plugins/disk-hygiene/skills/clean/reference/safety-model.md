@@ -624,7 +624,9 @@ keeps its `allow`); a command that names the engine gets the same verdict as dur
 deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
 names, and when a `preview` of the plan it names ends in `manual-handoff-lane` or `blocked`. A marker
 that goes an hour without an engine call reads as no run, and the engine deletes it on its next call.
-The guard never deletes a marker. `clean-runs/` is engine-owned state, so no engine `--output` or
+The guard never deletes a marker. The kill switch wins over the release: when `disk_hygiene_enabled`
+is `false` the belt never stands down, so Bash keeps its deny-by-default and PowerShell deletion
+spellings stay denied whether or not a run is open. `clean-runs/` is engine-owned state, so no engine `--output` or
 `--report` can land on a marker.
 It fails closed: a marker it cannot parse holds the belt until that hour passes, and a payload with no
 session id, or a session with no authorized data root, keeps the belt on. Releasing the belt opens no
