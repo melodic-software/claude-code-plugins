@@ -15,7 +15,6 @@
     "markdownlint-cli2": "0.24.0"
   },
   "overrides": {
-    "smol-toml": "^1.9.0",
     "katex": "~0.18.2",
     "markdown-it": "15.0.3",
     "re2js": "2.8.7"

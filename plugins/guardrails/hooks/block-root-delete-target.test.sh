@@ -2165,6 +2165,104 @@ expect 'pipe: attended, an unconfined listing asks' 0 --command 'cat list | xarg
 assert_eq 'pipe: attended, the decision is ask' ask \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
+# --- 2h. rsync deletes (#9756) -------------------------------------------------
+# A --del, --delete or --delete-<mode> option deletes in the destination, the
+# last operand; --remove-source-files deletes from the sources before it. Each
+# is judged as a recursive rm operand. Every form runs against a root, HOME, a
+# path outside the allowed roots and a path strictly inside the tree.
+RDT_RSYNC_FORMS=(
+  'rsync -a --delete src/ TGT'
+  'rsync -a --del src/ TGT'
+  'rsync -av --delete-after src/ TGT'
+  'rsync -a --delete-excluded --exclude=.cache src/ TGT'
+  'rsync -ae ssh --delete-before src/ TGT'
+  'rsync -a src/ TGT --delete'
+  'sudo rsync -a --delete src/ TGT'
+  'rsync -a --remove-source-files TGT build/rdt-out'
+  'rsync -a --remove-source-files build/rdt-x TGT/ build/rdt-out'
+)
+rdt_rsync() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_RSYNC_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "rsync: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_rsync 'a root blocks' 2 /
+rdt_rsync 'HOME blocks' 2 '$HOME'
+rdt_rsync 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_rsync 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'rsync: a delete into ~ blocks' 2 --command 'rsync -a --delete src/ ~'
+expect_both 'rsync: a drive root is judged, not read as a host' 2 --command 'rsync -a --delete src/ C:/'
+expect_both 'rsync: a delete under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'rsync -a --delete src/ /tmp/rdt-x'
+expect_both 'rsync: a delete under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "rsync -a --delete src/ '$RDT_SPT/x'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'rsync: a delete into the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "rsync -a --delete src/ '$RDT_SPT'" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'rsync: unset key, a delete under the root blocks' 2 "rsync -a --delete src/ '$RDT_AR/child'"
+rdt_ar 'rsync: a delete under the root allowed' 0 "rsync -a --delete src/ '$RDT_AR/child'" "$RDT_AR"
+rdt_ar 'rsync: a delete into the root itself blocks' 2 "rsync -a --delete src/ '$RDT_AR'" "$RDT_AR"
+rdt_ar 'rsync: moved sources under the root allowed' 0 "rsync -a --remove-source-files '$RDT_AR/child' build/rdt-out" "$RDT_AR"
+expect_both 'rsync: a delete into the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'rsync -a --delete src/ .'
+expect_both 'rsync: a cd outside before the delete blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cd /opt && rsync -a --delete src/ x'
+# The items xargs appends are the rsync's operands.
+expect_both 'rsync: xargs fed by a confined listing allowed' 0 "${RDT_CWD[@]}" \
+  --command 'find build -type d | xargs rsync -a --delete src/'
+expect_both 'rsync: xargs fed by an unconfined listing blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cat list | xargs rsync -a --delete src/'
+
+# An rsync that deletes nothing, a remote target, an option's argument, and
+# the mechanism as quoted prose.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "rsync: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "rsync: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+rsync -a src/ /opt/nonexistent-rdt/x
+rsync -a --delay-updates src/ /
+rsync --delete /
+rsync -a --remove-source-files --exclude /opt build/rdt-x build/rdt-out
+rsync -a -T /opt --remove-source-files build/rdt-x build/rdt-out
+rsync -ae /opt/ssh --remove-source-files build/rdt-x build/rdt-out
+git commit -m "rsync -a --delete src/ /"
+echo 'rsync --remove-source-files / build/rdt-out'
+EOF
+
+# A remote operand is left alone. Run from / (no tree), where the same word
+# read as a local relative path would be refused.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "rsync: remote, $rdt_cmd allowed" 0 --cwd / --command "$rdt_cmd"
+done <<'EOF'
+rsync -a --delete src/ host:/
+rsync -a --delete src/ user@host:dir
+rsync -a --delete src/ rsync://host/module/
+rsync -a --remove-source-files host:/ /tmp/rdt-out
+EOF
+
+# A brace, a glob or an expansion that can change which word is last or read
+# as a host.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "rsync: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+rsync -a --delete {src/,/}
+rsync -a --delete src/ / {,}
+rsync -a --delete src/ "${HOME:-x}"
+rsync -a --delete src/ {h:,/}
+rsync -a --delete src/ ~ --time-limit 60
+rsync -a --delete src/ ~ --zl 3
+rsync -a --remove-sent-files / /tmp/rdt-out
+echo "$(rsync -a --del src/ /)"
+parallel ::: 'rsync -a --del src/ /'
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command 'rsync -a --delete src/ /opt/nonexistent-rdt/x'
+assert_exit 'rsync: an outside destination exits 2' 2 "$GUARD_RC"
+assert_contains 'rsync: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"

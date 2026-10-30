@@ -53,11 +53,16 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
   }
 });
 
-test("a PASS or PASS-NOTES lasts 30 days and a FAIL, or anything else, 90", () => {
-  assert.equal(retentionDays("pass"), 30);
-  assert.equal(retentionDays("pass-notes"), 30);
+test("a PASS or PASS-NOTES with no relink since the head commit lasts 7 days, and any other verdict 90", () => {
+  assert.equal(retentionDays("pass", false), 7);
+  assert.equal(retentionDays("pass-notes", false), 7);
+  // A pass after a relink may supersede a FAIL, which later heads still read.
+  for (const verdict of ["pass", "pass-notes"]) {
+    assert.equal(retentionDays(verdict, true), 90, verdict);
+    assert.equal(retentionDays(verdict), 90, `${verdict}, relink unknown`);
+  }
   for (const verdict of ["fail", "", undefined, "PASS", "pass-notes-x"]) {
-    assert.equal(retentionDays(verdict), 90, String(verdict));
+    assert.equal(retentionDays(verdict, false), 90, String(verdict));
   }
 });
 
@@ -311,10 +316,12 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
-  const passed = { ...env, VERDICT_DIR: path.join(dir, "verdict-ok"), GITHUB_OUTPUT: path.join(dir, "out-ok"), EXECUTION_FILE: okFile };
-  main(passed);
   const okVerdict = JSON.parse(ok).verdict;
-  assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=30\n`);
+  for (const [relink, days] of [["false", 7], ["true", 90], [undefined, 90]]) {
+    const passed = { ...env, VERDICT_DIR: path.join(dir, `verdict-ok-${relink}`), GITHUB_OUTPUT: path.join(dir, `out-ok-${relink}`), EXECUTION_FILE: okFile, RELINK_SINCE_HEAD: relink };
+    main(passed);
+    assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=${days}\n`, String(relink));
+  }
   const unparsable = path.join(dir, "unparsable.json");
   writeFileSync(unparsable, "{not json");
   for (const [label, extra] of [
