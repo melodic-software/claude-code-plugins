@@ -70,7 +70,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
    file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
-3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
+3. **Read, never invoke.** Read each kept file as data. A `SKILL.md`'s base directory is its
+   folder; a command file's is `control-<app>/` in the parent of the top-level commands folder it
+   loads from, per the contract's Hub.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
    beats every plugin file for it.
@@ -91,7 +93,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source (`project` or `plugin`) with its path.
 8. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
-   the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
+   the chosen skill's base directory (step 3; never the commands folder that holds a command
+   file): `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
