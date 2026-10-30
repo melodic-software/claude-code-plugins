@@ -256,15 +256,14 @@ export function validatePolicy(value) {
           );
         }
       }
-    } else {
-      const unknownLabel = contract.fixedRunsOn.find(
-        (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
+    }
+    const unknownLabel = contract.fixedRunsOn?.find(
+      (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
+    );
+    if (unknownLabel) {
+      throw new ConfigurationError(
+        `${contract.routing} reusable workflow contract ${reference}.fixedRunsOn contains unrecognized GitHub-hosted label ${unknownLabel}`,
       );
-      if (unknownLabel) {
-        throw new ConfigurationError(
-          `hosted-only reusable workflow contract ${reference}.fixedRunsOn contains unrecognized GitHub-hosted label ${unknownLabel}`,
-        );
-      }
     }
     approvedReusableWorkflowContracts.set(reference, {
       routing: contract.routing,
@@ -2307,8 +2306,51 @@ export async function auditRepository({
       // An enrolled private repository may name the governed fleet label
       // directly. Everything that makes such a job privileged has already been
       // reported above through hostedRequirement, so an admitted fleet literal
-      // needs no exception entry.
+      // needs no exception entry, unless it is the runner input of a reviewed
+      // reusable whose contract records fixedRunsOn: those jobs ignore the
+      // input and spend GitHub-hosted minutes, so the call needs an exception.
       if (target.kind === "managed-literal" && target.approved) {
+        const fixedRunsOn = reusable.approved ? reusable.contract.fixedRunsOn : undefined;
+        if (!fixedRunsOn || hostedRequirement) {
+          if (fixedRunsOn && exception) {
+            consumedExceptions.add(key);
+          }
+          continue;
+        }
+        if (!exception) {
+          findings.push(
+            finding(
+              "hosted-exception-required",
+              file,
+              jobId,
+              `${job.uses} runs jobs on GitHub-hosted ${[...fixedRunsOn].join(", ")} whatever runner it is given; declare ${key} in .github/runner-policy.json`,
+            ),
+          );
+          continue;
+        }
+        consumedExceptions.add(key);
+        // The fixed jobs run hosted, so the exception takes the category the
+        // same call would need with a hosted runner input.
+        const hostedCall = privilegedHostedRequirement(
+          workflow,
+          job,
+          { kind: "hosted-reusable" },
+          policy,
+        );
+        const requiredReason =
+          hostedCall?.reason === "publication"
+            ? (structuralHosted ?? hostedCall).reason
+            : (hostedCall ?? structuralHosted)?.reason;
+        if (requiredReason && exception.reason !== requiredReason) {
+          findings.push(
+            finding(
+              "hosted-exception-category",
+              file,
+              jobId,
+              `${job.uses} runs jobs on GitHub-hosted ${[...fixedRunsOn].join(", ")} and requires exception reason ${requiredReason}, not ${exception.reason}`,
+            ),
+          );
+        }
         continue;
       }
       if (target.kind === "reusable-input") {

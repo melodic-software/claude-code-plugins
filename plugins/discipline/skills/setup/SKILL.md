@@ -101,13 +101,22 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 8. To change or clear any personal option, direct the user to Claude Code's native flow, per the
    marketplace's plugin-reconfiguration convention, which owns the verified-version record
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-   interactive `/plugin configure discipline@<marketplace>` any time; headless, rerun
+   interactive `/plugin configure discipline@<marketplace>` any time. Headless, preferred on
+   Claude Code 2.1.285 or later:
+   `claude plugin configure discipline@<marketplace> --values-stdin < values.json`, where
+   `values.json` holds `{"<key>": "<value>"}` (every value a string, booleans
+   included; keys left out keep their saved values). Headless fallback, before 2.1.285: rerun
    `claude plugin install discipline@<marketplace> -s <scope> --config <key>=<value>` (repeatable
-   per key). Against an already-installed plugin it prints `already installed` and still writes
+   per key); against an already-installed plugin it prints `already installed` and still writes
    the value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry,
-   resetting every option to its manifest default. Pass the scope `claude plugin list` reports for
-   this plugin (from the home directory pass `user`); the option value lands in user settings
-   whatever `-s` says. Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+   resetting every option to its manifest default. Scope: the option value lands in user settings
+   whichever route writes it. `claude plugin configure` has no scope flag, so run it from the
+   project the plugin is installed in. For the rerun, pass the scope `claude plugin list` reports
+   for this plugin (from the home directory pass `user`); a rerun at another scope adds an install
+   record there and enables the plugin. Check each route's own failure signal: `--values-stdin`
+   rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`; the
+   `--config` rerun prints a warning for a rejected value yet exits 0, so read its output. Claude
+   Code owns persistence. Do not hand-edit any `pluginConfigs` key.
 9. Tell the user to rerun `check` after reconfiguration **in a fresh session**: the rendered
    `${user_config.*}` values are injected when this skill loads, so a same-session rerun still reports
    the OLD values. Report the OBSERVED effective values from that fresh run, never an unobserved change.

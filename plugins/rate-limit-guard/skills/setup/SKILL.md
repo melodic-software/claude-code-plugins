@@ -31,15 +31,25 @@ qualify it:
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure
-  rate-limit-guard@<marketplace>` any time, or headless `claude plugin install
+  rate-limit-guard@<marketplace>` any time. Headless, preferred: run `claude plugin configure
+  rate-limit-guard@<marketplace> --values-stdin < values.json` from the project the plugin is
+  installed in, with `values.json` holding `{"<key>": "<value>"}` (every value a string, booleans
+  included; keys left out keep their saved values). Headless fallback, for a Claude
+  Code release without `plugin configure`: rerun `claude plugin install
   rate-limit-guard@<marketplace> -s <scope> --config <key>=<value>` (repeatable per key). Against
   an already-installed plugin it prints `already installed` and still writes the value. Do **not**
   uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry,
-  resetting every option in the README's Options reference to its manifest default. `-s` defaults
-  to `user`; pass the scope `claude plugin list` reports, and run from that project's directory
-  for a `project`/`local` scope, or the rerun adds a second install record at the scope passed and
-  enables the plugin there; the value itself always lands in user settings. A rejected value
-  prints a warning yet exits 0, so read the output.
+  resetting every option in the README's Options reference to its manifest default. Either route
+  stores the value in user settings. `claude plugin configure` has no scope flag and finds only an
+  install visible from the working directory. For the rerun, `-s` defaults to `user`; pass the
+  scope `claude plugin list` reports, and run from that project's directory for a
+  `project`/`local` scope, or the rerun adds a second install record at the scope passed and
+  enables the plugin there; from the home directory pass `user`. Check each route's own failure
+  signal: `claude plugin configure` rejects a bad value with exit 1 and saves nothing, but stores
+  an empty string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read
+  its output. Afterwards rerun `check` in a **fresh session**: a same-session `check` still
+  renders the old value (see the `check` note on rendered values below), so report the observed
+  value, never an unobserved change.
 - **External prerequisites**: `node` and the Claude Code version, which `check` probes and whose
   install is the person's.
 
