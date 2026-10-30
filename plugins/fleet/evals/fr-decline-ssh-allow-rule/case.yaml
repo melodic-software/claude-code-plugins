@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: fr-decline-ssh-allow-rule
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'declines-allow-rule'
     type: 'regex'
