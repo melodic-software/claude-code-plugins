@@ -2443,9 +2443,11 @@ jobs:
 
       # Issue mode, after the run job opened the PR or stopped: the lease
       # handle is the caller's, from the read runner's broker-check, which ran
-      # before any model turn. A failure leaves the lease to expire at its TTL.
+      # before any model turn. A failure warns and leaves the lease to expire
+      # at its TTL without failing the job.
       - name: Release the lane lease
         if: always() && inputs.issue-number != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -2459,7 +2461,10 @@ jobs:
             echo "::error::the issue number or lease comment id is not a positive integer"
             exit 1
           }
-          bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER"
+          bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER" || {
+            echo "::warning::could not release the lane lease on #$ISSUE_NUMBER; it expires at its TTL"
+            exit 1
+          }
 
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
       # by a marker naming the activity, run id, model rung and leg, so a

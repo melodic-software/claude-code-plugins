@@ -182,8 +182,12 @@ times out after 10 minutes. In order:
    The write file's `report` job releases it after the run job ends, whatever its result: always for
    `report-outcome`, so the issue keeps its lease until its PR is open, and for any other activity
    only on a kill-switch stop, which skips report-outcome. `work-resolve-issue.yml` passes the
-   selected read call's handle to `apply-issue-patch` and `report-outcome`. A caller cancelled after
-   the read call leaves the lease to its TTL.
+   selected read call's handle to `apply-issue-patch` and `report-outcome`. A caller cancelled by
+   hand after a call that started or reused a branch leaves the lease to its TTL: accepted, since the
+   TTL ends it and no job runs to release it. A failed release (an API error, or exit 7 when another
+   session claimed after expiry) warns, leaves the job green, and also falls back to the TTL. A run
+   that backed off as `already-leased` skips the earlier-work check, so it names no `reuse-branch`
+   and the caller's report-outcome does not run on it.
 
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure

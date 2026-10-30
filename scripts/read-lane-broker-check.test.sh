@@ -198,50 +198,110 @@ holds "the read runner has no separate release job" "$READ_YML" '!("lease-releas
 holds "report-outcome and apply-issue-patch pass the selected read call's lease handle" "$CALLER_YML" \
   'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; d.jobs["report-outcome"].with["lease-comment-id"] === want && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
 
-# Who releases (#9791). The rule: the caller's write runner releases the
-# selected call's lease exactly when report-outcome runs on it (that call did
-# not hand off and set issue-run-started or reuse-branch), or apply-issue-patch
-# stopped on the kill switch; the read runner's report job releases in every
-# other case. Each row evaluates both report jobs' real `if`.
-# who <label> <expected: read|write|none> <handed-off> <run-started> <reuse> <write-activity> <write-skip>
+# Who releases (#9791), and whether the caller's report-outcome runs. Every
+# gate is the real YAML: the run job's issue-prior `if`, its go step's shell
+# and issue-run-started output, both report jobs' `if`, and the caller's
+# apply-issue-patch and report-outcome `if` and lease-comment-id inputs, with
+# resolve-issue as the selected call (its later calls skipped).
+# who <label> <expected: read|write|both|none> <expected report-outcome: yes|no>
+#     <lease> <caller-releases-lease> <handed-off> <prior: none|stop|branch> <patch-state> <apply-skip>
 who() {
   local got
   got="$(node -e '
     const { createRequire } = require("node:module");
     const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
     const fs = require("node:fs");
-    const [, , readYml, writeYml, handedOff, started, reuse, activity, skip] = process.argv;
-    const evalIf = (expr, ctx) => {
-      const js = expr.replace(/\s+/g, " ")
-        .replace(/\b(inputs|needs|github|vars)(\.[\w-]+)+/g, (m) => JSON.stringify(ctx[m] ?? ""))
-        .replace(/always\(\)/g, "true").replace(/==/g, "===").replace(/!=(?!=)/g, "!==");
+    const { spawnSync } = require("node:child_process");
+    const [, , readYml, writeYml, callerYml, lease, crl, handedOff, prior, patchState, applySkip] = process.argv;
+    const load = (f) => yaml.parse(fs.readFileSync(f, "utf8"));
+    const read = load(readYml), write = load(writeYml), caller = load(callerYml);
+    const expr = (src, ctx) => {
+      const js = String(src).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ")
+        .replace(/\b(inputs|needs|github|vars|steps)(\.[\w-]+)+/g, (m) => JSON.stringify(ctx[m] ?? ""))
+        .replace(/always\(\)/g, "true").replace(/cancelled\(\)/g, "false")
+        .replace(/==/g, "===").replace(/!=(?!=)/g, "!==");
       const format = (f, a) => String(a);
-      return Boolean(eval(js));
+      return eval(js);
     };
-    const read = yaml.parse(fs.readFileSync(readYml, "utf8")).jobs.report.if;
-    const write = yaml.parse(fs.readFileSync(writeYml, "utf8")).jobs.report.if;
-    const r = evalIf(read, {
-      "inputs.issue-number": "7", "inputs.caller-releases-lease": true,
-      "needs.broker-check.outputs.lease": "held", "needs.broker-check.outputs.lease-comment-id": "41",
+    const on = (src, ctx) => Boolean(expr(src, ctx));
+    const step = (pred) => read.jobs.run.steps.find(pred);
+    const leaseId = lease === "held" ? "41" : "";
+    const runCtx = {
+      "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
+      "steps.workflow-current.outputs.stale": "", "needs.broker-check.outputs.lease": lease,
+    };
+    const priorRuns = on(step((s) => s.id === "issue-prior").if, runCtx);
+    const reuse = priorRuns && prior === "branch" ? "work-resolve-issue/issue-7-1-1" : "";
+    const proceed = !priorRuns ? "" : prior === "none" ? "true" : "false";
+    const out = `${process.env.WORK}/who-go`;
+    fs.writeFileSync(out, "");
+    spawnSync("bash", ["-c", step((s) => s.id === "go").run], {
+      env: { ...process.env, PRIOR: proceed, STALE: "", LEASE: lease, GITHUB_OUTPUT: out },
+    });
+    const go = (fs.readFileSync(out, "utf8").match(/^run=(.*)$/m) ?? [])[1] ?? "";
+    const started = String(expr(read.jobs.run.outputs["issue-run-started"], { ...runCtx, "steps.go.outputs.run": go }));
+    const readReleases = on(read.jobs.report.if, {
+      "inputs.issue-number": "7", "inputs.caller-releases-lease": crl === "true",
+      "needs.broker-check.outputs.lease": lease, "needs.broker-check.outputs.lease-comment-id": leaseId,
       "needs.run.outputs.handed-off": handedOff, "needs.issue-fields.outputs.issue-run-started": started,
       "needs.issue-fields.outputs.reuse-branch": reuse,
     });
-    // The caller runs report-outcome on a non-handed-off call that started or reused.
-    const reportOutcome = handedOff !== "true" && (started === "true" || reuse !== "") && skip !== "kill-switch";
-    const w = (act, sk) => evalIf(write, {
-      "inputs.issue-number": "7", "inputs.lease-comment-id": "41", "inputs.activity": act,
-      "needs.run.outputs.skip-reason": sk,
+    const callerCtx = {
+      "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue.result": "success", "needs.resolve-issue.outputs.scan-issue-run-started": started,
+      "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
+      "needs.resolve-issue.outputs.lease-comment-id": leaseId,
+    };
+    const apply = caller.jobs["apply-issue-patch"], report = caller.jobs["report-outcome"];
+    const applyRuns = on(apply.if, callerCtx);
+    const skip = applyRuns ? applySkip : "";
+    const reportRuns = on(report.if, { ...callerCtx, "needs.apply-issue-patch.outputs.skip-reason": skip });
+    const writeReleases = (job, activity, sk) => on(write.jobs.report.if, {
+      "inputs.issue-number": "7", "inputs.activity": activity, "needs.run.outputs.skip-reason": sk,
+      "inputs.lease-comment-id": String(expr(job.with["lease-comment-id"], callerCtx)),
     });
-    const writes = (activity === "apply-issue-patch" && w("apply-issue-patch", skip)) || (reportOutcome && w("report-outcome", ""));
-    console.log(r && writes ? "both" : r ? "read" : writes ? "write" : "none");
-  ' "$POLICY_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$3" "$4" "$5" "$6" "$7")"
-  if [[ $got == "$2" ]]; then ok "$1"; else fail "$1: got $got, expected $2"; fi
+    const writes = (applyRuns && writeReleases(apply, "apply-issue-patch", skip)) || (reportRuns && writeReleases(report, "report-outcome", ""));
+    console.log(`${readReleases && writes ? "both" : readReleases ? "read" : writes ? "write" : "none"} ${reportRuns ? "yes" : "no"}`);
+  ' "$POLICY_DIR" "$READ_YML" "$ROOT/.github/workflows/pr-run-activity-write.yml" "$CALLER_YML" "${@:4}")"
+  if [[ $got == "$2 $3" ]]; then ok "$1"; else fail "$1: got '$got', expected '$2 $3'"; fi
 }
-who "a handed-off call releases its own lease" read true true "" apply-issue-patch ""
-who "a go=false call (stale files or prior work) releases its own lease" read false false "" apply-issue-patch ""
-who "a started run leaves the lease to report-outcome, after the PR opens" write false true "" apply-issue-patch ""
-who "a reused branch leaves the lease to report-outcome" write false false work-resolve-issue/issue-7-1-1 none ""
-who "a kill-switch stop in apply-issue-patch releases there" write false true "" apply-issue-patch kill-switch
-who "a started run whose apply-issue-patch failed still releases in report-outcome" write false true "" apply-issue-patch patch-failed
+export WORK
+who "a go=false call (an earlier run's PR) releases its own lease" read no held true false stop none ""
+who "a started run leaves the lease to report-outcome, after the PR opens" write yes held true false none written ""
+who "a reused branch leaves the lease to report-outcome" write yes held true false branch none ""
+who "a kill-switch stop in apply-issue-patch releases there" write no held true false none written kill-switch
+who "a started run whose apply-issue-patch failed still releases in report-outcome" write yes held true false none written patch-failed
+who "an already-leased run releases nothing and reports nothing" none no already-leased true false none none ""
+who "an already-leased run with a lane branch opens no PR from it" none no already-leased true false branch none ""
+who "caller-releases-lease=false: the read run releases, and report-outcome's release is a no-op" both yes held false false none written ""
+who "a broker-check that posted no lease releases nothing" none yes "" true false none written ""
+who "a handed-off call that started: both sides release, the second a no-op" both yes held true true none written ""
+
+# The second release of one lease finds it superseded: exit 0, nothing written.
+SUPERSEDED="$(jq -cn --arg b '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"987654","acquired_at":"2026-01-01T00:00:00Z","renewed_at":"2026-01-01T00:00:00Z","ttl_hours":2,"superseded_at":"2026-01-01T00:10:00Z"} -->' '{body:$b, issue:"7"}')"
+cat >"$STUB_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+*"--method PATCH"*) echo PATCH >>"$STUB_LOG"; echo 41 ;;
+*"issues/comments/41"*) printf '%s\n' "$COMMENT" ;;
+*) echo "gh-stub: unhandled: $*" >&2; exit 90 ;;
+esac
+STUB
+: >"$WORK/stub.log"
+out="$(PATH="$STUB_BIN:$PATH" STUB_LOG="$WORK/stub.log" COMMENT="$SUPERSEDED" GH_TOKEN=x WIT_WRITE_SPACING_S=0 \
+  WORK_ITEM_TRACKER_BINDING="$ROOT/.work-item-tracker.json" \
+  bash "$ROOT/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh" release "github:acme/widgets#7" \
+  --lease-comment-id 41 --holder 987654 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && $out == *'"released":false'* ]] && ! grep -q PATCH "$WORK/stub.log"; then
+  ok "releasing an already-released lease is a no-op"
+else
+  fail "releasing an already-released lease: rc=$rc out=$out log=$(cat "$WORK/stub.log")"
+fi
+
+holds "the read release step validates the handle, warns and stays green on failure" "$READ_YML" \
+  'const r = Object.values(d.jobs).flatMap((j) => j.steps ?? []).find((s) => s.name === "Release the lane lease"); r?.["continue-on-error"] === true && /::warning::.*TTL/.test(r.run) && /\^\[1-9\]\[0-9\]\*\$/.test(r.run)'
+holds "the write release step warns and stays green on failure" "$ROOT/.github/workflows/pr-run-activity-write.yml" \
+  'const r = Object.values(d.jobs).flatMap((j) => j.steps ?? []).find((s) => s.name === "Release the lane lease"); r?.["continue-on-error"] === true && /::warning::.*TTL/.test(r.run) && /\^\[1-9\]\[0-9\]\*\$/.test(r.run)'
 
 test_harness::report

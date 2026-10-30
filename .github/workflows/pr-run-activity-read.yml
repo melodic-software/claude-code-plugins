@@ -511,8 +511,13 @@ jobs:
             exit 0
           fi
           [ "$rc" -eq 0 ] || exit "$rc"
+          id="$(jq -r '.lease_comment_id' <<<"$out")"
+          [[ $id =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the claim returned no lease comment id; the lease expires at its TTL"
+            exit 1
+          }
           echo "lease=held" >>"$GITHUB_OUTPUT"
-          echo "lease-comment-id=$(jq -r '.lease_comment_id' <<<"$out")" >>"$GITHUB_OUTPUT"
+          echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
 
   # Job-level evidence of the broker's allow for a caller's handoff read
   # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
@@ -964,13 +969,16 @@ jobs:
       # already names it). With the model running or a branch reused, it also
       # names the issue's stopped runs' branches with no pull request in any
       # state, past the branch it picked (prune-branches), for
-      # work-resolve-issue.yml's prune job to delete.
+      # work-resolve-issue.yml's prune job to delete. A run that backed off
+      # on another session's lease skips this check, so it names no branch
+      # for the caller's report-outcome to open a PR from.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
           inputs.issue-number != '' && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.workflow-current.outputs.stale != 'true'
+          && needs.broker-check.outputs.lease != 'already-leased'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -3489,9 +3497,11 @@ jobs:
           github-token: ${{ github.token }}
 
       # Issue mode: the lease handle comes only from broker-check, which ran
-      # before any model turn. A failure leaves the lease to expire at its TTL.
+      # before any model turn. A failure warns and leaves the lease to expire
+      # at its TTL without failing the job.
       - name: Release the lane lease
         if: always() && inputs.issue-number != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -3500,7 +3510,15 @@ jobs:
           LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
           WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
-        run: bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER"
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $LEASE_COMMENT_ID =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the issue number or lease comment id is not a positive integer"
+            exit 1
+          }
+          bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER" || {
+            echo "::warning::could not release the lane lease on #$ISSUE_NUMBER; it expires at its TTL"
+            exit 1
+          }
 
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
       # by a marker naming the activity, run id, model rung and leg, so a
