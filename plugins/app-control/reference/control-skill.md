@@ -294,7 +294,7 @@ CLI through it. Otherwise write a script in the language the repository already 
   inside that folder that carries an integrity hash for each and names no file, path or link
   dependency. It installs them outside the folder, into a new directory for each run, with the
   ecosystem's frozen install, which checks every hash (the install form in
-  `docs/conventions/on-demand-dependencies/README.md` in the marketplace repository); an install
+  `docs/contracts/on-demand-dependencies/README.md` in the marketplace repository); an install
   kept between runs is code the pin check never sees;
 - writes nothing inside its control-skill folder (no installed dependencies, bytecode, caches or
   temp files), and turns bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True`

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-contained tests for landscape-record.sh (skill-script shape, per
-# docs/conventions/shell-test-helpers/README.md: per-plugin assertion
+# docs/contracts/shell-test-helpers/README.md: per-plugin assertion
 # primitives are duplicated on purpose, never shared across plugins).
 #
 # Every fixture is built in a mktemp directory and torn down on exit; nothing

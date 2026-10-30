@@ -79,7 +79,7 @@ the pull request that carries this change.
 
 The hook is partial by design. It has no length rule, so a page WebFetch summarized with no marker
 or placeholder gets no note; the captured CHANGELOG fetch is one. The routing rule in the
-[upstream-drift convention](../../docs/conventions/upstream-drift/README.md#the-rungs) covers that
+[upstream-drift convention](../../docs/contracts/upstream-drift/README.md#the-rungs) covers that
 case: a verification, absence or completeness read goes through `/discovery:read-docs`, whatever
 WebFetch returned.
 
@@ -179,7 +179,7 @@ Three supported routes:
    {"explore_output": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

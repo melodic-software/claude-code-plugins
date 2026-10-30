@@ -395,19 +395,19 @@ the rubric offline cannot follow a pointer. Each is pinned so it can be re-deriv
 state and a stored snapshot as a candidate, and expects a time-bound external claim in durable
 content to carry a recheck trigger. *Pointer:* `melodic-software/standards`,
 `conventions/engineering/documentation-and-citations.md`, as cited by
-`docs/conventions/upstream-drift/README.md` "Boundary" in the marketplace repository. *As of:*
+`docs/contracts/upstream-drift/README.md` "Boundary" in the marketplace repository. *As of:*
 2026-10-01. *Recheck trigger:* any revision of that org standard, or of the upstream-drift
 convention's Boundary section that cites it.
 
 **A conforming record's parts.** This rubric treats a record as conforming when it carries a
 pointer to the source (a specific URL or probe), an as-of date, and a recheck trigger, the
 observable event that obliges re-derivation, beside the decision it records. A date alone does not
-qualify as a trigger. *Pointer:* `docs/conventions/upstream-drift/README.md` "Required parts" and
+qualify as a trigger. *Pointer:* `docs/contracts/upstream-drift/README.md` "Required parts" and
 "The observability bar" in the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any
 change to that convention's required parts, or the org standard broadening the accepted trigger
 forms in a way this repository adopts.
 
 **A date is never authority.** This rubric reads a dated stamp as the last time the record was
 derived from its source, never as standing authority: what obliges re-derivation is the trigger,
-not the date. *Pointer:* `docs/conventions/upstream-drift/README.md` "A date is never authority" in
+not the date. *Pointer:* `docs/contracts/upstream-drift/README.md` "A date is never authority" in
 the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any change to that section.

@@ -8,7 +8,7 @@
 # reaches an operator AT THIS MACHINE. Off-machine transport does exist as
 # first-party mechanisms, but its home is the consuming repo's settings, not
 # this shell library — the loop-lane convention
-# (docs/conventions/loop-lane/README.md in this plugin's marketplace repository)
+# (docs/contracts/loop-lane/README.md in this plugin's marketplace repository)
 # owns that seam and its verified grounding in §2. This primitive stays the local
 # channel, and no hook-borne channel covers a closed laptop or a dead process —
 # those emit no hook event at all.

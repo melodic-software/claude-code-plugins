@@ -186,7 +186,7 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   or Git for Windows, or on Windows `CLAUDE_CODE_GIT_BASH_PATH` naming an existing `bash.exe`.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
   interactive `/plugin configure disk-hygiene@<marketplace>` any time, or headless
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` **and
