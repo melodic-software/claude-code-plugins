@@ -2275,37 +2275,35 @@ head:
   request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
   says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
   non-scalar one included, is 1, so any earlier `fail` holds. Before a `fail` at the head or a
-  pass decides, counted `fail` verdicts of other pull requests in this repository, open or closed,
-  for its linked issues count too, at their own heads, so a new pull request for the same issue,
-  closing or `Refs:`, does not reset the count. Every `fail` of a pull request that closes one of
-  the issues counts. Every counted `fail` whose name carries one of the issues counts too, from
-  the listing the gate already reads, so it costs no request: pr-verify names a `fail` with a
-  `Refs:` issue as with a closing one, so this is how a `Refs:` pull request's `fail` verdicts
-  count. Such a `fail` whose run cannot be read refuses `verify:unreadable`. Such a `fail` keeps
-  counting until its artifact expires, even after its pull request stops closing or naming the
-  issue: the name records the issues the verdict judged, and this only adds holds. Editing a pull
-  request's body never lowers a count its `fail` verdicts added, so a hostile pull request that
-  names an issue only to inflate its cap is undone by deleting that pull request's `fail`
-  artifacts. The gate reads no issue timeline, so cross-references to an issue, which anyone can
-  add, hold nothing. A plain `fail`, which pr-verify writes when the issues fit no name (more than
-  10, or a number of 11 digits or more), still counts for its own pull request and at the head,
-  but not toward another pull request's cap for those issues; it is rare, and the per-pull-request
-  cap still bounds it. A pull request whose `fail` names do not carry the issue is otherwise not
-  counted. More than 50 pull requests that claim to close one issue make every pull request for
-  that issue refuse `verify:unreadable`: a hold, not a way past the cap. This cap is what bounds
-  pushing until the verifier passes once: the carry-forward below stops only a head that changes
-  nothing of its own, and a one-line edit gives a new change. One exception, which relaxes that
-  bound by exactly `merge.verify-cap-attempts` (default 1) fresh attempts per issue (owner decision
-  2026-10-29): a pull request the pr-merge lane closed at the cap or as too old, named by the lanes
-  App's capped-close record on the issue (`<!-- verify-capped-close pr=<n> ... -->` as its first
-  line, written by the App and edited by no one else, so a forged one excuses nothing), counts no
-  more once it is closed (a close that failed after the record leaves its FAILs
-  counted), so the fresh attempt it started starts its own count. Only the oldest
-  `merge.verify-cap-attempts` records per issue that started an attempt excuse their pull requests;
-  a parked or attempt-less record, or one past that many, excuses nothing. Past that many the lane parks the
-  issue instead of starting another, so the re-rolls stay bounded. Closing a newly filed duplicate issue
-  instead starts the count of other pull requests again; a pass then needs that issue written by a
-  trusted human, as below;
+  pass decides, counted `fail` verdicts of other pull requests in this repository that are still
+  open and unmerged, for its linked issues, count too, at their own heads, so a second open pull
+  request for the same issue, closing or `Refs:`, does not reset the count. Every `fail` of an open
+  pull request that closes one of the issues counts. Every counted `fail` of an open pull request
+  whose name carries one of the issues counts too, from the listing the gate already reads:
+  pr-verify names a `fail` with a `Refs:` issue as with a closing one, so this is how a `Refs:` pull
+  request's `fail` verdicts count, and a pull request no issue lists has its state read, one
+  request each (a failed read refuses `verify:unreadable`). Such a `fail` whose run cannot be read
+  refuses `verify:unreadable`. Editing a pull request's body never lowers a count its `fail`
+  verdicts added while it stays open, so a hostile open pull request that names an issue only to
+  inflate its cap is undone by closing it or deleting its `fail` artifacts. The gate reads no issue
+  timeline, so cross-references to an issue, which anyone can add, hold nothing. A plain `fail`,
+  which pr-verify writes when the issues fit no name (more than 10, or a number of 11 digits or
+  more), still counts for its own pull request and at the head, but not toward another pull
+  request's cap for those issues; it is rare, and the per-pull-request cap still bounds it. A pull
+  request whose `fail` names do not carry the issue is otherwise not counted. More than 50 pull
+  requests that claim to close one issue make every pull request for that issue refuse
+  `verify:unreadable`: a hold, not a way past the cap. A fresh attempt starts its own count (owner
+  decision 2026-10-29): a merged or closed pull request's `fail` verdicts never count against
+  another pull request, and of an open one's only those uploaded after the issue's newest close of
+  an attempt, which is the newest of the lanes App's capped-close records on the issue
+  (`<!-- verify-capped-close pr=<n> ... -->` as its first line, parked or not, written by the App
+  and edited by no one else, so a forged one resets nothing) and the close of any pull request for
+  the issue that did not merge. This cap and the carry-forward below bound pushing to one pull
+  request until the verifier passes once; `merge.verify-cap-attempts` (default 1) bounds how many
+  fresh attempts the pr-merge lane starts per issue, and past that many it parks the issue instead.
+  A pull request closed by hand is not counted against that bound, so whoever closes one starts a
+  fresh count. Closing a newly filed duplicate issue instead starts the count of other pull
+  requests again; a pass then needs that issue written by a trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
   relink superseded it: every counted `fail` there is this pull request's, every counted pass
   there was created after them and records other `linked_issues` than each `fail` does, and from

@@ -3536,7 +3536,6 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
-            cap_attempts=config.verify_cap_attempts,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -3996,7 +3995,6 @@ def close_capped(
         branch,
         max_fails=config.max_verify_fails,
         agent_identity=identity,
-        cap_attempts=config.verify_cap_attempts,
     )
     return verify_evidence.capped_close(
         reader,
@@ -4287,7 +4285,6 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
-                    cap_attempts=config.verify_cap_attempts,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
