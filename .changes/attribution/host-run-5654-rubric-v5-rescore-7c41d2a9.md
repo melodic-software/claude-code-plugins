@@ -29,9 +29,10 @@ bump: patch
     opened no other until all 114 outputs were saved.
 
   **Rubric routing** followed `nomination.md`'s order and was fixed before dispatch:
-  - Copy: the 22 cases where `fingerprint.mjs` fired, plus `c05` to `c07` and `c10`, whose sources
-    are invented pages that no external owner can change.
-  - Restated-fact: `c11` to `c20` and `c22` to `c24`, which restate a real upstream page and did
+  - Copy, 25 cases: the 21 where `fingerprint.mjs` fired (`c01` to `c04`, `c08`, `c09`, `c21` and
+    `c25` to `c38`), plus `c05` to `c07` and `c10`, which did not fire and whose sources are
+    invented pages that no external owner can change.
+  - Restated-fact, 13 cases: `c11` to `c20` and `c22` to `c24`, which restate a real upstream page and did
     not fire.
 
   The combine rule is 0.7.1's. As in 0.8.2, the restated-fact refutation pass was not run.
