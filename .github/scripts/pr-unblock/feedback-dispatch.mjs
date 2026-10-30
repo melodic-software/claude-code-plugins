@@ -135,7 +135,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { FAIL as VERIFY_FAIL, final as capFinal, verifyCapReader } from "./verify-cap.mjs";
+import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -514,6 +514,10 @@ export async function dispatchFeedback({
     // read. A sibling read that failed is read again next run.
     if (capFinal(capped)) {
       markHandled(record, settings.checkName, head);
+    }
+    const warning = deadlineWarning(number, capped);
+    if (warning) {
+      log(warning);
     }
     return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
   }

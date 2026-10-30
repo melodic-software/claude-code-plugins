@@ -24,3 +24,6 @@ bump: patch
 - `verify-cap.mjs` logs one line per read summarizing the reader's stderr, its
   `babysit-listing-miss` lines first, so a listing that missed GitHub's live count shows in the
   dispatch job's log.
+- The address-feedback and fix-ci dispatchers annotate a skip for a listing that does not fit in
+  `verify-cap.mjs`'s limit as `::warning title=verify-deadline-skip::`, with the reader's detail,
+  since that skip recurs every run while pr-merge's carried listing is missing or stale.

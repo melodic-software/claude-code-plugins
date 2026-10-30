@@ -52,6 +52,14 @@ export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" }
 // failed may clear next run.
 export const final = (answer) => typeof answer === "string" && answer.startsWith(CAPPED);
 
+// The workflow annotation for a skip because the listing did not fit in the
+// caller's limit (a `verify:unreadable` whose detail starts with
+// DEADLINE_UNREADABLE), else null: with no fresh carried listing that skip
+// recurs every run, so it is surfaced rather than logged as a plain skip.
+export function deadlineWarning(number, answer) {
+  return typeof answer === "string" && answer.startsWith(`${UNREADABLE}: ${DEADLINE_UNREADABLE}`) ? `::warning title=verify-deadline-skip::#${number}: ${oneLine(answer, 1000)}` : null;
+}
+
 const oneLine = (text, max = 300) => String(text ?? "").replaceAll(/[\r\n%]/g, " ").trim().slice(0, max);
 
 // One line for a read's stderr: its line count, then the listing-miss lines,
