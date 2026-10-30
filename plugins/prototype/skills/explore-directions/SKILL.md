@@ -15,7 +15,7 @@ metadata:
 
 | Invocation | Behavior |
 | --- | --- |
-| `<scope>` | Full process: plan, draft 3 variants, switcher, handover, then wait for the reply |
+| `<scope>`, or `-- <scope>` | Full process: plan, draft 3 variants, switcher, handover, then wait for the reply; a leading `--` ends the actions, so `-- controls page` plans that page |
 | `vary [<variant>]` | New round: keep the switcher, draft a fresh set diverging around that variant's direction; with no variant named, ask which, as one question |
 | `combine [<base>]` | Run the [combine matrix](reference/combine-matrix.md) on that base, build the combined variant, add it beside the originals; with no base named, ask which variant is the base, as one question |
 | `controls [<variant>]` | Keep one variant and put its numbers on the [control panel](../../context/control-panel.md); with no variant named, ask which, as one question |

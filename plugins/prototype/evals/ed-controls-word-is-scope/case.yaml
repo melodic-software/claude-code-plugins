@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: ed-controls-word-is-scope
-description: "contract-change: under the base contract the whole argument is the scope, so a scope that begins with the word 'controls' gets the normal plan; head parses a leading 'controls' as an action, so this case is expected to fail on head by design and is a decision for the owner, not a grader defect."
+description: "contract-change: under the base contract the whole argument is the scope, so a scope that begins with the word 'controls' gets the normal plan; head parses a leading 'controls' as an action, so this case is expected to fail on head by design: the owner kept the first-word-wins grammar with a `--` escape (Q8, 2026-10-30), so a failure here is the intended change, reported apart from the non-inferiority verdict."
 tags: [explore-directions, contract-change]
 runs: 3
 expected_outcome: "The reply plans layout variants for the thermostat app's controls page (route, host, variant keys, states) before building, and does not treat 'controls' as an action that asks which variant to put on a control panel."

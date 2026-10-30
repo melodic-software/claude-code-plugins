@@ -20,7 +20,9 @@ Arguments: `$ARGUMENTS`
 | `add-controls [<description>]` | Promote hardcoded values in the current tool to controls, or add the mode the description names |
 | `export <format>` | Add or replace the exporter |
 
-The first word is an action only when it is one of the three above; anything else is the subject.
+The first word is an action only when it is one of the three above; anything else is the subject. A
+leading `--` ends the actions: everything after it is the subject, even when it starts with an
+action word (`/prototype:build-generator -- export button for the invoice page`).
 
 The user wants an artifact. You are not going to build the artifact; you're going to build the
 tool that builds it. Prompting for an intricate result directly is a slot machine: every attempt
