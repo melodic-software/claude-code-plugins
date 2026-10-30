@@ -718,7 +718,6 @@ describe("decide", () => {
       "- [ ] The fix edits no file in `.github/workflows`.",
       "- [ ] The script does not edit .github/workflows/a.yml.",
       "- [ ] It doesn’t touch .github/CODEOWNERS.",
-      "- [ ] No change to .gitmodules is made.",
       "- [ ] The run leaves .github/workflows/a.yml unchanged.",
       "- [ ] The script never writes to .github/workflows/a.yml.",
     ];
@@ -751,6 +750,11 @@ describe("decide", () => {
       ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
       ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
       ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
+      // Only a bounded shape around the path drops it, never a negation and a
+      // participle that a comma or another clause separates.
+      ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],
+      ["- [ ] Nothing blocks this; edit .github/workflows/a.yml once it is changed upstream.", ".github/workflows/a.yml"],
+      ["- [ ] No change to .gitmodules is made.", ".gitmodules"],
     ];
     for (const [line, path] of turned) {
       test(`still refuses ${line}`, () => {

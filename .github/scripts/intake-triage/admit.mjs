@@ -723,28 +723,30 @@ const dotted = (path) =>
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
-// A clause that negates a modification of a path ("No file under X is
-// edited", "the diff touches no X or Y file", "does not change X", "leaves X
-// unchanged"), from its negation to the clause's end: a sentence end, `;`,
-// `: `, a blank line, a fence, or a word that turns it back toward a change
-// or a condition (but, except, other than, outside, and, after, ...). A path
-// it names asks for no push. A negation with no modification verb in its
-// clause ("no file under X references Y") still asks for edits there.
-const END = String.raw`[;!?]|\.(?:\s|$)|:\s|\n\s*\n|\x60{3}|~{3}|\b(?:but|except|other\s+than|besides|apart\s+from|aside\s+from|outside|beyond|and|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if)\b`;
-const IN_CLAUSE = String.raw`(?:(?!${END})[\s\S])*?`;
+// The bounded shapes that say a path is left unmodified; a path is dropped
+// only inside one, and any other wording keeps it:
+// 1. `no`/`none of` + a short phrase holding the path + `is`/`are`/`was`/
+//    `were`/`gets`/`will be` + a participle ("No file under X is edited");
+// 2. a modification verb + `no` + the path phrase, or a comma-separated list
+//    of paths ("the diff touches no X, Y or Z file");
+// 3. `does not`/`never`/`won't` + a modification verb + the path phrase
+//    ("does not edit X");
+// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`.
+// A path phrase is up to six words, with no comma, sentence end, or word that
+// turns it toward a change or a condition (but, other, after, ...).
+const STOP = String.raw`(?!(?:but|except|other|outside|beyond|besides|apart|aside|and|or|nor|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if|to|for|that|which|who|where)(?=[\s,;:!?.]|$))`;
+const WORD = String.raw`${STOP}(?:[^\s,;:!?.]|\.(?=\S))+`;
+const PHRASE = String.raw`${WORD}(?:\s+${WORD}){0,5}`;
+const LIST = String.raw`${WORD}(?:(?:,\s*(?:(?:or|nor)\s+)?|\s+(?:or|nor)\s+)${WORD})+(?:\s+(?:files?|director(?:y|ies)|folders?|paths?|lines?))?`;
+const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
 const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
-const DONE = String.raw`touched|changed|edited|modified|altered|(?:re)?written\s+to`;
-// A finite verb after "no <subject>", not a noun such as "the changes".
-const FINITE = String.raw`(?<!\b(?:the|a|an|its|their|any|these|those|this|that|such)\s+)(?:touches|changes|edits|modifies|alters|(?:re)?writes\s+to)`;
 const NEGATED = new RegExp(
-  String.raw`(?:\b(?:${VERB})\s+no\b` +
-    String.raw`|\b(?:does|do|did|must|should|will|may|shall|can|need|needs|is|are|be|gets?)\s+not\s+(?:be\s+|get\s+)?(?:${VERB}|${DONE})\b` +
-    String.raw`|\b(?:doesn|don|didn|mustn|shouldn|won|isn|aren|can)['’]t\s+(?:be\s+)?(?:${VERB}|${DONE})\b` +
-    String.raw`|\bnever\s+(?:be\s+|gets?\s+)?(?:${VERB}|${DONE})\b` +
-    String.raw`|\bno\s+(?:changes?|edits?|modifications?)\s+(?:to|in|under|of)\b` +
-    String.raw`|\bno\b${IN_CLAUSE}\b(?:${DONE}|${FINITE})\b` +
-    String.raw`|\bleav(?:e|es|ing)\b${IN_CLAUSE}\b(?:unchanged|untouched|unedited|unmodified)\b)` +
-    String.raw`${IN_CLAUSE}(?=${END}|$)`,
+  [
+    String.raw`\b(?:no|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|will\s+be)\s+(?:${DONE})\b`,
+    String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
+    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t)\s+(?:${VERB})\s+${PHRASE}`,
+    String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
+  ].join("|"),
   "gi",
 );
 const withoutNegated = (text) => text.replace(NEGATED, " ");
@@ -754,7 +756,8 @@ const withoutNegated = (text) => text.replace(NEGATED, " ");
 // that apply-patch refuses under `names` (issuePushRefusals) in any case or
 // with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
 // name in `workflows` (workflowFiles) read as that workflow's path. A path
-// named only in a negated clause (NEGATED) is left out. Pure.
+// named only in a shape that leaves it unmodified (NEGATED) is left out.
+// Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
