@@ -122,7 +122,7 @@ if [[ -s "$CACHE_FILE" ]]; then
     printf -v FRESH_STAMP '%(%Y%m%d%H%M.%S)T' "$((EPOCHSECONDS - CFV_CACHE_WINDOW_MIN * 60))" 2>/dev/null &&
     touch -t "$FRESH_STAMP" "$FRESH_REF" 2>/dev/null; then
     [[ "$CACHE_FILE" -nt "$FRESH_REF" ]] && USE_CACHE=true
-  elif find "$CACHE_FILE" -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null | grep -q .; then
+  elif grep -q . < <(find "$CACHE_FILE" -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null); then
     USE_CACHE=true
   fi
 fi

@@ -412,7 +412,8 @@ def _main_lane(
     """The lane's evidence for a pull request that changes a lane source:
     bound when a counted main-run review names the pinned head
     (`_main_bound`) and the recorded counts were read, else unbound as
-    `lane-source-changed`. The security lane's blocking count is the most of
+    `lane-source-changed`, or as `main-review-stop:<reason>` when no verdict
+    binds and the record job posted a designed stop on the head. The security lane's blocking count is the most of
     the main-run reviews' CRITICAL findings at this tree, any its
     pull_request review left open (`_carried_blocking`), and the most any
     main-run review recorded on another head of this pull request
@@ -423,20 +424,33 @@ def _main_lane(
     except Exception:  # noqa: BLE001 - any doubt is unbound
         found = None
     recorded = _recorded_critical(lane, context)
+    reason = "lane-source-changed"
+    if found is None and (stop := _head_stop(lane, context)):
+        reason = f"main-review-stop:{stop}"
     if lane != SEVERITY_LANE:
         if found is None or recorded is None:
-            return _unbound(lane, "lane-source-changed", head, *carried)
+            return _unbound(lane, reason, head, *carried)
         return LaneEvidence(lane, True, None, found[0], False, None)
     runs, comments, threads, is_human, head_file = carried
     left = _carried_blocking(head, runs, comments, threads, is_human, head_file)
     if found is None or recorded is None:
         held = max(left or 0, recorded or 0)
-        return LaneEvidence(
-            lane, False, "lane-source-changed", None, False, held or None
-        )
+        return LaneEvidence(lane, False, reason, None, False, held or None)
     findings, critical = found
     blocking = max(critical, left or 0, recorded)
     return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
+
+
+def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
+    """The first designed stop pr-review-main's record job posted for `lane`
+    on the pinned head (`main_context["head_stops"]`, read from the closed
+    set `babysit_gh.MAIN_REVIEW_STOP_TITLE` matches), or None. It only names
+    why no verdict binds: a stop never binds a lane."""
+    found = context.get("head_stops") if isinstance(context, Mapping) else None
+    stops = found.get(lane) if isinstance(found, Mapping) else None
+    if not isinstance(stops, list | tuple):
+        return None
+    return next((each for each in stops if isinstance(each, str) and each), None)
 
 
 def _recorded_critical(lane: str, context: Mapping[str, Any] | None) -> int | None:

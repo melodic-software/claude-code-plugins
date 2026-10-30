@@ -152,7 +152,7 @@ if ((rc != 0)); then
   # loader's own message and name it, at its file and line, in the context.
   cfg_err=""
   if grep -q -e '^ERROR: the testing config did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
-    cfg_err="$(grep -E '^(resolve-config|adapter-load): ' "$out_file" | grep -v -m1 '^resolve-config: warning: ')"
+    cfg_err="$(grep -v -m1 '^resolve-config: warning: ' < <(grep -E '^(resolve-config|adapter-load): ' "$out_file"))"
     why="${cfg_err:-$why}"
   fi
   printf '%s test-scan: %s: %s\n' "$(date -u +%FT%TZ)" "$FILE" "$why" >>"$DATA/test-scan.log"

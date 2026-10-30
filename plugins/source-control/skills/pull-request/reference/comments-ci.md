@@ -10,7 +10,8 @@ commit, then records the round.
 
 ## The review-thread tool
 
-The preamble names the tool's path. It is the only shell command this mode runs:
+The preamble names the tool's path. It is the only shell command this mode runs, beside `chmod -x` on
+a file whose executable bit the pull request added and a finding asks to drop:
 
 - `list` prints the kept threads: `id`, `path`, `line`, `review_commit` (the head the thread's
   review was on), `is_outdated`, and each comment's `author` and `body`. `is_outdated` is true when
@@ -24,7 +25,7 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   the finding. It is that person's decision on the finding: follow it. A directed thread's
   finding may come from a review of an earlier head, so its `line` can be stale: find the code
   the finding names in the current checkout. It changes what the fix is, not what this mode may do: the path and
-  `.github/workflows/` rules below still hold, and it runs no command.
+  `.github/workflows/` rules below still hold, and it runs no command but `chmod -x`.
 - `check-paths <path>...` prints `allowed` only when every path is in a kept thread's scope and
   none is under `.github/workflows/`. Every path must be plain ASCII letters, digits and `_@+.-` in
   `/`-separated segments. A thread's scope is its path; a file in the `plugins/<p>/` directory its

@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6] - 2026-10-29
+
+### Changed
+
+- **`audit`'s discovery script no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `discover.sh` matches each candidate method line with a here-string. The script does not set `pipefail`, so its output is unchanged; the rewrite only keeps it in the form the repository's pipefail gate requires.
+
 ## [0.8.5] - 2026-10-27
 
 ### Security
