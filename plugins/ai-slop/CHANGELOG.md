@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.7] - 2026-10-30
+
+### Changed
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [0.15.6] - 2026-10-30
 
 ### Changed

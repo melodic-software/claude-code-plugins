@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "subject_pattern: '^[A-Z]+-\\d+: .+'\n", "why": "single-quoted, as the setup template writes it"},
+    {"answer": "subject_pattern: \"^[A-Z]+-\\\\d+: .+\"\npr_title_pattern: \"^[A-Z]+-\\\\d+: .+\"\n", "why": "double-quoted with the YAML-escaped backslash, beside the PR title key"},
+    {"answer": "# Team source-control convention\nsubject_pattern: ^[A-Z]+-\\d+: .+   # ticket prefix\n", "why": "plain scalar after a header comment, with a trailing comment"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "subject_pattern: Conventional Commits\n", "why": "the file exists but holds the default convention, not the confirmed one"},
+    {"answer": "pr_title_pattern: '^[A-Z]+-\\d+: .+'\n", "why": "the pattern under the wrong key"},
+    {"answer": "subject_pattern: '^[A-Z]+-\\d+: .+\n", "why": "an unclosed quote that would not parse"},
+    {"answer": "subject_pattern: '^[A-Z]+: .+'\n", "why": "the ticket number dropped from the pattern"}
+  ]
+}

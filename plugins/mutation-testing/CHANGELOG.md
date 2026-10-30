@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5] - 2026-10-30
+
+### Changed
+
+- `/mutation-testing:audit` cites the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
 ## [0.11.4] - 2026-10-30
 
 ### Changed
