@@ -375,10 +375,10 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _marker_dir="${_marker_path%/*}"
       _seen_path="${_marker_path%.launched}.seen"
-      # `mkdir` and `rm` are the only spawns on this path, each behind a builtin
-      # `[[ -e ]]`: `mkdir` once per root, `rm` once per launch that follows a
-      # Stop the monitor recorded. Only the marker directory itself needs mode
-      # 700; its parent is `$TMPDIR` or the data root.
+      # `mkdir` and the `.seen` removal are the only spawns on this path, each
+      # behind a builtin `[[ -e ]]`: `mkdir` once per root, the removal once per
+      # launch that follows a Stop the monitor recorded. Only the marker
+      # directory itself needs mode 700; its parent is `$TMPDIR` or the data root.
       # shellcheck disable=SC2174
       [[ -e "$_marker_dir" || -L "$_marker_dir" ]] ||
         mkdir -p -m 700 "$_marker_dir" 2>/dev/null || continue
@@ -634,18 +634,16 @@ _store_python3() {
   chmod 700 "$dir" 2>/dev/null || true
   printf -v now '%(%s)T' -1
   temp="$file.$$.tmp"
+  # Concurrent hooks race to publish; `mv` is atomic within a filesystem, so the
+  # loser's record is replaced rather than interleaved with the winner's. A
+  # failed write never reaches `mv`, and it or a failed `mv` removes the temp.
   {
     printf 'schema=%s\n' "$_CACHE_SCHEMA"
     printf 'written=%s\n' "$now"
     printf 'interpreter=%s\n' "$interp"
     printf 'lookup=%s\n' "${_LOOKUPS[@]}"
-  } >"$temp" 2>/dev/null || {
+  } >"$temp" 2>/dev/null && mv -f "$temp" "$file" 2>/dev/null ||
     rm -f "$temp" 2>/dev/null || true
-    return 0
-  }
-  # Concurrent hooks race to publish; `mv` is atomic within a filesystem, so the
-  # loser's record is replaced rather than interleaved with the winner's.
-  mv -f "$temp" "$file" 2>/dev/null || rm -f "$temp" 2>/dev/null || true
   return 0
 }
 
