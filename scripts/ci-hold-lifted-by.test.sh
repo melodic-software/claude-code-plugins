@@ -318,4 +318,27 @@ export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed" 1 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
 
+# The stub above stands in for the base commit's clear-escalations.mjs, so a
+# real import the sparse base_config checkout leaves out would only fail on a
+# runner. Copy the sparse list's files alone and import the real module.
+SPARSE="$TMP_ROOT/sparse"
+mapfile -t sparse_paths < <(awk '/^        id: base_config$/ { on = 1 } on && /sparse-checkout: \|$/ { list = 1; next }
+  list && /^            \// { print substr($0, 14); next } list { exit }' "$WORKFLOW")
+if [[ "${#sparse_paths[@]}" -eq 0 ]]; then
+  fail "no base_config sparse-checkout list in $WORKFLOW"
+else
+  for rel in "${sparse_paths[@]}"; do
+    if [[ -f "$ROOT/$rel" ]]; then
+      mkdir -p "$SPARSE/$(dirname "$rel")"
+      cp "$ROOT/$rel" "$SPARSE/$rel"
+    fi
+  done
+  # The path goes in the environment: as argv[1] the module would run as the script.
+  if out="$(SPARSE_MODULE="$SPARSE/.github/scripts/pr-merge/clear-escalations.mjs" node --input-type=module -e 'await import(process.env.SPARSE_MODULE);' 2>&1)"; then
+    ok "the base_config sparse checkout holds every file clear-escalations.mjs imports"
+  else
+    fail "clear-escalations.mjs does not load from the base_config sparse checkout: $out"
+  fi
+fi
+
 test_harness::report

@@ -218,6 +218,55 @@ test("a lanes App PR whose ci-status failed is dispatched fix-ci with the dispat
   ]);
 });
 
+// Owner decision 2026-10-29: a PR whose pr-verify FAILs are at the cap gets
+// no fix-ci round, read by the gate's reader (verify-cap.mjs); the next
+// candidate still does.
+test("a PR whose pr-verify FAILs are at the cap gets no fix-ci round", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return request.number === 5 ? "verify:repeated-fail: fails at 3 heads, the cap is 3" : null;
+  };
+  const base = "c".repeat(40);
+  const { api, lines, result } = await run({ pages: [[pr(5, { baseRefOid: base }), pr(6, { baseRefOid: base })]] }, { verifyCapped });
+  assert.deepEqual(result, { dispatched: [{ number: 6, workflowRunId: "7006" }], failed: 0 });
+  assert.deepEqual(
+    api.calls.dispatch.map((call) => call.inputs["pr-number"]),
+    ["6"],
+  );
+  assert.deepEqual(asked, [
+    { number: 5, head: pr(5).headRefOid, base },
+    { number: 6, head: pr(6).headRefOid, base },
+  ]);
+  assert.match(lines.join("\n"), /^skip fix-ci #5: .*verify:repeated-fail/m);
+});
+
+test("a capped head is recorded, so the next run skips it without reading the verifier again", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:repeated-fail";
+  };
+  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.equal(reads, 1);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("a head whose sibling FAIL run cannot be read is skipped but not recorded", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  const { api } = await run({ pages: [[pr(5)]] }, { verifyCapped, record });
+  assert.equal(reads, 2);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
 // A fork PR that pushed the same commit lists its runs under the same head SHA.
 // Its newer run, still going, would read as a re-run in flight and hold fix-ci
 // off (reconcilerOwns); readRequiredRun keeps it out of the tested run.
@@ -764,6 +813,19 @@ function ownerPr(number, { updated = 25, committed = 25, committedDate = hoursAg
   node.commits.nodes[0].commit.committedDate = committedDate;
   return node;
 }
+
+// capped_close closes only the lanes App's pull requests: an adopted owner's
+// PR at the cap keeps its fix-ci round, and the cap is not read for it.
+test("an adopted owner PR at the verify cap still gets its fix-ci round", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW, verifyCapped });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [9]);
+  assert.deepEqual(asked, []);
+});
 
 // Owner decision 2026-10-22: a trusted App's PR (the release App here) does
 // not wait out the idle window; a person's still does.

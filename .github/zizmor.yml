@@ -1,5 +1,13 @@
-# The org Dependabot cooldown floor is 3 days (standards dependabot-policy).
 rules:
+  # The org Dependabot cooldown floor is 3 days (standards dependabot-policy).
   dependabot-cooldown:
     config:
       days: 3
+  # First-party reusable workflows float on `main`; first-party actions are
+  # SHA-pinned by org policy, which ref-pin also admits. Third-party refs stay
+  # SHA-pinned.
+  unpinned-uses:
+    config:
+      policies:
+        "melodic-software/*": ref-pin
+        "*": hash-pin

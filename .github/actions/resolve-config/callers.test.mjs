@@ -502,11 +502,14 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(selects("success", ""), true);
   assert.equal(selects("failure", ""), false);
   assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
-  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
-  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
+  const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
+  assert.equal(evaluate(model.if, picked("true")), true);
+  assert.equal(evaluate(model.if, picked("true", "size-split")), true);
+  assert.equal(evaluate(model.if, picked("false")), false);
+  assert.equal(evaluate(model.if, picked("true", "size-decline")), false, "a size-split decline runs no model");
   // The subscription leg runs only after the key leg handed off or found no key.
-  const leg = (refine, handoff, present) => ({
-    "needs.refine-select.outputs.refine": refine,
+  const leg = (refine, handoff, present, mode = "refine") => ({
+    ...picked(refine, mode),
     "needs.refine-issue.outputs.handoff": handoff,
     "needs.refine-issue.outputs.credential-present": present,
   });
@@ -515,8 +518,10 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
   assert.equal(evaluate(sub.if, leg("true", "", "")), false);
   assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
+  assert.equal(evaluate(sub.if, leg("true", "", "false", "size-decline")), false);
   // apply-refinement reads whichever leg uploaded the refinement.
-  const refined = (key, subscription) => ({
+  const refined = (key, subscription, mode = "refine") => ({
+    ...picked("true", mode),
     "needs.refine-issue.outputs.refined": key,
     "needs.refine-issue-subscription.outputs.refined": subscription,
   });
@@ -524,6 +529,10 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(apply.if, refined("false", "true")), true);
   assert.equal(evaluate(apply.if, refined("false", "")), false);
   assert.equal(evaluate(apply.if, refined("", "false")), false);
+  // A size-split decline posts its reason through apply-refinement, with no refinement to download.
+  assert.equal(evaluate(apply.if, refined("", "", "size-decline")), true);
+  assert.equal(evaluate(apply.if, { ...refined("", "", "size-decline"), "needs.refine-select.outputs.refine": "false" }), false);
+  assert.match(apply.steps.find((step) => step.name === "Download the refinement").if, /needs\.refine-select\.outputs\.mode != 'size-decline'/);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
@@ -2648,7 +2657,8 @@ test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-
     assert.deepEqual(choose(callerHead, "3".repeat(40)), { post: "true", sha: old, forged: "true" }, `${id}: a foreign run head still fails`);
     // A run that declines before its trigger gate leaves an empty head:
     // fix-ci posts neutral not-assessed so fix-ci-dispatch moves on; fix-docs,
-    // dispatched once per PR, posts nothing so it is dispatched again.
+    // dispatched once per PR, posts nothing: its completed run counts as the
+    // PR's one dispatch.
     const postDecline = job.with["post-decline"] ?? true;
     assert.equal(postDecline, !id.startsWith("fix-docs"), `${id} post-decline`);
     assert.deepEqual(
@@ -6225,8 +6235,8 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
 // fallback call starts on fix-docs-handoff's jobs-API read, the same step
 // fix-ci-handoff runs, never on a fix-docs output. fix-docs posts nothing on a
 // decline (post-decline: false), so the fallback also needs the broker's allow:
-// a kill switch or a refusal starts no second leg, and a failed read leaves
-// no check, so fix-docs-dispatch.mjs dispatches the PR again.
+// a kill switch or a refusal starts no second leg, and neither does a failed
+// read.
 test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read of fix-docs's report, never on a fix-docs output", (t) => {
   const { jobs } = workflow("pr-refine.yml");
   const sub = jobs["fix-docs-subscription"];
@@ -6931,6 +6941,59 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
 });
 
+// A stalled install fails at its own step bound, inside the job's, with no
+// retry, and skips the audit and fund requests through env.
+test("every workflow npm ci step is bounded, unretried, and skips audit and fund", () => {
+  let steps = 0;
+  let loglevel = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (!/\bnpm ci\b/.test(step.run ?? "")) continue;
+        const where = `${file} ${id} "${step.name}"`;
+        const env = { ...doc.env, ...job.env };
+        assert.equal(env.npm_config_audit, "false", `${where}: npm_config_audit`);
+        assert.equal(env.npm_config_fund, "false", `${where}: npm_config_fund`);
+        assert.equal(env.npm_config_fetch_timeout, "60000", `${where}: npm_config_fetch_timeout (#10061 done-when 1; same value as npm-fetch.npmrc)`);
+        assert.ok(step["timeout-minutes"] < job["timeout-minutes"], `${where}: step timeout ${step["timeout-minutes"]} not below job ${job["timeout-minutes"]}`);
+        assert.doesNotMatch(step.run, /\bretry\b|\buntil\b|npm ci[^\n]*\|\|[^\n]*npm ci/, `${where}: retry wrapper`);
+        if (/\bnpm ci\b[^\n]*--loglevel http/.test(step.run)) loglevel += 1;
+        steps += 1;
+      }
+    }
+  }
+  assert.ok(steps >= 16, `only ${steps} npm ci steps found`);
+  assert.equal(loglevel, 1, "exactly one npm ci step logs at --loglevel http");
+});
+
+// A composite action step takes no timeout-minutes, so its npm ci runs under
+// `timeout` and skips audit and fund by flag, whatever env its caller sets.
+test("every composite action npm ci is bounded by timeout and skips audit and fund", () => {
+  let installs = 0;
+  for (const dir of readdirSync(new URL("..", import.meta.url))) {
+    const file = new URL(`../${dir}/action.yml`, import.meta.url);
+    if (!existsSync(file)) continue;
+    for (const step of parse(readFileSync(file, "utf8")).runs?.steps ?? []) {
+      for (const line of (step.run ?? "").split("\n").filter((text) => /\bnpm ci\b/.test(text))) {
+        const where = `${dir}/action.yml "${step.name}"`;
+        assert.match(line, /^\s*timeout \d+m npm ci\b/, `${where}: no timeout bound`);
+        assert.match(line, /--no-audit\b/, `${where}: --no-audit`);
+        assert.match(line, /--no-fund\b/, `${where}: --no-fund`);
+        installs += 1;
+      }
+    }
+  }
+  assert.ok(installs >= 2, `only ${installs} composite npm ci lines found`);
+});
+
+// #10061: no job timeout-minutes is raised to fit an install bound.
+test("check-catalog keeps its 3-minute job bound with the install step under it", () => {
+  const job = workflow("pr-require-checks.yml").jobs["check-catalog"];
+  assert.equal(job["timeout-minutes"], 3);
+  assert.equal(job.steps.find((step) => step.name === "Install the locked root toolchain")["timeout-minutes"], 2);
+});
+
 // --- lane transcripts: every model leg keeps its transcript, sealed ---
 
 // The read runner's model job uploads nothing (the test above). The write
@@ -7067,4 +7130,21 @@ test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only,
   assert.equal(at("", "report-escalation"), false, "an escalation stays red");
   const { jobs } = workflow("pr-unblock.yml");
   assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
+});
+
+// resolve-config reads a split child's fact only from its caller (SPLIT_CHILD)
+// and fails without it, so every resolve here that reads unpinned issue
+// dimensions passes the admit job's split-child, and that job is in its needs.
+test("work-resolve-issue.yml: every resolve without pinned dimensions passes admit's split-child", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const unpinned = [];
+  for (const [name, job] of Object.entries(jobs)) {
+    for (const step of job.steps ?? []) {
+      if (!String(step.uses ?? "").endsWith("/actions/resolve-config") || step.with?.lane !== "work-resolve-issue" || step.with["issue-dimensions"] !== undefined) continue;
+      unpinned.push(name);
+      assert.equal(step.with["split-child"], "${{ needs.admit.outputs.split-child }}", `${name}: ${step.name}`);
+      assert.ok([job.needs].flat().includes("admit"), `${name} needs admit`);
+    }
+  }
+  assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
 });

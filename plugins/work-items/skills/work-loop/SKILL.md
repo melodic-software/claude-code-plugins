@@ -71,8 +71,10 @@ block every cycle as a report; run config is never read back from it (that file 
 ## Telemetry and durable loop state
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: work-loop` (exact match), created through
-the seam `create-item` verb when absent (announce the creation). Maintain exactly ONE status
+config; default: the open issue titled `Lane telemetry: work-loop` (exact match) whose author is the
+lane's write identity (the login the upsert script resolves), created through the seam `create-item`
+verb when none is left (announce the creation). Anyone can open an issue with that title, so skip an
+exact-title match by any other author and name it in the cycle report. Maintain exactly ONE status
 comment on it **per lane instance**, sentinel-identified and edited in place (the `harness-ops`
 lane-telemetry contract; one writer identity owns a marker). The upsert itself, lane-instance
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
@@ -245,13 +247,12 @@ the former default-on pause).
    contract") before filling cap slots, with no further read: `oldest-first` ascending,
    `newest-first` descending. An item whose `created_at` is `null` or absent sorts after every
    timestamped item; among those, and on equal timestamps, order by item number in the same
-   direction, a fixed tie-break so the order is deterministic. Each invocation uses that skill's **autonomous
-   invocation** path: it
-   names the admitted item id and states that this loop's admission gate (and any required
-   ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
-   Selection, claim (assignee + lease), staleness pre-check, dispatch
-   mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there,
-   this loop restates none of them. Loop-level deltas only:
+   direction, a fixed tie-break so the order is deterministic. Each invocation uses that skill's
+   **autonomous invocation** path: it names the admitted item id and states that this loop's
+   admission gate (and any required ratification marker) passed, so `/work-items:work` proceeds
+   without its interactive confirmation prompt. Selection, claim (assignee + lease), staleness
+   pre-check, dispatch mechanics, the PR contract, the review pass, and the never-merge boundary are
+   all owned there, this loop restates none of them. Loop-level deltas only:
    - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
      materializes its own out-of-tree worktree first and works against it via `git -C` without
      entering it; the orchestrator never invokes `/source-control:worktree create`, whose
@@ -295,15 +296,14 @@ the former default-on pause).
    and skips the move when the session already sits in a linked worktree, so the Write lands in
    place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
-   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not
-   the recommended mode: one lane's record Write there was refused with "parent bg session
-   hasn't isolated yet, so writes to the shared checkout are blocked", and otherwise the session
-   moves into an auto-created worktree under `.claude/worktrees/`; that launch was not probed
-   here. Either
-   way the tracker marker comment is the escalation of record, and a refused record Write does
-   not stop the cycle. This lane must not call `EnterWorktree` (it would end the long-lived
-   orchestrator), so isolation comes from where the operator launches it. Foreground on the
-   default-branch checkout remains the known-good mode.
+   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
+   recommended mode: one lane's record Write there was refused with "parent bg session hasn't
+   isolated yet, so writes to the shared checkout are blocked", and otherwise the session moves into
+   an auto-created worktree under `.claude/worktrees/`; that launch was not probed here. Either way
+   the tracker marker comment is the escalation of record, and a refused record Write does not stop
+   the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
+   isolation comes from where the operator launches it. Foreground on the default-branch checkout
+   remains the known-good mode.
 
    Verification record for that paragraph. Claim: a background session launched inside a linked
    git worktree keeps the record Write in place; one launched from a non-linked checkout is

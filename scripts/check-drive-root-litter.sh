@@ -16,7 +16,7 @@
 # `<current-drive>:\d\dir` and the consumer creates that whole phantom chain
 # before writing. The residue is therefore always the same shape: `<drive>:\<x>\`
 # where `<x>` is the single letter of the drive the author MEANT to write to.
-# `docs/conventions/windows-path-emit/README.md` owns the rule that prevents it;
+# `docs/contracts/windows-path-emit/README.md` owns the rule that prevents it;
 # this script is that rule's detection net, for the runs that ignore it.
 #
 # Requiring the directory name to match a MOUNTED DRIVE is what keeps the
@@ -179,7 +179,7 @@ The litter is the cheap part. Whatever wrote it wrote to a path it did not
 intend, so any run that produced it may have measured something other than what
 it claims. Re-check the run's results before trusting them, then:
 
-  * fix the emitter - see docs/conventions/windows-path-emit/README.md, and
+  * fix the emitter - see docs/contracts/windows-path-emit/README.md, and
     scripts/emit-windows-path.sh for the conversion itself;
   * CHECK FOR A REGISTERED GIT WORKTREE BEFORE REMOVING ANYTHING. A phantom
     tree can contain one: a `git worktree add` given an unconverted path

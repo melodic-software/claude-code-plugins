@@ -803,6 +803,76 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, self.LODASH_ROOT, module)
 
+    # #5901 slice 9: protobufjs's `inquire` on 2.1.310, which evaluates the
+    # identifier `require` and loads `moduleName` with it.
+    INQUIRE = (
+        'function inquire(moduleName){try{var mod=moduleName==="long"?Yvr():'
+        'moduleName==="buffer"?require("buffer"):moduleName==="fs"?require("fs"):'
+        'eval("quire".replace(/^/,"re"))(moduleName);'
+        "if(mod&&(mod.length||Object.keys(mod).length))return mod"
+        "}catch(e){}return null}"
+        'var L=inquire("long"),B=inquire("buffer"),F=inquire("fs");'
+    )
+
+    def test_a_constant_eval_of_an_identifier_is_no_sink(self) -> None:
+        """A direct `eval` whose argument folds to one identifier is a read
+        of it, so the load it calls takes the literals every caller of
+        `inquire` passes, none of them a bundle file."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(False, named, self.INQUIRE)
+
+    def test_a_constant_eval_of_code_that_patches_stays_partial(self) -> None:
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        body = "\"Array.prototype.includes=function(){this.push('B')}\""
+        self.assert_across_modules(True, named, f"eval({body});")
+
+    def test_a_non_constant_eval_stays_partial(self) -> None:
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(True, named, "eval(s);")
+
+    def test_a_replaced_string_replace_stays_partial(self) -> None:
+        """A folded `.replace` trusts the string method, so a module that
+        replaces it leaves the fold, and the list, unproven."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        self.assert_across_modules(
+            True, named, self.INQUIRE, 'String.prototype.replace=function(){return"x"};'
+        )
+
+    def test_a_replace_whose_regex_may_backtrack_stays_partial(self) -> None:
+        """The module supplies the regex and the subject a fold runs, so a
+        pattern with a quantifier or past the length limits is not folded:
+        the `eval` stays a sink, and the helper never runs a catastrophic
+        backtrack."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            self.INQUIRE.replace("/^/", "/^r?/"),
+            'eval("' + "a" * 40 + '!".replace(/(a+)+$/,"x"));',
+            # Folds to `require` and spaces, which parses, but is too long.
+            self.INQUIRE.replace('"quire"', '"quire' + " " * 300 + '"'),
+        ):
+            with self.subTest(module=module[:80]):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_parameter_load_its_callers_do_not_clear_stays_partial(
+        self,
+    ) -> None:
+        """`paramSpecsOf` names a parameter's literals only when every use
+        of the function is a direct call passing a literal there, and the
+        function is not exported. A caller passing no literal or a spread,
+        an export, or a use as a value leaves the load unknown; a literal
+        naming node:vm or a bundle file keeps the list partial too."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            self.INQUIRE.replace('inquire("buffer")', "inquire(x)"),
+            self.INQUIRE.replace('inquire("buffer")', "inquire(...a)"),
+            self.INQUIRE.replace('inquire("buffer")', 'inquire("vm")'),
+            self.INQUIRE.replace('inquire("buffer")', 'inquire("/a.js")'),
+            "export " + self.INQUIRE,
+            self.INQUIRE + "var g=inquire;",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
     def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
         """#5970 verifier probes: a load whose file the AST does not name
         (an aliased or `.call`ed require, a comma callee, a specifier that
@@ -935,7 +1005,8 @@ class TestOpenFindings(unittest.TestCase):
         """`Ce` and `$r` define only on fresh objects here, but the verbatim
         chunk's getters read by a computed key: `this[a]` in `n`, `b[c]` in
         `$r` and in `ovi`. Each key may spell `require`, so each read is a
-        load the parser cannot name, and the list reads partial."""
+        load the parser cannot name, and may spell `constructor`, so each is
+        a function-constructor sink too; the list reads partial."""
         importer = 'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
         self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
         h = self.HELPERS
@@ -946,7 +1017,12 @@ class TestOpenFindings(unittest.TestCase):
         ]
         found = type(self).reader.sinks(h, 0, len(h), ["includes"])
         self.assertEqual(
-            sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
+            sorted(found["hits"]),
+            sorted(
+                (kind, None, at)
+                for kind in ("function-constructor", "unknown-load")
+                for at in reads
+            ),
         )
 
     def test_a_named_import_passing_a_fresh_object_clears_a_helper(self) -> None:
@@ -1262,6 +1338,24 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, "Function.prototype.toString.call(f);")
+
+    def test_a_constructor_read_is_a_sink(self) -> None:
+        """A function's `constructor` is the Function constructor, and any
+        object's `constructor.constructor` is too, so either builds code
+        from a string without the name `Function`. A read that is only
+        compared or named stays clear."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        code = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (
+            f"(()=>1).constructor({code})();",
+            f"({{}}).constructor.constructor({code})();",
+            f"var{{constructor:C}}=function(){{}};C({code})();",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(
+            False, named, "var o={};o.constructor===Object&&o.constructor.name;"
+        )
 
     def test_an_importer_with_a_comment_before_from_is_followed(self) -> None:
         """Importers come from the parsed import and re-export declarations,

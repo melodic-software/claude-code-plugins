@@ -34,11 +34,11 @@ async page => {
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
   const Q_MARK = "❓", R_MARK = "➡️";
   const recHead = async () => page.evaluate(() => { const h = [...document.querySelectorAll("#dscroll section.blk > h4")].find(x => /Recommendation/.test(x.textContent)); return h ? h.textContent : ""; });
-  const openAssumptions = s => { // unconfirmed commitments on questions decided by accept or own (Q24)
+  const openAssumptions = s => { // unconfirmed commitments on questions decided by accept or hedged (Q24); an own answer replaces the recommendation
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
-      if (!["accept", "hedged", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
+      if (!["accept", "hedged"].includes(dec) || q.archived || !(q.commits || []).length) continue;
       const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && e.seq <= q.commitsSinceSeq)).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }

@@ -12,6 +12,9 @@ the diff after it exists beats aligning before it. Work that fails either test i
 and an effort too big and too foggy for one session is reached from here, never first
 (`/planning:wayfind` sends a cold start back to this skill).
 
+An effort plainly over its budget: run the scope cut in [`composition.md`](composition.md) "Scope
+cut before wayfind" first, in round 1 when the request already shows it.
+
 ## Bigger than you thought? Check at every round boundary
 
 After each reply is recorded and before the next round is written, answer one question: did this

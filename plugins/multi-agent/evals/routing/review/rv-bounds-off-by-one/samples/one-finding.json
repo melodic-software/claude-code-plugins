@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "finding: scripts/check_fields.py bound_problem - `value <= low` rejects runs: 1\n",
+      "why": "one finding"
+    },
+    {
+      "answer": "Findings:\n\n- **finding:** `scripts/check_fields.py` `bound_problem` - off by one at the minimum\n\nThe check_env message prints the same text as before.\n",
+      "why": "a Findings heading and a closing remark do not count"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: scripts/check_fields.py bound_problem - `value <= low` rejects runs: 1\nfinding: scripts/check_fields.py check_env - the message now uses str.format\n",
+      "why": "the decoy flagged as a second finding"
+    },
+    {
+      "answer": "1. finding: scripts/check_fields.py bound_problem - runs: 1 is rejected\n2. finding: scripts/check_fields.py bound_problem - max_turns: 1 is rejected\n",
+      "why": "one defect split over two lines"
+    },
+    {
+      "answer": "bound_problem is off by one at the lower bound.\n",
+      "why": "no finding line"
+    }
+  ]
+}

@@ -298,8 +298,11 @@ otherwise apply that discipline inline. It never trims the per-row restatement a
 ## Telemetry
 
 This lane maintains exactly ONE sentinel-identified status comment **per lane instance** on its
-per-lane tracking issue in the target repository (default title `Lane telemetry: attend-queue`,
-created through the seam `create-item` verb when absent), edited in place each pass with the rows
+per-lane tracking issue in the target repository (default: the open issue titled exactly
+`Lane telemetry: attend-queue` whose author is the lane's write identity, the login the upsert
+script resolves in the order its reference below gives, `gh api user` first, then
+`<app-slug>[bot]`; created through the seam `create-item` verb when none is left). Anyone can open an issue with that title, so skip an exact-title match by any
+other author and name it in the pass report. The comment is edited in place each pass with the rows
 handled, the answers written, and the guard mode. The upsert runs
 `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`; read
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md) before the first upsert of a run for

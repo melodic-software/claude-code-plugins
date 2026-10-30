@@ -27,6 +27,23 @@ const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "com
 const pull = (number, merged) => ({ ...issue(number, "closed"), pull_request: { merged_at: merged ? "2026-10-01T00:00:00Z" : null } });
 const labelEvent = (kind, actor) => ({ event: kind, label: { name: UNTRUSTED }, actor });
 
+// One GraphQL answer for both reads: no merged pull request closed a blocker
+// (timelineItems), and the issue's text a listed human wrote (specOf).
+const GRAPHQL = {
+  data: {
+    repository: {
+      issue: {
+        timelineItems: { nodes: [{ closer: null }] },
+        body: "Plain issue.",
+        lastEditedAt: null,
+        author: { __typename: "User", databaseId: HUMAN.id },
+        editor: null,
+        comments: { totalCount: 0, nodes: [] },
+      },
+    },
+  },
+};
+
 // The issue itself answers `subject`: its labels and its events. A function
 // `blockers` answers every read.
 async function run(blockers, { env = ENV, subject = {} } = {}) {
@@ -68,7 +85,7 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
     }
     if (method === "POST" && path === "/graphql") {
       // No merged pull request closed it.
-      return { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } };
+      return GRAPHQL;
     }
     throw new Error(`unexpected ${method} ${path} ${JSON.stringify(body)}`);
   };
@@ -77,7 +94,9 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
 }
 
 const SKIP = { proceed: "false", untrusted: "false" };
-const RUN = { proceed: "true", untrusted: "false" };
+// A run that proceeds also says whether the issue is a trusted size-split
+// sub-issue (admit.mjs trustedSplitChild); a listed human wrote this one.
+const RUN = { proceed: "true", untrusted: "false", "split-child": "false" };
 const FINAL = { proceed: "false", untrusted: "true" };
 // The outside-author stop: FINAL, plus the mark report-skip reads to tell the
 // issue's author is outside the trusted list.
@@ -148,7 +167,7 @@ test("a merged pull request blocker costs no trust read, so a read that would fa
       return blockers[0];
     }
     if (path === "/graphql") {
-      return { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } };
+      return GRAPHQL;
     }
     throw new Error(`unexpected ${path}`);
   });
@@ -237,7 +256,7 @@ test("a split parent the lanes App closed after a listed human closed every part
     if (path.startsWith("/repos/o/r/issues/7/sub_issues")) return [issue(50, "closed"), issue(51, partState)];
     if (path === "/repos/o/r/issues/50") return issue(50, "closed");
     if (path === "/repos/o/r/issues/51") return issue(51, partState);
-    if (path === "/graphql") return { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } };
+    if (path === "/graphql") return GRAPHQL;
     throw new Error(`unexpected ${path}`);
   };
   assert.deepEqual((await run(world("closed"))).outputs, RUN);

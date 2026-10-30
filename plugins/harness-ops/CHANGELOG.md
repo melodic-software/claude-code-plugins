@@ -3,6 +3,28 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.19.0] - 2026-10-30
+
+### Added
+
+- `plugins` skill: `scripts/reset-refresh.sh`, an operator-run script for the user-scope plugin fleet. `preview` prints what `refresh` would move aside. `refresh` moves the marketplace clones and `cache/` into a run directory and re-fetches them through `claude plugin marketplace update` and `claude plugin install --scope user`. It exits non-zero when marketplaces, user installs or user `enabledPlugins` differ from their pre-run snapshots. It refuses to run under `CLAUDE_CODE_REMOTE` or while a `claude` process is running.
+
+## [4.18.1] - 2026-10-30
+
+### Fixed
+
+- `/harness-ops:inventory`'s parser reader counts a read of `constructor` as a Function-constructor sink: by name, by a computed key that may spell it, or as a destructured key. A computed key the scan cannot know, such as a parameter or a `for in` key, may spell it; such a read already counted as a load the scan cannot name. A loop counter's key does not. `(()=>1).constructor("code")()` and `({}).constructor.constructor("code")()` now make a trusted list read `partial`. A read that is only tested, compared with `===` or `!==`, or followed by `.name` stays clear.
+
+## [4.18.0] - 2026-10-30
+
+### Changed
+
+- `/harness-ops:inventory`'s parser reader now reads a direct `eval` as a plain read of an identifier when its argument is a constant: a string literal, a template with no expressions, or `.replace` on a literal with a regex literal and a string literal. The code must parse as that one identifier, as protobufjs's `eval("quire".replace(/^/,"re"))` does ([#10002](https://github.com/melodic-software/claude-code-plugins/issues/10002)). The module then resolves names, and its sink scan no longer counts the `eval` against every trusted name. A folded `.replace` trusts `replace`, `@@replace`, `exec`, `lastIndex`, `flags` and the `global`, `unicode` and `unicodeSets` getters, so a module that writes one of them on a prototype leaves the list partial. A `require` whose specifier is a function's parameter counts as a named load of each literal the function's callers pass. That holds only when every caller is a direct call with a literal; any other caller makes it an unknown load. A direct `eval` whose argument does not fold stays a sink.
+
+### Security
+
+- `restart-consumer.sh` resolves an unpinned lane's `Lane telemetry: <lane>` issue, and its own `Lane telemetry: restart-consumer` fallback, only from issues the write identity opened, or the lane's `telemetry.author` when set. An exact-title issue another account opened is skipped and named in a warning, so an outside account can no longer capture a lane's telemetry home by opening an issue with the same title. A `telemetry.author` that is not a GitHub user login is a config error for an unpinned lane.
+
 ## [4.17.0] - 2026-10-29
 
 ### Added

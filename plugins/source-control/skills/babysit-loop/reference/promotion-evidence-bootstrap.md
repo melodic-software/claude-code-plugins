@@ -28,14 +28,14 @@ config
 locations through the plugin options below. Claude Code reads plugin options from user
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
-([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
+([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-config-delivery/README.md)
 fact 5). The lane's step 0 preflight reads the option values substituted into the babysit-loop
 skill body ("Promotion-evidence bootstrap options" in [`SKILL.md`](../SKILL.md); fact 7) and never
 the `CLAUDE_PLUGIN_OPTION_*` environment mirror.
 
 The resolution helper does not take the values from the lane at all. It reads
 `pluginConfigs["<name>@<marketplace>"].options` itself (channel F of
-[hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)),
+[hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-config-delivery/README.md)),
 from two sources, managed winning per option:
 
 - The managed settings files at the fixed system path for the platform: `managed-settings.json`,
@@ -346,7 +346,7 @@ section states the behavior.
   substitute into model-visible content, non-sensitive values only.
 - **Basis:** the autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`; `Usage:` comment,
   `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
-  `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7; the
+  `docs/contracts/hook-config-delivery/README.md` facts 4, 5, and 7; the
   [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   `${user_config.KEY}` entry ("In skill and agent content, only non-sensitive values are
   substituted"), fetched 2026-10-07.

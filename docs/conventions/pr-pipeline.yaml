@@ -23,7 +23,7 @@ activities:
       # The human-gated label holds it in pr-refine.yml's fix-docs-head job
       # unless a lane escalation put it on (lane-hold.mjs), so one lane's
       # escalation does not stop this fixer.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       # Skips a draft PR before any model turn: pipeline lanes leave drafts
       # alone.
       draft: [false]
@@ -56,7 +56,7 @@ activities:
       mergeable: [conflicting, clean]
       # The human-gated label holds it in the select job unless another
       # lane's escalation put it on (lane-hold.mjs).
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-conflict-patch:
     # Merges the base tip resolve-conflicts-select pinned into the head it
@@ -76,7 +76,7 @@ activities:
     applies-when:
       # As resolve-conflicts: the write runner keeps the human-gated label a
       # hold unless the select job read another lane's escalation.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   address-feedback:
     # Fixes the review lanes' open findings on a pull request and records a
@@ -121,7 +121,7 @@ activities:
       # do-not-merge stops it. On a needs-human PR the select job keeps only
       # threads a trusted person with write access asked it to fix, and
       # holds the PR when there are none; pr-merge still refuses that PR.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       # A draft pull request is skipped.
       draft: [false]
   apply-feedback-patch:
@@ -143,7 +143,7 @@ activities:
     applies-when:
       # As address-feedback: a needs-human PR still takes a fix a trusted
       # person with write access asked for.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   publish-feedback:
     # Posts the replies address-feedback recorded, exactly as written, resolves
@@ -192,7 +192,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
       draft: [false]
   apply-dependency-patch:
     # Applies review-dependency's patch, on a fix verdict only, to the head
@@ -212,7 +212,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
       draft: [false]
   apply-dependency-verdict:
     # Acts on the verdict review-dependency recorded: posts the round marker
@@ -253,7 +253,7 @@ activities:
     applies-when:
       # The human-gated label holds it in fix-ci-context unless another
       # lane's escalation put it on.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-patch:
     # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
@@ -273,7 +273,7 @@ activities:
     applies-when:
       # The write runner keeps the human-gated label a hold unless the
       # producer's base-code job read a lane escalation that lets it pass.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either leaves the change in the
@@ -380,7 +380,7 @@ activities:
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, or, for attended, takes its step
       # present, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended]
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended, "security: outside-actor"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -407,6 +407,7 @@ activities:
         - "status: needs-decision"
         - "status: needs-info"
         - attended
+        - "security: outside-actor"
       labels:
         - agent-ready
   report-outcome:
@@ -777,6 +778,10 @@ models:
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split
+    # A trusted size-split sub-issue rated Large (admission takes it whatever
+    # its Size, owner Q93) runs at this size instead of split-required: it
+    # never splits again, so holding it would park it for good.
+    split-child-size: medium
     complexity:
       # Base turns as they are: a small low-complexity issue runs as before.
       low: 1
@@ -954,12 +959,18 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # The agent App, installed on every repository on purpose: ci-status holds
-  # a pull request it opened, wrote a commit of or pushed to when it changes a
-  # trust-gate path, and a person merges it (README.md, Both lanes review the
-  # head).
+  # The Apps whose touch holds a trust-gate path change for a person
+  # (README.md, Both lanes review the head): ci-status here, and ci-workflows'
+  # pr-require-checks-trust-paths through .github/trust-path-hold.json. Owner
+  # decision Q21 (2026-10-29) turned the hold off until open issues and pull
+  # requests reach zero: the one entry is a login no App holds, because the
+  # shared workflow fails on an empty list. Restoring both holds takes three
+  # steps: list melodic-agent[bot] again, set `diff-check.path-holds` true, and run
+  # scripts/sync-hold-floor.py.
+  # Listing the App alone restores only ci-workflows' hold; ci-status's inline
+  # hold also needs `path-holds`.
   trust-path-hold-apps:
-    - melodic-agent[bot]
+    - trust-path-hold-off[bot]
   # true: report each decision and write nothing.
   report-only: false
   # true: post-merge-dispatch starts a full run of main inside its 30-minute
@@ -1048,8 +1059,17 @@ merge:
   # pr-verify FAILs at this many distinct heads of one PR hold it, never to
   # merge unattended, whatever a later pass says, so pushing until the
   # verifier passes once does not merge it (owner decision 2026-10-21). The
-  # hold is the lanes', with no label (owner rule 2026-10-27).
+  # pr-merge lane closes a lanes App one for a fresh attempt at its issue,
+  # and address-feedback and fix-ci start no more rounds on it (owner
+  # decision 2026-10-29).
   max-verify-fails: 3
+  # Fresh attempts one issue gets after the pr-merge lane closes its pull
+  # request at max-verify-fails or as too old: the issue goes back to
+  # agent-ready with the FAIL findings, and that closed pull request's FAILs
+  # leave the cap's count. Past this many the issue is parked at `status:
+  # confirmed` with no new attempt and no person's label (owner decision
+  # 2026-10-29).
+  verify-cap-attempts: 1
   # Days a suite failing on main outside the merges' affected set stays
   # quarantined: its quarantine issue excuses its failures from demotion
   # until it closes or is this old, then they demote again, even when the
@@ -1095,6 +1115,10 @@ merge:
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.
+  # `path-holds` also sets whether ci-status holds an exempt author's PR for
+  # a trust-gate path or an App-authored one (`trust-path-hold-apps`), except
+  # that ci-status holds a Dependabot PR for one either way (owner decision
+  # Q24, 2026-10-29: its action-pin bumps bring in third-party code).
   # `path-holds: false`: no changed path holds a pull request for its path
   # alone, not the floor above, denied-paths nor `review-path:` (owner
   # decision Q15, 2026-10-29: "We shouldn't really have any path

@@ -53,6 +53,9 @@ jobs:
       group: selection-audit-trace
       cancel-in-progress: false
     env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
     steps:
@@ -97,6 +100,7 @@ jobs:
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
       - name: Install locked test toolchains
+        timeout-minutes: 5
         run: |
           npm ci
           # The yaml package scripts/check-read-caller-keys.test.sh and
