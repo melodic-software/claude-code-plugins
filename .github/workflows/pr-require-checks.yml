@@ -178,10 +178,11 @@ concurrency:
 # fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
 # NPM'S FETCH TIMEOUT AND RETRIES ARE BOUNDED. .github/npm-fetch.npmrc sets them,
 # read as npm's global config by every npm call here, run-tests.sh's included.
-# A REFUSED CACHE DOWNLOAD ENDS IN A MINUTE. actions/cache races each segment
-# download against SEGMENT_DOWNLOAD_TIMEOUT_MINS (default 10), longer than any
-# job here, so a stalled restore ran out the job limit and dropped the merge
-# group. At 1 the restore misses and the job installs cold.
+# A STALLED CACHE SEGMENT GIVES UP IN A MINUTE. actions/cache races each
+# 128 MB segment of a restore against SEGMENT_DOWNLOAD_TIMEOUT_MINS (default
+# 10), longer than most jobs here, so a stalled restore ran out the job limit
+# and dropped the merge group. At 1 the restore misses and the job installs
+# cold. The URL lookup and the extract are not under this timer.
 # https://github.com/actions/toolkit/blob/main/packages/cache/src/options.ts
 env:
   SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
@@ -4126,10 +4127,11 @@ jobs:
       # and tested nothing, and the aggregate below passes those skips. That
       # green check stays on the head after the ready flip until the
       # ready_for_review run replaces it, so an enqueue in that gap meets the
-      # required check, and the merge-group run does not close it: lanes that
-      # diff against the base decline there. Arm a pull request only once the
-      # newest ci-status on its head is not a draft run's. This step says why
-      # it is green.
+      # required check, and the merge-group run does not fully close it: the
+      # changed-file gates that read only github.base_ref decline there. No
+      # merge hold checks this, so arm a pull request only once the newest
+      # ci-status on its head is not a draft run's. This step says why it is
+      # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
         run: |
