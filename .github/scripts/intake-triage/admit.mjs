@@ -1498,7 +1498,26 @@ export function splitChildBody(spec, humans, taskList) {
   const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
   const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
   const lines = body.slice(header.length).split("\n");
-  return lines.every((line) => allowed.has(line)) ? body : null;
+  const scope = lines.at(-1)?.startsWith(SCOPE_PREFIX) ? scopeTargets(lines.pop(), exact) : [];
+  return scope !== null && lines.length > 0 && lines.every((line) => allowed.has(line)) ? body : null;
+}
+
+// A target-subset split's last child line: SCOPE_PREFIX and the child's
+// targets, joined by ", ". The model names the targets; the script writes
+// the line, and each target must be verbatim text of a trusted parent line.
+export const SCOPE_PREFIX = "Scope: ";
+
+// Whether `name` can be a Scope target over the task lines `lines`: 2 to
+// 100 characters with no comma, angle bracket, backtick or line break, no
+// outer space, and a verbatim substring of one of `lines`. Pure.
+export const scopeTarget = (name, lines) =>
+  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`\r\n]/.test(name) && lines.some((line) => line.includes(name));
+
+// The targets a Scope line names, or null when one is no scopeTarget over
+// `lines` or repeats. Pure.
+function scopeTargets(line, lines) {
+  const names = line.slice(SCOPE_PREFIX.length).split(", ");
+  return new Set(names).size === names.length && names.every((name) => scopeTarget(name, lines)) ? names : null;
 }
 
 // `line`, a task-list line, with its box ticked: the one `[ ]` in `taskList`
@@ -1518,11 +1537,23 @@ const tickedForms = (line, taskList) => {
 // numbers), the order pairs [a, b] (part b waits on part a), and the
 // sub-issues filed, empty until every one is filed.
 export const linesDigest = (lines) => createHash("sha256").update(JSON.stringify(lines)).digest("hex");
-const RECORD = /^<!-- size-split items=([0-9a-f]{64}) parts=([0-9,;]+) order=([0-9>,]*) filed=([0-9,]*) -->$/;
+const RECORD = /^<!-- size-split items=([0-9a-f]{64}) parts=([0-9,;]+) order=([0-9>,]*) filed=([0-9,]*)(?: groups=([A-Za-z0-9_-]{1,8000}))? -->$/;
 const numbers = (text, separator) => (text === "" ? [] : text.split(separator).map(Number));
 
-export const renderSplitRecord = ({ items, parts, order, filed = [] }) =>
-  `<!-- size-split items=${items} parts=${parts.map((part) => part.join(",")).join(";")} order=${order.map(([a, b]) => `${a}>${b}`).join(",")} filed=${filed.join(",")} -->`;
+// A target-subset split also records its `groups` (the targets of each
+// part), base64url JSON, and each of its parts lists every item.
+export const renderSplitRecord = ({ items, parts, order, filed = [], groups }) =>
+  `<!-- size-split items=${items} parts=${parts.map((part) => part.join(",")).join(";")} order=${order.map(([a, b]) => `${a}>${b}`).join(",")} filed=${filed.join(",")}${groups ? ` groups=${Buffer.from(JSON.stringify(groups)).toString("base64url")}` : ""} -->`;
+
+// A record's groups, or null when they are not a list of lists of strings.
+const decodeGroups = (text) => {
+  try {
+    const groups = JSON.parse(Buffer.from(text, "base64url").toString("utf8"));
+    return Array.isArray(groups) && groups.every((group) => Array.isArray(group) && group.every((name) => typeof name === "string")) ? groups : null;
+  } catch {
+    return null;
+  }
+};
 
 // The record a comment body carries, or null. Pure.
 export function splitRecord(body) {
@@ -1536,6 +1567,7 @@ export function splitRecord(body) {
     parts: match[2].split(";").map((part) => numbers(part, ",")),
     order: numbers(match[3], ",").length === 0 ? [] : match[3].split(",").map((pair) => pair.split(">").map(Number)),
     filed: numbers(match[4], ","),
+    ...(match[5] === undefined ? {} : { groups: decodeGroups(match[5]) }),
   };
 }
 

@@ -593,7 +593,30 @@ def split_child_body(
         else exact
     )
     lines = body[len(header) :].split("\n")
-    return body if all(line in allowed for line in lines) else None
+    if lines[-1].startswith(SCOPE_PREFIX):
+        names = lines.pop()[len(SCOPE_PREFIX) :].split(", ")
+        if len(set(names)) != len(names) or not all(
+            scope_target(name, exact) for name in names
+        ):
+            return None
+    return body if lines and all(line in allowed for line in lines) else None
+
+
+# admit.mjs SCOPE_PREFIX and scopeTarget: a target-subset split's last child
+# line, and whether `name` can be one of its targets over the task lines.
+SCOPE_PREFIX = "Scope: "
+SCOPE_BANNED = re.compile(r"[,<>`\r\n]")
+
+
+def scope_target(name: str, lines: set[str]) -> bool:
+    """2 to 100 characters, no comma, angle bracket, backtick or line
+    break, no outer space, and verbatim text of one of `lines`."""
+    return (
+        2 <= len(name) <= 100
+        and name.strip() == name
+        and not SCOPE_BANNED.search(name)
+        and any(name in line for line in lines)
+    )
 
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
