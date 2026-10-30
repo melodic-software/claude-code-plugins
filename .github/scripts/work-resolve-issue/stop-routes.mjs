@@ -139,11 +139,19 @@ const namesEndingRisk = (text) => {
 // when it names security, so a misformatted security code still reaches a
 // person; else "stopped". Intent, design and cost words are common in plain
 // reasons, so only their code holds for them.
-export const runCode = (reason) => {
-  const text = String(reason ?? "")
+const reasonText = (reason) =>
+  String(reason ?? "")
     .normalize("NFKC")
     .replace(/[\p{Cf}\p{Mn}]/gu, "")
     .replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
+// The code a reason explicitly opens with, read as runCode reads it, with no
+// security-word reading: "" when it opens with none.
+export const leadingCode = (reason) => {
+  const text = reasonText(reason);
+  return CODES.find(([, code]) => code.test(text))?.[0] ?? "";
+};
+export const runCode = (reason) => {
+  const text = reasonText(reason);
   for (const [name, code] of CODES) {
     const match = code.exec(text);
     if (match) {

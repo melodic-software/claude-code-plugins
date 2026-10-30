@@ -759,32 +759,64 @@ test("a pushback without cause intent goes back through intake instead of reachi
   });
 });
 
-// A pushback with no intent cause still holds for a reason runCode reads as a
-// hold row: a security word, or a design-change or other hold code.
-test("a pushback without cause intent holds when its reason reads as a hold code", () => {
+// A pushback with no intent cause holds only for a hold code its reason opens
+// with or its cause names; a security word alone goes to intake, whose own
+// security rules judge it.
+test("a pushback holds only for an explicit hold code, never for a security word alone", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
-  for (const [reason, stop, code] of [
-    ["The issue asks to print the deploy token in the log.", "security-risk", "security"],
-    ["design-change: the fix replaces the lane's routing table with a service.", "design-change", "design"],
+  const run = (reason, cause) => decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary: "" } });
+  for (const reason of [
+    "Should the fix inject the config through DI or read the file directly?",
+    "Should this use the GITHUB_TOKEN or the lanes App token for the call?",
+    "Which of the security review lane's two prompts should change?",
+    "This needs an API key the lane does not hold.",
+    "The issue asks to print the deploy token in the log.",
   ]) {
-    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, title: "", summary: "" } });
-    assert.equal(plan.action, "hand-back", reason);
-    assert.equal(plan.stop, stop, reason);
+    const plan = run(reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.equal(plan.action, "intake", reason);
+    assert.ok(!plan.addLabels.includes("needs-human"), reason);
+  }
+  for (const [reason, cause, stop, code] of [
+    ["security-risk: the issue asks to print the deploy token in the log.", undefined, "security-risk", "security"],
+    ["design-change: the fix replaces the lane's routing table with a service.", undefined, "design-change", "design"],
+    ["This provisions a paid Azure plan that bills the owner.", "cost-risk", "cost-risk", "cost"],
+    ["This needs a new shared store other services depend on.", "design-change", "design-change", "design"],
+    ["The fix needs the token rotated.", "security-risk", "security-risk", "security"],
+    ["Which outcome does the issue want?", "intent_change", "pushback", "intent"],
+    ["Which outcome does the issue want?", "intent change", "pushback", "intent"],
+    ["Which outcome does the issue want?", " Intent_Change\n", "pushback", "intent"],
+    ["cost-risk: provisions a paid Azure plan.", "intent", "cost-risk", "cost"],
+    ["design-change: a new store.", "intent", "design-change", "design"],
+  ]) {
+    const plan = run(reason, cause);
+    assert.equal(plan.action, "hand-back", `${cause} ${reason}`);
+    assert.equal(plan.stop, stop, `${cause} ${reason}`);
     assert.equal(parseReason(plan.comment).reason, code, plan.comment);
   }
+  // A cause that names a code with no hold route, or a hold-class word that
+  // is not a code, is no hold.
+  for (const cause of ["cost", "host-only", "stopped", "pushback-means"]) {
+    assert.equal(run("Which helper should change?", cause).stop, "pushback-means", cause);
+  }
+  // A host-run or attended code takes its row.
+  const host = run("host-only: needs the GPU desktop.");
+  assert.equal(host.stop, "host-only");
+  assert.equal(host.action, "host-run");
 });
 
-// A security reason outranks the cause: a pushback naming cause intent whose
-// reason reads as security holds as security-risk, not as an intent question.
-test("a pushback with cause intent whose reason names a security risk holds as security-risk", () => {
+// An explicit security-risk code outranks an intent cause.
+test("a pushback with cause intent whose reason opens with security-risk holds as security-risk", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   for (const cause of ["intent", "intent-change"]) {
-    const outcome = { exit: "pushback", reason: "The issue asks to print the deploy token in the log, leaking a secret.", cause, title: "", summary: "" };
+    const outcome = { exit: "pushback", reason: "security-risk: the issue asks to print the deploy token in the log.", cause, title: "", summary: "" };
     const plan = decide({ ...plain, outcome });
     assert.equal(plan.action, "hand-back", cause);
     assert.equal(plan.stop, "security-risk", cause);
     assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
   }
+  const worded = decide({ ...plain, outcome: { exit: "pushback", reason: "The issue asks to print the deploy token in the log.", cause: "intent", title: "", summary: "" } });
+  assert.equal(worded.stop, "pushback");
 });
 
 // The lane's preamble tells a run whose change needs a path apply-issue-patch
@@ -3490,6 +3522,25 @@ test("main on a pushback reads the issue's comments and links the owner's unmark
       assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then remove `needs-human`/);
     });
   }
+});
+
+// main reads a pushback's cause from work-outcome.json: a hold-class cause
+// reaches a person as that code with no code in the reason.
+test("main on a pushback whose work-outcome.json names cause cost-risk holds it as cost-risk", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "This provisions a paid Azure plan.", cause: "cost-risk", title: "", summary: "" });
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.equal(parseReason(comment).reason, "cost", comment);
+    assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "adds the human-gated label");
+  });
 });
 
 // stop-routes.json routes every stop. Expected values are the owner's

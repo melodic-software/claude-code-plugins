@@ -2200,15 +2200,17 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
   `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
-  A `pushback` exit whose `reason` names a security word holds as `security-risk`, whatever its
-  cause. Otherwise it holds as `intent` only when its outcome names `"cause": "intent"` (or
-  `intent-change`), an intent question. With any other cause, or none, its `reason` is read as a
-  `stopped` reason is: one that opens with a hold code (`design-change`, `intent-change`,
-  `security-risk`, `cost-risk`) takes that hold row, and any other is `pushback-means`, a choice
-  of means or a design detail, which goes back through intake triage once (`intake` route,
-  `retries: 1`), where intake names its recommendation on evidence and admits the issue again
-  with no stop for the owner, and then takes `retry-spent`'s route.
-  A security mention always reaches the owner: a reason with no code, or one whose code's route is
+  A `pushback` exit holds only for a code or an intent cause. A `reason` that opens with a hold
+  code (`security-risk`, `cost-risk`, `design-change`, `intent-change`) takes that hold row,
+  whatever its cause. Otherwise it holds as `intent` when its outcome names `"cause": "intent"`
+  or `intent-change` (any case, an underscore or space for the hyphen), an intent question; else
+  a `cause` that names a hold code takes that hold row; else a `reason` that opens with a
+  `host-run` or `attended` code (`host-only`, `patch-protected-path`, `manual-external`) takes
+  that row. Any other pushback, one that only mentions a security word included, is
+  `pushback-means`, which goes back through intake triage once (`intake` route, `retries: 1`):
+  intake decides it again on evidence and admits it, unless its own intent, security or cost
+  rules stop it, and then takes `retry-spent`'s route.
+  A `stopped` reason (never a `pushback`) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
