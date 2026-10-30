@@ -317,7 +317,7 @@ export const DISARM_MUTATION = `mutation($id: ID!) {
 // A pull request's auto-merge state, read back once when a resent arm or
 // disarm errors (sendSettled).
 export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
-  node(id: $id) { ... on PullRequest { headRefOid autoMergeRequest { enabledAt } } }
+  node(id: $id) { ... on PullRequest { state headRefOid autoMergeRequest { enabledAt } } }
 }`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -1635,10 +1635,10 @@ export async function main({ env = process.env, github, actions, verify, room, c
     const disarmStop = () => (stopped === null ? null : latch.until(`${env.GITHUB_API_URL || "https://api.github.com"}/graphql`));
     // Arms or disarms one pull request. When a resent send errors, the first
     // may have landed with its answer lost, so the state is read back once:
-    // armed at the head the run read, or unarmed, is the target reached and
-    // returns as a success. Any other state, a failed read, or a rate limit
-    // (nothing more is sent) throws the send's own error, with the newest
-    // answer still the send's.
+    // an open pull request armed at the head the run read, or unarmed, is the
+    // target reached and returns as a success. Any other state, a failed
+    // read, or a rate limit (nothing more is sent) throws the send's own
+    // error, with the newest answer still the send's.
     const sendSettled = async (action, pull) => {
       const [query, variables] = action === "arm" ? [ARM_MUTATION, { id: pull.id, head: pull.headRefOid }] : [DISARM_MUTATION, { id: pull.id }];
       try {
@@ -1655,7 +1655,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
           console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend and its state was not read back: ${describe(readError)}`);
         }
         answer = sent;
-        const reached = state != null && (action === "arm" ? state.autoMergeRequest != null && state.headRefOid === pull.headRefOid : state.autoMergeRequest == null);
+        // An open pull request only: a merged one shows no auto-merge either,
+        // and a disarm that missed it must still fail.
+        const reached = state?.state === "OPEN" && (action === "arm" ? state.autoMergeRequest != null && state.headRefOid === pull.headRefOid : state.autoMergeRequest === null);
         if (!reached) {
           throw error;
         }

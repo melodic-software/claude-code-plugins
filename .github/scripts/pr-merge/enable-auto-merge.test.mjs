@@ -314,7 +314,7 @@ function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, file
       if (found?.after === "error") {
         throw new GitHubError(502, "POST /graphql");
       }
-      return { data: { node: found?.after ?? { headRefOid: found?.headRefOid, autoMergeRequest: found?.autoMergeRequest ?? null } } };
+      return { data: { node: found?.after ?? { state: "OPEN", headRefOid: found?.headRefOid, autoMergeRequest: found?.autoMergeRequest ?? null } } };
     }
     if (body.query === DISARM_MUTATION && disarmThrows[body.variables.id]?.length > 0) {
       throw disarmThrows[body.variables.id].shift();
@@ -1483,7 +1483,7 @@ const unanswered = () => new GitHubError(502, "POST /graphql");
 const readBacks = (calls) => calls.filter(({ body }) => body?.query === AUTO_MERGE_STATE_QUERY).length;
 
 test("a resent arm that errors with the pull request already armed at its head reads it back once and counts it armed", async () => {
-  const { code, writes, lines, calls, statuses } = await run([pull(1, { after: { headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } } })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
+  const { code, writes, lines, calls, statuses } = await run([pull(1, { after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } } })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
   assert.equal(code, 0);
   assert.equal(writes.length, 2);
   assert.equal(readBacks(calls), 1);
@@ -1494,7 +1494,7 @@ test("a resent arm that errors with the pull request already armed at its head r
 });
 
 test("a resent arm that errors while the pull request is unarmed or armed at another head still fails, naming it and the cause", async () => {
-  for (const after of [undefined, { headRefOid: "c".repeat(40), autoMergeRequest: { enabledAt: NOW } }, "error"]) {
+  for (const after of [undefined, { state: "OPEN", headRefOid: "c".repeat(40), autoMergeRequest: { enabledAt: NOW } }, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } }, "error"]) {
     const { code, lines, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
     assert.equal(code, 1);
     assert.equal(readBacks(calls), 1);
@@ -1504,7 +1504,7 @@ test("a resent arm that errors while the pull request is unarmed or armed at ano
 });
 
 test("an arm that errors on its first send, or with a rate limit, is not read back", async () => {
-  const after = { headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } };
+  const after = { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } };
   for (const errors of [[unanswered()], [reset(), new GitHubError(403, "POST /graphql")]]) {
     const { code, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: errors } });
     assert.equal(code, 1);
@@ -1513,7 +1513,7 @@ test("an arm that errors on its first send, or with a rate limit, is not read ba
 });
 
 test("a resent disarm that errors with the pull request already unarmed counts it disarmed and writes the note", async () => {
-  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after: { headRefOid: HEAD, autoMergeRequest: null } });
+  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: null } });
   const { code, writes, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
   assert.equal(code, 0);
   assert.deepEqual(writes, Array(2).fill({ mutation: "disarm", id: "PR_1" }));
@@ -1523,13 +1523,15 @@ test("a resent disarm that errors with the pull request already unarmed counts i
   assert.ok(!lines.some((line) => line.startsWith("::error")));
 });
 
-test("a resent disarm that errors while the pull request is still armed fails, naming it and the cause, and writes no note", async () => {
-  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING });
-  const { code, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
-  assert.equal(code, 1);
-  assert.equal(readBacks(calls), 1);
-  assert.deepEqual(notes, []);
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 disarm: POST /graphql (GraphQL errors) failed with status 200"));
+test("a resent disarm that errors while the pull request is still armed, merged, or not read as a pull request fails, naming it and the cause, and writes no note", async () => {
+  for (const after of [undefined, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: null }, {}]) {
+    const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after });
+    const { code, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
+    assert.equal(code, 1, JSON.stringify(after));
+    assert.equal(readBacks(calls), 1);
+    assert.deepEqual(notes, []);
+    assert.ok(lines.includes("::error title=enable-auto-merge::#1 disarm: POST /graphql (GraphQL errors) failed with status 200"));
+  }
 });
 
 test("the resend warning names the arm and its pull request", async () => {
