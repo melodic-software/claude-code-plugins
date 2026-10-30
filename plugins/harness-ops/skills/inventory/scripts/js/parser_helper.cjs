@@ -1938,12 +1938,16 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
       (["IfStatement", "WhileStatement", "DoWhileStatement", "ForStatement", "ConditionalExpression"].includes(end?.type) && end.test === top)
     );
   };
-  // Whether the value of `n` is thrown away: an expression statement, or a
-  // sequence operand other than the last (`try{return new Function(""),!0}`).
+  // Whether the value of `n` is thrown away: an expression statement, a
+  // sequence operand other than the last (`try{return new Function(""),!0}`),
+  // or a branch of a conditional or the right operand of a logical
+  // expression whose own value is thrown away (`r ? o.constructor : null;`).
   const discarded = (n) => {
     const p = parents.get(n);
     if (p?.type === "ExpressionStatement") return true;
     if (p?.type === "SequenceExpression") return p.expressions.at(-1) !== n || discarded(p);
+    if (p?.type === "ConditionalExpression") return p.test !== n && discarded(p);
+    if (p?.type === "LogicalExpression") return p.right === n && discarded(p);
     return p?.type === "ChainExpression" && discarded(p);
   };
   // Whether the property key `key` may be `constructor`.

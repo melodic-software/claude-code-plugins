@@ -986,6 +986,10 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof x.constructor;a instanceof x.constructor;",
                 [],
             ),
+            # A branch or right operand whose whole value is thrown away.
+            ("r?x.constructor:null;a&&x.constructor;a??x.constructor;", []),
+            ("(r?x.constructor:g)(s)();", ["function-constructor"]),
+            ("var C=a&&x.constructor;", ["function-constructor"]),
         ):
             with self.subTest(src=src):
                 self.assertEqual(self._sinks(src), kinds)

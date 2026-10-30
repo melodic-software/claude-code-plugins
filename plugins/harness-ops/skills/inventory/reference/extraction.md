@@ -523,8 +523,9 @@ workflow runtime, the plugin loader, a test kit). A load the scan cannot name (b
 
 `Function(...)` and `new Function(...)` build a function from strings and run none of its body;
 only a call runs it. So a use of the global `Function` is no sink when the function it builds is
-discarded (an expression statement, or a sequence operand other than the last, as in
-`try{return new Function(""),!0}catch(e){return!1}`), nor when it is called directly
+discarded (an expression statement, a sequence operand other than the last, as in
+`try{return new Function(""),!0}catch(e){return!1}`, or a conditional branch or the right
+operand of a logical expression whose own value is discarded), nor when it is called directly
 (`Function("return this")()`) with every argument a string literal or a template without
 substitutions and the code those spell, parsed with acorn as an unnamed function expression in a
 module, holds no sink by this same rule (followed up to 4 folds deep). The module goal rejects
