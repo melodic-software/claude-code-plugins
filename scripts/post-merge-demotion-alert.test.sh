@@ -142,12 +142,17 @@ case "$endpoint" in
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
   */git/ref/heads/main)
-    # main's tip, unambiguous where a tag shares the name.
-    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref ]] || exit 1
+    # main's tip, unambiguous where a tag shares the name: STUB_TIP (default
+    # the run's own head), fail, or rate (refused for a rate limit).
+    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref && "${STUB_TIP:-}" != fail ]] || exit 1
+    if [[ "${STUB_TIP:-}" == rate ]]; then
+      echo 'gh: API rate limit exceeded for installation ID 1. (HTTP 403)' >&2
+      exit 1
+    fi
     fixture="$STUB_DIR/main-ref.json"
-    echo '{"object": {"sha": "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}' >"$fixture"
+    jq -n --arg s "${STUB_TIP:-$STUB_RUN_SHA}" '{object: {sha: $s}}' >"$fixture"
     ;;
-  */compare/*...abcdefabcdefabcdefabcdefabcdefabcdefabcd)
+  */compare/fedcba9876543210fedcba9876543210fedcba98...*)
     # Whether the newer green run's head is on main: STUB_ON_MAIN is the
     # compare status (default ahead), or fail.
     [[ "${STUB_ON_MAIN:-ahead}" != fail ]] || exit 1
@@ -282,7 +287,7 @@ PY
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_TIP="${TIP:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -715,7 +720,7 @@ fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
 RERUN=success ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(head -1 <<<"$LOG")" == 'POST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/git/ref/heads/main\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
   "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 2 && "$(posts)" -eq 1 ]]; then
   ok "a full run's first failed attempt re-runs its failed jobs and a passing re-run files nothing"
 else
@@ -781,6 +786,26 @@ ATTEMPT=1 files "a canary's first failed attempt files without a re-run" canary 
 if grep -q 'rerun-failed-jobs' <<<"$LOG"; then
   fail "a canary run was re-run: log='$LOG'"
 fi
+
+# A red run on a superseded head (main moved on) is neither re-run nor waited
+# on, so attempt 1 is not judged and nothing is filed.
+TIP="$OTHER" RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
+  "$OUT" == *"::notice::$RUN_URL is on ${SHA:0:12}, not main's tip ${OTHER:0:12}"*"nothing filed"* ]]; then
+  ok "a red run on a superseded head is not re-run, not waited on, and files nothing"
+else
+  fail "superseded head: rc=$RC log='$LOG' out='$OUT'"
+fi
+for mode in fail rate; do
+  TIP=$mode RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+  want=0 note='::warning::the read of main'
+  [[ "$mode" == fail ]] || want=1 note='::error title=GitHub rate limit::the read of main'
+  if [[ "$RC" -eq "$want" && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && "$OUT" == *"$note"* ]]; then
+    ok "a failed read of main's tip ($mode) re-runs nothing and files nothing"
+  else
+    fail "tip read $mode: rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
 
 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
@@ -1377,7 +1402,7 @@ for status in diverged behind fail fail-ref; do
     fail "newer green run off main, $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
   fi
 done
-GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical VIA=workflow_dispatch \
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical TIP="$MAIN_TIP" VIA=workflow_dispatch \
   STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
   grep -qx "GET repos/o/r/compare/$NEWER...$MAIN_TIP" <<<"$LOG"; then
