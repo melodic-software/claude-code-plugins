@@ -1597,13 +1597,14 @@ export async function splitParentClosed({ github, repository, issue, isApp, huma
 }
 
 // admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
-// a listed human or a merge, or is a split parent the lanes App closed
-// (splitParentClosed), read fresh.
+// a listed human or a merge, by the lanes App as already-done with evidence
+// that still holds (isTrustedClose), or is a split parent the lanes App
+// closed (splitParentClosed), read fresh.
 export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = (actor) => appId !== undefined && actor?.id === appId;
   const trusted = async (number) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
-    return (await isTrustedClose(github, repository, issue, humans)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
+    return (await isTrustedClose(github, repository, issue, humans, isApp)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
   };
   return trusted;
 };
@@ -1643,7 +1644,9 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // duplicate counts too, since nothing is left to wait for. `isTrusted`
   // answers for this repository's blockers only.
   const trusted =
-    isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
+    isTrusted ??
+    (async (blocker) =>
+      isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, (actor) => appId !== undefined && actor?.id === appId));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
     if (!blocker.pull_request && blockerDone(blocker, repository, () => true)) {
