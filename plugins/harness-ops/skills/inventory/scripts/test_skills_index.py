@@ -124,6 +124,26 @@ class TestSkillsIndex(unittest.TestCase):
             (absent["state"], absent["source"]), ("not-installed", "checkout")
         )
 
+    def test_root_skill_md_without_a_name_takes_the_plugin_name(self) -> None:
+        self.add_entry({"name": "solo", "source": "./plugins/solo"})
+        self.add_entry({"name": "bare", "source": "./plugins/bare"})
+        cache = self.root / "plugins" / "cache" / "mkt"
+        for plugin, manifest in (("solo", {"name": "solo-tool"}), ("bare", {})):
+            version = cache / plugin / "1.0.0"
+            self.write(version / ".claude-plugin" / "plugin.json", manifest)
+            (version / "SKILL.md").write_text(
+                "---\ndescription: root skill\n---\n\nBody.\n", encoding="utf-8"
+            )
+        got = self.index()
+        solo = got[("solo@mkt", "solo-tool")]
+        self.assertEqual(
+            (solo["name"], solo["description"], solo["source"]),
+            ("solo-tool", "root skill", "cache"),
+        )
+        # No name in plugin.json: the plugin directory above the version one.
+        self.assertEqual(got[("bare@mkt", "bare")]["name"], "bare")
+        self.assertNotIn("1.0.0", {r["skill"] for r in got.values()})
+
     def test_cached_copy_wins_over_checkout_copy(self) -> None:
         self.add_entry({"name": "on", "source": "./plugins/on"})
         _skill(self.market / "plugins" / "on" / "skills" / "go", "go", "checkout go")

@@ -6324,14 +6324,20 @@ def _skill_files(root: Path, manifest: dict[str, Any]) -> list[Path]:
 
 
 def _index_record(
-    plugin: str, skill_md: Path, state: str, source: str
+    plugin: str,
+    skill_md: Path,
+    state: str,
+    source: str,
+    root_skill: str | None = None,
 ) -> dict[str, Any]:
+    """`root_skill` names a SKILL.md at the plugin root, whose parent directory
+    is the plugin root: for a cached plugin, its version directory."""
     try:
         text = skill_md.read_text(encoding="utf-8", errors="replace")
     except OSError:
         text = ""
     fm = _frontmatter(text)
-    skill = skill_md.parent.name
+    skill = root_skill or skill_md.parent.name
     return {
         "plugin": plugin,
         "skill": skill,
@@ -6376,7 +6382,25 @@ def _plugin_records(
         if enabled is None
         else _plugin_state(pid, enabled, entry, manifest)
     )
-    return [_index_record(pid, md, state, source) for md in _skill_files(root, manifest)]
+    # A root SKILL.md takes the plugin's name: plugin.json's, else the id's,
+    # which is the `cache/<marketplace>/<plugin>/` directory above the version.
+    declared_name = manifest.get("name")
+    plugin_name = (
+        declared_name
+        if isinstance(declared_name, str) and declared_name
+        else pid.rsplit("@", 1)[0]
+    )
+    top = root.resolve()
+    return [
+        _index_record(
+            pid,
+            md,
+            state,
+            source,
+            plugin_name if md.parent.resolve() == top else None,
+        )
+        for md in _skill_files(root, manifest)
+    ]
 
 
 def skills_index(root: Path, project_root: Path) -> list[dict[str, Any]]:
