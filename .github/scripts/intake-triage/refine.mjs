@@ -86,6 +86,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { appendFileSync } from "node:fs";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
@@ -382,8 +383,11 @@ export function partitionProblem(output, count, maxParts = 10) {
 
 // Why `groups` and `order` are no target-subset split over task lines
 // `lines`, or null: 2 to `maxParts` non-empty groups, each target an
-// admit.mjs scopeTarget over `lines` and named once, and an order as
-// partitionProblem takes it. Pure.
+// admit.mjs scopeTarget over `lines` and named once, every line holding
+// one of the targets (none left out of every part), an order as
+// partitionProblem takes it, and groups the split record holds: they must
+// come back from renderSplitRecord through splitRecord, so the record's
+// cap and its parser stay one source. Pure.
 export function subsetProblem({ groups, order }, lines, maxParts) {
   if (!Array.isArray(groups) || groups.length < 2 || groups.length > maxParts) {
     return `groups must be a list of 2 to ${maxParts} groups`;
@@ -400,7 +404,16 @@ export function subsetProblem({ groups, order }, lines, maxParts) {
       seen.add(name);
     }
   }
-  return orderProblem(order, groups.length);
+  if (!lines.every((line) => [...seen].some((name) => line.includes(name)))) {
+    return "the targets must cover every task-list line";
+  }
+  const problem = orderProblem(order, groups.length);
+  if (problem !== null) {
+    return problem;
+  }
+  const every = lines.map((_, index) => index + 1);
+  const record = renderSplitRecord({ items: "0".repeat(64), parts: groups.map(() => every), order, groups });
+  return isDeepStrictEqual(splitRecord(record)?.groups, groups) ? null : "the groups are too long for the split record";
 }
 
 // Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
