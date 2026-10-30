@@ -6,7 +6,7 @@ expected_outcome: The quiz questions probe non-obvious behaviors in the diff, su
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged. I read the diff but want to be sure I caught the subtle behavior shifts. This run cannot write files, so print the quiz questions and the report section each one is anchored to in your reply. Key each question on a behavior a reader would skim past, not on what the diff makes obvious."
+  prompt: "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged; it is mostly a refactor. This run cannot write files, so print the quiz questions and the report section each one is anchored to in your reply. Key each question on a behavior a reader would skim past, not on what the diff makes obvious."
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900

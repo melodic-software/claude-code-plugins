@@ -71,6 +71,7 @@
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
 #   SETTINGS_AUDIT_ENGINE_PROGRESS      set to 0 to drop the per-category progress lines on stderr
+#   SETTINGS_AUDIT_ENGINE_TODAY         YYYY-MM-DD to judge suppression age against (else today, UTC)
 #   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
 #                                       nothing is fetched and pages resolve through that llms.txt;
 #                                       DOCS_CACHE_DIR must then name a cache directory
@@ -384,6 +385,9 @@ declare -A SUPPRESS_LAYER=()
 declare -A SUPPRESS_SOURCE=()
 PERSONAL_ONLY=()
 MALFORMED=()
+# Every well-formed entry at every layer, as layer, source, id, check, claim,
+# reason and date joined by US, for the Category K age check.
+SUPPRESSION_ENTRIES=()
 
 # Every row is held as REC_WIDTH fields in REC and turned into JSON by one jq
 # pass at assembly: a process start costs tens to hundreds of milliseconds on
@@ -567,6 +571,8 @@ elif [[ $home_rc -eq 2 || $home_rc -eq 3 ]]; then
 fi
 TEAM_RECORD="$CONVENTION_HOME/harness-config.yaml"
 LEGACY_TEAM_RECORD=".claude/audit-pass.md"
+# exceptions.max_days as the team YAML sets it; empty when it does not.
+MAX_DAYS_SET=""
 
 parse_suppressions_yaml() {
   # parse_suppressions_yaml < yaml-subset records -> the TSV lines parse_suppressions prints
@@ -642,6 +648,7 @@ load_suppression_entries() {
       MALFORMED+=("$layer:$id constituents hash to $rec_id, not to the key")
       continue
     fi
+    SUPPRESSION_ENTRIES+=("$layer$US$source$US$id$US$check$US$claim$US$reason$US$date")
     case "$layer" in
     team)
       TEAM_IDS[$id]=1
@@ -674,6 +681,7 @@ if [[ -f "$PROJECT_ROOT/$TEAM_RECORD" ]]; then
   if team_records="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_SUBSET" "$PROJECT_ROOT/$TEAM_RECORD" 2>/dev/null)"; then
     note_layer team "$TEAM_RECORD" read
     load_suppression_entries team "$TEAM_RECORD" < <(parse_suppressions_yaml <<<"$team_records")
+    MAX_DAYS_SET="$(awk -F'\t' '$1 == "exceptions.max_days" { print substr($0, length($1) + 2) }' <<<"$team_records")"
   else
     team_error="$(awk -F'\t' '$1 == "error" { m = "line " $2 ": " $3 } END { print m }' <<<"$team_records")"
     team_error="${team_error//[[:cntrl:]]/?}"
@@ -2359,6 +2367,49 @@ if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
     fi
   done <"$KNOWN_ISSUES_FILE"
 fi
+
+# --- Category K: suppression age ---------------------------------------------------
+
+progress K "suppression age"
+
+# days_to <var> <YYYY-MM-DD>: the date as a day count from 1970-01-01, or empty
+# when it is not that shape. Civil-to-days arithmetic in the shell, since
+# `date -d` is GNU-only.
+days_to() {
+  local y m d era yoe doy
+  printf -v "$1" '%s' ""
+  [[ "$2" =~ ^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || return 0
+  y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]}))
+  ((m <= 2)) && y=$((y - 1))
+  era=$((y / 400)) yoe=$((y % 400))
+  doy=$(((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1))
+  printf -v "$1" '%s' $((era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468))
+}
+
+# A suppression whose date is older than exceptions.max_days (ADR 0080's default
+# of 90 days, or the team YAML's value) is reported, never removed: obligation 3
+# of the finding-suppression contract still retires an entry once its finding
+# is gone.
+MAX_DAYS=90
+if [[ -n "$MAX_DAYS_SET" ]]; then
+  if [[ "$MAX_DAYS_SET" =~ ^[1-9][0-9]{0,5}$ ]]; then
+    MAX_DAYS="$MAX_DAYS_SET"
+  else
+    row K max-days finding warning "$TEAM_RECORD" max-days-invalid "exceptions.max_days is '${MAX_DAYS_SET//[[:cntrl:]]/?}', not a whole number of days from 1; the default of 90 applies" -
+  fi
+fi
+days_to today_days "${SETTINGS_AUDIT_ENGINE_TODAY:-$(date -u +%Y-%m-%d)}"
+for entry in "${SUPPRESSION_ENTRIES[@]}"; do
+  IFS="$US" read -r s_layer s_source s_id s_check s_claim s_reason s_date <<<"$entry"
+  days_to s_days "$s_date"
+  if [[ -z "$today_days" || -z "$s_days" ]] || ((s_days > today_days)); then
+    row K suppression-age skip none "$s_source" "suppression-age:$s_id" "suppression $s_id ($s_layer layer) is dated '${s_date//[[:cntrl:]]/?}', not a past YYYY-MM-DD date; its age against exceptions.max_days $MAX_DAYS was not judged" -
+  elif ((today_days - s_days > MAX_DAYS)); then
+    row K suppression-age finding warning "$s_source" "suppression-age:$s_id" "suppression $s_id ($s_check, $s_claim; $s_layer layer) is $((today_days - s_days)) days old (dated $s_date), past exceptions.max_days $MAX_DAYS; reconfirm and re-date it, or remove it (the audit removes nothing); reason: $s_reason" -
+  else
+    row K suppression-age ok none "$s_source" "suppression-age:$s_id" "suppression $s_id ($s_layer layer) is $((today_days - s_days)) days old, within exceptions.max_days $MAX_DAYS" -
+  fi
+done
 
 # --- Assemble ----------------------------------------------------------------------
 
