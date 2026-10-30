@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
-import { applySizeSplit, partitionProblem, sizeSplitPending, splitDigest } from "./refine.mjs";
+import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
+import { applySizeDecline, applySizeSplit, partitionProblem, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 import { ADMIT_MARKER, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
@@ -869,10 +869,8 @@ describe("size split", () => {
   // split keeps it from a refinement.
   test("a parked issue that cannot split is not refined any other way, and the summary says why", async () => {
     const cases = {
-      "the lanes App filed it": [sizeIssue({ user: { id: APP } }), [laneComment(), parked()], specOf(BODY)],
       "it is a sub-issue": [sizeIssue({ body: `${SPLIT_CHILD_MARKER}\n${BODY}` }), [laneComment(), parked()], specOf(BODY)],
       "it is already split": [sizeIssue(), [laneComment(), parked(), record([71, 72])], specOf(BODY)],
-      "one trusted line": [sizeIssue({ body: "- [ ] L1" }), [laneComment(), parked()], specOf("- [ ] L1")],
       "no lane comment from this run": [sizeIssue(), [laneComment("intent", BEFORE), parked()], specOf(BODY)],
     };
     for (const [name, [issue, comments, spec]] of Object.entries(cases)) {
@@ -882,6 +880,80 @@ describe("size split", () => {
       assert.equal(notes.length, 1, name);
       assert.match(notes[0], /^#7 stays parked for its size split: /, name);
     }
+  });
+
+  // A decline that would leave the issue parked for good goes to
+  // apply-refinement, which posts its reason as the lanes App.
+  test("a parked issue a listed human did not file, or with too few lines after its refinement, selects a visible decline", async () => {
+    const cases = {
+      "not-human": [sizeIssue({ user: { id: APP } }), [laneComment(), parked()], specOf(BODY)],
+      "few-lines": [sizeIssue({ body: "- [ ] L1" }), [laneComment(), parked(), refined("- [ ] L1")], specOf("- [ ] L1")],
+    };
+    for (const [code, [issue, comments, spec]] of Object.entries(cases)) {
+      const notes = [];
+      const fake = fakeGitHub({ issue, comments, spec });
+      const result = await select(fake, notes);
+      assert.equal(result.refine, true, code);
+      assert.equal(result.context.size_decline, code);
+      assert.equal(result.context.size_split, undefined, code);
+      assert.deepEqual(writes(fake.calls), [], code);
+      assert.match(notes[0], /^#7 stays parked for its size split: /, code);
+    }
+  });
+
+  // Fewer than 2 trusted lines: the thin refinement drafts criteria first
+  // (owner Q78), and the split then runs on the refined lines.
+  test("a parked issue with fewer than 2 trusted lines and an unrefined body gets the thin refinement first", async () => {
+    const fake = fakeGitHub({ issue: sizeIssue({ body: "- [ ] L1" }), comments: [laneComment("none"), parked()], spec: specOf("- [ ] L1") });
+    const result = await select(fake);
+    assert.equal(result.refine, true);
+    assert.equal(result.context.size_split, undefined);
+    assert.equal(result.context.size_decline, undefined);
+    assert.match(result.context.thin.join(), /fewer than 2 trusted task-list lines/);
+  });
+
+  test("sizeSplitSettings reads admission-rules.json's size-split section, defaulting to a subset split of at most 10 parts", () => {
+    assert.deepEqual(sizeSplitSettings({}), { onDecline: "subset", maxParts: 10 });
+    assert.deepEqual(sizeSplitSettings({ "size-split": { "on-decline": "park", "max-parts": 4 } }), { onDecline: "park", maxParts: 4 });
+    for (const bad of [{ "on-decline": "person" }, { "max-parts": 1 }, { "max-parts": 2.5 }, { extra: true }]) {
+      assert.throws(() => sizeSplitSettings({ "size-split": bad }), JSON.stringify(bad));
+    }
+    const file = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
+    assert.deepEqual(sizeSplitSettings(file), { onDecline: "subset", maxParts: 10 });
+    assert.notEqual(partitionProblem({ parts: [[1], [2], [3]], order: [] }, 3, 2), null, "max-parts bounds the parts");
+  });
+
+  test("subsetProblem takes only 2 or more groups of distinct targets that are verbatim task-line text, with an acyclic order", () => {
+    assert.equal(subsetProblem({ groups: [["L1"], ["L2", "L3"]], order: [[1, 2]] }, LINES, 10), null);
+    const bad = {
+      "one group": { groups: [["L1"]], order: [] },
+      "an empty group": { groups: [["L1"], []], order: [] },
+      "a name not in the lines": { groups: [["L1"], ["L9"]], order: [] },
+      "a name twice": { groups: [["L1"], ["L1"]], order: [] },
+      "a one-character name": { groups: [["L1"], ["L"]], order: [] },
+      "a name with a comma": { groups: [["L1"], ["L2, L3"]], order: [] },
+      "a cycle": { groups: [["L1"], ["L2"]], order: [[1, 2], [2, 1]] },
+      "too many groups": { groups: [["L1"], ["L2"], ["L3"]], order: [], max: 2 },
+    };
+    for (const [name, { max = 10, ...output }] of Object.entries(bad)) {
+      assert.notEqual(subsetProblem(output, LINES, max), null, name);
+    }
+  });
+
+  test("applySizeDecline posts the reason once per reason and body version, and nothing on a changed body", async () => {
+    const declineContext = { issue: { number: 7, title: "Big work", body: BODY }, size_decline: "not-human" };
+    const decline = (comments, issue = sizeIssue()) => {
+      const fake = fakeGitHub({ issue, comments, spec: specOf(BODY) });
+      return applySizeDecline({ github: fake.github, repository: "o/r", number: 7, appId: APP, context: declineContext, log: () => {} }).then(() => writes(fake.calls));
+    };
+    const first = await decline([laneComment(), parked()]);
+    assert.equal(first.length, 1);
+    const body = first[0].body.body;
+    assert.ok(body.startsWith(`${SIZE_DECLINE_MARKER.replace(" -->", " reason=not-human -->")}\n${bodyVersion(BODY)}\n`), body);
+    assert.match(body, /a listed human did not file it/);
+    assert.ok(!/needs-human|needs-decision/.test(JSON.stringify(first)), "no hold label");
+    assert.deepEqual(await decline([laneComment(), parked(), appComment(body)]), [], "a second run repeats nothing");
+    assert.deepEqual(await decline([laneComment(), parked()], sizeIssue({ body: "changed" })), [], "a body changed since select gets nothing");
   });
 
   // GitHub as the split writes to it: each new issue gets the next number and
@@ -990,7 +1062,7 @@ describe("size split", () => {
       const fake = splitFake({ issue: sizeIssue({ type }) });
       const notes = [];
       assert.deepEqual(await run(fake, { parts: [[1, 2], [3]], order: [] }, notes), { outcome: "skipped", children: [] });
-      assert.deepEqual(writes(fake.calls), [], JSON.stringify(type));
+      assert.deepEqual(writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${/reason=([a-z-]+)/.exec(body.body)?.[1]}`), ["POST /repos/o/r/issues/7/comments no-type"], JSON.stringify(type));
       assert.match(notes[0], /Issue Type/);
     }
   });
@@ -1014,14 +1086,50 @@ describe("size split", () => {
     assert.ok(!writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/900"));
   });
 
-  test("a model output that is no partition writes nothing and leaves the issue parked", async () => {
-    for (const output of [{ parts: [[1], [2]], order: [] }, { parts: [], order: [] }, null, { parts: [[1], [2, 3]], order: [[1, 2], [2, 1]] }]) {
-      const fake = splitFake();
-      const notes = [];
-      assert.deepEqual(await run(fake, output, notes), { outcome: "skipped", children: [] });
-      assert.deepEqual(writes(fake.calls), [], JSON.stringify(output));
-      assert.match(notes[0], /^#7 stays parked for its size split: the model's split is not one: /);
+  test("a model output that is no partition files nothing, leaves the issue parked, and posts why once", async () => {
+    const outputs = {
+      "bad-split": [{ parts: [[1], [2]], order: [] }, null, { parts: [[1], [2, 3]], order: [[1, 2], [2, 1]] }],
+      "no-split": [{ parts: [], order: [] }, { parts: [], order: [], groups: [] }],
+      "bad-subset": [{ parts: [], order: [], groups: [["L1"], ["nowhere"]] }],
+    };
+    for (const [code, list] of Object.entries(outputs)) {
+      for (const output of list) {
+        const fake = splitFake();
+        const notes = [];
+        assert.deepEqual(await run(fake, output, notes), { outcome: "skipped", children: [] });
+        const w = writes(fake.calls);
+        assert.deepEqual(w.map(({ method, path }) => `${method} ${path}`), ["POST /repos/o/r/issues/7/comments"], JSON.stringify(output));
+        assert.ok(w[0].body.body.startsWith(SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`)), JSON.stringify(output));
+        assert.match(notes[0], /^#7 stays parked for its size split: /);
+      }
     }
+  });
+
+  // Route S: criteria that repeat over named targets split by target.
+  test("a target-subset split files each group as a sub-issue holding every line and its Scope line, which splitChildBody trusts", async () => {
+    const fake = splitFake();
+    const result = await run(fake, { parts: [], order: [[1, 2]], groups: [["L1"], ["L2", "L3"]] });
+    assert.deepEqual(result, { outcome: "split", children: [71, 72] });
+    const w = writes(fake.calls);
+    const bodies = w.filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues").map(({ body }) => body.body);
+    const header = CHILD_1.split("\n").slice(0, 5).join("\n");
+    assert.deepEqual(bodies, [`${header}\n${LINES.join("\n")}\n${SCOPE_PREFIX}L1`, `${header.replace("Part 1 of 2", "Part 2 of 2")}\n${LINES.join("\n")}\n${SCOPE_PREFIX}L2, L3`]);
+    assert.deepEqual(splitRecord(w.at(-1).body.body).groups, [["L1"], ["L2", "L3"]]);
+    const parent = { number: 7, spec: { ...specOf(BODY), comments: [] }, appId: APP };
+    for (const body of bodies) {
+      const child = { author: { __typename: "Bot", databaseId: APP }, body, lastEditedAt: null, editor: null, splitParent: parent };
+      assert.equal(splitChildBody(child, humans, rules["task-list"]), body);
+    }
+  });
+
+  test("on-decline park files no target-subset split and posts the decline", async () => {
+    const fake = splitFake();
+    const parkRules = { ...splitRules, "size-split": { "on-decline": "park" } };
+    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: parkRules, output: { parts: [], order: [], groups: [["L1"], ["L2"]] }, context, log: () => {} });
+    assert.deepEqual(result, { outcome: "skipped", children: [] });
+    const w = writes(fake.calls);
+    assert.equal(w.length, 1);
+    assert.match(w[0].body.body, /reason=no-split/);
   });
 
   test("a retry finishes the recorded split and files no part twice", async () => {
@@ -1076,8 +1184,8 @@ describe("size split", () => {
     const body = "The plugin list is out of date.";
     const notes = [];
     const spec = refinedSpec(body, [refinementNode({ lastEditedAt: "2026-10-23T00:00:00Z" })]);
-    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked()], spec }), notes);
-    assert.equal(selected.refine, false);
+    const selected = await select(fakeGitHub({ issue: sizeIssue({ body }), comments: [laneComment("none"), parked(), refined(body)], spec }), notes);
+    assert.equal(selected.context.size_decline, "few-lines", "the body is refined, so the split declines visibly");
     assert.match(notes[0], /holds 0 task-list line/);
   });
 

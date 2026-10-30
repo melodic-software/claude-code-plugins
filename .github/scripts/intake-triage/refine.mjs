@@ -93,7 +93,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
+import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -219,7 +219,65 @@ async function candidates(github, repository, issue, trusted) {
 // follows, and lists the sub-issues in the App's SIZE_SPLIT_MARKER comment.
 // No hold label and no born-triaged marker: intake triages each sub-issue.
 // A sub-issue never splits again, and the issue's body is never edited.
-export const MAX_PARTS = 10;
+// When the lines cannot be grouped into whole changes because each repeats
+// over named targets, the model may instead return `groups`, lists of target
+// names it copies from the lines (a target-subset split, admission rules'
+// `size-split.on-decline: subset`): each sub-issue then holds every line and
+// one admit.mjs SCOPE_PREFIX line naming its targets.
+
+// admission-rules.json's `size-split`: {onDecline, maxParts}. `on-decline`
+// is `subset` (a declined line split may split by target) or `park`;
+// `max-parts` caps the sub-issues. Throws on any other shape.
+export function sizeSplitSettings(rules) {
+  const section = rules?.["size-split"] ?? {};
+  const known = ["on-decline", "max-parts"];
+  const onDecline = section["on-decline"] ?? "subset";
+  const maxParts = section["max-parts"] ?? 10;
+  if (typeof section !== "object" || Array.isArray(section) || !Object.keys(section).every((key) => known.includes(key)) || !["subset", "park"].includes(onDecline) || !Number.isInteger(maxParts) || maxParts < 2 || maxParts > 99) {
+    throw new Error("admission-rules.json `size-split` holds only `on-decline` (subset or park) and `max-parts` (2 to 99)");
+  }
+  return { onDecline, maxParts };
+}
+
+// A size split's visible declines (decision on the silent park): one lanes
+// App comment per reason and body version, fixed text only, no hold label.
+export const SIZE_DECLINE_MARKER = "<!-- intake-triage size-split-decline -->";
+const DECLINES = {
+  "not-human": "a listed human did not file it, and a split copies only a listed human's text",
+  "few-lines": "its trusted text holds fewer than 2 task-list lines, even with intake's refinement",
+  "no-split": "no split into whole changes was found, either by task-list line or by the targets the lines name",
+  "bad-split": "the proposed split of its task-list lines did not cover each line exactly once in 2 or more parts",
+  "bad-subset": "the proposed target groups were not text copied from its task-list lines, each target named once",
+  "no-type": "its Issue Type is not one admission takes, so its sub-issues would take none",
+};
+const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
+
+// Posts decline `code` on the issue unless the lanes App already posted it
+// for this body. The text is fixed; no model or issue text is rendered.
+async function postDecline({ github, base, appId, body, code, log }) {
+  const head = `${declineMarker(code)}\n${bodyVersion(body)}\n`;
+  if ((await paginate(github, `${base}/comments`)).some((item) => appId !== undefined && item?.user?.id === appId && String(item.body ?? "").startsWith(head))) {
+    log(`refine: ${base} already says why it is not split (${code})`);
+    return;
+  }
+  await github("POST", `${base}/comments`, {
+    body: `${head}**Not split at intake (owner Q93).** This Size Large issue stays parked at \`status: ready\`: ${DECLINES[code]}. No person is asked to act and no hold label is added. The split settings are \`size-split\` in \`.github/actions/resolve-config/admission-rules.json\`.\n\n<sub>Automated by the lanes App, once per reason and body version.</sub>`,
+  });
+  log(`refine: ${base} says why it is not split (${code})`);
+}
+
+// Posts the decline refine-select chose (context.size_decline) for the
+// body it read; a body changed since gets nothing, as its triage reruns.
+export async function applySizeDecline({ github, repository, number, appId, context, log = console.log }) {
+  const base = `/repos/${repository}/issues/${number}`;
+  const issue = await github("GET", base);
+  if (!Object.hasOwn(DECLINES, context?.size_decline) || issue.pull_request || issue.state !== "open" || String(issue.body ?? "") !== context?.issue?.body) {
+    log(`refine: #${number} changed or closed since the decline was chosen; nothing written`);
+    return { outcome: "skipped" };
+  }
+  await postDecline({ github, base, appId, body: issue.body, code: context.size_decline, log });
+  return { outcome: "declined" };
+}
 
 // The split record's `items`: the digest of the lines split, and of the
 // refinement they copy when they copy one, so a newer refinement with the
@@ -253,6 +311,8 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     note(`#${number} stays parked for its size split: ${why}`);
     return { refine: false, reason: `parked for its size split, not split: ${why}` };
   };
+  // A decline that leaves the issue parked for good: apply-refinement posts it.
+  const visible = (code, why) => ({ ...decline(why), refine: true, context: { version: 1, size_decline: code, issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) } } });
   const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
   if (lane.length !== 1 || !(Date.parse(lane[0].updated_at) >= startedAt)) {
     return decline("no single intake lane comment from this run");
@@ -261,7 +321,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     return decline("it is a sub-issue a split filed, which never splits again");
   }
   if (!humans.has(issue.user?.id)) {
-    return decline("a listed human did not file it");
+    return visible("not-human", "a listed human did not file it");
   }
   const own = ownSplit(comments, appId);
   if ((own?.record.filed.length ?? 0) > 0) {
@@ -273,14 +333,17 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   const split = splitTaskLines(await specOf(github, repository, number), humans, splitConfig().rules["task-list"], appId, () => splitConfig().webHosts);
   const { lines } = split;
   if (lines.length < 2) {
-    return decline(`its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`);
+    const why = `its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`;
+    // The thin refinement drafts criteria first (owner Q78); the split then
+    // runs on its lines at the next triage.
+    return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
   return {
     refine: true,
     reason: `Size large, waiting on its split into sub-issues; ${lines.length} trusted task-list lines`,
     context: {
       version: 1,
-      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: MAX_PARTS },
+      size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: sizeSplitSettings(splitConfig().rules).maxParts },
       issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
       triage: String(lane[0].body),
     },
@@ -288,16 +351,16 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
 }
 
 // Why `output` is no partition of `count` items, or null: exactly `parts`
-// and `order`; 2 to MAX_PARTS parts, none empty, covering items 1..count
+// and `order`; 2 to `maxParts` parts, none empty, covering items 1..count
 // once each; order pairs of distinct part numbers, none repeated, with no
 // cycle. Pure.
-export function partitionProblem(output, count) {
+export function partitionProblem(output, count, maxParts = 10) {
   if (output === null || typeof output !== "object" || Array.isArray(output) || Object.keys(output).sort().join() !== "order,parts") {
     return "the output must hold exactly parts and order";
   }
   const { parts, order } = output;
-  if (!Array.isArray(parts) || parts.length < 2 || parts.length > MAX_PARTS || parts.length > count) {
-    return `parts must be a list of 2 to ${Math.min(MAX_PARTS, count)} parts`;
+  if (!Array.isArray(parts) || parts.length < 2 || parts.length > maxParts || parts.length > count) {
+    return `parts must be a list of 2 to ${Math.min(maxParts, count)} parts`;
   }
   const seen = new Set();
   for (const part of parts) {
@@ -314,6 +377,35 @@ export function partitionProblem(output, count) {
   if (seen.size !== count) {
     return `each item 1 to ${count} must be in exactly one part`;
   }
+  return orderProblem(order, parts.length);
+}
+
+// Why `groups` and `order` are no target-subset split over task lines
+// `lines`, or null: 2 to `maxParts` non-empty groups, each target an
+// admit.mjs scopeTarget over `lines` and named once, and an order as
+// partitionProblem takes it. Pure.
+export function subsetProblem({ groups, order }, lines, maxParts) {
+  if (!Array.isArray(groups) || groups.length < 2 || groups.length > maxParts) {
+    return `groups must be a list of 2 to ${maxParts} groups`;
+  }
+  const seen = new Set();
+  for (const group of groups) {
+    if (!Array.isArray(group) || group.length === 0) {
+      return "each group must be a non-empty list";
+    }
+    for (const name of group) {
+      if (!scopeTarget(name, lines) || seen.has(name)) {
+        return "each target must be text copied from one task-list line, named once";
+      }
+      seen.add(name);
+    }
+  }
+  return orderProblem(order, groups.length);
+}
+
+// Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
+function orderProblem(order, count) {
+  const parts = Array.from({ length: count });
   const pairs = new Set();
   if (!Array.isArray(order)) {
     return "order must be a list of pairs";
@@ -362,7 +454,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   }
   const comments = await paginate(github, `${base}/comments`);
   const sized = await selectSizeSplit({ github, repository, number, issue, comments, humans, appId, startedAt, splitConfig, note });
-  if (sized !== null) {
+  if (sized !== null && sized.thin === undefined) {
     return sized;
   }
   const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
@@ -372,7 +464,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (refinedBody(comments, appId, issue.body)) {
     return no("the lanes App already refined this body");
   }
-  const { thin, reasons } = isThin({ body: issue.body, laneBody: lane[0].body });
+  const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane[0].body });
   const admission = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
   const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), admission, ...splitConfig() });
   if (!thin && split === null) {
@@ -718,7 +810,8 @@ export function renderSplit(record) {
   const rows = record.parts.map((items, index) => {
     const after = record.order.filter(([, b]) => b === index + 1).map(([a]) => a);
     const child = record.filed[index];
-    return `- Part ${index + 1}: task-list ${items.length === 1 ? "line" : "lines"} ${items.join(", ")}${after.length > 0 ? `, after part ${after.join(", ")}` : ""}${child === undefined ? "" : `: #${child}`}`;
+    const what = record.groups ? `every task-list line, scoped to ${record.groups[index].map((name) => `\`${name}\``).join(", ")}` : `task-list ${items.length === 1 ? "line" : "lines"} ${items.join(", ")}`;
+    return `- Part ${index + 1}: ${what}${after.length > 0 ? `, after part ${after.join(", ")}` : ""}${child === undefined ? "" : `: #${child}`}`;
   });
   return [
     SIZE_SPLIT_MARKER,
@@ -782,9 +875,15 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const skip = (why) => {
-    log(`refine: #${number} ${why}; nothing written`);
+  const settings = sizeSplitSettings(rules);
+  // A skip with a decline `code` leaves the issue parked for good, so the
+  // lanes App says why on it (postDecline).
+  const skip = async (why, code = null) => {
+    log(`refine: #${number} ${why}; nothing filed`);
     note(`#${number} stays parked for its size split: ${why}`);
+    if (code !== null) {
+      await postDecline({ github, base, appId, body: issue.body, code, log });
+    }
     return { outcome: "skipped", children: [] };
   };
   if (issue.pull_request || issue.state !== "open" || !Number.isInteger(issue.id)) {
@@ -795,7 +894,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   }
   const type = issue.type?.name;
   if (![...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(type)) {
-    return skip(`its Issue Type ${type ?? "none"} is not one admission takes, so its parts would take none`);
+    return skip(`its Issue Type ${type ?? "none"} is not one admission takes, so its parts would take none`, "no-type");
   }
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body || String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
     return skip("changed while the model ran");
@@ -815,16 +914,32 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     if (record.filed.length > 0) {
       return skip("is already split");
     }
-    if (record.items !== digest || partitionProblem({ parts: record.parts, order: record.order }, lines.length) !== null) {
+    const problem = record.groups === undefined ? partitionProblem({ parts: record.parts, order: record.order }, lines.length, settings.maxParts) : subsetProblem({ groups: record.groups, order: record.order }, lines, settings.maxParts);
+    if (record.items !== digest || problem !== null) {
       return skip("its split record no longer matches its trusted task-list lines");
     }
     log(`refine: #${number} resumes the split its record holds`);
   } else {
-    const problem = partitionProblem(output, lines.length);
-    if (problem !== null) {
-      return skip(`the model's split is not one: ${problem}`);
+    const shaped = output !== null && typeof output === "object" && !Array.isArray(output);
+    const { groups = [], ...byLine } = shaped ? output : {};
+    const noParts = shaped && Array.isArray(output.parts) && output.parts.length === 0;
+    if (noParts && Array.isArray(groups) && groups.length > 0) {
+      if (settings.onDecline !== "subset") {
+        return skip("the lines split only by target, and size-split on-decline is park", "no-split");
+      }
+      const problem = subsetProblem({ groups, order: output.order }, lines, settings.maxParts);
+      if (problem !== null) {
+        return skip(`the model's target split is not one: ${problem}`, "bad-subset");
+      }
+      const every = lines.map((_, index) => index + 1);
+      record = { items: digest, parts: groups.map(() => every), order: output.order, filed: [], groups };
+    } else {
+      const problem = partitionProblem(shaped ? byLine : output, lines.length, settings.maxParts);
+      if (problem !== null) {
+        return skip(`the model's split is not one: ${problem}`, noParts ? "no-split" : "bad-split");
+      }
+      record = { items: digest, parts: output.parts, order: output.order, filed: [] };
     }
-    record = { items: digest, parts: output.parts, order: output.order, filed: [] };
     commentId = (await github("POST", `${base}/comments`, { body: renderSplit(record) }))?.id;
     if (!Number.isInteger(commentId)) {
       throw new Error("the split comment came back with no id");
@@ -834,9 +949,11 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   const linked = new Set((await paginate(github, `${base}/sub_issues`)).map((item) => item?.id));
   const children = [];
   for (const [index, items] of record.parts.entries()) {
-    // A part that holds a refinement line names that refinement (splitChildBody).
+    // A part that holds a refinement line names that refinement (splitChildBody);
+    // a target-subset part holds every line and its Scope line.
     const source = items.some((n) => n > split.human) ? split.source : null;
-    const body = `${splitChildHeader(number, index + 1, record.parts.length, source)}\n${items.map((n) => lines[n - 1]).join("\n")}`;
+    const scope = record.groups ? `\n${SCOPE_PREFIX}${record.groups[index].join(", ")}` : "";
+    const body = `${splitChildHeader(number, index + 1, record.parts.length, source)}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
       child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });
@@ -935,23 +1052,27 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
         }
         console.log(`refine: #${number} ${result.refine ? "is refined" : "is not refined"} (${result.reason})`);
-        writeOutputs({ refine: String(result.refine), mode: result.context?.size_split ? "size-split" : "refine" });
+        writeOutputs({ refine: String(result.refine), mode: result.context?.size_split ? "size-split" : result.context?.size_decline ? "size-decline" : "refine" });
       } else if (process.argv[2] === "--apply") {
         const context = JSON.parse(readFileSync(env.CONTEXT_PATH, "utf8"));
         if (context?.issue?.number !== number) {
           throw new Error("the context is for another issue");
         }
-        const raw = JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output;
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
-        if (context.size_split) {
+        // A decline refine-select chose: no model ran and no refinement exists.
+        const raw = () => JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output;
+        if (context.size_decline) {
+          await applySizeDecline({ github, repository, number, appId, context });
+          writeOutputs({ redispatch: "false", children: "" });
+        } else if (context.size_split) {
           // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.
           const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
           const webHosts = () => issueLaneWebHostsFromBase(env);
-          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw, context, note: summary });
+          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, note: summary });
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
-          const output = validateOutput(raw, known, context.split ?? null, context.attended ?? {});
+          const output = validateOutput(raw(), known, context.split ?? null, context.attended ?? {});
           const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context });
           writeOutputs({ redispatch: String(result.redispatch), children: "" });
         }
