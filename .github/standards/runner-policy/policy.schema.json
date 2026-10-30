@@ -137,6 +137,7 @@
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
         "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
         "minimumCallerPermissions": { "$ref": "#/$defs/githubMinimumPermissionMap" },
+        "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
         "approvedShas": { "$ref": "#/$defs/approvedShas" },
         "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
       }

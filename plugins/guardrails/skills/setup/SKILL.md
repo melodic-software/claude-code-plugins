@@ -101,18 +101,24 @@ the retired-hook cleanup below, writes nothing. It points:
 - any toggle or scalar change: reconfigure through Claude Code's native flow, per the
   marketplace's plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record). Two routes: interactive
-  `/plugin configure guardrails@<marketplace>` any time, or headless
+  which owns the verified-version record). Interactive:
+  `/plugin configure guardrails@<marketplace>` any time. Headless, preferred on Claude Code
+  2.1.285 or later: `claude plugin configure guardrails@<marketplace> --values-stdin < values.json`,
+  where `values.json` holds `{"KEY": "VALUE"}` (every value a string, booleans included; keys left
+  out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` (repeatable per
   key); against an already-installed plugin it prints `already installed` and still writes the
   value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Pass the scope `claude plugin list` reports for this plugin: `-s` places the
-  install record and `enabledPlugins`, the value always lands in user settings, and a rerun at
-  another scope adds an install record there and enables the plugin. From the home directory the
-  list can label one file both `user` and `project`: pass `user`. A rejected value prints a
-  warning yet exits 0, so read the output, not the exit code. This skill never writes user
-  settings or `pluginConfigs`.
+  manifest default. The value always lands in user settings, whichever route writes it.
+  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
+  in. For the rerun, pass the scope `claude plugin list` reports for this plugin: `-s` places the
+  install record and `enabledPlugins`, and a rerun at another scope adds an install record there
+  and enables the plugin. From the home directory the list can label one file both `user` and
+  `project`: pass `user`. Check each route's own failure signal: `--values-stdin` rejects a bad
+  value with exit 1 and saves nothing, but stores an empty string as `""`; the `--config` rerun
+  prints a warning for a rejected value yet exits 0, so read its output, not the exit code. This
+  skill never writes user settings or `pluginConfigs`.
   Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each
   hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.

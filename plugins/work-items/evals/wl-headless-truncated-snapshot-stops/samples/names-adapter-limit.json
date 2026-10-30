@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The truncated frontier read makes the snapshot unusable, so the cycle aborts with no state change: no intake sweep, admission, execution or exit evaluation, and the durable counters are written back as read with only heartbeat_at moving. In the same cycle, without waiting for the no-progress threshold, it raises the stall escalation (`Lane stall: work-loop`, human-gated role label, machine-marked escalation comment) naming the truncated read, the linear adapter and its list_items_max of 1000. Because the launch is headless, the lane then stops the loop with a message saying the snapshot was truncated at the linear adapter's list_items_max of 1000 and the lane cannot see its whole backlog, instead of scheduling another cycle.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Admitted linear:ENG-12 and dispatched it. Scheduling the next cycle.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "The snapshot was truncated; stopping.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

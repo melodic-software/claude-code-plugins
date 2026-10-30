@@ -72,10 +72,25 @@ To change the `userConfig` value, reconfigure through Claude Code's native flow 
 plugin-reconfiguration convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record): `/plugin configure docs-hygiene@<marketplace>`
-interactively, or headless `claude plugin install docs-hygiene@<marketplace> -s <scope> --config
-compress_articles=<value>`. Never uninstall to reconfigure. Rendered values are injected at skill
-load, so rerun `check` in a fresh session after a change. To set the value for the whole
-repository instead, use `apply`.
+interactively. Headless, preferred on Claude Code 2.1.285 or later:
+`claude plugin configure docs-hygiene@<marketplace> --values-stdin < values.json`, where
+`values.json` holds `{"compress_articles": "<value>"}`. Headless fallback, before 2.1.285: rerun
+`claude plugin install docs-hygiene@<marketplace> -s <scope> --config compress_articles=<value>`;
+against an already-installed plugin it prints `already installed` and still writes the value.
+
+- Never uninstall to reconfigure: that drops the plugin's stored `pluginConfigs` entry, resetting
+  every option to its manifest default.
+- Scope: the value lands in user settings whichever route writes it. `claude plugin configure`
+  has no scope flag, so run it from the project the plugin is installed in. For the rerun, pass
+  the scope `claude plugin list` reports (from the home directory pass `user`); a rerun at another
+  scope adds an install record there and enables the plugin.
+- Rendered values are injected at skill load, so rerun `check` in a fresh session after a change
+  and report the observed value, never an unobserved change.
+- `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
+  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
+  output.
+
+To set the value for the whole repository instead, use `apply`.
 
 ## `apply` (writes `docs/conventions/docs-hygiene.yaml` only)
 
