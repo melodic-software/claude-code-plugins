@@ -158,16 +158,26 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure powershell-format@<marketplace>`
-  any time, or headless
+  any time. Headless, preferred: run
+  `claude plugin configure powershell-format@<marketplace> --values-stdin < values.json` from the
+  project the plugin is installed in, with `values.json` holding
+  `{"powershell_format_enabled": "true"}` (every value a string, booleans included; keys left out
+  keep their saved values). PowerShell reserves `<`, so there pipe the file instead:
+  `Get-Content values.json | claude plugin configure powershell-format@<marketplace> --values-stdin`.
+  Headless fallback, for a Claude Code release without
+  `plugin configure`: rerun
   `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; the value itself always
-  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
-  This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  manifest default. Either route stores the value in user settings. `claude plugin configure` has
+  no scope flag and finds only an install visible from the working directory. For the rerun, `-s`
+  defaults to `user`; pass the scope `claude plugin list` reports, and run from that project's
+  directory for a `project`/`local` scope, or the rerun adds a second install record at the scope
+  passed and enables the plugin there; from the home directory pass `user`. Check each route's own
+  failure signal: `claude plugin configure` rejects a bad value with exit 1 and saves nothing, but
+  stores an empty string as `""`; the rerun prints a warning for a rejected value yet exits 0, so
+  read its output. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
   the OLD value; report the observed effective value, never an unobserved change.

@@ -48,11 +48,11 @@ Verbs:
   create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
               [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
   get-item <id>
-  claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+  claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
         --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
         --ttl-hours 0 --ttl-minutes <n>
   renew-lease <id> --lease-comment-id <n>
-  release <id> --lease-comment-id <n>
+  release <id> --lease-comment-id <n> [--holder <h>]
   reclaim <id>
   link-blocks <id> --blocked-by <id>
   add-sub-item <id> --parent <id>

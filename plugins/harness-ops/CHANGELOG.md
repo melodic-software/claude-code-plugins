@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.20.2] - 2026-10-30
+
+### Changed
+
+- The setup skill's reconfiguration short form names `claude plugin configure harness-ops@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention.
+
+## [4.20.1] - 2026-10-30
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
+## [4.20.0] - 2026-10-30
+
+### Added
+
+- `inventory.py --skills-index` prints a JSON array with one record per skill: installed plugin skills from the plugin cache, skills of not-installed relative-path plugins from the marketplace checkout, one plugin-level row for each not-installed remote-source plugin, and personal and project skills. Each record carries `plugin`, `skill`, `name`, `description`, `when_to_use`, `state` (`enabled`, `disabled` or `not-installed`) and `source`. `--exclude disabled,not-installed` drops records in those states.
+
 ## [4.19.2] - 2026-10-30
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.10] - 2026-10-30
+
+### Changed
+
+- The setup skill's reconfiguration short form names `claude plugin configure ai-briefing@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention.
+
 ## [0.9.9] - 2026-10-30
 
 ### Changed

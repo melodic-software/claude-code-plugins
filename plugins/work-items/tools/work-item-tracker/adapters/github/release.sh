@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release <id> --lease-comment-id <n> — CONTRACT.md "Lease protocol". Ends the
+# release <id> --lease-comment-id <n> [--holder <h>] — CONTRACT.md "Lease protocol". Ends the
 # caller's own live lease early by adding superseded_at in place. The assignee is
 # left alone; the caller clears it through the adapter's assignee edit. The PATCH
 # routes through the same writer that posted the lease comment (bot).
@@ -7,21 +7,27 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-usage='usage: release <id> --lease-comment-id <n>'
+usage='usage: release <id> --lease-comment-id <n> [--holder <h>]
+  --holder names the lease holder instead of the authenticated login'
 wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
 [[ -n "$id" ]] || wit_usage_error "$usage"
 shift
-lease_comment_id=""
+lease_comment_id="" holder_override=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --lease-comment-id)
-    [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
-    lease_comment_id="$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unknown argument: $1" ;;
+    --lease-comment-id)
+      [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
+      lease_comment_id="$2"
+      shift 2
+      ;;
+    --holder)
+      [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--holder needs a value"
+      holder_override="$2"
+      shift 2
+      ;;
+    *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
@@ -58,8 +64,13 @@ fi
 
 # Comment ids are public, so the handle alone would let any session end another
 # login's lease. Same-login sessions are told apart by the handle, as for renew-lease.
-wit_run_gh read api user --jq .login
-login="$WIT_GH_OUT"
+# --holder stands in for the login where `gh api user` cannot run (an installation token).
+if [[ -n "$holder_override" ]]; then
+  login="$holder_override"
+else
+  wit_run_gh read api user --jq .login
+  login="$WIT_GH_OUT"
+fi
 holder="$(jq -r '.holder // empty' <<<"$lease_json")"
 if [[ "$holder" != "$login" ]]; then
   printf 'release: lease %s is held by %s, not %s\n' \

@@ -270,6 +270,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       claude-api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -354,6 +355,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -420,6 +422,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -488,6 +491,9 @@ jobs:
       app-label: agent-ready
       patch-state: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-state || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-state || '' }}
       patch-sha256: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-sha256 || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-sha256 || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-sha256 || '' }}
+      # The selected read call's lease, ended here only on a kill-switch stop,
+      # which skips report-outcome.
+      lease-comment-id: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id || '' }}
       patch-attempt: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-patch-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-patch-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-patch-attempt || '' }}
       patch-activity: resolve-issue
       patch-base-sha: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-base-sha || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-base-sha || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-base-sha || '' }}
@@ -853,3 +859,6 @@ jobs:
       escalation-reason: >-
         ${{ needs.apply-issue-patch.outputs.escalation-reason
         || needs.apply-issue-patch.result == 'failure' && 'patch-apply-failed' || '' }}
+      # The selected read call's lane lease, ended once the PR is open; every
+      # other call's lease its own read runner ended.
+      lease-comment-id: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id || '' }}

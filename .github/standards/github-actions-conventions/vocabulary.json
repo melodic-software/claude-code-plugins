@@ -59,6 +59,11 @@
       { "name": "run-activity", "status": "in-use" },
       { "name": "run-checks", "status": "in-use" },
       { "name": "scan-dependencies", "status": "in-use" },
+      {
+        "name": "test-platforms",
+        "status": "reserved",
+        "purpose": "Select and run the tests that need a Windows or macOS runner."
+      },
       { "name": "test-windows", "status": "in-use" },
       { "name": "unblock", "status": "in-use" },
       { "name": "validate-onboard-catalog", "status": "in-use" },
@@ -102,8 +107,9 @@
       {
         "name": "check-links",
         "status": "in-use",
-        "purpose": "Check every Markdown link with the network on; audit-link-check-excludes covers only the exclude list."
+        "purpose": "Check every Markdown link with the network on."
       },
+      { "name": "file-upstream-drift-issues", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
@@ -132,6 +138,7 @@
     "download",
     "enable",
     "explain",
+    "file",
     "fix",
     "format",
     "fuzz",
