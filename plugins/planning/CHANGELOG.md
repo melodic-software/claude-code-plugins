@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.9] - 2026-10-30
+
+### Fixed
+
+- `/planning:interview` now ends the Step 3 restatement by asking the user to confirm it or to name the `Q<N>` numbers of the items to change. A yes/no check such as "Sound good?" no longer closes it. When the recap command or the procedure check cannot be run, the restatement still goes out with that gap named, in place of setup questions.
+
 ## [0.126.8] - 2026-10-30
 
 ### Changed
