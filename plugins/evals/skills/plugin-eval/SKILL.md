@@ -469,7 +469,7 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
   plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
-  network access. A passing suite is a behavior measurement, never a security vetting.
+  network access. A passing suite is a behavior measurement, never a security vetting. A failed Bash call may be a read-only `.git`: [records.md](reference/records.md#sandbox-and-credential-store).
 
 ## Sources
 
