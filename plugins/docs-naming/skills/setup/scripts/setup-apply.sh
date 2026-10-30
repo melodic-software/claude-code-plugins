@@ -113,6 +113,7 @@ if [[ -f "$TARGET" ]]; then
   # The leading comment block: every comment line before the first key.
   header="$(tr -d '\r' <"$TARGET" | awk '/^[[:space:]]*#/ { print; next } /^[[:space:]]*$/ { next } { exit }')"
 elif [[ -f "$LEGACY" ]]; then
+  seeded=1
   current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the JSON team layer is not valid JSON: $LEGACY"
   note="$(jqr -r '._comment // empty' <<<"$current")"
   header="# Migrated from $LEGACY_REL by /docs-naming:setup apply."
@@ -169,6 +170,6 @@ fi
 rm -f "$tmp"
 
 printf 'wrote: %s\n' "$TARGET_REL"
-[[ ! -f "$LEGACY" ]] || printf 'migrated: %s now supplies the team layer; %s is ignored and can be deleted.\n' "$TARGET_REL" "$LEGACY_REL"
+[[ -z "${seeded:-}" ]] || printf 'migrated: %s now supplies the team layer; %s is ignored and can be deleted.\n' "$TARGET_REL" "$LEGACY_REL"
 printf 'commit it: an uncommitted team layer has reached no other checkout yet.\n'
 exit 0

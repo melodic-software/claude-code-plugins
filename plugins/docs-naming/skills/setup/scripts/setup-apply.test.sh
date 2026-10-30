@@ -174,6 +174,8 @@ assert_contains "the old comment became the header" "$(head -n 3 "$(target "$roo
 assert_eq "the old file is left alone" "^old$" "$(jq -r '.file_names.regex' "$root/.claude/docs-naming.json")"
 mkdir -p "$TEST_TMPDIR/nohome"
 assert_eq "the resolver now reads the YAML" "^old$" "$(bash "$SCRIPT_DIR/../../../scripts/resolve-config.sh" resolve --root "$root" --home "$TEST_TMPDIR/nohome" 2>/dev/null | jq -r '.file_names.regex')"
+out="$(bash "$SUT" --root "$root" 'roots=["d"]')"
+assert_eq "a later write with the JSON still present reports no migration" "0" "$(grep -c '^migrated:' <<<"$out")"
 
 # 11d. A multi-line legacy _comment stays comment lines: no later line parses as a key.
 root="$(new_repo)"
