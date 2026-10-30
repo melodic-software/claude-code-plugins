@@ -88,7 +88,7 @@ target_value() {
 
 changed=0
 add_entry() {
-  if git config --file "$config" --get-all "$1" 2>/dev/null | grep -Fxq -- "$2"; then
+  if grep -Fxq -- "$2" < <(git config --file "$config" --get-all "$1" 2>/dev/null); then
     printf 'already present: %s = %s\n' "$1" "$2"
   else
     git config --file "$config" --add "$1" "$2" || die "git config failed writing $1"

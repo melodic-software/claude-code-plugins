@@ -739,7 +739,7 @@ each row to these keys:
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
-| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
@@ -766,7 +766,9 @@ security lane judges the rest. The `docs` row also refuses, in any case and thro
 any `..` segment, a path under a `skills/` directory at any depth (`skills`) and a `SKILL.md`
 anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
 `patch-protected-path`; it otherwise matches `default`. No other row names those two refusals,
-and none has to. The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
+change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
+add one; `ci-context` and `issue` keep setting script bits. The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
