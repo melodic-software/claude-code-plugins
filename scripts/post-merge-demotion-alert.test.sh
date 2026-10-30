@@ -113,6 +113,10 @@ fi
 if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
   exit 1
 fi
+# STUB_REVERT_POST_FAIL fails the write of a revert record.
+if [[ "$method" == POST && "${STUB_REVERT_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q 'signal=revert -->'; then
+  exit 1
+fi
 # A write answers with issue number 900 + its log line, through --jq as gh does.
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
@@ -170,7 +174,10 @@ case "$endpoint" in
     jq -n --arg s "${STUB_ANCESTRY:-ahead}" '{status: $s}' >"$fixture"
     ;;
   */compare/*) fixture="$STUB_DIR/compare.json" ;;
-  */commits/*) fixture="$STUB_DIR/commit.json" ;;
+  */commits/*)
+    [[ "${STUB_FAIL_COMMIT_READ:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/commit.json"
+    ;;
   */contents/*) exec cat "$STUB_DIR/pipeline.yaml" ;;
   graphql)
     printf '%s\n' "${fields[@]}" >"$STUB_DIR/graphql.$n"
@@ -295,7 +302,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -810,8 +817,8 @@ reverts "a batch of three with the revert in the middle files a revert record" "
 push_repo 'feat: a change (#1301)' 'fix: a second change (#1302)' 'fix: a third change (#1303)'
 GRAPHQL="$LANE" run_push
 if [[ "$RC" -eq 0 && "$OUT" == *"no new commit among the 3 pushed up to ${HEAD_SHA:0:12} names a pull request"* ]] &&
-  ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$' <<<"$LOG"; then
-  ok "a batch with no revert files nothing and makes no merge-queue lookup"
+  ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$|issues\?state=all|contents/docs' <<<"$LOG"; then
+  ok "a batch with no revert files nothing and reads no records or merge queue"
 else
   fail "batch with no revert: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -890,6 +897,33 @@ COMMIT_API='{"commit": {"message": "feat(planning): a join prompt (#1234)\n\nbod
 reverts "a reverted commit outside the checkout is read through the API"
 if ! grep -qx "GET repos/o/r/commits/$OUTSIDE" <<<"$LOG"; then
   fail "the reverted commit was not read through the API: log='$LOG'"
+fi
+# Neither read answers: an unproven revert, which demotes.
+FAIL_COMMIT_READ=1 GRAPHQL="$LANE" run_push
+fields="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->"* &&
+  "$fields" == *"title=Post-merge revert at ${HEAD_SHA:0:12}: unattended merging demoted"* &&
+  "$fields" == *"- Reverted pull request could not be read: commit \`$OUTSIDE\`"* &&
+  "$fields" == *"- Revert commit: \`$HEAD_SHA\`"* ]] && ! grep -qx 'GET graphql' <<<"$LOG"; then
+  ok "a reverted commit whose pull request cannot be read files a revert record"
+else
+  fail "unreadable reverted commit: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+fi
+
+# Only a revert record's list counts: another record quoting the commit does not.
+push_repo "$REVERTS"
+GRAPHQL="$LANE" run_push "[$(issue 41 "<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"$'\n'"- Revert commit: \`$HEAD_SHA\`"), $(issue 42 "<!-- post-merge-fix check=lint -->"$'\n'"- Revert commit: \`$HEAD_SHA\`")]"
+reverts "a revert commit quoted only on another kind of record still files"
+
+# A revert record that cannot be written still lets the canary record file.
+BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 REVERT_POST_FAIL=1 \
+  run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
+issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 1 && "$(wc -l <<<"$issues_posted")" -eq 2 && "$OUT" == *"the revert demotion issue was not filed"* ]] &&
+  grep -q '^body=<!-- babysit-merge-demotion sha='"$HEAD_SHA"' signal=canary -->' "$TMP_ROOT/stub/post.$(tail -1 <<<"$issues_posted")"; then
+  ok "a failed revert record write still files the canary record, then fails the job"
+else
+  fail "failed revert write: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # A failed canary on a revert push files its canary record and the revert's.

@@ -23,11 +23,13 @@ name: post-merge-demotion-alert
 # and on every attempt, reads the commits the push brought, a merge-queue
 # batch included: main's first-parent range since the previous canary push
 # run's head, at most 20 commits, and the newest 20 when that head cannot be
-# read or is not an ancestor. A revert commit any record already lists is
-# skipped, so overlapping runs and re-runs file it once and never again after
-# a person closes its record. A failed canary still files its canary record
-# too. A revert of a pull request someone else enqueued files nothing; an
-# unproven one demotes. A revert record clears only when a person closes it.
+# read or is not an ancestor, read from main's full history. A revert commit
+# any revert record already lists is skipped, so overlapping runs and re-runs
+# file it once and never again after a person closes its record. A failed
+# canary still files its canary record too. A revert of a pull request someone
+# else enqueued files nothing; an unproven one demotes, a reverted commit whose
+# pull request cannot be read included. A revert record clears only when a
+# person closes it.
 #
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
@@ -162,15 +164,14 @@ jobs:
       API_BUDGET_TOKEN: github-token
     steps:
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
-      # runs in a worktree of the last green SHA; full history for that worktree.
-      # A canary run reads only its push's commits and what they revert: the
-      # newest 50, and the file step fetches or asks the API for one outside.
+      # runs in a worktree of the last green SHA, and for a canary run's push
+      # and the commits it reverts; full history for both.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/main
           path: .base
-          fetch-depth: ${{ github.event.workflow_run.name == 'post-merge-detect-silent-revert' && 50 || 0 }}
+          fetch-depth: 0
           persist-credentials: false
 
       # A workflow_run event's fields pass through as they are. A dispatch's
@@ -608,7 +609,13 @@ jobs:
           # pr-merge.yml's merge job keyed on the merge commit, not the run's
           # head. An issue a user opens with the marker cannot stand in for
           # either, and a record of either filer naming this run is its record.
-          # Read once; classify (below) reuses it.
+          # Read once (load_records), only when a record is about to be matched
+          # or filed; classify (below) reuses it.
+          load_records() {
+          if [[ -n "${records_read:-}" ]]; then
+            return 0
+          fi
+          records_read=1
           configured_identity="$(gh api -H 'Accept: application/vnd.github.raw' \
             "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
             sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || configured_identity=''
@@ -622,6 +629,7 @@ jobs:
           # A failed read of github-actions[bot]'s records fails the job; a
           # failed read of the identity's warns and files from this workflow's
           # own records, which can add a record but never drop one.
+          # The sixth column lists the record's `- Revert commit:` SHAs.
           read_records() {
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
@@ -641,13 +649,19 @@ jobs:
               echo "::warning::could not read $lane_filer's records; matching this workflow's own records only"
             fi
           fi
+          }
 
           # The pull request a commit's subject names as `(#N)`, read from
-          # main's history in the checkout, else from the API.
+          # main's history, else from the API for a commit off it; `?` when
+          # neither read answers, which demotes.
           subject_pr() {
             local s
-            s="$(git -C .base log -1 --format=%s "$1" -- 2>/dev/null)" ||
-              s="$(gh api "repos/$GITHUB_REPOSITORY/commits/$1" --jq '.commit.message | split("\n")[0]')" || s=''
+            if ! s="$(git -C .base log -1 --format=%s "$1" -- 2>/dev/null)"; then
+              s="$(gh api "repos/$GITHUB_REPOSITORY/commits/$1" --jq '.commit.message | split("\n")[0]')" || {
+                echo '?'
+                return 0
+              }
+            fi
             if [[ "$s" =~ \(#([1-9][0-9]*)\)$ ]]; then
               echo "${BASH_REMATCH[1]}"
             fi
@@ -658,28 +672,28 @@ jobs:
           # once; a run's head SHA is set when it is created, so an unfinished
           # run counts): at most 20, and the newest 20 when that head cannot be
           # read or is not on this one's history, so a range that cannot be
-          # read is checked rather than passed. A commit any record already
-          # lists as a revert commit is skipped. Each squash message (title,
-          # then the PR body) names what it reverts:
+          # read is checked rather than passed. The records are read only once
+          # a commit names a revert, and a commit a revert record already lists
+          # is skipped. Each squash message (title, then the PR body) names
+          # what it reverts:
           # - a body line `Reverts` (after an optional `- ` or `* ` bullet)
           #   followed by `#N` or `<this repo>#N` references joined by `, ` or
           #   ` and `, each counted;
           # - a GitHub revert-button subject, `Revert "... (#N)" (#M)`;
           # - `This reverts commit <sha>` (git revert) or the red-main bot's
           #   `<!-- red-main-revert culprit=<sha> -->`, through the subject of
-          #   that commit, `... (#N)`.
+          #   that commit, `... (#N)`; a commit whose subject cannot be read
+          #   is an unproven revert, which demotes.
           # Anchored at a line's start, never a substring, so prose, a quoted
           # line or another repository's pull request names nothing.
           revert_pass() {
-            local prev c n repo line message rest found lines names
-            local -a cs
-            local -a pushed=() fresh=()
-            local -A named=() listed=()
+            local prev c n t repo line message rest lines names unproven=''
+            local -a cs pushed=() fresh=()
+            local -A named=() listed=() prs=() unread=()
             prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=push&branch=main&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | .head_sha')" || prev=''
-            if ! git -C .base cat-file -e "$RUN_SHA^{commit}" 2>/dev/null &&
-              ! git -C .base fetch -q --depth=50 origin "$RUN_SHA" 2>/dev/null; then
+            if ! git -C .base cat-file -e "$RUN_SHA^{commit}" 2>/dev/null; then
               echo "::warning::${RUN_SHA:0:12} is not in the checkout: reading its own message only"
             elif [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git -C .base merge-base --is-ancestor "$prev" "$RUN_SHA" 2>/dev/null; then
               mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=21 "$prev..$RUN_SHA" 2>/dev/null)
@@ -694,25 +708,16 @@ jobs:
             if ((${#pushed[@]} == 0)); then
               pushed=("$RUN_SHA")
             fi
-            while read -r -a cs; do
-              for c in "${cs[@]}"; do
-                listed[$c]=1
-              done
-            done < <(cut -f6 <<<"$records")
+            # prs: the pull requests each commit names; unread: the reverted
+            # commits it names whose subject could not be read.
             for c in "${pushed[@]}"; do
-              if [[ -n "${listed[$c]+x}" ]]; then
-                echo "${c:0:12} is already listed on a revert record"
-                continue
-              fi
               message="$(git -C .base log -1 --format=%B "$c" 2>/dev/null)" || message=''
               if [[ -z "$message" && "$c" == "$RUN_SHA" ]]; then
                 message="$RUN_COMMIT_MESSAGE"
               fi
-              found=''
               line="${message%%$'\n'*}"
               if [[ "${line%$'\r'}" =~ ^Revert\ \".*\(#([1-9][0-9]*)\)\"(\ \(#[0-9]+\))?$ ]]; then
-                named[${BASH_REMATCH[1]}]=1
-                found=1
+                prs[$c]+=" ${BASH_REMATCH[1]}"
               fi
               while IFS= read -r line; do
                 line="${line%$'\r'}"
@@ -724,8 +729,7 @@ jobs:
                       break
                     fi
                     if [[ -z "$repo" || "${repo,,}" == "${GITHUB_REPOSITORY,,}" ]]; then
-                      named[$n]=1
-                      found=1
+                      prs[$c]+=" $n"
                     fi
                     if [[ ! "$rest" =~ ^(,\ and\ |,\ |\ and\ )(.*)$ ]]; then
                       break
@@ -734,15 +738,40 @@ jobs:
                   done
                 elif [[ "$line" =~ ^This\ reverts\ commit\ ([0-9a-f]{7,40})([^0-9A-Za-z_]|$) ||
                   "$line" =~ ^\<!--\ red-main-revert\ culprit=([0-9a-f]{40})\ --\>$ ]]; then
-                  n="$(subject_pr "${BASH_REMATCH[1]}")"
-                  if [[ -n "$n" ]]; then
-                    named[$n]=1
-                    found=1
+                  t="${BASH_REMATCH[1]}"
+                  n="$(subject_pr "$t")"
+                  if [[ "$n" == '?' ]]; then
+                    unread[$c]+=" $t"
+                  elif [[ -n "$n" ]]; then
+                    prs[$c]+=" $n"
                   fi
                 fi
               done <<<"$message"
-              if [[ -n "$found" ]]; then
-                fresh+=("$c")
+            done
+            if ((${#prs[@]} + ${#unread[@]} == 0)); then
+              echo "no new commit among the ${#pushed[@]} pushed up to ${RUN_SHA:0:12} names a pull request it reverts: no revert record"
+              return
+            fi
+            load_records
+            while read -r -a cs; do
+              for c in "${cs[@]}"; do
+                listed[$c]=1
+              done
+            done < <(awk -F'\t' 'index($4, "<!-- babysit-merge-demotion ") == 1 && index($4, " signal=revert ") { print $6 }' <<<"$records")
+            for c in "${pushed[@]}"; do
+              if [[ -z "${prs[$c]:-}${unread[$c]:-}" ]]; then
+                continue
+              fi
+              if [[ -n "${listed[$c]+x}" ]]; then
+                echo "${c:0:12} is already listed on a revert record"
+                continue
+              fi
+              fresh+=("$c")
+              for n in ${prs[$c]:-}; do
+                named[$n]=1
+              done
+              if [[ -n "${unread[$c]:-}" ]]; then
+                unproven=1
               fi
             done
             if ((${#fresh[@]} == 0)); then
@@ -750,7 +779,9 @@ jobs:
               return
             fi
             reverted=("${!named[@]}")
-            classify
+            if [[ -z "$unproven" ]]; then
+              classify
+            fi
             if [[ -z "$lane" ]]; then
               echo "no pull request ${RUN_SHA:0:12}'s push reverts was put in the merge queue by the lanes App: no revert record"
               lane=1 reverted=()
@@ -762,19 +793,30 @@ jobs:
               lines="$lines- Reverted pull request: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$n"$'\n'
             done
             for c in "${fresh[@]}"; do
+              for t in ${unread[$c]:-}; do
+                lines="$lines- Reverted pull request could not be read: commit \`$t\`"$'\n'
+              done
+            done
+            for c in "${fresh[@]}"; do
               lines="$lines- Revert commit: \`$c\`"$'\n'
             done
-            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
-              -f title="Post-merge revert of $names at ${RUN_SHA:0:12}: unattended merging demoted" \
+            # A failed write still lets a failed canary file its own record;
+            # the job fails at its end.
+            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
+              -f title="Post-merge revert${names:+ of $names} at ${RUN_SHA:0:12}: unattended merging demoted" \
               -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
 
-          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging.
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer or pull request could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging.
 
           $lines- Main at the push: \`$RUN_SHA\`
           - Canary run: $sighting
 
-          Find out why the pull request was reverted before closing this record." >/dev/null
-            echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
+          Find out why the pull request was reverted before closing this record." >/dev/null; then
+              echo "::error::could not file the revert demotion issue for ${RUN_SHA:0:12}"
+              trap 'echo "::error::the revert demotion issue was not filed"; exit 1' EXIT
+            else
+              echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
+            fi
             lane=1 reverted=()
           }
           if [[ "$signal" == canary ]]; then
@@ -784,6 +826,7 @@ jobs:
             echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION on attempt $RUN_ATTEMPT: no canary record to file"
             exit 0
           fi
+          load_records
           number=''
           state=''
           filed=''

@@ -1040,8 +1040,9 @@ the rules that only tighten in
   run, whatever it concluded and on every attempt, reads every commit the push brought, a
   merge-queue batch included: main's first-parent range since the previous canary push run's head,
   at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
-  history. A revert commit any record already lists, in any state, is skipped, so a commit is
-  filed once and never again after a person closes its record. The wrapper finds these issues by author (the agent identity
+  history, read from main's full history. A revert commit any revert record already lists, in any
+  state, is skipped, so a commit is filed once and never again after a person closes its record. A
+  reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
