@@ -91,7 +91,8 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   `Q<N>`, written `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
   `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
-  `### Deferred questions` with its arbiter tag.
+  `### Deferred questions` with its arbiter tag. A deferred `person` item also makes SKILL.md
+  Step 5 recommend `/planning:questionnaire`, which turns it into a document that person fills in.
 - **contradiction:** one row naming both sides, asked as a choice between them.
 - **hedged:** no new row. The rows go to the confirmation restate.
 - **coined-term:** a register row asking the user to accept or rename the term, with the closest
