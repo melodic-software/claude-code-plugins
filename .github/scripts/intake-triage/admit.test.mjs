@@ -2442,8 +2442,8 @@ test("trustedSplitChild reads the issue and its native parent and applies splitC
   assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
 });
 
-// A split made by hand (no App split record): a listed human linked sub-issues
-// 31 and 32 of issue 30. Hand splitters rarely tick the parent's items, so an
+// A split made by hand (no App split record): a listed human linked two
+// sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
 // item citing a sub-issue counts as covered; an uncited one may be more work.
 describe("isSplitParent, split by hand", () => {
   const humans = new Set([HUMAN]);
