@@ -22,9 +22,9 @@ graders:
     pattern: '\.append\('
     match: not_contains
     target: { source: file, path: users/module.py }
-  - name: keeps-active-email
+  - name: keeps-pinned-behavior
     type: regex
-    pattern: 'def active_emails\('
+    pattern: 'def active_emails\((?=[\s\S]*\bis True\b)(?=[\s\S]*\bis not None\b)(?=[\s\S]*\.strip\(\))(?=[\s\S]*\.lower\(\))'
     target: { source: file, path: users/module.py }
   - name: tests-untouched
     type: tool_used
@@ -39,8 +39,8 @@ graders:
     input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\|;&]|\\.)*?\bcommit\b'
     min: 1
     arm: both
-  - name: shrink-before-commit
-    type: tool_order
-    before: { tool: Edit, input_match: '"file_path":"[^"]*users/module\.py"' }
-    after: { tool: Bash, input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\|;&]|\\.)*?\bcommit\b' }
+  - name: shrink-test-commit
+    type: regex
+    pattern: '"name":"(?:Edit|Write)","input":\{[^\n]*?"file_path":"[^"\n]*users/module\.py"[\s\S]*?"command":"(?:[^"\\\n]|\\.)*?\b(?:unittest|pytest)\b[\s\S]*?\bgit\b(?:[^"\\|;&\n]|\\.)*?\bcommit\b'
+    target: trace
     arm: both

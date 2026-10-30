@@ -15,6 +15,10 @@
     {
       "answer": "**Open Decision:** keep Phase 2's response cache? It is not tied to either criterion.\n",
       "why": "surfaced as an Open Decision"
+    },
+    {
+      "answer": "Phase 2 serves no criterion so cut it.\n",
+      "why": "a 'no' before the criterion, not before the cut"
     }
   ],
   "fail": [
@@ -41,6 +45,14 @@
     {
       "answer": "I don't see a reason to drop Phase 2's cache.\n",
       "why": "negated drop with n't"
+    },
+    {
+      "answer": "Phase 2's cache is fine; there is no need to cut it.\n",
+      "why": "no need to cut"
+    },
+    {
+      "answer": "Phase 2 shouldn't be cut.\n",
+      "why": "shouldn't cut"
     }
   ]
 }

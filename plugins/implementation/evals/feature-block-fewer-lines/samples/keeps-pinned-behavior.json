@@ -9,6 +9,10 @@
     {
       "answer": "def display_name(user):\n    return user.get(\"name\", \"\").strip()\n",
       "why": "function removed"
+    },
+    {
+      "answer": "def display_name(user):\n    return user.get(\"name\", \"\").strip()\n\n\ndef active_emails(users):\n    return []\n",
+      "why": "an empty return deletes the behavior the tests pin"
     }
   ]
 }
