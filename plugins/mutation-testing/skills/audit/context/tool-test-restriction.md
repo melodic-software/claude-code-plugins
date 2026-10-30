@@ -44,12 +44,18 @@ When the configured tool is Stryker.NET, the exercised scope runs `scripts/dotne
 over the test set from the directory Stryker runs in. A non-zero exit refuses. From its lines it
 builds two values: `test-projects`, each line's project; and `test-case-filter`, the lines'
 `--filter` expressions joined with `|`, wrapped as `(<existing>)&(<built>)` when the project's
-config already sets one. It writes them into a copy of the project's Stryker config file (default
-`stryker-config.json`; with none, a file holding only a `stryker-config` section), under the
-caller's gitignored `.work/`, and runs Stryker with `-f|--config-file` naming that copy relative to
-the directory Stryker runs in (5.0.0 `--help`: "relative to current working directory"). Both values
-go in the copy because the page does not say whether a CLI option overrides the config file. The
-user's config file is never edited; delete the copy however the run ends. Sources:
+config already sets one. One filter spans every listed project, so a same-named class in another
+listed project also matches; the trailing `.` on each term keeps that to exact class names. It
+writes both values into an untracked copy of the project's Stryker config file (default
+`stryker-config.json`; with none, a file holding only a `stryker-config` section) in the same
+directory as that file, or the directory Stryker runs in when there is none, and runs Stryker with
+`-f|--config-file` naming the copy. Beside the original, every relative path in the copy resolves as
+it did before, whichever base Stryker uses; probe #9687 showed `test-projects` resolving against
+the directory Stryker runs in. Both values go in the copy because the page does not say whether a
+CLI option overrides the config file. The user's config file is never edited; delete the copy
+however the run ends. Sources:
 https://stryker-mutator.io/docs/stryker-net/configuration/#test-case-filter-string,
 https://stryker-mutator.io/docs/stryker-net/configuration/#test-projects-string,
 https://stryker-mutator.io/docs/stryker-net/configuration/#config-file-path (read 2026-10-29).
+Recheck trigger: a new Stryker.NET release, or a change to `test-case-filter`, `test-projects` or
+`config-file` on that page.
