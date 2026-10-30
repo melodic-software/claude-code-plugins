@@ -109,6 +109,7 @@
         "status": "in-use",
         "purpose": "Check every Markdown link with the network on; audit-link-check-excludes covers only the exclude list."
       },
+      { "name": "file-upstream-drift-issues", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
@@ -137,6 +138,7 @@
     "download",
     "enable",
     "explain",
+    "file",
     "fix",
     "format",
     "fuzz",
