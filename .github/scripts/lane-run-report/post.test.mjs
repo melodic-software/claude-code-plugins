@@ -219,6 +219,9 @@ test("each leg of one call has its own marker; an unknown leg posts nothing", as
   const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nbase leg` }]);
   await run({ LEG: "fallback", GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
   assert.deepEqual(rerun.writes().map((c) => c.method), ["POST"]);
+  const own = fakeGitHub([{ id: 6, user: BOT, body: `${marker({ lane: "read", activity: "fix-ci", runId: "123", leg: "fallback" })}\nold` }]);
+  await run({ LEG: "fallback", GITHUB_RUN_ATTEMPT: "2" }, own.github);
+  assert.deepEqual(own.calls.map((c) => c.method), ["GET", "PATCH"]);
   for (const LEG of ["base", "Fallback", "x -->"]) {
     const bad = fakeGitHub();
     const out = await run({ LEG }, bad.github);

@@ -1730,8 +1730,8 @@ apart, since it can lag the promote step's push), and posts the check with
 
 Last, when there is a PR, it posts or edits one comment per run,
 [`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs), found by the first
-line `<!-- lane-run-report activity=<lane>/<activity> run=<run id> rung=<0|1> -->` among
-`github-actions[bot]`'s comments, so a re-run edits it and each model rung keeps its own. It lists the activity, the run job's result and `act-outcome`, the
+line `<!-- lane-run-report activity=<lane>/<activity> run=<run id> rung=<0|1> leg=<base|handoff|credit-stop|no-key|fallback> -->` among
+`github-actions[bot]`'s comments, so a re-run edits it and each model rung and runner leg keeps its own. It lists the activity, the run job's result and `act-outcome`, the
 write file's `pushed-commit`, and the run job's `api-failures` output: each GitHub API call its
 scripts saw fail (`recordFailure` in `retry-fetch.mjs` and `rate-guard.mjs`, path only, status 0 for
 a network error), kept to 50 rows of a fixed shape in the run job and checked again here. A failed

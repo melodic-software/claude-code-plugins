@@ -108,6 +108,7 @@ export function render({ lane, activity, runId, rung = "0", leg, runUrl, runResu
     "| --- | --- |",
     `| Activity | ${escapeCell(`${lane}/${activity}`)} |`,
     `| Model rung | ${rung === "1" ? "1" : "0"} |`,
+    `| Leg | ${leg ?? "base"} |`,
     `| Run job | ${escapeCell(outcome(runResult))} |`,
     `| Activity step | ${escapeCell(outcome(actOutcome))} |`,
     `| Commits pushed | ${escapeCell(commits)} |`,
