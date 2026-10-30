@@ -119,6 +119,10 @@ export const REFUSALS = {
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
   skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
   "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
+  // A mode that gains the executable bit: a new file at 100755, or a change
+  // to it. Optional, so the issue row's script-exec-bit and the ci-context
+  // row's script fixes keep working.
+  "new-exec-bit": { kind: "protected-path", optional: true, test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
 };
 
 // The names of the refusals that match one changed entry; by default all but
@@ -208,9 +212,52 @@ const REQUIREMENTS = {
 // git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
+// The mode of `path` in the tree `treeSha`, walked one directory at a time
+// through the Git trees API; null when it is absent.
+async function modeAt(api, treeSha, path) {
+  const parts = path.split("/");
+  let sha = treeSha;
+  for (const [i, name] of parts.entries()) {
+    const item = ((await api.getTree(sha))?.tree ?? []).find((row) => row?.path === name);
+    if (!item || (i < parts.length - 1 && item.type !== "tree")) {
+      return null;
+    }
+    if (i === parts.length - 1) {
+      return item.type === "blob" ? item.mode : null;
+    }
+    sha = item.sha;
+  }
+  return null;
+}
+
 // A row's content rule: what each changed file's bytes must also meet, read
 // from the local objects. It returns the first refusal, or null.
 export const CONTENT_RULES = {
+  // A file mode changes only back to the one the path has at the merge base
+  // of the PR head and its base: a mode the PR itself introduced is reverted,
+  // and no other is changed; a file the PR added may drop to 100644, the
+  // default mode. Content-only changes read nothing.
+  "pr-mode-revert": async ({ entries, api, pr, headSha }) => {
+    const changed = entries.filter((entry) => [REGULAR, EXECUTABLE].includes(entry.oldMode) && [REGULAR, EXECUTABLE].includes(entry.newMode) && entry.oldMode !== entry.newMode);
+    if (changed.length === 0) {
+      return null;
+    }
+    const baseSha = (await api.getPull(pr))?.base?.sha;
+    if (!SHA.test(String(baseSha ?? ""))) {
+      return "the pull request's base commit is unknown";
+    }
+    const tree = (await api.compare(baseSha, headSha))?.merge_base_commit?.commit?.tree?.sha;
+    if (!SHA.test(String(tree ?? ""))) {
+      return "the merge base of the head and the base is unknown";
+    }
+    for (const entry of changed) {
+      const mode = await modeAt(api, tree, entry.path);
+      if (mode !== entry.newMode && !(mode === null && entry.newMode === REGULAR)) {
+        return `${entry.path} changes mode ${entry.oldMode} to ${entry.newMode}, but the merge base holds it ${mode === null ? "not at all" : `at ${mode}`}`;
+      }
+    }
+    return null;
+  },
   // A version change of a regular npm or pip manifest or lock file modified in
   // place, as dependency-classify.mjs's fixRefusal decides; the verdict job
   // runs the same rule again on what landed.
@@ -901,7 +948,7 @@ export async function push({
   }
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha });
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }
@@ -972,6 +1019,9 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
   const refPath = (ref) => ref.split("/").map(encodeURIComponent).join("/");
   return {
     getPull: async (pr) => (await request(`pulls/${pr}`)).data,
+    // The merge base and a tree, for the pr-mode-revert content rule (contents read).
+    compare: async (base, head) => (await request(`compare/${base}...${head}`)).data,
+    getTree: async (sha) => (await request(`git/trees/${sha}`)).data,
     async listLabels(pr) {
       const { data, link } = await request(`issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {

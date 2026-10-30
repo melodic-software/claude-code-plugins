@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [1.10.4] - 2026-10-29
+
+### Fixed
+
+- **The per-project state key no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lib/state-key.sh` checks the remote identity with a here-string instead of `printf | grep -q`, so under `set -o pipefail` a valid identity can no longer be read as invalid and keyed by hash when grep exits before printf finishes writing.
+
+## [1.10.3] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
 ## [1.10.2] - 2026-10-29
 
 ### Changed
