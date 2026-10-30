@@ -218,7 +218,7 @@ who() {
     const read = load(readYml), write = load(writeYml), caller = load(callerYml);
     const expr = (src, ctx) => {
       const js = String(src).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ") // portability-ok: JS regex in node -e, not a shell tool
-        .replace(/\b(inputs|needs|github|vars|steps)(\.[\w-]+)+/g, (m) => JSON.stringify(ctx[m] ?? "")) // portability-ok: JS regex in node -e, not a shell tool
+        .replace(/\b(inputs|needs|github|vars|steps)(\.[\w-]+)+/g, (m) => { if (!(m in ctx)) throw new Error(`an unresolved context reference: ${m}`); return JSON.stringify(ctx[m]); }) // portability-ok: JS regex in node -e, not a shell tool
         .replace(/always\(\)/g, "true").replace(/cancelled\(\)/g, "false")
         .replace(/==/g, "===").replace(/!=(?!=)/g, "!==");
       const format = (f, a) => String(a);
@@ -242,7 +242,7 @@ who() {
     const go = (fs.readFileSync(out, "utf8").match(/^run=(.*)$/m) ?? [])[1] ?? "";
     const started = String(expr(read.jobs.run.outputs["issue-run-started"], { ...runCtx, "steps.go.outputs.run": go }));
     const readReleases = on(read.jobs.report.if, {
-      "inputs.issue-number": "7", "inputs.caller-releases-lease": crl === "true",
+      "github.event_name": "issues", "github.event.pull_request.head.repo.full_name": "", "github.repository": "acme/widgets", "github.event.sender.id": "", "vars.AUTOMATION_LANES_APP_SENDER_ID": "987654", "inputs.issue-number": "7", "inputs.caller-releases-lease": crl === "true",
       "needs.broker-check.outputs.lease": lease, "needs.broker-check.outputs.lease-comment-id": leaseId,
       "needs.run.outputs.handed-off": handedOff, "needs.issue-fields.outputs.issue-run-started": started,
       "needs.issue-fields.outputs.reuse-branch": reuse,
@@ -253,12 +253,18 @@ who() {
       "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
       "needs.resolve-issue.outputs.lease-comment-id": leaseId,
     };
+    // The skipped later calls output nothing.
+    for (const call of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+      for (const name of ["scan-issue-run-started", "scan-reuse-branch", "scan-patch-state", "lease-comment-id"]) {
+        callerCtx[`needs.${call}.outputs.${name}`] = "";
+      }
+    }
     const apply = caller.jobs["apply-issue-patch"], report = caller.jobs["report-outcome"];
     const applyRuns = on(apply.if, callerCtx);
     const skip = applyRuns ? applySkip : "";
     const reportRuns = on(report.if, { ...callerCtx, "needs.apply-issue-patch.outputs.skip-reason": skip });
     const writeReleases = (job, activity, sk) => on(write.jobs.report.if, {
-      "inputs.issue-number": "7", "inputs.activity": activity, "needs.run.outputs.skip-reason": sk,
+      "github.event_name": "issues", "github.event.pull_request.head.repo.full_name": "", "github.repository": "acme/widgets", "github.event.sender.id": "", "vars.AUTOMATION_LANES_APP_SENDER_ID": "987654", "inputs.issue-number": "7", "inputs.activity": activity, "needs.run.outputs.skip-reason": sk,
       "inputs.lease-comment-id": String(expr(job.with["lease-comment-id"], callerCtx)),
     });
     const writes = (applyRuns && writeReleases(apply, "apply-issue-patch", skip)) || (reportRuns && writeReleases(report, "report-outcome", ""));
