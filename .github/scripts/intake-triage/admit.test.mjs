@@ -719,6 +719,8 @@ describe("decide", () => {
       "- [ ] The script does not edit .github/workflows/a.yml.",
       "- [ ] It doesn’t touch .github/CODEOWNERS.",
       "- [ ] No change to .gitmodules is made.",
+      "- [ ] The run leaves .github/workflows/a.yml unchanged.",
+      "- [ ] The script never writes to .github/workflows/a.yml.",
     ];
     for (const line of negated) {
       test(`admits the negated ${line}`, () => {
@@ -732,7 +734,8 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement]) })), { verdict: "admit", reasons: [] });
     });
 
-    // The negation ends where the clause turns back to a change.
+    // The negation ends where the clause turns back to a change, and drops a
+    // path only when it negates a modification.
     const turned = [
       ["- [ ] No file other than .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
       ["- [ ] No file outside .github/workflows is edited.", ".github/workflows"],
@@ -741,6 +744,13 @@ describe("decide", () => {
       ["- [ ] No file under docs is edited, and .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
       ["- [ ] No file under docs is edited. .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
       ["- [ ] Edit .github/workflows/a.yml so it does not change the timeout.", ".github/workflows/a.yml"],
+      // A negation with no modification verb asks for edits under the path.
+      ["- [ ] No file under `.github/workflows` references the retired action.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows references X.", ".github/workflows"],
+      ["- [ ] No workflow under .github/workflows uses Y.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
+      ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
     ];
     for (const [line, path] of turned) {
       test(`still refuses ${line}`, () => {

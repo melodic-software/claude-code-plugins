@@ -723,15 +723,28 @@ const dotted = (path) =>
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
-// A clause that says a path is left alone ("No file under X is edited", "the
-// diff touches no X or Y file", "does not change X"), from its negation to
-// the clause's end: a sentence end, `;`, `: `, a blank line, a fence, or a
-// word that turns it back toward a change (but, except, other than, outside,
-// and, ...). A path it names asks for no push.
-const VERBS = "touch|change|edit|modify|alter";
+// A clause that negates a modification of a path ("No file under X is
+// edited", "the diff touches no X or Y file", "does not change X", "leaves X
+// unchanged"), from its negation to the clause's end: a sentence end, `;`,
+// `: `, a blank line, a fence, or a word that turns it back toward a change
+// or a condition (but, except, other than, outside, and, after, ...). A path
+// it names asks for no push. A negation with no modification verb in its
+// clause ("no file under X references Y") still asks for edits there.
+const END = String.raw`[;!?]|\.(?:\s|$)|:\s|\n\s*\n|\x60{3}|~{3}|\b(?:but|except|other\s+than|besides|apart\s+from|aside\s+from|outside|beyond|and|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if)\b`;
+const IN_CLAUSE = String.raw`(?:(?!${END})[\s\S])*?`;
+const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
+const DONE = String.raw`touched|changed|edited|modified|altered|(?:re)?written\s+to`;
+// A finite verb after "no <subject>", not a noun such as "the changes".
+const FINITE = String.raw`(?<!\b(?:the|a|an|its|their|any|these|those|this|that|such)\s+)(?:touches|changes|edits|modifies|alters|(?:re)?writes\s+to)`;
 const NEGATED = new RegExp(
-  String.raw`\b(?:no\s+(?:files?|paths?|changes?|edits?)\b|(?:${VERBS})(?:e?s|ing)?\s+no\b|(?:does|do|must|should|will|may|shall)\s+not\s+(?:${VERBS})\b|(?:doesn|don|mustn|shouldn|won)['’]t\s+(?:${VERBS})\b|never\s+(?:${VERBS})(?:e?s)?\b)` +
-    String.raw`[\s\S]*?(?=[;!?]|\.(?:\s|$)|:\s|\n\s*\n|\x60{3}|~{3}|\b(?:but|except|other\s+than|besides|apart\s+from|aside\s+from|outside|beyond|and|while|so|then|unless|yet|whereas|instead)\b|$)`,
+  String.raw`(?:\b(?:${VERB})\s+no\b` +
+    String.raw`|\b(?:does|do|did|must|should|will|may|shall|can|need|needs|is|are|be|gets?)\s+not\s+(?:be\s+|get\s+)?(?:${VERB}|${DONE})\b` +
+    String.raw`|\b(?:doesn|don|didn|mustn|shouldn|won|isn|aren|can)['’]t\s+(?:be\s+)?(?:${VERB}|${DONE})\b` +
+    String.raw`|\bnever\s+(?:be\s+|gets?\s+)?(?:${VERB}|${DONE})\b` +
+    String.raw`|\bno\s+(?:changes?|edits?|modifications?)\s+(?:to|in|under|of)\b` +
+    String.raw`|\bno\b${IN_CLAUSE}\b(?:${DONE}|${FINITE})\b` +
+    String.raw`|\bleav(?:e|es|ing)\b${IN_CLAUSE}\b(?:unchanged|untouched|unedited|unmodified)\b)` +
+    String.raw`${IN_CLAUSE}(?=${END}|$)`,
   "gi",
 );
 const withoutNegated = (text) => text.replace(NEGATED, " ");
