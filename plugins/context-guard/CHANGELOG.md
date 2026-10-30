@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.10] - 2026-10-30
+
+### Fixed
+
+- The mod tests' fake file system now matches the resolved Windows path the engine passes (`D:\srv\u\...`), so they pass on Windows as well as Linux.
+
 ## [1.1.9] - 2026-10-30
 
 ### Changed
