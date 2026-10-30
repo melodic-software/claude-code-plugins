@@ -123,6 +123,21 @@ test("a chunked review's verdict sums every chunk's findings and takes the most 
   });
   assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 5, critical: 2, items: 5 });
   assert.equal(verdict.summary, "Chunk 1 of 2: first\n\nChunk 2 of 2: second");
+  // `items` lists 3 CRITICAL findings while `critical` is 2: each item names
+  // its chunk, so the CRITICAL ones `critical` counts are the ones in one chunk.
+  assert.deepEqual(
+    verdict.items.map((item) => [item.chunk, item.severity]),
+    [
+      [1, "CRITICAL"],
+      [1, "CRITICAL"],
+      [1, "SUGGESTION"],
+      [2, "CRITICAL"],
+      [2, "IMPORTANT"],
+    ],
+  );
+  for (let chunk = 1; chunk <= 2; chunk++) {
+    assert.ok(verdict.items.filter((item) => item.chunk === chunk && item.severity === "CRITICAL").length <= verdict.critical);
+  }
   assert.deepEqual(Object.keys(verdict).sort(), Object.keys(buildVerdict(args({ findings: [], summary: "s" }))).sort());
   // One chunk is the single-pass verdict, unchanged.
   const one = { findings: [finding("CRITICAL")], summary: "s" };

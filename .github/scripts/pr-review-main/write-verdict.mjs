@@ -4,7 +4,8 @@
 // pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
 // (babysit_review_evidence.main_review_name). The gate counts only its
 // numbers: `findings`, every finding the model returned, summed over the
-// chunks, and `critical`, the CRITICAL ones, the most in any one chunk. The
+// chunks, and `critical`, the CRITICAL ones, the most in any one chunk
+// (`items` lists them all, each chunked one with its `chunk`). The
 // pull request, head, base and tree come from the job's own reads, never from
 // the model. A run with any permission denial, output
 // that is not {findings, summary}, a finding that is not
@@ -166,7 +167,9 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
 
 // One verdict over the chunks a diff over one review's size cap was split
 // into, in chunk order: each chunk's output is checked as a whole review's;
-// `findings` is the sum and `critical` the most any one chunk found.
+// `findings` is the sum and `critical` the most any one chunk found. `items`
+// lists every chunk's findings, each with its 1-based `chunk`, so it can hold
+// more CRITICAL items than `critical`; the gate reads only the counts.
 // One chunk is the single-pass verdict.
 export function buildChunkedVerdict({ outputs, ...rest }) {
   if (!Array.isArray(outputs) || outputs.length === 0) {
@@ -187,7 +190,7 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
     findings: chunks.reduce((sum, c) => sum + c.findings, 0),
     critical: Math.max(...chunks.map((c) => c.critical)),
     summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
-    items: chunks.flatMap((c) => c.items),
+    items: chunks.flatMap((c, i) => c.items.map((item) => ({ ...item, chunk: i + 1 }))),
   };
 }
 

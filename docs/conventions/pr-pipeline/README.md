@@ -1106,8 +1106,12 @@ the rules that only tighten in
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
-  any one chunk found. A patch that holds a single file over 300000 bytes, or needs more than 4
-  chunks (the diff step's `MAX_CHUNKS`, at most the leg's review steps), gets no verdict. The
+  any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single file
+  over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
+  until a dynamic chunk count lifts it
+  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). The
   diff step logs a `pr-review-main chunks` notice with the chunk count and each chunk's bytes,
   and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
   CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
