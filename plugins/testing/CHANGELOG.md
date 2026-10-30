@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.5] - 2026-10-30
+
+### Changed
+
+- `/testing:run-e2e` follows a control skill's module index one level down: when a changed file matches a hub line that names a module `README.md`, the run maps the file to the features under that module whose own `## Sub-features` lines match, drives their entry points and refreshes them by their `<module>/<feature>` ids.
+
 ## [1.6.4] - 2026-10-30
 
 ### Changed

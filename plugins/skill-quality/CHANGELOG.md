@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.15] - 2026-10-30
+
+### Changed
+
+- `/skill-quality:setup`: the reconfiguration guidance names `claude plugin configure skill-quality@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with the four caveats the plugin-reconfiguration convention requires.
+
 ## [0.31.14] - 2026-10-30
 
 ### Changed

@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, resolvePull } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -1509,5 +1509,119 @@ test("FAIL names first and a pass decided before the issue-named lookups give th
     const anyFail = chosen.some((key) => key.endsWith("Fail"));
     const expected = anyFail || chosen.includes("freshPass") ? "already-judged" : chosen.includes("stalePass") ? "spec-changed" : "ok";
     assert.equal(await reason(setup), expected, chosen.join("+") || "none");
+  }
+});
+
+// pr-verify.yml's check-intent hands its reads to check-intent-subscription
+// (resolve-pr.mjs packReads, takeReads), so a handoff does not repeat them.
+const CARRY = {
+  attempt: "1",
+  prNumber: 41,
+  headSha: HEAD,
+  baseSha: "b".repeat(40),
+  headRef: "feat/41-carry",
+  relinkSinceHead: "false",
+  linkedIssues: [{ number: 7 }],
+  specText: [{ number: 7, body: "spec" }],
+  context: { pr: { number: 41 }, items: [], dropped: {} },
+};
+// A client that fails the test on any read.
+const noReads = () => async (method, apiPath) => assert.fail(`no read on the carried path: ${method} ${apiPath}`);
+
+test("the carried reads round-trip for the same run attempt and nothing else", () => {
+  const packed = packReads(CARRY);
+  assert.ok(packed.length > 0 && packed.length <= CARRY_MAX);
+  const { attempt, ...rest } = CARRY;
+  assert.deepEqual(takeReads(packed, "1"), rest);
+  // relink-since-head survives as written, both ways.
+  assert.equal(takeReads(packReads({ ...CARRY, relinkSinceHead: "true" }), "1").relinkSinceHead, "true");
+  // A re-run of the subscription job alone is a new attempt: it reads again.
+  assert.equal(takeReads(packed, "2"), null);
+  assert.equal(takeReads(packed, ""), null);
+  for (const broken of [
+    { headSha: "x" },
+    { baseSha: "" },
+    { headRef: "a b" },
+    { prNumber: 0 },
+    { linkedIssues: null },
+    { specText: {} },
+    { context: [] },
+    { relinkSinceHead: "" },
+    { relinkSinceHead: "yes" },
+    { relinkSinceHead: undefined },
+  ]) {
+    assert.equal(takeReads(packReads({ ...CARRY, ...broken }), "1"), null, JSON.stringify(broken));
+  }
+  assert.equal(takeReads("not base64 json", "1"), null);
+  assert.equal(takeReads("", "1"), null);
+  // Too large to hand on: empty, so the subscription job reads again.
+  assert.equal(packReads({ ...CARRY, context: { pad: "x".repeat(CARRY_MAX) } }), "");
+  // The taker caps size too, whoever wrote the bundle.
+  assert.equal(takeReads("A".repeat(CARRY_MAX + 1), "1"), null);
+});
+
+test("carry hands on the base-side files, and nothing when one is missing", (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const env = {
+    GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    PR_NUMBER: "41",
+    HEAD_SHA: CARRY.headSha,
+    BASE_SHA: CARRY.baseSha,
+    HEAD_REF: CARRY.headRef,
+    RELINK_SINCE_HEAD: CARRY.relinkSinceHead,
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    CONTEXT_FILE: path.join(dir, "context.json"),
+  };
+  writeFileSync(env.SPEC_FILE, JSON.stringify(CARRY.linkedIssues));
+  writeFileSync(env.SPEC_TEXT_FILE, JSON.stringify(CARRY.specText));
+  carryMain(env);
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^reads=\n$/, "no context file");
+  writeFileSync(env.CONTEXT_FILE, JSON.stringify(CARRY.context));
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  carryMain(env);
+  const reads = /^reads=(.+)$/m.exec(readFileSync(env.GITHUB_OUTPUT, "utf8"))[1];
+  assert.equal(takeReads(reads, "1").context.pr.number, 41);
+  // With no relink-since-head output, nothing is handed on.
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  carryMain({ ...env, RELINK_SINCE_HEAD: "" });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^reads=\n$/, "no relink-since-head");
+});
+
+test("main takes the carried reads with no API read, and reads again when they do not hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    CONTEXT_FILE: path.join(dir, "context.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    CARRIED: packReads(CARRY),
+  };
+  await main(env, { github: noReads() });
+  assert.equal(
+    readFileSync(env.GITHUB_OUTPUT, "utf8"),
+    `proceed=true\nreason=carried\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${CARRY.baseSha}\nhead-ref=feat/41-carry\nrelink-since-head=false\ncarried=true\n`,
+  );
+  assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), CARRY.linkedIssues);
+  assert.deepEqual(JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8")), CARRY.specText);
+  assert.deepEqual(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")), CARRY.context);
+  // Another attempt's reads, or none: the full resolver runs on its reads.
+  for (const carried of [packReads({ ...CARRY, attempt: "2" }), "garbage"]) {
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    await main({ ...env, CARRIED: carried }, { github: fake() });
+    const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
+    assert.match(out, /^proceed=true\nreason=ok\npr-number=41\n/, carried);
+    assert.doesNotMatch(out, /carried=true/);
   }
 });

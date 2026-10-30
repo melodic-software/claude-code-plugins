@@ -63,12 +63,13 @@
       "id": 5,
       "name": "apply-userconfig-key-points-at-config",
       "prompt": "/user-interface:setup apply --user css_layer=components",
-      "expected_output": "Recognizes css_layer as a userConfig option, which this skill does not write, and sends the user to the routes in the plugin README's Options section to set it; alternatively offers to write css.layer: components to the user-global file instead.",
+      "expected_output": "Recognizes css_layer as a userConfig option, which this skill does not write, and gives the routes to set it: interactive `/plugin configure user-interface@<marketplace>`, headless `claude plugin configure user-interface@<marketplace> --values-stdin` with `{\"css_layer\": \"components\"}` as the preferred route, and the `claude plugin install user-interface@<marketplace> -s <scope> --config css_layer=components` rerun as the fallback; alternatively offers to write css.layer: components to the user-global file instead.",
       "files": [],
       "narration": true,
       "expectations": [
         "Does not edit settings.json itself",
-        "Points the user at the plugin README's Options section for setting the userConfig value",
+        "Names `claude plugin configure user-interface@<marketplace> --values-stdin` with a values file setting css_layer to components as the preferred headless route, and the `claude plugin install ... --config css_layer=components` rerun second as the fallback",
+        "Never tells the user to uninstall the plugin to reconfigure, and says the new value shows in a fresh session's check",
         "Offers css.layer in the user-global file as the file-layer alternative"
       ]
     }

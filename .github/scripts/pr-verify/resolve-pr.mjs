@@ -43,7 +43,7 @@
 // changed since the head commit (relinkedSince), which sets how long its pass
 // lasts (write-verdict.mjs retentionDays).
 
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -684,7 +684,106 @@ export function specFromBodyApps(text) {
   return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
 }
 
+// check-intent's reads, handed to check-intent-subscription in one job output
+// so a handoff does not repeat them: written by `carry` from the files and
+// outputs of the base-side steps, before the model runs, as base64 JSON. A
+// bundle over CARRY_MAX characters is not handed on, so the job output and the
+// env var that takes it stay small; the subscription job then reads again.
+export const CARRY_MAX = 96_000;
+const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
+const ATTEMPT = /^[1-9][0-9]{0,4}$/;
+
+export function packReads({ attempt, prNumber, headSha, baseSha, headRef, relinkSinceHead, linkedIssues, specText, context }) {
+  const packed = Buffer.from(
+    JSON.stringify({ v: 1, attempt, pr: prNumber, head_sha: headSha, base_sha: baseSha, head_ref: headRef, relink_since_head: relinkSinceHead, linked_issues: linkedIssues, spec_text: specText, context }),
+  ).toString("base64");
+  return packed.length <= CARRY_MAX ? packed : "";
+}
+
+// The carried reads when they hold for this run attempt: a re-run of the
+// subscription job alone is a new attempt that keeps check-intent's outputs,
+// and what was judged may have changed since, so it reads again. Anything
+// malformed is null, never a partial bundle.
+export function takeReads(carried, attempt) {
+  if (String(carried ?? "").length > CARRY_MAX) {
+    return null;
+  }
+  let reads;
+  try {
+    reads = JSON.parse(Buffer.from(String(carried ?? ""), "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+  const valid =
+    reads?.v === 1 &&
+    ATTEMPT.test(String(attempt ?? "")) &&
+    reads.attempt === String(attempt) &&
+    Number.isSafeInteger(reads.pr) &&
+    reads.pr > 0 &&
+    SHA.test(reads.head_sha ?? "") &&
+    SHA.test(reads.base_sha ?? "") &&
+    HEAD_REF.test(reads.head_ref ?? "") &&
+    (reads.relink_since_head === "true" || reads.relink_since_head === "false") &&
+    Array.isArray(reads.linked_issues) &&
+    Array.isArray(reads.spec_text) &&
+    reads.context !== null &&
+    typeof reads.context === "object" &&
+    !Array.isArray(reads.context);
+  return valid
+    ? { prNumber: reads.pr, headSha: reads.head_sha, baseSha: reads.base_sha, headRef: reads.head_ref, relinkSinceHead: reads.relink_since_head, linkedIssues: reads.linked_issues, specText: reads.spec_text, context: reads.context }
+    : null;
+}
+
+// `carry`: the reads output, from the resolver's outputs and the data files
+// it and select-trusted-text wrote; empty when anything is missing.
+export function carryMain(env = process.env) {
+  let packed = "";
+  try {
+    packed = packReads({
+      attempt: String(env.GITHUB_RUN_ATTEMPT ?? ""),
+      prNumber: Number(env.PR_NUMBER),
+      headSha: env.HEAD_SHA,
+      baseSha: env.BASE_SHA,
+      headRef: env.HEAD_REF,
+      relinkSinceHead: env.RELINK_SINCE_HEAD,
+      linkedIssues: JSON.parse(readFileSync(env.SPEC_FILE, "utf8")),
+      specText: JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8")),
+      context: JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")),
+    });
+  } catch {
+    packed = "";
+  }
+  // Checked as the taker will, so a bad bundle is never handed on.
+  if (packed !== "" && takeReads(packed, env.GITHUB_RUN_ATTEMPT) === null) {
+    packed = "";
+  }
+  appendFileSync(env.GITHUB_OUTPUT, `reads=${packed}\n`);
+  console.log(packed === "" ? "resolve-pr: no reads handed on; a handoff reads again" : `resolve-pr: handed on ${packed.length} characters of reads`);
+}
+
 export async function main(env = process.env, { github, fetchImpl } = {}) {
+  if (env.CARRIED) {
+    const taken = takeReads(env.CARRIED, env.GITHUB_RUN_ATTEMPT);
+    if (taken !== null && env.CONTEXT_FILE && env.SPEC_FILE && env.SPEC_TEXT_FILE && env.GITHUB_OUTPUT) {
+      writeFileSync(env.SPEC_FILE, `${JSON.stringify(taken.linkedIssues, null, 2)}\n`);
+      writeFileSync(env.SPEC_TEXT_FILE, `${JSON.stringify(taken.specText, null, 2)}\n`);
+      writeFileSync(env.CONTEXT_FILE, `${JSON.stringify(taken.context, null, 2)}\n`);
+      const lines = [
+        "proceed=true",
+        "reason=carried",
+        `pr-number=${taken.prNumber}`,
+        `head-sha=${taken.headSha}`,
+        `base-sha=${taken.baseSha}`,
+        `head-ref=${taken.headRef}`,
+        `relink-since-head=${taken.relinkSinceHead}`,
+        "carried=true",
+      ];
+      appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
+      console.log(`resolve-pr: proceed=true reason=carried pr=${taken.prNumber} head=${taken.headSha}`);
+      return;
+    }
+    console.log("resolve-pr: the key job's reads do not hold for this attempt; reading again");
+  }
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
@@ -771,7 +870,9 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   console.log(`resolve-pr: proceed=${result.proceed} reason=${result.reason}${result.proceed ? ` pr=${result.prNumber} head=${result.headSha}` : ""}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "carry") {
+  carryMain();
+} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     console.log(`::error::pr-verify could not resolve the pull request: ${error.message}`);
     process.exitCode = 1;
