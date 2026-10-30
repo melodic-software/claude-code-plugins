@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [8.15.1] - 2026-10-30
+
+### Fixed
+
+- **The README now says how a held Dependabot pull request is released.** ci-status's trust-path hold on a Dependabot pull request clears when a person on the trusted-actor `human` list approves the current head; a new push needs a new approval, and `ci-status` is then re-run, since a review does not re-run it. The README no longer calls the admin bypass a break-glass, since the ruleset requires ci-status and the merge queue even for an admin merge.
+
+- A Size Large issue whose sub-issues are all closed but which is still open is refused at admission (`status: confirmed`) instead of parked as "split pending" on every hourly sweep. work-unblock now closes finished split parents before it re-runs admission, so a parent whose last sub-issue just closed is closed rather than refused.
+- A split parent's admission comment no longer keeps saying the split is pending once sub-issues exist. When a sub-issue closes, work-unblock rewrites that comment to name the open sub-issues. The hourly sweep also rewrites it for one twenty-fourth of the waiting parents, chosen by issue number, so each is checked once a day.
+- A parent split by hand now closes as completed once its sub-issues are done, when each unticked task-list item in its body cites one of its sub-issues as `#N`. An uncited item still keeps it open.
+
 ## [8.15.0] - 2026-10-30
 
 ### Changed
