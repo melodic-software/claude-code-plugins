@@ -248,7 +248,7 @@ const DECLINES = {
   "few-lines": "its trusted text holds fewer than 2 task-list lines, even with intake's refinement",
   "no-split": "no split into whole changes was found, either by task-list line or by the targets the lines name",
   "bad-split": "the proposed split of its task-list lines did not cover each line exactly once in 2 or more parts",
-  "bad-subset": "the proposed target groups were not text copied from its task-list lines, each target named once",
+  "bad-subset": "the proposed target groups were not text copied from its task-list lines, each target named once and inside no other target",
   "no-type": "its Issue Type is not one admission takes, so its sub-issues would take none",
 };
 const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
@@ -384,9 +384,10 @@ export function partitionProblem(output, count, maxParts = 10) {
 // Why `groups` and `order` are no target-subset split over task lines
 // `lines`, or null: 2 to `maxParts` non-empty groups, each target an
 // admit.mjs scopeTarget over the lines' texts after their `taskList`
-// marker and named once, every line's text holding one of the targets
-// (none left out of every part), an order as
-// partitionProblem takes it, and groups the split record holds: they must
+// marker, named once and inside no other target (two parts would own the
+// same work), every line's text holding one of the targets (none left out
+// of every part), an order as partitionProblem takes it, and groups the
+// split record holds: they must
 // come back from renderSplitRecord through splitRecord, so the record's
 // cap and its parser stay one source. Pure.
 export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
@@ -406,7 +407,11 @@ export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
       seen.add(name);
     }
   }
-  if (!texts.every((text) => [...seen].some((name) => text.includes(name)))) {
+  const names = [...seen];
+  if (names.some((name) => names.some((other) => other !== name && other.includes(name)))) {
+    return "no target may be text inside another target";
+  }
+  if (!texts.every((text) => names.some((name) => text.includes(name)))) {
     return "the targets must cover every task-list line";
   }
   const problem = orderProblem(order, groups.length);

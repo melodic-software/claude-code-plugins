@@ -940,6 +940,10 @@ describe("size split", () => {
     for (const [name, { max = 10, ...output }] of Object.entries(bad)) {
       assert.notEqual(subsetProblem(output, LINES, max, rules["task-list"]), null, name);
     }
+    // A target inside another would give two parts the same work.
+    const overlap = ["- [ ] Port alpha and alpha-tools", "- [ ] Update alpha docs"];
+    assert.match(subsetProblem({ groups: [["alpha"], ["alpha-tools"]], order: [] }, overlap, 10, rules["task-list"]) ?? "", /another target/);
+    assert.match(subsetProblem({ groups: [["alpha", "alpha-tools"], ["docs"]], order: [] }, overlap, 10, rules["task-list"]) ?? "", /another target/);
     // Groups the split record cannot hold would leave it unreadable, and
     // the next triage would file the parts again (splitRecord round trip).
     const long = Array.from({ length: 80 }, (_, i) => `target-${String(i).padStart(2, "0")}-${"x".repeat(90)}`);
