@@ -57,7 +57,9 @@ then names that `README.md` in place of a line per feature under the module. The
 `## Entry points` repeats each entry point of the features under it, one line each, so the hub
 line keeps the form above: its `<n>` is the number of lines under the module `README.md`'s own
 `## Entry points`, which is the sum of the features' entry points, and its `sources` is the union
-of their globs, so a changed file under any of them still matches a hub line. The module
+of their globs, so a changed file under any of them still matches a hub line. Each feature's own
+`README.md` is the source of truth for its entry points: where the module `README.md`'s copy
+disagrees with a feature's, the module copy is wrong and is rewritten from the features. The module
 `README.md`'s `## Sub-features` holds one index line per feature under it, in the form above with
 that feature's own path, count and globs. A caller that maps a changed file to features reads the
 hub's lines, and for a matched module line reads the module `README.md`'s `## Sub-features` lines
