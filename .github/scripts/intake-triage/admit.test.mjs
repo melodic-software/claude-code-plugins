@@ -2447,7 +2447,8 @@ test("trustedSplitChild reads the issue and its native parent and applies splitC
 // item citing a sub-issue counts as covered; an uncited one may be more work.
 describe("isSplitParent, split by hand", () => {
   const humans = new Set([HUMAN]);
-  const child = (number, repo = "o/r") => ({ number, state: "closed", repository_url: `https://api.github.com/repos/${repo}` });
+  const titles = { 31: "feat(io): the parser", 32: "The writer" };
+  const child = (number, repo = "o/r") => ({ number, title: titles[number], state: "closed", repository_url: `https://api.github.com/repos/${repo}` });
   const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
   const github = async (method, path) => (path.includes("/events") ? [link(31), link(32)] : []);
   const splitParent = (body, labels = []) =>
@@ -2466,6 +2467,13 @@ describe("isSplitParent, split by hand", () => {
   test("a sub-issue named mid-item, or only in a link, does not cover the item", async () => {
     assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] after #32 lands, update the README"), false);
     assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] see [#32](https://github.com/other/repo/issues/32) for context"), false);
+    assert.equal(await splitParent("- [ ] #31\n- [ ] see https://example.com/?q=#32"), false);
+  });
+  test("an item whose text is not its sub-issue's title is the parent's own work, wherever the citation sits", async () => {
+    for (const item of ["Update the README after #32", "Write migration guide, blocked by #32", "#32 must land first, then update the README"]) {
+      assert.equal(await splitParent(`- [ ] #31\n- [ ] ${item}`), false, item);
+    }
+    assert.equal(await splitParent("- [ ] **#31** The parser.\n- [ ] #32"), true);
   });
   test("a recurring issue is never a split parent, even with every item cited", async () => {
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);

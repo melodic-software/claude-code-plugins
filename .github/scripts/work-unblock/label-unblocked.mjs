@@ -1908,7 +1908,7 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
       console.log(`label-unblocked: #${parent.number} admission comment now names its open sub-issues`);
     }
   } catch (error) {
-    console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${escapeCommand(error?.message ?? error)}`);
   }
   if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
     return;

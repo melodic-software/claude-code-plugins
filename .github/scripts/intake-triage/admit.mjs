@@ -1718,8 +1718,9 @@ const baseTaskList = () =>
 // `children` (its sub-issues as listed) is not empty, the newest
 // sub_issue_added naming each child was the App's or a listed human's, it is
 // not `recurring`, and each task-list item in its body (the admission rules'
-// `task-list`, unticked) cites `#N` of one of its children in this
-// repository on the item's own line: an uncited item may be more work.
+// `task-list`, unticked) is one of its children in this repository: the item
+// opens or ends with that child's `#N` and says nothing beyond its title. Any
+// other item may be more work.
 // `comments` are its comments. A failed read throws.
 export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
   if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
@@ -1728,11 +1729,18 @@ export async function isSplitParent({ github, repository, issue, comments, child
   if (children.length === 0 || names(issue.labels).includes(RECURRING)) {
     return false;
   }
-  const filed = new Set(children.filter((child) => here(child?.repository_url, repository)).map((child) => Number(child?.number)));
-  // Only a `#N` that opens or ends the item cites it: "after #12 lands, ..." is
-  // the parent's own work.
+  const bare = (text) => String(text ?? "").replaceAll(/[*()[\]`.,;:!]/g, " ").replaceAll(/\s+/g, " ").trim().toLowerCase();
+  const titles = new Map(children.filter((child) => here(child?.repository_url, repository)).map((child) => [Number(child?.number), bare(child?.title)]));
+  // A `#N` that opens or ends the item cites it, and only when the rest of the
+  // item is that sub-issue's title or a part of it: "update the README after
+  // #12" is the parent's own work.
   const cites = (item) =>
-    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#])#(\d+)\)?[.;]?\s*$/].some((pattern) => filed.has(Number(pattern.exec(item.text)?.[1])));
+    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#=?&])#(\d+)\)?[.;]?\s*$/].some((pattern) => {
+      const match = pattern.exec(item.text);
+      const title = titles.get(Number(match?.[1]));
+      const rest = bare(item.text.replace(match?.[0] ?? "", " "));
+      return title !== undefined && title.includes(rest);
+    });
   if (!taskItems(issue.body, baseTaskList()).every(cites)) {
     return false;
   }

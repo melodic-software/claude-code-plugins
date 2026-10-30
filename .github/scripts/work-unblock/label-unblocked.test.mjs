@@ -4551,6 +4551,35 @@ test("a parent's admission comment stays when it gives another reason, the paren
   }
 });
 
+test("a failed admission-comment refresh on a sub-issue close is a warning, not a failed sweep", async () => {
+  const parent = { ...issue(30, { labels: ["status: ready"] }), issue_dependencies_summary: { blocked_by: 0 } };
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  const second = subIssue(32, { state: "open", closed_by: null });
+  const { github, calls } = world({
+    closedList: [first],
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
+    subIssues: { 30: [first, second] },
+    comments: { 30: [admissionNote(SIZE_SPLIT_PENDING)] },
+    failOn: (method, path) => method === "PATCH" && path.startsWith(`/repos/${REPO}/issues/comments/`),
+  });
+  assert.equal(await sweep({ github }), 0);
+  assert.ok(calls.some((call) => call.startsWith(`PATCH /repos/${REPO}/issues/comments/88 `)), "the refresh was tried");
+});
+
+test("the sweep's rotation reads no comments of a held or queued parent", async () => {
+  // NOW is 12:00 UTC, so 36 is in the rotation slot.
+  for (const label of ["agent-ready", "status: needs-decision"]) {
+    const parent = readyIssue(36, { labels: [...READY_LABELS, label], sub_issues_summary: { total: 2, completed: 1 }, issue_dependencies_summary: { blocked_by: 0 } });
+    const { github, calls } = readyWorld({
+      items: [parent],
+      extra: { comments: { 36: [admissionNote(SIZE_SPLIT_PENDING)] }, subIssues: { 36: [subIssue(41, { state: "open", closed_by: null })] } },
+    });
+    await sweep({ github });
+    assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/36/comments`)), label);
+  }
+});
+
 test("the sweep rewrites the split-pending comment of an open-sub-issue parent whose number is the UTC hour modulo 24, and reads no other", async () => {
   // NOW is 12:00 UTC: 36 is read, 37 is not.
   const parent = (number) => readyIssue(number, { sub_issues_summary: { total: 2, completed: 1 }, issue_dependencies_summary: { blocked_by: 0 } });
