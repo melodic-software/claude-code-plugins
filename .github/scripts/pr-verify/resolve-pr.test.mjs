@@ -877,7 +877,7 @@ const COMMITTED_AT = "2026-10-19T12:00:00Z";
 const committed = (overrides = {}) => ({ run: upstream({ head_commit: { id: HEAD, timestamp: COMMITTED_AT } }), ...overrides });
 
 test("a judgment after an edit or link change since the head commit reports a relink, so its pass keeps a FAIL's retention", async () => {
-  // This PR's FAIL at the head, named with issue 5; the PR now closes 7, so
+  // This PR's FAIL at the head, named with an issue it no longer links, so
   // the head is judged again with reason ok, and the gate may find its pass
   // superseding the FAIL (babysit_verify_evidence `_superseded`).
   const fail = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i5`, 77)], runs: { 77: verifyRun(77, { created_at: FAILED_AT }) } };
