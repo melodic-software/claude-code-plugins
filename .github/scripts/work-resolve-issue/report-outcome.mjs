@@ -508,8 +508,8 @@ export function unmarkedAnswer(comments, humans, bot) {
 // pushback links with the line it lacks.
 // `reason` is the stop-reason code (stopReasonCode), which must be a person
 // reason: the comment carries its marker and its visible line. `spentSecurity`
-// marks routeStop's spent security hold, the only one whose line says intake
-// triage did not clear the risk.
+// marks routeStop's spent security hold, whose line says the run named the
+// risk again after its intake rounds were spent.
 function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason, spentSecurity = false }) {
   const pushback = outcome.exit === "pushback";
   const [reasonMarker, reasonLine] = personReasonLines(LANE, reason);
@@ -517,7 +517,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     reasonMarker,
     spentSecurity
-      ? "The work-resolve-issue lane hands this issue to a person: this run or an earlier one on it named a possible security risk, and intake triage did not clear it, so a person checks it first."
+      ? "The work-resolve-issue lane hands this issue to a person: this run named a possible security risk again after its intake rounds were spent, so a person checks it first."
       : reason === "security" && pushback
         ? "The work-resolve-issue lane did not start this issue: the run named a possible security risk, so a person checks it first."
         : pushback
@@ -651,7 +651,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
 // own `retries` when fewer (`retries`, counted since a listed human last added
 // agent-ready), takes retry-spent's route instead; a spent intake round that
 // is itself a pushbackSecurity stop takes security-risk's hold. `spentSecurity`
-// marks that hold, and finishStop's, for handBack.
+// marks that hold for handBack.
 function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop), why = "", spentSecurity = false } = {}) {
   const cap = stopRetries(stop, limits["stop-retries"]);
   const spent = COUNTED.has(given) && retries >= cap;
@@ -1540,9 +1540,6 @@ function restartMarkers({ comments, events, bot, humans, runId, outcome }) {
     .filter((marker) => marker?.outcome === outcome && marker.run !== runId && marker.at > since);
 }
 export const countRestarts = (args) => restartMarkers(args).length;
-// Whether a counted earlier intake marker carries `security`: a pushbackSecurity
-// round, which turns every later plan that would fail into a security-risk hold.
-export const priorSecurityIntake = (args) => restartMarkers({ ...args, outcome: "intake" }).some((marker) => marker.security);
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs).
@@ -1797,11 +1794,8 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // first counts its own outcome's markers since a listed human last added
 // agent-ready: past its cap it takes retry-spent's route (security-risk's hold
 // for an intake round that is a pushbackSecurity stop), so an issue intake
-// keeps sending back cannot loop. Any plan that would then fail (retry-spent,
-// turn-cap-spent) holds as security-risk instead when a counted intake marker
-// carries `security`, so a security reading never ends without a person; so
-// does a report-delivered close, whose only evidence is the run's own claim
-// (already-done keeps closing: its close needs a merged commit on main). A
+// keeps sending back cannot loop. An earlier round's security reading does not
+// carry over: intake triage re-judged it before admitting the issue again. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
@@ -1832,10 +1826,6 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
   if (COUNTED.has(plan.action)) {
     const counted = { ...(await read()), outcome: plan.exit };
     plan = capRetries(plan, countRestarts(counted), limits);
-  }
-  const delivered = plan.action === "close" && plan.stop === "report-delivered";
-  if ((plan.action === "fail" || delivered) && priorSecurityIntake(await read())) {
-    plan = routeStop("security-risk", plan.stopArgs, { spentSecurity: true });
   }
   if (KEPT.has(plan.action)) {
     const posted = history.comments.some((comment) => {

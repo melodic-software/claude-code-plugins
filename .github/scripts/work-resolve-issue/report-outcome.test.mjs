@@ -880,7 +880,7 @@ test("a pushback whose summary or cause names a security risk goes to intake mar
     assert.equal(spent.action, "hand-back", label);
     assert.equal(spent.stop, "security-risk", label);
     assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
-    assert.match(spent.comment, /named a possible security risk, and intake triage did not clear it/, spent.comment);
+    assert.match(spent.comment, /named a possible security risk again after its intake rounds were spent/, spent.comment);
     assert.doesNotMatch(spent.comment, /make it clearer first/, spent.comment);
   }
   const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means", title: "", summary: "" } });
@@ -1173,18 +1173,18 @@ test("main on a second pushback naming a security risk holds it as security-risk
   });
 });
 
-// A round-one pushback that read as a security risk stays sticky: whatever
-// stops the second intake round (a plain means pushback, a split-required
-// skip), it holds as security-risk. Two plain rounds still fail.
-test("main holds a second intake round as security-risk when an earlier intake marker carries security", async () => {
+// An earlier round's security mark does not carry over: intake triage
+// re-judged it before admitting the issue again, so whatever stops the second
+// intake round (a plain means pushback, a split-required skip) ends as it
+// would after a plain round.
+test("main ends a second intake round the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const secure = { user: bot, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
   const plainEarlier = { user: bot, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
   const means = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
-  for (const [name, prior, files, extra, held] of [
-    ["security then means pushback", secure, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}, true],
-    ["security then split-required skip", secure, {}, { DIMENSION_SKIP: "split-required" }, true],
-    ["plain then means pushback", plainEarlier, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}, false],
+  for (const [name, prior, files, extra] of [
+    ["security then means pushback", secure, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}],
+    ["plain then means pushback", plainEarlier, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}],
   ]) {
     await withAsyncDir({ ...files, "trusted.json": TRUSTED_LIST }, async (dir) => {
       const { fetch, calls } = fakeFetch([
@@ -1197,26 +1197,17 @@ test("main holds a second intake round as security-risk when an earlier intake m
       ]);
       assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), ...extra }, fetch }), 0, name);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      if (held) {
-        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"], name);
-        assert.ok(comment.includes("work-items:escalation"), comment);
-        assert.equal(parseReason(comment).reason, "security", comment);
-        assert.match(comment, /intake triage did not clear it/, comment);
-      } else {
-        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), name);
-        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
-      }
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), name);
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
     });
   }
 });
 
-// The sticky mark covers every round that would fail, not only intake ones: a
-// security pushback's intake, then stopped runs with no code until retries
-// are spent, holds as security-risk; a plain intake before them still fails.
-test("main holds a spent retry as security-risk when an earlier intake marker carries security", async () => {
+// A spent retry fails the same after a security or a plain intake round.
+test("main fails a spent retry the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const marker = (outcome, run, at) => ({ user: bot, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->\nWhy.`, created_at: at });
-  for (const [first, held] of [["intake security", true], ["intake", false]]) {
+  for (const first of ["intake security", "intake"]) {
     const prior = [marker(first, "97", "2026-10-29T10:00:00Z"), marker("retry", "98", "2026-10-29T11:00:00Z"), marker("retry", "99", "2026-10-29T12:00:00Z")];
     await withAsyncDir({}, async (dir) => {
       const { fetch, calls } = fakeFetch([
@@ -1229,26 +1220,17 @@ test("main holds a spent retry as security-risk when an earlier intake marker ca
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0, first);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      if (held) {
-        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
-        assert.ok(comment.includes("work-items:escalation"), comment);
-        assert.equal(parseReason(comment).reason, "security", comment);
-        assert.match(comment, /intake triage did not clear it/, comment);
-      } else {
-        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
-        assert.equal(parseOutcomeMarker(comment).outcome, "failed");
-      }
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+      assert.equal(parseOutcomeMarker(comment).outcome, "failed");
     });
   }
 });
 
-// A report-delivered close rests only on the run's own claim, so after a
-// security intake it holds for a person instead of closing; after a plain
-// intake it closes as before.
-test("main holds a report-delivered close as security-risk when an earlier intake marker carries security", async () => {
+// A report-delivered close closes the same after a security or a plain intake round.
+test("main closes a report-delivered stop the same after a security or a plain earlier intake marker", async () => {
   const bot = { login: "melodic-automation-lanes[bot]" };
   const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
-  for (const [first, held] of [["intake security", true], ["intake", false]]) {
+  for (const first of ["intake security", "intake"]) {
     const prior = [{ user: bot, body: `<!-- work-resolve-issue outcome=${first} run=97 -->\nWhy.`, created_at: "2026-10-29T10:00:00Z" }];
     await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
       const { fetch, calls } = fakeFetch([
@@ -1262,15 +1244,9 @@ test("main holds a report-delivered close as security-risk when an earlier intak
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0, first);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      const closed = calls.some((c) => c.method === "PATCH" && c.body?.state === "closed");
-      if (held) {
-        assert.ok(!closed, first);
-        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
-        assert.equal(parseReason(comment).reason, "security", comment);
-      } else {
-        assert.ok(closed, first);
-        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
-      }
+      assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"), first);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+      assert.ok(comment.length > 0, first);
     });
   }
 });
@@ -2307,9 +2283,8 @@ test("main on a rerun after its turn-cap marker posts nothing again", async () =
   });
 });
 
-// A turn cap with no restart left fails, unless an earlier intake marker
-// carries security: then it holds as security-risk.
-test("main holds a spent turn cap as security-risk when an earlier intake marker carries security", async () => {
+// A turn cap with no restart left fails, an earlier security intake marker included.
+test("main fails a spent turn cap after an earlier security intake marker", async () => {
   const secure = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
   await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -2321,10 +2296,9 @@ test("main holds a spent turn cap as security-risk when an earlier intake marker
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
     assert.equal(await main({ env: env(dir), fetch }), 0);
-    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-    assert.equal(parseReason(comment).reason, "security", comment);
-    assert.match(comment, /intake triage did not clear it/, comment);
+    assert.equal(parseOutcomeMarker(comment).outcome, "failed");
   });
 });
 

@@ -339,12 +339,9 @@ a code and no security risk takes that code's route. Any other pushback goes bac
 triage once, whose own intent, security and cost rules decide whether it stops
 ([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)
 `pushback-means`, `retries: 1`); a second one fails. A pushback whose words (its reason, its
-summary or a not-done item) or cause name a security risk marks its intake comment `security`,
-and that mark is sticky: any later round that would fail (a spent intake, retry or wait, or a
-spent turn cap) holds for the owner as `security-risk` instead, whatever stops it, so a real
-security risk never ends without a person. A `report-delivered` close holds the same way, since
-its only evidence is the run's own claim; an `already-done` close still closes, since it needs a
-merged commit on the default branch.
+summary or a not-done item) or cause name a security risk marks its intake comment `security`;
+when that intake round is spent, it holds for the owner as `security-risk`. The mark does not
+carry over to later runs: intake triage re-judged it before admitting the issue again.
 
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 

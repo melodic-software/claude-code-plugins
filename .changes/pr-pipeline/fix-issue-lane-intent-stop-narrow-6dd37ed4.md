@@ -13,7 +13,5 @@ bump: patch
   when it names a security risk after the code. The rest are `pushback-means`, which goes back
   through intake triage once, where intake's own intent, security and cost rules still apply; one
   whose reason, summary, not-done item or cause names a security risk gets an intake comment with
-  no means framing, marked `security`, and that mark is sticky: any later round that would fail
-  (a spent intake, retry or wait, or a spent turn cap) holds as `security-risk` instead, and so
-  does a `report-delivered` close, whose only evidence is the run's own claim; an `already-done`
-  close still closes, since it needs a merged commit on the default branch.
+  no means framing, marked `security`, which holds as `security-risk` once that intake round is
+  spent; the mark does not carry over to later runs, since intake triage re-judged it first.

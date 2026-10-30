@@ -2225,11 +2225,10 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   any of whose words a comment can show (the reason, the summary, each `notDone` item) or whose
   `cause` reads as a security risk (the security reading below, after any code, `blocked-by-pr`
   included) gets an intake comment with no means framing and no "waits on no decision from a
-  person", whose marker carries `security` (`outcome=intake security`). That mark is sticky:
-  once a counted intake marker carries it, any plan that would fail (`retry-spent` after a spent
-  intake, retry or wait, or `turn-cap-spent`) holds as `security-risk` instead, whatever its own
-  stop, and only that spent hold's hand-back says intake triage did not clear the risk; a
-  round-one `security-risk` hold says only that the run named one.
+  person", whose marker carries `security` (`outcome=intake security`). A security reading on a
+  `pushback-means` whose intake round is spent holds as `security-risk`, and its hand-back says
+  the run named the risk again after its intake rounds were spent. An earlier round's mark does
+  not carry over to later runs: intake triage re-judged it before admitting the issue again.
   A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
