@@ -60,6 +60,14 @@
 //   ci-status. Re-run as a Switch is, with no lookback; a re-run that fails is
 //   a warning, not a failed run, since the head's next push or a person's
 //   re-run still clears it.
+// - Verdict: a pr-feedback-dispatch.yml run, at attempt 1, whose only failed
+//   job is post-verify-notes and whose only failed step there is its
+//   kill-switch stop (VERDICT_STOP_STEP): a pr-verify verdict finished while
+//   the switch was on, so its notes, or its pr-verify-failed label added or
+//   removed, never reached the PR. Its failed jobs are re-run once, over the
+//   whole lookback, taking no place under MAX_IN_FLIGHT; the re-run's
+//   dispatch job sends no address-feedback round, which the lanes trust only
+//   from an attempt-1 dispatcher.
 // Other lost lane runs (the pull_request review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. Their own paths recover them instead: the babysit
@@ -154,6 +162,15 @@ export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.
 // once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
 export const INTAKE_LABEL_JOB = "intake-label-needs-triage";
+// pr-feedback-dispatch's job that applies a pr-verify verdict to its PR, and
+// the step that fails that job while the lanes kill switch is on: the failed
+// first attempt is the record of a verdict not yet applied. Re-running its
+// failed jobs, once, applies it (verify-notes.mjs posts only what is missing).
+// A job that failed at any other step (a refused dequeue, a verdict name no
+// reader takes) is a red for a person, never re-run here.
+export const VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
+export const VERDICT_JOB = "post-verify-notes";
+export const VERDICT_STOP_STEP = "Stop on the kill switch";
 // A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
 // A run left alone stays a failed first attempt for the whole lookback, so
@@ -239,6 +256,8 @@ const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) 
 const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt > 1 && Date.parse(r.created_at) >= since;
 const isFailedIntake = (r, since) =>
   r.path === INTAKE && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+const isStoppedVerdict = (r, since) =>
+  r.path === VERDICT_DISPATCH && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
@@ -307,6 +326,9 @@ const lostNow = (item, r, since) => {
   }
   if (item.kind === "intake") {
     return isFailedIntake(r, since);
+  }
+  if (item.kind === "verdict") {
+    return isStoppedVerdict(r, since);
   }
   if (item.kind === "spec") {
     return isPassedChecks(r);
@@ -762,6 +784,43 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
+  // A verdict the kill switch stopped takes no place either: one short job
+  // that posts what the verdict holds. Over the whole lookback, since the
+  // switch may have been on for hours.
+  const verdicts = [];
+  let stopped = [];
+  try {
+    const listed = await paginate(
+      async (...args) => {
+        const page = await call(...args);
+        if (!Array.isArray(page?.workflow_runs)) {
+          throw new Error("its run listing is not a page of runs");
+        }
+        return page.workflow_runs;
+      },
+      `/repos/${repo}/actions/workflows/${VERDICT_DISPATCH.slice(VERDICT_DISPATCH.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
+      LANE_RUN_PAGES,
+    );
+    stopped = listed.filter((r) => isStoppedVerdict(r, since)).sort(byAge);
+  } catch (error) {
+    noteFailure(VERDICT_DISPATCH, error);
+  }
+  for (const r of stopped) {
+    try {
+      const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
+      if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
+        throw new Error("its job listing is not one complete page");
+      }
+      const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
+      const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
+      if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
+        verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      }
+    } catch (error) {
+      noteFailure(`verdict run ${r.id}`, error);
+    }
+  }
+
   // Every item takes one place: a PR's CI set, or one lane run.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   const items = [];
@@ -781,7 +840,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       say(`lane run ${lane.id} (${lane.path}): deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
     }
   }
-  items.push(...intake);
+  items.push(...intake, ...verdicts);
   return { items, failed };
 }
 
@@ -790,7 +849,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   let failed = 0;
   let wrote = false;
   for (const item of items) {
-    const where = item.kind === "lane" || item.kind === "intake" ? item.kind : `#${item.pr}`;
+    const where = item.kind === "lane" || item.kind === "intake" || item.kind === "verdict" ? item.kind : `#${item.pr}`;
     try {
       if (recorded(item) && item.record !== rerunRecordName(item.id, item.head)) {
         throw new Error("the plan names no record for it");
@@ -800,7 +859,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(`${where}: run ${item.id} changed since the listing; left alone`);
         continue;
       }
-      if (item.kind !== "lane" && item.kind !== "intake") {
+      if (item.kind !== "lane" && item.kind !== "intake" && item.kind !== "verdict") {
         // A push since the listing makes this run obsolete, and re-running it
         // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
@@ -813,10 +872,11 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
+      if (item.kind === "intake" || item.kind === "verdict" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
         const why = {
           intake: "",
+          verdict: "",
           infra: ", which failed on infra only",
           flake: ", its one re-run before fix-ci takes it",
           switch: ": ci-status failed while the lanes kill switch was on",
@@ -825,7 +885,9 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
-            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${why}`,
+            : item.kind === "verdict"
+              ? `${where}: re-ran run ${item.id} (${item.path}), whose pr-verify verdict the lanes kill switch kept from its PR`
+              : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${why}`,
         );
         continue;
       }

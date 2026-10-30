@@ -32,7 +32,11 @@ name: pr-feedback-dispatch
 # thread takes more than this job's token holds). A pass with no such thread
 # dispatches nothing. On a PR a person opened, a fail is one PR comment and
 # the pr-verify-failed label, which ci-status holds in the merge queue, and a
-# pass at its head removes the label; neither dispatches.
+# pass at its head removes the label; neither dispatches. While the lanes
+# kill switch is on, the post-verify-notes job fails at its kill-switch step
+# before any read, and the lost-run reconciler re-runs that job once the
+# switch lifts (maintenance-reconcile-lost-runs/reconcile.mjs, the Verdict
+# kind), so the verdict is applied late rather than dropped.
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
@@ -140,6 +144,18 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # A verdict the switch stops is deferred, not dropped: this failed
+      # first attempt records it, and the lost-run reconciler's first pass
+      # after the switch lifts re-runs this job (reconcile.mjs
+      # VERDICT_STOP_STEP), which posts what is not on the PR yet.
+      - name: Stop on the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); the verdict is applied when the lost-run reconciler re-runs this job"
+          exit 1
+
       - name: Download the verdict
         id: verdict
         if: steps.kill.outputs.proceed == 'true'
@@ -203,12 +219,16 @@ jobs:
     # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
     # schedule started it on main. A pr-merge.yml run counts whatever its
     # conclusion: it skips the lanes App's own unlabel, which still took the
-    # label off. A job skipped here starts no runner.
+    # label off. A pr-verify run's re-run by github-actions[bot] (the
+    # reconciler applying a verdict the kill switch stopped) dispatches
+    # nothing: check-trusted-trigger trusts a dispatcher only at attempt 1 or
+    # re-run by a listed human. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
-      && (needs.post-verify-notes.outputs.head-sha != ''
-      || needs.post-verify-notes.outputs.pass-head-sha != ''
+      && ((needs.post-verify-notes.outputs.head-sha != ''
+      || needs.post-verify-notes.outputs.pass-head-sha != '')
+      && (github.run_attempt == '1' || github.triggering_actor != 'github-actions[bot]')
       || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml'
       && github.event.workflow_run.event == 'schedule'
       && github.event.workflow_run.head_branch == 'main'
