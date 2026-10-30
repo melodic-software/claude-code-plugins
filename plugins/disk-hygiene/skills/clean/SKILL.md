@@ -467,13 +467,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   ([Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill),
   as of 2026-10-11; recheck when that section changes what the field grants). Consumer permission
   policy remains authoritative.
-- The belt holds only while a clean run is open: from a plan's `preview` until that run's `apply` or
-  `handoff-apply` writes its report or the preview ends in `manual-handoff-lane` or `blocked`, and from
-  each manual-lane `handoff-verify`, until an hour passes with no engine call. A `scan` with no
-  previewed plan, whether it completes or is refused,
-  is an audit-only outcome and leaves the belt off. Outside a run, the belt denies nothing that does
-  not name the engine, and those commands answer to the session's own permission rules
-  ([the safety model](reference/safety-model.md), "When a run is open").
+- The belt holds only while a clean run is open: from a `preview`, `apply`, `handoff-apply` or manual-lane `handoff-verify` until that step ends, or until an hour passes with no engine call; a `scan` alone opens no run. Outside a run, the belt denies nothing that does not name the engine ([the safety model](reference/safety-model.md), "When a run is open").
 - While a run is open, the Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
   handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
   runtime's own absolute interpreter. The guard also admits literal-form read-only
