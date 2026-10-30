@@ -1,5 +1,39 @@
 # Changelog for the PR pipeline convention
 
+## [8.15.2] - 2026-10-30
+
+### Changed
+
+- pr-verify's `check-intent` hands its resolved pull request, spec and trusted PR text to
+  `check-intent-subscription` in one `reads` job output, written before the model runs, so a
+  handoff no longer repeats the resolver's and select-trusted-text's reads. The subscription job
+  still runs the trigger gate, whose head must match the carried one, and reads everything again
+  when the output is missing, malformed, too large, or from another run attempt.
+
+### Fixed
+
+- The issue lane holds a `pushback` only for a hold code (`security-risk`, `cost-risk`,
+  `design-change`, `intent-change`) that opens its reason or names its cause, or for
+  `"cause": "intent"` or `intent-change`, a cause read in any case, full-width letters included,
+  with spaces, underscores or hyphens between its words and a trailing `.`, `:` or `;`. A reason
+  that only mentions a security word no longer holds as `security-risk` on the first pushback; a
+  reason opening with a `host-run` or `attended` code takes that row, or the `security-risk` hold
+  when it names a security risk after the code. The rest are `pushback-means`, which goes back
+  through intake triage once, where intake's own intent, security and cost rules still apply; one
+  whose reason, summary, not-done item or cause names a security risk gets an intake comment with
+  no means framing, marked `security`, which holds as `security-risk` once that intake round is
+  spent; the mark does not carry over to later runs, since intake triage re-judged it first.
+
+## [8.15.1] - 2026-10-30
+
+### Fixed
+
+- **The README now says how a held Dependabot pull request is released.** ci-status's trust-path hold on a Dependabot pull request clears when a person on the trusted-actor `human` list approves the current head; a new push needs a new approval, and `ci-status` is then re-run, since a review does not re-run it. The README no longer calls the admin bypass a break-glass, since the ruleset requires ci-status and the merge queue even for an admin merge.
+
+- A Size Large issue whose sub-issues are all closed but which is still open is refused at admission (`status: confirmed`) instead of parked as "split pending" on every hourly sweep. work-unblock now closes finished split parents before it re-runs admission, so a parent whose last sub-issue just closed is closed rather than refused.
+- A split parent's admission comment no longer keeps saying the split is pending once sub-issues exist. When a sub-issue closes, work-unblock rewrites that comment to name the open sub-issues. The hourly sweep also rewrites it for one twenty-fourth of the waiting parents, chosen by issue number, so each is checked once a day.
+- A parent split by hand now closes as completed once its sub-issues are done, when each unticked task-list item in its body cites one of its sub-issues as `#N`. An uncited item still keeps it open.
+
 ## [8.15.0] - 2026-10-30
 
 ### Changed

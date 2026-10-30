@@ -73,9 +73,17 @@ AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 
 # State under the data root that the engine and its hooks write themselves:
 # the guard decision log and its rotation, the launch-monitor markers, the
-# inventory reports, and the investigated catalog.
-ENGINE_OWNED_DIRS = frozenset({"guard-decisions", "guard-launch-monitor", "inventory"})
+# clean belt's per-session run markers, the inventory reports, and the
+# investigated catalog.
+RUN_MARKER_DIRNAME = "clean-runs"
+ENGINE_OWNED_DIRS = frozenset(
+    {"guard-decisions", "guard-launch-monitor", RUN_MARKER_DIRNAME, "inventory"}
+)
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
+
+# A run marker this old reads as no open run: the belt stands down, and the
+# engine deletes the marker on its next call.
+RUN_IDLE_TIMEOUT_SECONDS = 3600.0
 
 
 def is_engine_owned(relative: str) -> bool:

@@ -268,9 +268,11 @@ This skill's frontmatter hooks stay registered for the **rest of the process** t
 `/disk-hygiene:clean`
 ([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
 as of 2026-10-25; recheck when that section changes how long a skill's hooks stay registered).
-So the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
-unrelated later work in the same process, not only to this cleanup. Say so when a later,
-unrelated command is blocked or prompted, rather than treating it as a surprise.
+The belt applies only while a clean run is open, though. The `manual-handoff-lane` preview ends
+the run. Each `handoff-apply` opens it again until that call writes its report, and each
+manual-lane `handoff-verify` opens it until an hour passes with no engine call. A manual-lane
+delete follows its own verify, so the PowerShell deletion prompts still cover it ("When a run is open" in
+[`safety-model.md`](safety-model.md)).
 
 They do **not** survive a resume: after `claude -p --resume` the belt was absent and an approved
 PowerShell delete ran unprompted in the resumed process

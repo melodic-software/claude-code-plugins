@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.12] - 2026-10-30
+
+### Changed
+
+- A module `README.md` that the hub indexes in place of its features now lists each feature under `## Sub-features` as a full index line (path, entry-point count and `sources` globs). A caller that matches the module's hub line reads those lines to find the exact feature a changed file touches, and `/app-control:map refresh` keeps both sets of lines true. Each feature's own `README.md` is the source of truth for its entry points; the module `README.md`'s copy is rewritten from the features when they disagree, and refresh rewrites it in the same edit that changes a feature's entry point or its `driven` mark.
+
+- The control-skill contract now states four rules it was missing ([#9507](https://github.com/melodic-software/claude-code-plugins/issues/9507)).
+  - A module folder's `README.md` indexes the features under it, and the hub's index then names it in place of a line per feature.
+  - A drive through one entry point never marks another `driven`.
+  - A journey belongs to the control skill of the app where the user starts and ends it. The pages it crosses in an integrated app are steps that app owns, and every service it depends on is a dependency service that Ready checks.
+  - The server tier's Capture rows record the app's own process, and the `logs` row may name a counters recorder such as `dotnet-counters collect`.
+
 ## [0.17.11] - 2026-10-30
 
 ### Changed

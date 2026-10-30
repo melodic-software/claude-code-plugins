@@ -3570,7 +3570,7 @@ class TestGroupSummaryOf(DirCase):
 
 
 class TestMeta(DirCase):
-    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo; nothing else."""
+    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo, commit; nothing else."""
 
     def setUp(self):
         super().setUp()
@@ -3613,6 +3613,24 @@ class TestMeta(DirCase):
         rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.doc()["meta"]["repo"], "o/r")
+
+    def test_meta_commit_is_set_and_read_back_beside_repo(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        ops = {"ops": [{"op": "meta", "set": {"repo": "o/r", "commit": sha}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual((self.doc()["meta"]["repo"], self.doc()["meta"]["commit"]), ("o/r", sha))
+        spec = {"meta": {"commit": ""}, "questions": [question("Q4", group="g1")]}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["commit"], "")
+
+    def test_meta_commit_that_is_not_a_full_sha_is_refused(self):
+        for commit in ("main", "0123456", "0123456789ABCDEF0123456789ABCDEF01234567"):
+            ops = {"ops": [{"op": "meta", "set": {"commit": commit}}]}
+            out = self.assert_refused("apply", "--file", self.file("ops.json", ops))
+            self.assertIn("meta.commit", out, commit)
+        self.assertNotIn("commit", self.doc()["meta"])
 
     def test_apply_meta_op_unknown_key_is_refused(self):
         ops = {"ops": [{"op": "meta", "set": {"displayName": "Kyle"}}]}
@@ -4146,6 +4164,70 @@ class TestRoundTooling(DirCase):
         qs = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
         added = {q["id"]: q.get("addedInRound") for q in qs["questions"]}
         self.assertEqual(added, {"Q1": None, "Q2": 3})
+
+
+class TestGappedLedgerIds(DirCase):
+    """sync-ledger and add-round --sync-ledger keep each row's Q<N>, gaps included, so a record
+    citing an id still names the same question."""
+
+    GAPPED = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | open | round 1 | One? |\n"
+        "- Q2 | open | round 1 | Two? |\n"
+        "- Q500 | open | round 1 | Five hundred? |\n"
+        "- Q501 | open | round 1 | Five hundred one? |\n"
+    )
+
+    def ledger(self, text):
+        path = self.tmp / "interview-checklist.md"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def register(self, ledger):
+        rows = [
+            line
+            for line in ledger.read_text(encoding="utf-8").splitlines()
+            if re.match(r"^- Q\d+ \|", line)
+        ]
+        return [r.split(" | ")[0][2:] for r in rows], rows
+
+    def test_sync_ledger_keeps_imported_gapped_ids(self):
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        ledger = self.ledger(self.GAPPED)
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = run_round(fresh, "sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        ids, rows = self.register(ledger)
+        self.assertEqual(ids, ["Q1", "Q2", "Q500", "Q501"])
+        self.assertFalse([r for r in rows if "[Q" in r], rows)
+
+    def test_add_round_sync_keeps_gapped_ids_and_writes_the_page_ids(self):
+        doc = base_doc()
+        doc["questions"][2]["id"] = "Q500"
+        self.write_doc(doc)
+        ledger = self.ledger(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n"
+            "- Q300 | open | round 1 | Ledger only? |\n"
+            "- Q500 | open | round 1 | Question Q3? |\n"
+        )
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.file("round.json", {"questions": [question("Q501")]}),
+            "--round",
+            "2",
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        ids, rows = self.register(ledger)
+        self.assertEqual(ids, ["Q1", "Q2", "Q300", "Q500", "Q501"])
+        self.assertIn("- Q501 | open | round 2 | Question Q501? |", rows)
+        self.assertFalse([r for r in rows if "[Q" in r], rows)
 
 
 class TestSupersedeResolve(DirCase):

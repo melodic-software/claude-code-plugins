@@ -24,7 +24,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=207 [e]=20 [journey]=235 [live]=18 [page]=118)
+declare -A CHECKS=([ab]=97 [c]=207 [e]=22 [journey]=235 [live]=18 [page]=118)
 part=main
 case "$#:${1:-}" in
   0:) ;;

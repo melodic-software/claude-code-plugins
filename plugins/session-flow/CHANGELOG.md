@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [2.0.3] - 2026-10-30
+
+### Changed
+
+- `/session-flow:setup`: the reconfiguration guidance names `claude plugin configure session-flow@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
+## [2.0.2] - 2026-10-30
+
+### Added
+
+- Two eval cases for the `TodoWrite` task-tool branch, `ho-todowrite-renders-list` for `/session-flow:handoff` and `wf-todowrite-tracks-stages` for `/session-flow:workflow`. A run needs `CLAUDE_CODE_ENABLE_TASKS=0` exported, because a case cannot set the session's tool set.
+
+### Fixed
+
+- The `ho-task-tools-recreate-calls` result grader now matches a recreate call whose quotes the trace escapes more than once, so a correct save-point no longer scores 0.
+
+- The resume-eval harness stops at a usage limit again when Claude Code says "5-hour limit", the wording it uses since 2.1.312 in place of "session limit". Its limit marker now also matches a two-word limit name such as "Fable weekly limit".
+
 ## [2.0.1] - 2026-10-30
 
 ### Changed
