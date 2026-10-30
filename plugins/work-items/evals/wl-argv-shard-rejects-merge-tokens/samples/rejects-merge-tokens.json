@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "work-loop stopped at argument validation. melodic-software/example-repo matches the origin remote, and --standing, --shard 0/2, --ordering newest-first and --instance worker-a are valid, but autopilot and --merge c3-this-run are rejected: babysit tier keywords and merge flags belong to /source-control:babysit-loop, the merge lane, not this worker lane. Relaunch without them. No telemetry was read, no frontier snapshot was taken, nothing was admitted or dispatched, and no next cycle is scheduled.",
+      "why": "stops at validation and names the merge lane as the owner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran the cycle with autopilot and --merge c3-this-run; shard 0/2 kept 102, 104, 106.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "Ignored autopilot and --merge silently. Shard 0/2 kept 102, 104, 106.",
+      "why": "misses a required token"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

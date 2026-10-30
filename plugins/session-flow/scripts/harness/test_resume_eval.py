@@ -1063,6 +1063,16 @@ def test_a_judge_usage_limit_excludes_the_run_instead_of_voting_fail(tmp_path):
         raise AssertionError("a usage limit was counted as a vote")
 
 
+def test_the_limit_marker_matches_each_limit_message_wording():
+    for message in (
+        "You've hit your session limit · resets 4pm",
+        "You've hit your 5-hour limit · resets 4pm",
+        "You've hit your weekly limit · resets Nov 3, 9am",
+        "You've hit your Fable weekly limit · resets Nov 3, 9am",
+    ):
+        assert resume_eval.EXCLUDE_MARKERS[1].search(message), message
+
+
 def test_a_judge_reply_with_no_verdict_excludes_the_run(tmp_path):
     judge = _judge_with(tmp_path, (0, "not json", ""))
     try:

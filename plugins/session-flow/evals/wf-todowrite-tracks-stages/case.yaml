@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: wf-todowrite-tracks-stages
+description: 'TodoWrite branch of /session-flow:workflow progress tracking. In a session whose tool list holds TodoWrite in place of the Task tools, work that spans 3+ stages keeps the stage list in TodoWrite, and the answer says so. The case env cannot set the tool set, so launch the run with CLAUDE_CODE_ENABLE_TASKS=0 exported; without it TodoWrite is not offered and the process grader fails.'
+tags: [workflow, task-tools, todowrite, progress-tracking]
+plugins: ["../.."]
+expected_outcome: 'The answer shows the stage overview, places the session on the ladder, and says the stage list is kept in the TodoWrite todo list. The run makes a TodoWrite call listing at least three stages.'
+execution:
+  prompt: '/session-flow:workflow I am starting a new feature, a currency filter for the report export, that will span explore through pull request. Set up tracking for its stages.'
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: says-stages-in-todo-list
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[ \t]+(?:\w+[ \t]+){0,2}(?:todo[ \t-]?list|TodoWrite)\b)[^\n]*(?:\bTodoWrite\b|\btodo[ \t-]?list\b)'
+    flags: 'mi'
+    arm: with-only
+  - name: todowrite-stage-list
+    type: tool_used
+    tool: TodoWrite
+    input_match: '"content"[\s\S]*"content"[\s\S]*"content"'
+    min: 1
+    arm: with-only

@@ -267,6 +267,54 @@ class TestExportLedger(SessionCase):
         rc, out = self.check("--ledger", ledger)
         self.assertEqual(rc, 0, out)
 
+    def test_numbering_keeps_gapped_q_ids_only_for_a_gapped_ledger(self):
+        gapped = ["Q500", "Q1", "Q2", "Q501"]
+        self.assertEqual(
+            exporters.numbering(gapped, gaps=True),
+            ({"Q1": 1, "Q2": 2, "Q500": 500, "Q501": 501}, True),
+        )
+        self.assertEqual(
+            exporters.numbering(gapped),
+            ({"Q1": 1, "Q2": 2, "Q500": 3, "Q501": 4}, False),
+        )
+        self.assertEqual(
+            exporters.numbering(["Q2", "Q1", "Q3"]),
+            ({"Q1": 1, "Q2": 2, "Q3": 3}, True),
+        )
+        self.assertEqual(
+            exporters.numbering(["Q7", "J1"], gaps=True), ({"J1": 1, "Q7": 2}, False)
+        )
+
+    def test_ledger_gapped_reads_the_register_row_numbers(self):
+        def ledger(*ns):
+            rows = "".join(f"- Q{n} | open | round 1 | Q{n}? |\n" for n in ns)
+            return "# Interview ledger\n\n## Open-question register\n\n" + rows
+
+        self.assertTrue(exporters.ledger_gapped(ledger(1, 5)))
+        self.assertFalse(exporters.ledger_gapped(ledger(1, 2)))
+        self.assertFalse(exporters.ledger_gapped(None))
+
+    def test_gapped_q_ids_keep_their_number_with_no_lead(self):
+        self.session(
+            [question(i) for i in ("Q1", "Q2", "Q500")],
+            [event(1, "Q500", "accept")],
+        )
+        ledger = self.tmp / "ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q2 | open | round 1 | Question Q2? |\n"
+            "- Q300 | answered | round 1 | Ledger only? | free-text: kept\n"
+            "- Q500 | open | round 1 | Question Q500? |\n",
+            encoding="utf-8",
+        )
+        _, rows, _ = exporters.merged_register(
+            self.dir, ledger.read_text(encoding="utf-8")
+        )
+        self.assertEqual([r["n"] for r in rows], ["Q1", "Q2", "Q300", "Q500"])
+        self.assertEqual([r["id"] for r in rows], ["Q1", "Q2", "Q300", "Q500"])
+        self.assertFalse([r for r in rows if r["resolution"].startswith("[")])
+
     def test_pipes_and_newlines_in_text_do_not_break_rows(self):
         self.session(
             [question("Q1", title="A | B\n## heading?")],
