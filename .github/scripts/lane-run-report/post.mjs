@@ -1,15 +1,18 @@
 // The report jobs of pr-run-activity-read.yml and -write.yml: one comment per
 // lane run on the pull request, naming the activity, its outcome, the commits
 // it pushed and each GitHub API call that failed, edited in place when the
-// run is re-run. The marker names the activity, the run id and the model
-// rung (pr-unblock calls the read runner more than once per run, its rung-up
-// leg at rung 1), not the attempt; a first attempt posts without a lookup. No model runs here, but the run job that carried the failure rows
+// run is re-run. The marker names the activity, the run id, the model rung
+// and the leg (pr-unblock calls the read runner more than once per run: its
+// rung-up call at rung 1, and each call's subscription and fallback legs with
+// the runner's fallback input), not the attempt; a first attempt posts
+// without a lookup. No model runs here, but the run job that carried the failure rows
 // shared RUNNER_TEMP with one, so every row is checked again, and a forged
 // outcome or commit renders as unknown or none, and no count the run job
 // carried is shown. A failure to post warns and
 // never fails the job.
 //
-// Env: LANE, ACTIVITY, RUN_ID, GITHUB_RUN_ATTEMPT, MODEL_RUNG, PULL, REPOSITORY, GITHUB_SERVER_URL,
+// Env: LANE, ACTIVITY, RUN_ID, GITHUB_RUN_ATTEMPT, MODEL_RUNG, LEG (the read
+// runner's fallback input; empty for the write runner), PULL, REPOSITORY, GITHUB_SERVER_URL,
 // RUN_RESULT, ACT_OUTCOME, PUSHED_COMMIT, READ_LANE, API_FAILURES (the run
 // job's api-failures output), GITHUB_TOKEN (issues: write).
 import process from "node:process";
@@ -24,7 +27,17 @@ const PATH = /^\/[A-Za-z0-9/_.-]{1,200}$/;
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const OUTCOMES = new Set(["success", "failure", "cancelled", "skipped"]);
 
-export const marker = ({ lane, activity, runId, rung = "0" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} -->`;
+// The read runner's fallback input to the leg named in the marker; the first
+// call's empty value is base.
+const LEGS = new Map([
+  ["", "base"],
+  ["handoff", "handoff"],
+  ["credit-stop", "credit-stop"],
+  ["no-key", "no-key"],
+  ["fallback", "fallback"],
+]);
+
+export const marker = ({ lane, activity, runId, rung = "0", leg = "base" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} leg=${leg} -->`;
 
 // GitHub REST path words that may appear in the comment. The model shares
 // RUNNER_TEMP, so any other segment could be planted text (a key split across
@@ -85,15 +98,16 @@ export const escapeCell = (value) => String(value).replace(/[&<>|`*_[\]\\~]/g, (
 
 const outcome = (value) => (OUTCOMES.has(value) ? value : "unknown");
 
-export function render({ lane, activity, runId, rung, runUrl, runResult, actOutcome, commit, readLane, failures }) {
+export function render({ lane, activity, runId, rung = "0", leg, runUrl, runResult, actOutcome, commit, readLane, failures }) {
   const commits = readLane ? "none (read lane)" : /^[0-9a-f]{40}$/.test(commit ?? "") ? commit : "none recorded";
   const lines = [
-    marker({ lane, activity, runId, rung }),
+    marker({ lane, activity, runId, rung, leg }),
     "## Lane run report",
     "",
     "| Field | Value |",
     "| --- | --- |",
     `| Activity | ${escapeCell(`${lane}/${activity}`)} |`,
+    `| Model rung | ${rung === "1" ? "1" : "0"} |`,
     `| Run job | ${escapeCell(outcome(runResult))} |`,
     `| Activity step | ${escapeCell(outcome(actOutcome))} |`,
     `| Commits pushed | ${escapeCell(commits)} |`,
@@ -115,12 +129,12 @@ export async function main(env = process.env, { github } = {}) {
     console.log("::notice::no pull request to put the lane run report on");
     return 0;
   }
-  if (!NAME.test(env.LANE ?? "") || !NAME.test(env.ACTIVITY ?? "") || !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "") || !/^[01]?$/.test(env.MODEL_RUNG ?? "")) {
-    console.log("::warning::the lane, activity, run id, model rung or repository is not of its shape; no lane run report is posted");
+  if (!NAME.test(env.LANE ?? "") || !NAME.test(env.ACTIVITY ?? "") || !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "") || !/^[01]?$/.test(env.MODEL_RUNG ?? "") || !LEGS.has(env.LEG ?? "")) {
+    console.log("::warning::the lane, activity, run id, model rung, leg or repository is not of its shape; no lane run report is posted");
     return 0;
   }
   const server = /^https:\/\/[A-Za-z0-9.-]+$/.test(env.GITHUB_SERVER_URL ?? "") ? env.GITHUB_SERVER_URL : "";
-  const args = { lane: env.LANE, activity: env.ACTIVITY, runId: env.RUN_ID, rung: env.MODEL_RUNG || "0" };
+  const args = { lane: env.LANE, activity: env.ACTIVITY, runId: env.RUN_ID, rung: env.MODEL_RUNG || "0", leg: LEGS.get(env.LEG ?? "") };
   const body = render({
     ...args,
     runUrl: server && `${server}/${env.REPOSITORY}/actions/runs/${env.RUN_ID}`,

@@ -3393,10 +3393,9 @@ jobs:
           github-token: ${{ github.token }}
 
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
-      # by a marker naming the activity, run id and model rung, so a re-run
-      # edits it. A
-      # checked-out base without the script, or a failed post, warns and
-      # leaves the job green.
+      # by a marker naming the activity, run id, model rung and leg, so a
+      # re-run edits it. A checked-out base without the script, or a failed
+      # post, warns and leaves the job green.
       - name: Post the lane run report comment
         if: always()
         continue-on-error: true
@@ -3405,6 +3404,7 @@ jobs:
           ACTIVITY: ${{ inputs.activity }}
           RUN_ID: ${{ github.run_id }}
           MODEL_RUNG: ${{ inputs.model-rung }}
+          LEG: ${{ inputs.fallback }}
           PULL: ${{ steps.pr-head.outputs.number }}
           REPOSITORY: ${{ github.repository }}
           RUN_RESULT: ${{ needs.run.result }}

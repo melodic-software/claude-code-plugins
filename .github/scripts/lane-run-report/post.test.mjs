@@ -18,7 +18,7 @@ const ENV = {
   READ_LANE: "true",
   API_FAILURES: JSON.stringify({ rows: [{ method: "GET", path: "/repos/o/r/pulls/42", status: 502 }], dropped: 0 }),
 };
-const MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 -->";
+const MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=base -->";
 
 function fakeGitHub(comments = [], { fail = false } = {}) {
   const calls = [];
@@ -95,7 +95,7 @@ test("the body opens with the marker and lists the activity, outcome, commits an
     readLane: false,
     failures: failureRows(JSON.stringify({ rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 })),
   });
-  assert.ok(body.startsWith("<!-- lane-run-report activity=write/fix-docs run=9 rung=0 -->\n"));
+  assert.ok(body.startsWith("<!-- lane-run-report activity=write/fix-docs run=9 rung=0 leg=base -->\n"));
   assert.match(body, /\| Activity \| write\/fix-docs \|/);
   assert.match(body, /\| Run job \| success \|/);
   assert.match(body, /\| Activity step \| failure \|/);
@@ -183,13 +183,13 @@ test("rows that template alike fold into one before the cap", () => {
 });
 
 test("each model rung of one run has its own marker; an unknown rung posts nothing", async () => {
-  assert.equal(marker({ lane: "read", activity: "fix-ci", runId: "5", rung: "1" }), "<!-- lane-run-report activity=read/fix-ci run=5 rung=1 -->");
+  assert.equal(marker({ lane: "read", activity: "fix-ci", runId: "5", rung: "1" }), "<!-- lane-run-report activity=read/fix-ci run=5 rung=1 leg=base -->");
   const rung0 = `${MARKER}\nold`;
   const api = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
   assert.equal((await run({ MODEL_RUNG: "1" }, api.github)).code, 0);
   const [write] = api.writes();
   assert.equal(write.method, "POST");
-  assert.ok(write.body.body.startsWith("<!-- lane-run-report activity=read/fix-ci run=123 rung=1 -->\n"));
+  assert.ok(write.body.body.startsWith("<!-- lane-run-report activity=read/fix-ci run=123 rung=1 leg=base -->\n"));
   const empty = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
   await run({ MODEL_RUNG: "" }, empty.github);
   assert.deepEqual(empty.writes().map((c) => c.method), ["PATCH"]);
@@ -205,4 +205,33 @@ test("a first attempt posts without listing comments; a re-run attempt lists the
   const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nold` }]);
   await run({ GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
   assert.deepEqual(rerun.calls.map((c) => c.method), ["GET", "PATCH"]);
+});
+
+test("each leg of one call has its own marker; an unknown leg posts nothing", async () => {
+  assert.notEqual(marker({ lane: "read", activity: "fix-ci", runId: "5", leg: "base" }), marker({ lane: "read", activity: "fix-ci", runId: "5", leg: "handoff" }));
+  const legs = [];
+  for (const LEG of ["", "handoff", "credit-stop", "no-key", "fallback"]) {
+    const api = fakeGitHub();
+    await run({ LEG, GITHUB_RUN_ATTEMPT: "1" }, api.github);
+    legs.push(api.writes()[0].body.body.split("\n")[0]);
+  }
+  assert.deepEqual(legs, ["base", "handoff", "credit-stop", "no-key", "fallback"].map((leg) => `<!-- lane-run-report activity=read/fix-ci run=123 rung=0 leg=${leg} -->`));
+  const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nbase leg` }]);
+  await run({ LEG: "fallback", GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
+  assert.deepEqual(rerun.writes().map((c) => c.method), ["POST"]);
+  for (const LEG of ["base", "Fallback", "x -->"]) {
+    const bad = fakeGitHub();
+    const out = await run({ LEG }, bad.github);
+    assert.equal(out.code, 0);
+    assert.deepEqual(bad.calls, [], LEG);
+    assert.ok(out.lines.some((line) => line.startsWith("::warning::")), LEG);
+  }
+});
+
+test("the model rung renders as its own row", async () => {
+  for (const [MODEL_RUNG, shown] of [["", "0"], ["0", "0"], ["1", "1"]]) {
+    const api = fakeGitHub();
+    await run({ MODEL_RUNG, GITHUB_RUN_ATTEMPT: "1" }, api.github);
+    assert.match(api.writes()[0].body.body, new RegExp(`\\| Model rung \\| ${shown} \\|`));
+  }
 });
