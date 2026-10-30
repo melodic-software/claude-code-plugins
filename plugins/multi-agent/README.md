@@ -88,10 +88,11 @@ URL on the same first-party hosts and no query string. For that command it
 returns no decision, so the session's permission rules still apply, and it
 passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
 host must resolve only to global addresses and curl connects to the checked
-one alone. The gate fails open when `node` is missing or the hook times out
-(see Node.js below, and the hook-failure record in
-[check: purpose](skills/check/SKILL.md#purpose)); a stdin error or a crash inside it denies. Every other
-agent and the main thread pass through. The row is always-on: it fires on every
+one alone. A stdin error or a crash inside the gate denies. When `node` is
+missing or the hook times out, the row's `"onFailure": "block"` denies the call
+on Claude Code 2.1.295 or later, in every agent and the main thread; an older
+client lets it go ahead (see Node.js below). Every other agent and the main
+thread pass through. The row is always-on: it fires on every
 `Bash` call, at a budget of one process (`node`) per call, ratcheted in
 `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
 
@@ -134,12 +135,14 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
-- **Node.js** for the `drift-checker` fetch gate hook. Without `node` the gate fails open: the hook
-  cannot start, Claude Code shows a non-blocking hook error notice, and the drift checker's fetches
-  are held to first-party docs hosts only by the workflow's source filter and the agent's prompt.
-  `/multi-agent:check` reports whether `node` resolves and the gate is registered. The
-  `docs-fetcher` gate fails open the same way, leaving that agent's `Bash` to the session's
-  permission rules.
+- **Node.js** for the `drift-checker` fetch gate and the `docs-fetcher` gate. Both rows set
+  `"onFailure": "block"`, so without `node`, Claude Code 2.1.295 or later denies every `WebFetch`
+  and every `Bash` call, in any agent or the main thread, with an error naming the missing
+  executable. An older client ignores the key: the gates then fail open, holding the drift
+  checker's fetches to first-party docs hosts only by the workflow's source filter and the agent's
+  prompt, and leaving the `docs-fetcher`'s `Bash` to the session's permission rules.
+  `/multi-agent:check` reports whether `node` resolves and the gate is registered. Which rows set
+  the key and why: [hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block).
 - **curl and jq** for the drift-audit fetch stage (`scripts/docs-raw.sh`). Without them every page
   is recorded unread, and the checkers read their sources with WebFetch alone.
 

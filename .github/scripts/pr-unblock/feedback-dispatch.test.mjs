@@ -157,7 +157,7 @@ const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReas
   return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
-async function decide(api, resolved = resolvedLane()) {
+async function decide(api, resolved = resolvedLane(), extra = {}) {
   const lines = [];
   const asked = [];
   const result = await dispatchFeedback({
@@ -172,6 +172,7 @@ async function decide(api, resolved = resolvedLane()) {
       return resolved;
     },
     log: (line) => lines.push(line),
+    ...extra,
   });
   return { result, lines, asked };
 }
@@ -188,6 +189,63 @@ const pull = (overrides) => [
     ...overrides,
   },
 ];
+
+// Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
+// pull request, so a fix round's push could never merge: the gate's reader
+// (verify-cap.mjs) says so, the dispatcher starts no round and posts nothing,
+// and pr-merge closes it for a fresh attempt.
+test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
+  const api = fakeApi();
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+  // The cap never clears for the head: a later run at it reads nothing.
+  const record = emptyRecord();
+  await decide(api, resolvedLane(), { verifyCapped, record });
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(asked.length, 2);
+  assert.match(again.lines.join("\n"), /\(recorded\)/);
+});
+
+// A sibling pull request's FAIL run the reader cannot read may hide the cap:
+// no round this run, but the head is not recorded, so the next run reads again.
+test("a PR whose sibling FAIL run cannot be read gets no round this run and is read again next run", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  const first = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(first.result, null);
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(reads, 2);
+});
+
+// A verifier PASS at a new head clears no cap, so the pass-only dispatch
+// starts no round either.
+test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
+  const api = fakeApi();
+  const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, verifyCapped: () => "verify:repeated-fail: fails at 3 heads, the cap is 3" });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+test("a PR the reader does not find at the cap dispatches as before", async () => {
+  const api = fakeApi();
+  const { result } = await decide(api, resolvedLane(), { verifyCapped: () => null });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+});
 
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {
   const api = fakeApi();
@@ -1926,7 +1984,7 @@ const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
   };
   return api;
 };
-async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) {
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
   const lines = [];
   const result = await dispatchFeedback({
     api,
@@ -1938,11 +1996,26 @@ async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) 
     resolveSlot: async () => resolvedLane(),
     adoption,
     passOnly,
+    verifyCapped,
     now: NOW_MS,
     log: (line) => lines.push(line),
   });
   return { result, lines };
 }
+
+// capped_close closes only the lanes App's pull requests, so an adopted
+// owner's PR at the cap would sit with no round: the cap skip is the lanes
+// App's alone.
+test("an adopted owner PR at the verify cap still gets its round, the cap unread", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await decideOwner(ownerApi({ threads: [thread([CLAUDE])] }), { verifyCapped });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(asked, []);
+});
 
 test("an idle owner PR's lane-review thread dispatches address-feedback, so the lanes App answers it", async () => {
   for (const threads of [[thread([CLAUDE])], [LANE_FINDING]]) {
