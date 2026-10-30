@@ -785,7 +785,8 @@ test("the action writes the content-creation notice after the token lines", () =
 // content-creating writes.
 test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-budget step", () => {
   const jobs = {
-    "intake-triage.yml": { "born-triaged": "github-token", "apply-verdict": "lanes-app", "refine-select": "github-token", "apply-refinement": "lanes-app" },
+    // apply-verdict's resolve-config reads with the job token, recorded under github-token.
+    "intake-triage.yml": { "born-triaged": "github-token", "apply-verdict": ["lanes-app", "lanes-app github-token"], "refine-select": "github-token", "apply-refinement": "lanes-app" },
     "work-resolve-issue.yml": { admit: "github-token", "pick-slot": "github-token", "report-statuses": "github-token" },
     "pr-verify.yml": { "check-intent": "github-token", "check-intent-subscription": "github-token", "check-intent-fallback": "github-token" },
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
@@ -813,6 +814,29 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     }
   }
 });
+
+// pr-review-main's record job has no checkout of the action, and its only
+// calls are one check-run POST per verdict file, so it counts them itself and
+// ends with the notice in api_budget_emit_calls' shape.
+test("pr-review-main's record job ends with its own api-calls notice in the emitter's shape", () =>
+  withDir((dir) => {
+    const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
+    const block = /\n  record:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+    const last = block.split(/\n {6}- name: /).at(-1);
+    assert.match(last, /^Log the API calls at the end\n {8}if: always\(\)\n/);
+    const run = /\n {8}run: \|\n((?: {10}[^\n]*\n?)+)/.exec(last)?.[1].replace(/^ {10}/gm, "");
+    assert.ok(run, "the step has a run block");
+    const lib = new URL("api-budget.bash", import.meta.url).pathname;
+    const emitted = (count) => {
+      if (count !== undefined) writeFileSync(join(dir, "pr-review-main-calls"), `${count}\n`);
+      // As Actions runs `shell: bash`: -e ends the step on any failing command.
+      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+    };
+    const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+    assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
+    assert.equal(emitted(2), shape.replace("github-token=0", "github-token=2"));
+    assert.equal(emitted("2; rm"), shape, "anything but a count is 0");
+  }));
 
 // Jobs that hold the job token but call GitHub only through actions the
 // counter cannot see still end by logging it, so each run carries its

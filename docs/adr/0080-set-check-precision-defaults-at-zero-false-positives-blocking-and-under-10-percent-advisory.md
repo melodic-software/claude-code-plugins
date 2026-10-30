@@ -44,7 +44,7 @@ This ADR records defaults only. It adds no setting to a plugin and edits no guar
 
 ## Consequences
 
-- The enforcement ladder's guardrail criterion (`docs/conventions/enforcement-ladder/README.md`)
+- The enforcement ladder's guardrail criterion (`docs/contracts/enforcement-ladder/README.md`)
   will read these numbers once that criterion lands (the ladder-v2 slice under #7572): it will
   decide whether a rule earns a blocking or an advisory check, and cite the bar that check must
   meet. The ladder has no guardrail criterion yet.

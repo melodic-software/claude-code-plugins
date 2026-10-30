@@ -131,7 +131,7 @@ routes, preferred headless route first, the four caveats above, and a citation o
 owner of the verification record. Canonical citation (installed plugins cannot read this
 repository's working tree, so cite the published URL):
 
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>
 
 The setup contract's other fixed step, retired-conventions detection in `check` and gated cleanup
 in `apply`, is conditional on the plugin shipping `retirements.yaml`, and its canonical text lives

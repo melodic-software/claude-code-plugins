@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/post-compact-mark.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/post-compact-mark.schema.json",
   "title": "post-compact-mark telemetry data",
   "description": "Per-hook `data` payload for context-guard's PostCompact evidence-degraded marker hook. Discovered from the envelope `hook` value \"post-compact-mark\". Evolves additive-only.",
   "type": "object",

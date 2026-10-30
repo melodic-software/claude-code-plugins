@@ -71,7 +71,7 @@ permissions, and passes no App key.
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt and its thread file's SHA-256 |
 | `patch-replies-attempt`, `patch-replies-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the read file's `feedback-attempt` and `feedback-sha256` outputs, which name the scanned replies whose `VALID` threads the commit's `Lane-Thread` lines name and bind their bytes |
-| `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict that lifts the human-gated hold of this push: the review-threads select job's `fix-requested`, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head` when another lane's escalation put the label on |
+| `patch-human-gate` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict on the human-gated hold of this push, the gate it worked past: `fix-request` (the review-threads select job's `human-gate` when every kept thread carries a write-access fix request) lifts it; `lane-escalation` (that output, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head`, when a lane's escalation put the label on) lifts it only while `gate-recheck.mjs`, re-running for `patch-activity` the check its select job ran, still lets it past right before the push; anything else keeps it |
 | `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
 | `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
@@ -922,7 +922,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    which the skill follows within the same path rules. The reply job's re-read judges threads the
    same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
    those replies is such a fix request by a write-access human, and
-   reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
+   reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
    (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
    only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
@@ -952,7 +952,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
-   escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its
+   escalation, `human-gate`, both files' SHA-256 and that attempt; every later job takes its
    gate, head and reply inputs from them, never from a model call's run job, whose runner head
    code could forge. A skip or an escalation runs `address-feedback-not-run` instead, which posts
    the `address-feedback` and `publish-feedback` checks neutral with the select job's skip reason
@@ -1010,7 +1010,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` and
    `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
-   human-gated hold unless the select job reported `fix-requested`, and commits with the
+   human-gated hold unless the select job reported `human-gate` (`lane-escalation` only while a
+   fresh read still finds one), and commits with the
    `Lane-Activity: pr-unblock/address-feedback` trailer followed by one `Lane-Thread: <thread id>`
    line for each kept thread a `VALID` reply names. It reads those replies from the same call's
    scan job artifact (`patch-replies-attempt`), downloaded before the mint and failed red unless
