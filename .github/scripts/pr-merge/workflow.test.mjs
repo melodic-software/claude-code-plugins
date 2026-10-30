@@ -1558,3 +1558,13 @@ test("enable-auto-merge: every step that counts its calls names itself once", ()
   assert.ok(names.every(Boolean), names.join(" "));
   assert.equal(new Set(names).size, names.length);
 });
+
+// refire-refused.mjs reads merge.refire-skip-branches from resolve-config's
+// output; with any other path it reads nothing and stops the step.
+test("the re-fire step reads the skip list from the file the merge job's config step writes", () => {
+  const merge = job("merge");
+  const config = /- name: Resolve the config\n {8}id: config\n[\s\S]*?\n {10}output-path: (.*)\n/.exec(merge)?.[1];
+  const refire = /- name: Re-fire lane runs refused as workflow-modified\n([\s\S]*?)(?=\n {6}- name: )/.exec(merge)?.[1] ?? "";
+  assert.equal(config, "${{ runner.temp }}/resolved-config.json");
+  assert.match(refire, /\n {10}RESOLVED_CONFIG_PATH: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
+});
