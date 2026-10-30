@@ -1454,7 +1454,8 @@ except six:
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
 COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
-veto from <logins>`). That person lifts the hold with any later comment that does not say it, such
+veto from <logins>`). Writing "the `do-not-merge` label" is not a veto; any other
+`do-not-merge`, a comma list included, is. That person lifts the hold with any later comment that does not say it, such
 as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
 does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
 review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from
@@ -2513,15 +2514,21 @@ them on every `pull_request` run, contract-only runs included:
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
   trust-gate path (the hold-paths above less the security review's own files, matched
   case-insensitively), since no lane
-  reviews it; a person merges it. The same holds a same-repository PR that changes a trust-gate
+  reviews it; a person merges it. While `merge.diff-check.path-holds` is false (this repository's
+  setting, owner decision Q21, 2026-10-29), `scripts/sync-hold-floor.py` writes a guard after
+  `hold_patterns` that empties it for every author but Dependabot, so only a Dependabot PR is held
+  for its paths: its action-pin bumps bring in third-party code (owner decision Q24). The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
-  `[bot]` logins; this repository names the agent App, `melodic-agent[bot]`) opened it, is the
+  `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
+  the hold is off) opened it, is the
   author or committer of one of its commits by account or noreply address, or pushed to its head
   branch (the repository activity API), since its head can rewrite the review callers; a person
   merges it. Such a PR still needs both lanes when no trust-gate path changed. ci-status reads the
   App list, the PR's commits and the branch's push history only once a trust-gate path matched,
   and an unreadable one, a commit list shorter than the PR, or a full page of pushes fails closed.
-  A draft is exempt.
+  A draft is exempt. Restoring the App hold takes three steps: list `melodic-agent[bot]` again, set
+  `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`, because ci-status's inline hold runs only while `path-holds` is
+  true; listing the App alone restores only ci-workflows' `pr-require-checks-trust-paths` hold.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's
