@@ -86,7 +86,11 @@ import { pathToFileURL } from "node:url";
 // enable-auto-merge.test.mjs checks both agree with the gate's Python on every
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
-export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// "the do-not-merge label" (backticks allowed) names the label and vetoes
+// nothing. Any other do-not-merge vetoes: a comma list cannot be told from a
+// comma clause, so it fails closed.
+export const HUMAN_VETO =
+  /\bdo(?:n['’]?t| not)[\s-]*merge\b|\bdo-not(?!-merge\b)[\s-]*merge\b|(?<!the )(?<!the `)\bdo-not-merge\b|(?<=the )do-not-merge\b(?!\s*labels?\b)|(?<=the `)do-not-merge\b(?!`\s*labels?\b)/i;
 // The lanes App's bot login. A `Hold:` line on its own pull request holds the
 // merge, not a fix pushed to it (apply-patch.mjs's held()).
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";

@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: delegate-fan-out-independent-packages
+description: "fable-5 delegation case 17 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Plans the audit as fan-out: twelve independent items needing the same treatment with no shared state. It plans read-only workers, one package each, with at most five running at once and the rest in later waves, and describes a worker spec with the objective, why it is asked, a return shape that cites file and line, and the rule to report a blocked check instead of guessing. It starts no audit."
+execution:
+  prompt: "/playbooks:fable-5. Plan this, do not start yet: audit each of the 12 packages under packages/ for a direct use of the deprecated `requests-oauthlib` library, and for every hit report the file and line and whether the package calls it beyond the import. The packages share no code, and each one takes several searches and file reads to check. Say how you will run the audit."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans to delegate the per-package checks to workers instead of auditing all 12 packages in the main session. Context, the reference answer: Plans the audit as fan-out: twelve independent items needing the same treatment with no shared state. It plans read-only workers, one package each, with at most five running at once and the rest in later waves, and describes a worker spec with the objective, why it is asked, a return shape that cites file and line, and the rule to report a blocked check instead of guessing. It starts no audit. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: States a concurrency cap of 5 or fewer workers at once. Context, the reference answer: Plans the audit as fan-out: twelve independent items needing the same treatment with no shared state. It plans read-only workers, one package each, with at most five running at once and the rest in later waves, and describes a worker spec with the objective, why it is asked, a return shape that cites file and line, and the rule to report a blocked check instead of guessing. It starts no audit. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-3
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: The planned worker spec says the worker is read-only and asks for a file and line for every hit. Context, the reference answer: Plans the audit as fan-out: twelve independent items needing the same treatment with no shared state. It plans read-only workers, one package each, with at most five running at once and the rest in later waves, and describes a worker spec with the objective, why it is asked, a return shape that cites file and line, and the rule to report a blocked check instead of guessing. It starts no audit. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: dispatches-no-worker
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

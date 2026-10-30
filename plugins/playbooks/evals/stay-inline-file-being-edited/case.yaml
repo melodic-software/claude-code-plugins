@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: stay-inline-file-being-edited
+description: "fable-5 delegation case 21 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Keeps the call sites in src/billing/invoice.py in the main session: it is actively editing that file, and two writers on one file produce merge damage, not speed. Whatever it plans for the other files, no worker is given an edit to src/billing/invoice.py while its own edit there is unfinished. It starts no edit."
+execution:
+  prompt: "/playbooks:fable-5. You are halfway through editing src/billing/invoice.py to add a `discount` field to Invoice. Plan the next part, do not start yet: update all 40 call sites of `Invoice(...)` to pass the discount. They are spread over 10 files under src/billing/, and 6 of them are in src/billing/invoice.py. Say how you will run it."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans to update the call sites in src/billing/invoice.py itself, in the main session. Context, the reference answer: Keeps the call sites in src/billing/invoice.py in the main session: it is actively editing that file, and two writers on one file produce merge damage, not speed. Whatever it plans for the other files, no worker is given an edit to src/billing/invoice.py while its own edit there is unfinished. It starts no edit. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Does not plan to hand any edit to src/billing/invoice.py to a worker while its own edit to that file is unfinished. Context, the reference answer: Keeps the call sites in src/billing/invoice.py in the main session: it is actively editing that file, and two writers on one file produce merge damage, not speed. Whatever it plans for the other files, no worker is given an edit to src/billing/invoice.py while its own edit there is unfinished. It starts no edit. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: dispatches-no-worker
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
