@@ -289,6 +289,11 @@ export const securityNeedsPerson = (body, floor = SECURITY_PERSON_SEVERITY) => {
   const severity = severityOf(body);
   return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(floor);
 };
+// Whether the reviewer bot's own finding, whose footer is model text, names
+// the security-review lane and a rating a person decides at `floor`: it keeps
+// the hold such a lane finding has, so ruling the bot's findings as the code
+// lane's loosens no security hold.
+export const claimsSecurity = (body, floor = SECURITY_PERSON_SEVERITY) => laneOf(body) === "claude-security-review" && securityNeedsPerson(body, floor);
 
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
@@ -296,17 +301,19 @@ const isDirected = (thread) => thread.comments.some((comment) => comment.directi
 
 // Past the round cap, the threads only a person may still decide: a security
 // lane finding rated at or above `floor` or unrated (securityNeedsPerson), a
-// verifier note or listed review bot's finding a trusted person directed, a
-// listed bot's finding on a head the security-review lane held as CRITICAL
-// (keepThreads' `security` state; the bot's own badge decides nothing), and a
-// finding whose lane no footer pr-review-cli appended names: only on a
-// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
-// never model text. A listed bot is matched on its account id (keepThreads'
-// `listed`, from pr-pipeline.yaml review-threads.reviewer-ids). The code
-// lane's finding, a listed bot's other findings, a security lane finding
-// rated below `floor` and an undirected verifier note go to a fresh fixer: a
-// round cap is a lane bound, and pr-verify's FAIL already holds the merge and
-// judges the next head afresh.
+// verifier note or listed review bot's finding a trusted person directed, and
+// a listed bot's finding on a head the security-review lane held as CRITICAL
+// (keepThreads' `security` state; the bot's own badge decides nothing). Only
+// on a github-actions[bot] root (`rootAuthorId`) is a lane footer the
+// pr-review-cli reusable's, never model text, so a reviewer root by anyone
+// else is the reviewer bot's own finding (claude[bot]), which is ruled as the
+// code lane's unless its text claims the security-review lane at a rating a
+// person decides (claimsSecurity). A listed bot is matched on its account id
+// (keepThreads' `listed`, from pr-pipeline.yaml review-threads.reviewer-ids).
+// The code lane's finding, the reviewer bot's own, a listed bot's other
+// findings, a security lane finding rated below `floor` and an undirected
+// verifier note go to a fresh fixer: a round cap is a lane bound, and
+// pr-verify's FAIL already holds the merge and judges the next head afresh.
 export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERITY) => {
   if (isVerifierNote(thread)) {
     return isDirected(thread);
@@ -319,7 +326,7 @@ export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERI
     return root.security === "held" || isDirected(thread);
   }
   if (rootAuthorId !== MARKER_AUTHOR_ID) {
-    return true;
+    return claimsSecurity(root.body, floor);
   }
   const lane = laneOf(root.body);
   return lane === "claude-security-review" ? securityNeedsPerson(root.body, floor) : lane !== "claude-review";

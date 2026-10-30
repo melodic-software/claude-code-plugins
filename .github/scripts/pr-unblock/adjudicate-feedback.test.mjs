@@ -276,24 +276,80 @@ test(`disputes adjudicates at most ${MAX_THREADS} threads and names the rest`, (
   assert.deepEqual(over, ["PRRT_d"]);
 });
 
-// A security-review finding always goes to a person, and so does a finding
-// whose lane its root comment does not name; neither takes a slot.
+// A security-review finding rated IMPORTANT goes to a person and takes no
+// slot. The reviewer bot's own finding (claude[bot], whose root keepThreads
+// tags with no lane, a footer it wrote included) is judged as a code-review
+// finding: it takes a slot, and no person decides it.
 const securityThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-security-review", body: SECURITY }]);
 // claude[bot] wrote its own footer: keepThreads gives it no lane.
 const claudeBotThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: REVIEW }]);
 const unnamedThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: "The guard is missing." }]);
 
-test("disputes never adjudicates a security-review finding or one of unknown lane, and they take no slot", () => {
-  const ids = ["PRRT_s", "PRRT_u", "PRRT_a", "PRRT_b", "PRRT_c", "PRRT_d"];
+test("disputes never adjudicates a security-review finding a person decides, and stages the reviewer bot's own finding as a code-review one", () => {
+  const ids = ["PRRT_s", "PRRT_u", "PRRT_a", "PRRT_b", "PRRT_c"];
   const file = fileOf(securityThread("PRRT_s"), claudeBotThread("PRRT_u"), ...ids.slice(2).map((id) => thread(id)));
   const { slots, over } = disputes(file, ids.map((id) => incorrect(id)).join("\n"));
-  assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a", "PRRT_b", "PRRT_c"]);
-  assert.deepEqual(over, ["PRRT_d"]);
+  assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_u", "PRRT_a", "PRRT_b"]);
+  assert.deepEqual(over, ["PRRT_c"]);
+  for (const make of [claudeBotThread, unnamedThread]) {
+    assert.equal(adjudicable(make("PRRT_u").comments), true);
+    for (const disposition of DISPUTED) {
+      assert.deepEqual(disputes(fileOf(make("PRRT_u")), incorrect("PRRT_u", { disposition })).slots.map((slot) => slot.thread), ["PRRT_u"], disposition);
+    }
+  }
+  // A CRITICAL line still holds it, as it holds a code-review finding.
+  const critical = thread("PRRT_k", [{ id: 1, author: "reviewer", body: CRITICAL_REVIEW }]);
+  assert.equal(adjudicable(critical.comments), false);
 });
 
-test("settleDisputes sends an INCORRECT reply on a security-review or unknown-lane thread to a person, whatever verdict arrived", async () => {
+test("settleDisputes settles the reviewer bot's own finding with no person: a lane verdict resolves an INCORRECT one, no verdict or an UNCERTAIN one fails the head", async () => {
+  const posts = [];
+  let resolved = false;
+  const api = {
+    readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2] }),
+    replyToComment: async (_pr, id, body) => {
+      posts.push(body);
+      return { id: 3, in_reply_to_id: id };
+    },
+  };
+  for (const make of [claudeBotThread, unnamedThread]) {
+    posts.length = 0;
+    resolved = false;
+    const result = await settleDisputes({
+      api,
+      pr: 42,
+      adjudicatedSha: HEAD,
+      posted: [{ thread: "PRRT_a", disposition: "INCORRECT" }],
+      replies: [],
+      shown: new Map([["PRRT_a", { comment_ids: [1] }]]),
+      now: new Map([["PRRT_a", make("PRRT_a")]]),
+      verdicts: new Map([["PRRT_a", { verdict: "lane", question: "none" }]]),
+      pushed: false,
+      headMoved: async () => false,
+      resolveAfterReply: async () => {
+        resolved = true;
+        return true;
+      },
+      escalationReason: "",
+      log: () => {},
+    });
+    assert.deepEqual(result, { escalationReason: "", skipReason: "" });
+    assert.equal(resolved, true);
+    assert.equal(posts[0].split("\n")[0], FINDING_ANSWERED);
+    const now = new Map([["PRRT_a", make("PRRT_a")]]);
+    assert.deepEqual(await settleOffline(now, "INCORRECT", new Map()), { escalationReason: "feedback-unadjudicated", skipReason: "" });
+    for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
+      assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+    }
+    // The adjudicator's security question on it still goes to a person.
+    assert.deepEqual(await settleOffline(now, "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-question-security", skipReason: "" });
+  }
+  assert.equal(escalationRoute("feedback-unadjudicated"), "fail");
+});
+
+test("settleDisputes sends an INCORRECT reply on a security-review thread a person decides, or one the round did not keep, to a person, whatever verdict arrived", async () => {
   const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
-  for (const now of [new Map([["PRRT_a", securityThread("PRRT_a")]]), new Map([["PRRT_a", unnamedThread("PRRT_a")]]), new Map([["PRRT_a", claudeBotThread("PRRT_a")]]), new Map()]) {
+  for (const now of [new Map([["PRRT_a", securityThread("PRRT_a")]]), new Map()]) {
     const result = await settleDisputes({
       api,
       pr: 42,
@@ -313,12 +369,12 @@ test("settleDisputes sends an INCORRECT reply on a security-review or unknown-la
   }
 });
 
-// The floor for a reply the lane could not settle: on a security-review,
-// unknown-lane or claude[bot] finding an UNCERTAIN or VALID-defer reply holds
-// for a person whatever verdict arrived, and that reason routes `hold` (the
+// The floor for a reply the lane could not settle: on a security-review
+// finding a person decides, an UNCERTAIN or VALID-defer reply holds for a
+// person whatever verdict arrived, and that reason routes `hold` (the
 // needs-human label), not a failing status a new head would clear.
-test("settleDisputes holds an UNCERTAIN or VALID-defer security-review or unknown-lane finding for a person, whatever verdict arrived", async () => {
-  for (const [label, make] of [["security-review", securityThread], ["unknown lane", unnamedThread], ["claude[bot]", claudeBotThread]]) {
+test("settleDisputes holds an UNCERTAIN or VALID-defer security-review finding a person decides for a person, whatever verdict arrived", async () => {
+  for (const [label, make] of [["security-review", securityThread]]) {
     for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
       for (const verdict of ["lane", "reviewer"]) {
         const now = new Map([["PRRT_a", make("PRRT_a")]]);
@@ -352,8 +408,13 @@ test("disputes stages a SUGGESTION security-review finding, never an IMPORTANT, 
     assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", body)), incorrect("PRRT_s")).slots, []);
   }
   assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", SUGGESTION)), incorrect("PRRT_s")).slots.map((slot) => slot.thread), ["PRRT_s"]);
-  // A SUGGESTION line on a comment whose lane keepThreads did not tag is no lane finding.
-  assert.equal(adjudicable(thread("PRRT_u", [{ id: 1, author: "reviewer", body: SUGGESTION }]).comments), false);
+  // A comment whose lane keepThreads did not tag is the reviewer bot's own,
+  // judged as a code-review finding, except one whose text claims the
+  // security-review lane at a rating a person decides, or with none.
+  assert.equal(adjudicable(thread("PRRT_u", [{ id: 1, author: "reviewer", body: SUGGESTION }]).comments), true);
+  for (const body of [SECURITY, ...UNRATED]) {
+    assert.equal(adjudicable(thread("PRRT_u", [{ id: 1, author: "reviewer", body }]).comments), false, body.split("\n")[0]);
+  }
 });
 
 test("settleDisputes settles a disputed SUGGESTION security-review finding without a person", async () => {
@@ -926,7 +987,6 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     ["changelog", { evidence: ["plugins/planning/CHANGELOG.md:1"] }],
     ["call site in another plugin", { evidence: ["plugins/work-items/skills/track/SKILL.md:1"] }],
     ["cited line that invokes nothing", { evidence: ["plugins/planning/skills/wayfind/SKILL.md:1"] }],
-    ["unsettled SUGGESTION flag", { body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] }],
     ["CRITICAL rating", { body: FLAG.replace("IMPORTANT", "CRITICAL") }],
     ["flagged plugin not in the marketplace", { files: { ...FLAG_FILES, [MARKETPLACE]: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/work-items" }] }) } }],
     // The same PR adds the dependency's marketplace entry: only the head lists it.
@@ -948,7 +1008,14 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     assert.deepEqual(result, { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
     assert.deepEqual(posts, [], disposition);
   }
-  // Every other security-review finding still goes to a person.
+  // A SUGGESTION flag hardRequire does not settle is settled as any
+  // SUGGESTION security-review finding: with no verdict, a failing status,
+  // not a person.
+  const suggested = await settleFlag({ body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] });
+  assert.deepEqual(suggested.result, { escalationReason: "feedback-unadjudicated", skipReason: "" });
+  assert.deepEqual(suggested.posts, []);
+  assert.equal(suggested.resolved, false);
+  // Every other security-review finding rated IMPORTANT still goes to a person.
   const hooks = await settleFlag({ body: FLAG.replace("manifest dependencies:", "manifest hooks:") });
   assert.deepEqual(hooks.result, { escalationReason: "feedback-disputed", skipReason: "" });
   assert.deepEqual(hooks.posts, []);

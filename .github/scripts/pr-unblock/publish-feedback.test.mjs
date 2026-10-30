@@ -544,9 +544,28 @@ test("an INCORRECT reply on a security-review finding goes to a person even with
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
 
-test("a claude[bot] finding ending in the code-review footer is not adjudicated: it wrote the footer itself", async () => {
-  const forged = { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body: "finding 200\n\nclaude-lane: claude-review" };
-  const api = fakeApi({ reviewComments: [{ id: 100, user: { id: ACTIONS_BOT }, pull_request_review_id: 30, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review" }, forged] });
+// A claude[bot] finding names no lane (a footer in it is model text), so it
+// is adjudicated as a code-review finding, with or without a footer, unless
+// its text claims the security-review lane at a rating a person decides.
+test("a claude[bot] finding, with no footer or a footer it wrote, is adjudicated as a code-review finding and escalates nothing", async () => {
+  for (const body of ["finding 200", "finding 200\n\nclaude-lane: claude-review"]) {
+    const own = { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body };
+    const api = fakeApi({ reviewComments: [{ id: 100, user: { id: ACTIONS_BOT }, pull_request_review_id: 30, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review" }, own] });
+    const result = await run(
+      api,
+      lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+      JSON.stringify(RUN),
+      verdicts(judged("PRRT_b", "lane")),
+    );
+    assert.equal(result.escalationReason, "", body);
+    assert.deepEqual(api.posted().map((call) => call[2]), [100, 200, 200], "the lane's replies, then the adjudication reply");
+    assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
+  }
+});
+
+test("a claude[bot] finding whose text claims an IMPORTANT security-review rating keeps that hold, and is not adjudicated", async () => {
+  const claimed = { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body: "severity: IMPORTANT\n\nfinding 200\n\nclaude-lane: claude-security-review" };
+  const api = fakeApi({ reviewComments: [{ id: 100, user: { id: ACTIONS_BOT }, pull_request_review_id: 30, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review" }, claimed] });
   const result = await run(
     api,
     lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
