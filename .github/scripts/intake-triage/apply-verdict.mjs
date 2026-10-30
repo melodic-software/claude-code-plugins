@@ -31,10 +31,11 @@
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. One exception: a needs-human this
 // run's triage applied (github-actions[bot], at or after STARTED_AT) on a
-// verdict that did not escalate holds only beside a flag, the structured
-// person reason (intent, security, cost); without one it is refused and taken
-// off, so a capability limit (a host run, a paid eval) reaches admission,
-// which routes it to `host-run` or holds it with a split. The
+// verdict that did not escalate, with a readable `Flags: none` and no
+// outside-actor or untrusted-provenance hold, is refused and taken off when
+// the rest of the plan is ready, so a capability limit (a host run, a paid
+// eval) reaches admission, which routes it to `host-run` or holds it with a
+// split. The
 // `needs-triage` floor label is taken off after the verdict is written.
 // The work class gates nothing (owner Q85, #9668) except
 // `work-class: untrusted-provenance`, which holds the issue and is never taken
@@ -275,30 +276,53 @@ export function planWrites(
   // (earlierFlags []); a listed flag or no readable comment (null) holds, as
   // does one the triage run (github-actions[bot]), a person, or an unread
   // setter set, and needs-human and the outside-actor flag always hold.
-  // needs-human this run's triage applied, with no flag naming a person
-  // reason, is refused: the capability limit it stands for is admission's.
-  const refused =
-    !verdict.escalated && !verdict.flags?.length && labels.includes(NEEDS_HUMAN) && triageLabels.includes(NEEDS_HUMAN) ? [NEEDS_HUMAN] : [];
-  remove.push(...refused);
-  const holds = labels.filter((label) => HOLDS.has(label) && !refused.includes(label));
-  const appHolds =
-    earlierFlags === null || earlierFlags.length > 0
-      ? []
-      : holds.filter((label) => !PERSON_HOLDS.has(label) && isApp(holdSetters[label], appId));
-  for (const label of holds.filter((label) => !appHolds.includes(label))) {
-    reasons.push(`held by ${label}`);
+  const holdReasons = (holds) => {
+    const appHolds =
+      earlierFlags === null || earlierFlags.length > 0
+        ? []
+        : holds.filter((label) => !PERSON_HOLDS.has(label) && isApp(holdSetters[label], appId));
+    const found = holds.filter((label) => !appHolds.includes(label)).map((label) => `held by ${label}`);
+    // Carried into the comment, so a later clean verdict still reads the flag,
+    // or still reads that no record says.
+    const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
+    if (carried.length > 0) {
+      found.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
+    }
+    if (holds.length > 0 && earlierFlags === null) {
+      found.push(UNRECORDED);
+    }
+    return { appHolds, found };
+  };
+  const isReady = (found) => reasons.length + found.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
+  // needs-human this run's triage applied on a verdict whose Flags line reads
+  // none is refused when the rest of the plan is ready, so admission routes the
+  // capability limit it stands for. An unreadable Flags line, an outside-actor
+  // or untrusted-provenance hold (flag.mjs adds needs-human as the same
+  // github-actions[bot]), or any other reason keeps it.
+  const holds = labels.filter((label) => HOLDS.has(label));
+  const candidate =
+    !verdict.escalated &&
+    !verdict.untrusted &&
+    Array.isArray(verdict.flags) &&
+    verdict.flags.length === 0 &&
+    labels.includes(NEEDS_HUMAN) &&
+    triageLabels.includes(NEEDS_HUMAN) &&
+    !labels.includes(OUTSIDE_ACTOR_LABEL) &&
+    !labels.includes(UNTRUSTED);
+  let held = holdReasons(holds);
+  let refused = [];
+  if (candidate) {
+    const without = holdReasons(holds.filter((label) => label !== NEEDS_HUMAN));
+    if (isReady(without.found)) {
+      held = without;
+      refused = [NEEDS_HUMAN];
+      remove.push(NEEDS_HUMAN);
+    }
   }
-  // Carried into the comment, so a later clean verdict still reads the flag,
-  // or still reads that no record says.
-  const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
-  if (carried.length > 0) {
-    reasons.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
-  }
-  if (holds.length > 0 && earlierFlags === null) {
-    reasons.push(UNRECORDED);
-  }
+  const { appHolds } = held;
+  reasons.push(...held.found);
 
-  const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
+  const ready = isReady([]);
   if (ready) {
     remove.push(...appHolds);
     if (!labels.includes(READY)) {
@@ -539,9 +563,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     labeled
       ? `- Labels added: ${add.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
       : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
-    ...(plan.refused.length
-      ? [`- Refused: ${plan.refused.join(", ")} (this run's triage applied it with no intent, security or cost flag; admission routes a capability limit)`]
-      : []),
+    ...(plan.refused.length ? [`- Refused: ${REFUSED_NOTE}`] : []),
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
@@ -625,6 +647,10 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
+// Why a ready verdict took needs-human off, for the comment and the summary.
+const REFUSED_NOTE =
+  "`needs-human` came off: this run's triage applied it with no intent, security or cost flag, and a capability limit (a host run, a paid eval) is admission's to route, never a person's.";
+
 // Admission's stand-in outcome when a blocked-by edge was missed.
 const EDGE_MISSING = "waits for a blocked-by edge";
 const WAITS = "none: admission waits for intake to run again, since a blocked-by edge is missing";
@@ -649,7 +675,7 @@ const settled = (admission) =>
 async function sayReasons(github, repository, base, comments, appId, plan, admission, refused) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
-  if (plan.ready && !own && after === null) {
+  if (plan.ready && !own && after === null && plan.refused.length === 0) {
     return;
   }
   const body = plan.ready
@@ -663,7 +689,7 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
             : after
               ? "admission did not finish, so the issue's status is not settled."
             : `the issue is at \`${READY}\`.`
-      }`
+      }${plan.refused.length ? `\n\n${REFUSED_NOTE}` : ""}`
     : [
         VERDICT_MARKER,
         `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
