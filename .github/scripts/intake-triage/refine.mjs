@@ -934,7 +934,13 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     if (record.filed.length > 0) {
       return skip("is already split");
     }
-    const problem = record.groups === undefined ? partitionProblem({ parts: record.parts, order: record.order }, lines.length, settings.maxParts) : subsetProblem({ groups: record.groups, order: record.order }, lines, settings.maxParts, rules["task-list"]);
+    // A target-subset record's parts are every line once per group, so an
+    // edited record can neither orphan a line nor read past its groups.
+    const every = lines.map((_, index) => index + 1);
+    const problem =
+      record.groups === undefined
+        ? partitionProblem({ parts: record.parts, order: record.order }, lines.length, settings.maxParts)
+        : (subsetProblem({ groups: record.groups, order: record.order }, lines, settings.maxParts, rules["task-list"]) ?? (isDeepStrictEqual(record.parts, record.groups.map(() => every)) ? null : "parts"));
     if (record.items !== digest || problem !== null) {
       return skip("its split record no longer matches its trusted task-list lines");
     }

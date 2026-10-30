@@ -1217,6 +1217,20 @@ describe("size split", () => {
     assert.equal(splitDigest({ lines: LINES, source: null }), linesDigest(LINES), "a human-only split keeps its digest");
   });
 
+  // A record whose parts are not every line once per group, as an edit of
+  // the record's comment could leave them, would orphan lines or read past
+  // the groups (record.groups[index]), so it is skipped, never resumed.
+  test("a target-subset record whose parts are not every line per group gets nothing", async () => {
+    const groups = [["L1"], ["L2", "L3"]];
+    for (const parts of [[[1], [1]], [[1, 2, 3], [1, 2, 3], [1, 2, 3]]]) {
+      const edited = { ...appComment(`${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: linesDigest(LINES), parts, order: [], filed: [], groups })}`), id: 900 };
+      assert.deepEqual(splitRecord(edited.body)?.parts, parts, "the record reads back as written");
+      const fake = splitFake({ comments: [edited] });
+      assert.equal((await run(fake, { parts: [], order: [], groups })).outcome, "skipped", JSON.stringify(parts));
+      assert.deepEqual(writes(fake.calls), []);
+    }
+  });
+
   test("an issue whose trusted lines changed while the model ran, or already split, gets nothing", async () => {
     for (const fake of [splitFake({ spec: specOf(BODY.replace("L3", "L9")) }), splitFake({ comments: [record([71, 72])] })]) {
       assert.equal((await run(fake, { parts: [[1, 2], [3]], order: [] })).outcome, "skipped");
