@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
 
@@ -249,7 +250,7 @@ test("live config: every PR activity that leaves needs-human to the select job w
     ["pr-unblock", "apply-patch"],
     ["pr-refine", "apply-patch"],
   ]) {
-    assert.equal(skipReason(lane, activity, { mergeable: "clean", labels: ["security: outside-actor"] }), "awaiting-human", activity);
+    assert.equal(skipReason(lane, activity, { mergeable: "clean", labels: [OUTSIDE_ACTOR_LABEL] }), "awaiting-human", activity);
   }
 });
 
