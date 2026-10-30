@@ -19,6 +19,7 @@
 # enqueued.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/post-merge-demotion-alert.yml"
