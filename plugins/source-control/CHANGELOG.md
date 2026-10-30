@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.4] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+### Fixed
+
+- Reverted the post-merge run-listing split and the unreadable-head reuse. With an old floor, the
+  split let the check read every run since the floor, about 1,700 GitHub calls per check, which
+  exhausted the GITHUB_TOKEN pool. The check again stops as unreadable at the 1,000-run search cap.
+
 ## [4.2.3] - 2026-10-30
 
 ### Changed

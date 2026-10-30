@@ -24,7 +24,8 @@
 // native parent a size split filed the issue from, only while the issue
 // counts as that parent's text (admit.mjs splitChildBody) and a listed human
 // wrote, and last edited before the label if ever, that body: the split
-// copies only its task-list lines. On any failure no file is left, so
+// copies only its task-list lines. `scope` lists, for such a part split by
+// target, the targets its Scope line names (admit.mjs splitScope). On any failure no file is left, so
 // the skill never reads a partial issue.
 //
 // The label admitted the issue as it stood at the label event readAdmittedAt
@@ -68,7 +69,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { authorAdmitted, carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { authorAdmitted, carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -260,11 +261,13 @@ export async function main({ env = process.env, github, log = console.log, write
     const standing = moved.length > 0 ? refinementSpec(before, lanesAppId)?.databaseId : undefined;
     // A size split's part: its parent's body, under the part's own trust rule.
     let splitParent;
+    let scope = null;
     if (spec.author?.__typename === "Bot" && spec.author.databaseId === lanesAppId && spec.body.startsWith(SPLIT_CHILD_MARKER)) {
       const parent = await splitParentOf(client, repository, await parentOf(client, `/repos/${repository}/issues/${env.ISSUE_NUMBER}`), lanesAppId);
       const settled = parent?.spec.lastEditedAt == null || timeOf(parent.spec.lastEditedAt) < frozenAt;
       if (parent && settled && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null) {
         splitParent = { number: parent.number, body: parent.spec.body };
+        scope = splitScope(spec.body);
       }
     }
     dropped["stale-split"] = 0;
@@ -324,6 +327,7 @@ export async function main({ env = process.env, github, log = console.log, write
       comments: comments.filter((comment) => !cut.has(comment)),
       ...(moved.length > 0 && { person_checks: moved.map((n) => taskItems(spec.body, taskList)[n - 1].text) }),
       ...(splitParent && { split_parent: splitParent }),
+      ...(scope !== null && { scope }),
     };
     const resume = await readResume(client, env);
     if (resume) {
