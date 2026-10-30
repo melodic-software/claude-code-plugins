@@ -1217,6 +1217,16 @@ test("listActivity fails closed at the cursor's end: a full page with no next li
   await assert.rejects(activityApi([rows(100)]).listActivity("b"), /full page with no next link/);
   await assert.rejects(activityApi([...Array.from({ length: 20 }, () => rows(100)), rows(1)]).listActivity("b"), /past 20 pages/);
   assert.equal(await activityApi([{ message: "Not Found" }]).listActivity("b"), null);
+  assert.equal(await activityApi([rows(100), { message: "Not Found" }]).listActivity("b"), null);
+});
+
+test("listActivity rejects when a later page answers an error, never returning the pages before it", async () => {
+  for (const status of [500, 403]) {
+    const read = activityFetch([rows(100), rows(1)]);
+    const fetch = async (url) => (/after=c1/.test(url) ? { ok: false, status, json: async () => ({ message: "boom" }), headers: { get: () => "" } } : read(url));
+    const api = createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch, sleep: async () => {} });
+    await assert.rejects(api.listActivity("b"), new RegExp(`returned ${status}`), String(status));
+  }
 });
 
 // apply-dependency-verdict.mjs runs from $RUNNER_TEMP/base-script, a copy of

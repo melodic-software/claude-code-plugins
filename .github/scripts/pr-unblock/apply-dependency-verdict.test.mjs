@@ -705,6 +705,17 @@ test("a merge verdict on a lanes App commit with a plain version bump in package
   assert.deepEqual(api.calls.activity, ["dependabot/npm_and_yarn/x-2.0.0"]);
 });
 
+test("a merge verdict escalates when the branch's push history is unreadable, and never marks a merge", async () => {
+  const files = [modified("package.json"), modified("package-lock.json")];
+  await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), appCommit(files)], details: { [FIX]: appCommit(files) }, activity: null }), "listActivity resolved null");
+  const failing = mergeWith(files);
+  failing.listActivity = async () => {
+    throw new Error("the branch's push history runs past 20 pages");
+  };
+  await assert.rejects(go(failing, mergeRun()), /past 20 pages/);
+  assert.doesNotMatch(failing.calls.comments.join("\n"), /verdict=merge/);
+});
+
 test("a merge verdict on a lanes App push carrying a Dependabot-authored commit under its tip is refused", async () => {
   const mid = "c".repeat(40);
   const forged = { ...dependabotCommit(mid), parents: [{ sha: HEAD }] };

@@ -1377,6 +1377,21 @@ test("workflow-staged stays at the activity cursor's end: a full page with no ne
   }
 });
 
+// Page 1 alone would clear the hold (the empty-page case above), so only a
+// read that stops at the failed page 2 keeps it.
+test("workflow-staged stays when a later activity page fails to read or is not a list", async () => {
+  const pages = pagedReader(longHistory(99), (n) => n === 0);
+  for (const [label, page2] of [
+    ["page 2 throws", () => Promise.reject(new Error("GET activity returned 500"))],
+    ["page 2 is not a list", async () => ({ message: "Not Found" })],
+  ]) {
+    const reader = (method, path) => (path.startsWith(ACTIVITY) && path.endsWith("&after=c1") ? page2() : pages(method, path));
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+  }
+});
+
 test("workflow-staged stays at the resume key, on a fork head, and without the trusted list or the job token", async () => {
   const atKey = world({
     timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), commented(BOT, escalationBody("workflow-staged").replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z")],
