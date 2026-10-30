@@ -970,7 +970,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const unrunnable = unrunnableReason(criteria);
   // An issue a listed human or the App put in the host queue parks at
   // status: confirmed. A paid eval can bill the owner, an owner stop reason
-  // (docs/contracts/loop-lane/README.md), so it holds for a person.
+  // (docs/conventions/loop-lane/README.md), so it holds for a person.
   const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
   const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
   const queue = unrunnable !== null && !queued && !paid;
