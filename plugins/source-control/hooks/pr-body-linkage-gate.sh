@@ -25,7 +25,7 @@
 # matching file, in sorted glob order, becomes GATE_FILE. A repo that does not
 # run the step is never gated, so the hook cannot drift away from what its
 # consumer actually enforces. This is deliberately NOT the
-# `pr_body_required_sections` seam (docs/conventions/pr-body-convention/): that
+# `pr_body_required_sections` seam (docs/contracts/pr-body-convention/): that
 # key is the repo's configurable section scaffold, whose portable default
 # excludes `Related` on purpose. The authority for THIS gate is the workflow
 # that wires the step in.

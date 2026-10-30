@@ -2,7 +2,7 @@
 
 This lane's binding of the loop-lane convention's consecutive-no-progress detector. Counter
 semantics are the convention's
-([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 §4, "No-progress detector"), held by citation and never restated here: the increment/hold/reset
 states, the escalate-and-keep-looping rule, the author-matched single open escalation, the
 no-self-reset rule, and the resumption comment. `SKILL.md`'s cycle-shape step 6 owns when the counter is updated; this file owns

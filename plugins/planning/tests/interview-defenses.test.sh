@@ -662,11 +662,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # verbatim, with `--changed` after the first confirmation (#6136); the recap stays sourced
 # from the register on disk, and the gate, the procedure check and its halt are unchanged.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "1d7690bb3c9d2c928dc547f97e1aa32fb6acc8f6b1535f27e28ac0ace4d2aa7c"
+  "db3a9ec42b6b48739965251b879a32c285d38b2d3972104c6503dd3acbc34bff"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -729,9 +730,10 @@ pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts i
 # The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "d44ad1a0d4b3ceba53b4f962afd8afee2d939dc5b68c305a0318dd18a31ecc54"
+  "903332451df15c686d46259080f54f82824287b1efe4199a42716e5e95609c6f"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.

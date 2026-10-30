@@ -1078,8 +1078,17 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
     // A commit's statuses, newest first (fix-ci-context.mjs weakenStopped).
     listCommitStatuses: (sha) => paginate(`commits/${sha}/statuses`),
-    // The repository activity for one ref, newest first (contents read).
-    listActivity: (ref) => paginate(`activity?ref=${encodeURIComponent(ref)}`),
+    // A branch's repository activity, newest first, read by cursor to its end
+    // (contents read): merge-holds.mjs branchActivity, loaded at run time from
+    // ../pr-merge, where collect-base-activity stages it beside a script copy.
+    async listActivity(branch) {
+      const { branchActivity, LINK } = await import("../pr-merge/merge-holds.mjs");
+      const read = async (method, path) => {
+        const { data, link } = await request(`${apiUrl}${path}`, method);
+        return Array.isArray(data) ? Object.defineProperty(data, LINK, { value: link }) : data;
+      };
+      return branchActivity(read, `${owner}/${name}`, branch);
+    },
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];

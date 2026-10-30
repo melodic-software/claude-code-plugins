@@ -65,7 +65,7 @@
 // github-actions[bot] starts. Their own paths recover them instead: the babysit
 // merge gate re-runs a lost review run under the owner's token, and the
 // dispatchers send refine and feedback dispatch a fresh attempt-1 run
-// (fix-docs-dispatch.mjs, feedback-dispatch.mjs). A merge-group run is not
+// (fix-docs-dispatch.mjs for a PR's first lost run, feedback-dispatch.mjs). A merge-group run is not
 // covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
 // own PRs once their checks pass.
 //
@@ -180,8 +180,10 @@ export const JUDGE_STEP = "Judge the pull request";
 export const JUDGE_PREDECESSOR = "Write the prompt and schema";
 // The step after JUDGE_STEP, which runs only on the judgment's true outcome.
 export const WRITE_STEP = "Write the verdict";
-// pr-review-main's judge step, between the same predecessor and verdict write.
-export const REVIEW_STEP = "Review the pull request";
+// pr-review-main's first judge step, between the same predecessor and the
+// verdict write; its later chunks' review steps follow it, so a cut list that
+// reaches one also reaches the predecessor.
+export const REVIEW_STEP = "Review chunk 1";
 // Lane workflows whose trigger check takes this workflow's record
 // (reconciler-workflow) and that mint no broker token, each with its judge
 // step. Each starts on workflow_run from main, so its runs are listed by

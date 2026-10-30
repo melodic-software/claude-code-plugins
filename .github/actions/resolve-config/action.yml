@@ -217,5 +217,6 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
-        npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+        # A composite step takes no timeout-minutes, so `timeout` bounds the install.
+        timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
         node "$GITHUB_ACTION_PATH/resolve-config.mjs"

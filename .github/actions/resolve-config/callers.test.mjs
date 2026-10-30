@@ -2650,7 +2650,8 @@ test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-
     assert.deepEqual(choose(callerHead, "3".repeat(40)), { post: "true", sha: old, forged: "true" }, `${id}: a foreign run head still fails`);
     // A run that declines before its trigger gate leaves an empty head:
     // fix-ci posts neutral not-assessed so fix-ci-dispatch moves on; fix-docs,
-    // dispatched once per PR, posts nothing so it is dispatched again.
+    // dispatched once per PR, posts nothing: its completed run counts as the
+    // PR's one dispatch.
     const postDecline = job.with["post-decline"] ?? true;
     assert.equal(postDecline, !id.startsWith("fix-docs"), `${id} post-decline`);
     assert.deepEqual(
@@ -6227,8 +6228,8 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
 // fallback call starts on fix-docs-handoff's jobs-API read, the same step
 // fix-ci-handoff runs, never on a fix-docs output. fix-docs posts nothing on a
 // decline (post-decline: false), so the fallback also needs the broker's allow:
-// a kill switch or a refusal starts no second leg, and a failed read leaves
-// no check, so fix-docs-dispatch.mjs dispatches the PR again.
+// a kill switch or a refusal starts no second leg, and neither does a failed
+// read.
 test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read of fix-docs's report, never on a fix-docs output", (t) => {
   const { jobs } = workflow("pr-refine.yml");
   const sub = jobs["fix-docs-subscription"];
@@ -6931,6 +6932,59 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   // The jobs that ran npm ci when the bound was added: pr-require-checks' five,
   // and one each in ten other workflows.
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
+});
+
+// A stalled install fails at its own step bound, inside the job's, with no
+// retry, and skips the audit and fund requests through env.
+test("every workflow npm ci step is bounded, unretried, and skips audit and fund", () => {
+  let steps = 0;
+  let loglevel = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (!/\bnpm ci\b/.test(step.run ?? "")) continue;
+        const where = `${file} ${id} "${step.name}"`;
+        const env = { ...doc.env, ...job.env };
+        assert.equal(env.npm_config_audit, "false", `${where}: npm_config_audit`);
+        assert.equal(env.npm_config_fund, "false", `${where}: npm_config_fund`);
+        assert.equal(env.npm_config_fetch_timeout, "60000", `${where}: npm_config_fetch_timeout (#10061 done-when 1; same value as npm-fetch.npmrc)`);
+        assert.ok(step["timeout-minutes"] < job["timeout-minutes"], `${where}: step timeout ${step["timeout-minutes"]} not below job ${job["timeout-minutes"]}`);
+        assert.doesNotMatch(step.run, /\bretry\b|\buntil\b|npm ci[^\n]*\|\|[^\n]*npm ci/, `${where}: retry wrapper`);
+        if (/\bnpm ci\b[^\n]*--loglevel http/.test(step.run)) loglevel += 1;
+        steps += 1;
+      }
+    }
+  }
+  assert.ok(steps >= 16, `only ${steps} npm ci steps found`);
+  assert.equal(loglevel, 1, "exactly one npm ci step logs at --loglevel http");
+});
+
+// A composite action step takes no timeout-minutes, so its npm ci runs under
+// `timeout` and skips audit and fund by flag, whatever env its caller sets.
+test("every composite action npm ci is bounded by timeout and skips audit and fund", () => {
+  let installs = 0;
+  for (const dir of readdirSync(new URL("..", import.meta.url))) {
+    const file = new URL(`../${dir}/action.yml`, import.meta.url);
+    if (!existsSync(file)) continue;
+    for (const step of parse(readFileSync(file, "utf8")).runs?.steps ?? []) {
+      for (const line of (step.run ?? "").split("\n").filter((text) => /\bnpm ci\b/.test(text))) {
+        const where = `${dir}/action.yml "${step.name}"`;
+        assert.match(line, /^\s*timeout \d+m npm ci\b/, `${where}: no timeout bound`);
+        assert.match(line, /--no-audit\b/, `${where}: --no-audit`);
+        assert.match(line, /--no-fund\b/, `${where}: --no-fund`);
+        installs += 1;
+      }
+    }
+  }
+  assert.ok(installs >= 2, `only ${installs} composite npm ci lines found`);
+});
+
+// #10061: no job timeout-minutes is raised to fit an install bound.
+test("check-catalog keeps its 3-minute job bound with the install step under it", () => {
+  const job = workflow("pr-require-checks.yml").jobs["check-catalog"];
+  assert.equal(job["timeout-minutes"], 3);
+  assert.equal(job.steps.find((step) => step.name === "Install the locked root toolchain")["timeout-minutes"], 2);
 });
 
 // --- lane transcripts: every model leg keeps its transcript, sealed ---

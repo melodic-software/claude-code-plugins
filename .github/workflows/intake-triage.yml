@@ -575,6 +575,9 @@ jobs:
     # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -613,6 +616,7 @@ jobs:
       # refine.mjs --select imports resolve-config.mjs, whose packages (ajv)
       # only the resolve-config action installs; this job does not run it.
       - name: Install resolve-config's packages
+        timeout-minutes: 5
         if: steps.who.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
