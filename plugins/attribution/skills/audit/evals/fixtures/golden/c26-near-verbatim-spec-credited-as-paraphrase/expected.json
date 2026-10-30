@@ -21,7 +21,7 @@
     "rubric": "C1 holds: three bullets correspond one for one. C2 holds: the 18-word and 24-word thresholds and the warning-before-step rule are the source's choices. C3 holds, which is the point of the case: the intro says the file paraphrases WCL-100, and that is true of the standard but says nothing about the skill page the bullets were lifted from, so the declared scope does not match the derivation. C4 holds: the text is the source's, not a paraphrase of the standard.",
     "measured": "fingerprint.mjs at k=5: containment 0.291, jaccard 0.146, longest matched span 34 words at local lines 7-9. Containment is under the 0.3 threshold and the span limb fires alone.",
     "tier_reason": "The span limb of the separation rule fires against an identity-checked source. Low containment is the shape of a short lift inside a mostly original file, not evidence against it.",
-    "owner_decision": "Class set to verbatim on lines 7-10 by the owner decision of 2026-10-30, after the rubric v5 panel split 2 to 1 (#5654).",
+    "owner_decision": "Class set to verbatim on lines 7-10 by the owner decision of 2026-10-30, after the rubric v5 panel split 2 to 1, recorded at https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6523541851.",
     "carries": "This case fails a run that treats any named upstream as adequate attribution. The question is whether the named upstream is the source of the span."
   }
 }
