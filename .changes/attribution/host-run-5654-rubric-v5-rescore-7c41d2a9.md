@@ -39,22 +39,25 @@ bump: patch
 
   | Class | n | tp | fp | fn | tn | Precision | Recall | Previous (0.8.2, rubric v4) |
   |---|---|---|---|---|---|---|---|---|
-  | verbatim | 3 | 3 | 0 | 0 | 0 | 1.00 | 1.00 | 1.00 / 1.00 |
-  | near-verbatim | 13 | 12 | 0 | 1 | 0 | 1.00 | 0.92 | 0.92 / 0.92 |
+  | verbatim | 4 | 3 | 0 | 1 | 0 | 1.00 | 0.75 | 1.00 / 1.00 |
+  | near-verbatim | 12 | 12 | 0 | 0 | 0 | 1.00 | 1.00 | 0.92 / 0.92 |
   | paraphrase | 1 | 1 | 0 | 0 | 0 | 1.00 | 1.00 | 1.00 / 1.00 |
   | restated-fact | 6 | 6 | 0 | 0 | 0 | 1.00 | 1.00 | 1.00 / 1.00 |
   | hard negatives | 15 | 0 | 3 | 0 | 12 | n/a | n/a | 2 fp, 13 tn |
 
-  `score-golden.sh` reports near-verbatim and hard negatives at a binding gate (n 13 and 15). It
-  reports near-verbatim above the 0.95 precision bar and the 0.8 recall floor. **This entry
+  `score-golden.sh` reports near-verbatim and hard negatives at a binding gate (n 12 and 15). It
+  reports near-verbatim above the 0.95 precision bar and the 0.8 recall floor. Verbatim is below
+  the 0.8 recall floor at 0.75 and stays report-only (n 4). **This entry
   declares no class fix-eligible.** A precision of 1.00 rests on 12 true positives, nine of them
   adjudicated from real repository text and four sharing one source. Changing fix eligibility is
   outside #5654 and goes to the owner.
 
-  **Where the panel disagreed with a recorded expectation.** No expectation was changed.
+  **Where the panel disagreed with a recorded expectation.**
   - `c26`, recorded near-verbatim, split 2 to 1. Two judges returned `verbatim` on lines 7-10. One
-    cleared it at C4: lines 11 and 13 add a local rule and a local application. It is the
-    near-verbatim row's one false negative. In 0.8.2 it was unanimous `verbatim`.
+    cleared it at C4: lines 11 and 13 add a local rule and a local application. In 0.8.2 it was
+    unanimous `verbatim`. The owner decided on 2026-10-30 that it is verbatim on lines 7-10, and
+    its expectation now says so. The split panel emits no finding, so it is the verbatim row's one
+    false negative.
   - `c36`, recorded as a negative, returned a unanimous `near-verbatim` finding on line 12, as in
     0.8.2.
   - `c22` and `c23`, recorded as negatives, each returned a unanimous `restated-fact` finding on
@@ -65,5 +68,5 @@ bump: patch
 
   **What this score does not support.** The ten blocked candidate panels and the contradicting
   verbatim candidate from 0.8.2 were not re-run: their inputs are real repository passages that
-  are not tracked as cases. Verbatim still has 3 cases against `min_n_per_class` 10, so it stays
+  are not tracked as cases. Verbatim has 4 cases against `min_n_per_class` 10, so it stays
   report-only.
