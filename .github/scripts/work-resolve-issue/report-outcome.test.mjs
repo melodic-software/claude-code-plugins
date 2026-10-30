@@ -715,7 +715,7 @@ test("patch-empty changes no plan: a done run with no commit, a resumed run, or 
   assert.deepEqual(decideDone({ ...resumed, escalation: "patch-empty" }), decideDone(resumed));
   assert.deepEqual(decideDone({ branch: "", escalation: "patch-empty" }), decideDone({ branch: "" }));
   assert.match(decideDone({ branch: "", escalation: "patch-empty" }).comment, /committed nothing/);
-  const pushback = { exit: "pushback", reason: "Which file?", title: "", summary: "" };
+  const pushback = { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" };
   for (const escalation of ["patch-empty", "patch-protected-path"]) {
     assert.deepEqual(decideDone({ outcome: pushback, branch: "", escalation }), decideDone({ outcome: pushback, branch: "" }), escalation);
   }
@@ -723,7 +723,7 @@ test("patch-empty changes no plan: a done run with no commit, a resumed run, or 
 
 test("pushback comments, adds needs-human and removes agent-ready", () => {
   const plan = decide({
-    outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" },
+    outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -734,6 +734,26 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.deepEqual(plan.addLabels, ["needs-human"]);
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.match(plan.comment, /Which file\?/);
+});
+
+// Owner direction §2: a pre-edit question reaches a person only as an intent
+// question, which the run names with `cause: "intent"`; a choice of means or a
+// design detail, or a pushback naming no cause, is the lane's to decide.
+test("a pushback without cause intent retries instead of reaching a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const cause of [undefined, "", "design", "means", "INTENT"]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", cause, title: "", summary: "" } });
+    assert.equal(plan.action, "retry", String(cause));
+    assert.equal(plan.stop, "pushback-means", String(cause));
+    assert.ok(!plan.addLabels.includes("needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
+    assert.equal(parseReason(plan.comment), null, plan.comment);
+  }
+  const intent = decide({ ...plain, outcome: { exit: "pushback", reason: "Which outcome?", cause: "intent", title: "", summary: "" } });
+  assert.equal(intent.action, "hand-back");
+  assert.equal(parseReason(intent.comment).reason, "intent");
+  withDir({ "work-outcome.json": JSON.stringify({ exit: "pushback", reason: "Which outcome?", cause: "intent" }) }, (dir) => {
+    assert.equal(readOutcome(join(dir, "work-outcome.json")).cause, "intent");
+  });
 });
 
 // The lane's preamble tells a run whose change needs a path apply-issue-patch
@@ -1668,7 +1688,7 @@ test("an unreadable outcome file with a limit record reads as limited", () => {
 
 test("a pushback stays a pushback even on a limit-stopped run", () => {
   const plan = decide({
-    outcome: { exit: "pushback", reason: "Unclear.", title: "", summary: "" },
+    outcome: { exit: "pushback", reason: "Unclear.", cause: "intent", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -2656,7 +2676,7 @@ test("--find-prior fails on a comparison with no whole-number ahead_by", async (
 test("hand-back markers carry run= and read back with it", () => {
   for (const outcome of [
     { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" },
-    { exit: "pushback", reason: "Which file?", title: "", summary: "" },
+    { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" },
   ]) {
     const plan = decide({ outcome, issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
     assert.ok(plan.comment.startsWith(`${ESC}<!-- work-resolve-issue outcome=${outcome.exit} run=555 -->\n`), plan.comment);
@@ -3280,7 +3300,7 @@ test("the runner records an empty result list when the activity lists no checks"
 test("every hand-back opens with the attended queue's escalation marker, and no other route carries one", () => {
   const plain = { issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" };
   const handBacks = [
-    decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-invalid" }),
   ];
@@ -3320,7 +3340,7 @@ test("every person-routed comment carries the stop-reason marker and the Reason 
     assert.ok(isPersonReason(code), `${reason}: ${code}`);
     assert.ok(plan.comment.split("\n").includes(`Reason: \`${code}\``), plan.comment);
   }
-  const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } });
+  const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } });
   assert.equal(parseReason(pushback.comment).reason, "intent");
   assert.ok(pushback.comment.includes("Reason: `intent`"));
   for (const skip of ["research-first", "probe-first"]) {
@@ -3383,7 +3403,7 @@ test("unmarkedAnswer names the newest listed human's own comment only when it la
 
 test("a pushback links the unmarked comment, shows the decision line, and its retry text names the line", () => {
   const plain = { issueNumber: 77, issueLabels: [], branch: "", changedFiles: [], humanLabel: "needs-human" };
-  const pushback = { exit: "pushback", reason: "Which file?", title: "", summary: "" };
+  const pushback = { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" };
   const linked = decide({ ...plain, outcome: pushback, unmarked: commentUrl(2) }).comment;
   assert.ok(linked.includes(`The newest comment from a listed maintainer, ${commentUrl(2)}, does not start with \`**Decision recorded.**\``), linked);
   assert.ok(linked.includes("\n```\n**Decision recorded.** <answer>\n```\n"), linked);
@@ -3396,7 +3416,7 @@ test("a pushback links the unmarked comment, shows the decision line, and its re
 });
 
 test("main on a pushback reads the issue's comments and links the owner's unmarked one; a failed read leaves it out", async () => {
-  const pushback = JSON.stringify({ exit: "pushback", reason: "Which file?", title: "", summary: "" });
+  const pushback = JSON.stringify({ exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" });
   for (const [route, linked] of [
     [["GET", /\/issues\/77\/comments$/, 200, [issueComment(2, OWNER_ID, "Use `claude auth status`.")]], true],
     [["GET", /\/issues\/77\/comments$/, 500, { message: "boom" }], false],

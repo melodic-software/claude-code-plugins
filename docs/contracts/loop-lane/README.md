@@ -330,6 +330,11 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
+A choice of means or a design detail is none of these reasons: the lane doing the work decides it
+on evidence (section 1). The issue lane's pre-edit pushback reaches the owner only when the run
+names `cause: intent`; any other pushback retries
+([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json) `pushback-means`).
+
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 
 <!-- spellchecker:off -->

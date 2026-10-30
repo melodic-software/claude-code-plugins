@@ -2200,6 +2200,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
   `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
+  A `pushback` exit holds only when its outcome names `"cause": "intent"`, an intent question;
+  with any other cause, or none, it is `pushback-means`, a choice of means or a design detail the
+  lane decides on evidence, which retries at most once and then fails, never reaching a person.
   A security mention always reaches the owner: a reason with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
