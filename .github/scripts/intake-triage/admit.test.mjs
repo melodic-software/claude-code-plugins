@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -538,7 +538,7 @@ describe("decide", () => {
   // Owner Q9 keeps a lanes App report-delivered close from counting as
   // completed work; its dependent goes back to intake to be judged against
   // the report (Q-BLK option a), and its own criteria then decide.
-  const report = { at: "2026-10-28T00:00:00Z", url: "https://github.com/o/r/issues/5#issuecomment-1", reason: "the report" };
+  const report = { stop: "report-delivered", at: "2026-10-28T00:00:00Z", url: "https://github.com/o/r/issues/5#issuecomment-1", reason: "the report" };
   test("a blocker the lanes App closed report-delivered sends the issue back to intake, citing the report", () => {
     const result = decide(facts({ blockers: [completed], reported: new Map([[5, report]]) }));
     assert.equal(result.verdict, "wait");
@@ -560,6 +560,15 @@ describe("decide", () => {
       assert.equal(result.retriage, undefined);
       assert.match(result.reasons.join(), /#5 is not closed by a listed human or a merge/);
     }
+  });
+
+  test("a status: ready or agent-ready add by the App or a listed human after the close clears it, as a verdict does", () => {
+    const add = (name, actor, at) => ({ event: "labeled", label: { name }, actor, created_at: at });
+    assert.equal(decide(facts({ blockers: [completed], reported: new Map([[5, report]]), events: [add("status: ready", { id: APP }, "2026-10-29T00:00:00Z")] })).verdict, "admit");
+    const stranger = decide(facts({ blockers: [completed], reported: new Map([[5, report]]), events: [add("status: ready", { id: 1 }, "2026-10-29T00:00:00Z")] }));
+    assert.equal(stranger.verdict, "wait");
+    assert.equal(judgedSince([], () => true), Number.NEGATIVE_INFINITY);
+    assert.equal(reportCleared({ ...report, stop: "already-done" }, Date.parse("2026-10-29T00:00:00Z")), false);
   });
 
   test("the re-triage note quotes each report as data, not instructions", () => {

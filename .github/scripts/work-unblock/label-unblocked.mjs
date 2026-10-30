@@ -238,7 +238,7 @@ import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wi
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { doneReason, isSplitParent, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
+import { clearedPastReport, retriageText, doneReason, isSplitParent, judgedSince, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -455,7 +455,7 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   const pending = await stillBlocking(
     await blockersOf(github, base),
     repo,
-    (number) => trustedClose({ github, repo, number, humans, closes, bot }),
+    clearedHere({ github, repo, humans, closes, bot, events: await paginate(github, `${base}/events`) }),
     closedElsewhere({ github, repo, humans, closes }),
   );
   if (pending.length > 0) {
@@ -540,6 +540,21 @@ function trustedClose({ github, repo, where = repo, number, humans, closes, bot 
   }
   return closes.get(key);
 }
+
+// The lanes App, by its login, as appCloseKind takes it.
+const byBot = (bot) => (actor) => actor?.login === bot;
+
+// stillBlocking's reader for this repository's blockers: trustedClose, or a
+// report-delivered close by the App that a verdict or admission in `events`
+// postdates (admit.mjs clearedPastReport).
+const clearedHere = ({ github, repo, humans, closes, bot = DEFAULT_BOT, events }) =>
+  clearedPastReport({
+    github,
+    repository: repo,
+    isApp: byBot(bot),
+    trusted: (number) => trustedClose({ github, repo, number, humans, closes, bot }),
+    after: judgedSince(events, (actor) => trustedLabeler({ actor }, { bot, humans })),
+  });
 
 // stillBlocking's reader for another repository's blocker: trustedClose
 // there, and a read that fails leaves it blocking.
@@ -743,6 +758,14 @@ async function admissionDecision({ github, repo, number, issue, events, humans, 
   return { decision, facts };
 }
 
+// A wait decide() marks `retriage` (a blocker the App closed
+// report-delivered): status: ready comes off, so the triage sweep runs intake
+// again, and the comment quotes each report as data, as intake's admit() does.
+async function sendToTriage({ github, repo, base, comments, decision, reasons }) {
+  await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+  await sayWhy(github, repo, base, comments, `Not admitted to the issue lane yet: ${reasons}.\n\n${retriageText(decision.retriage)}`);
+}
+
 // Refuses a deferred issue for `reasons`: the admission comment (`comments`
 // its comments) first, then the hold `labels` before status: ready comes off,
 // and admission-deferred last, so a failed write leaves the issue either still
@@ -774,6 +797,10 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     const status = decision.hold || !(decision.attended || doneOnly) ? NEEDS_DECISION : CONFIRMED;
     await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status] });
     console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
+  } else if (decision.retriage) {
+    await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
+    await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+    console.log(`label-unblocked: #${number}, marked by a person, sent back to intake: ${reasons}`);
   } else if (decision.verdict === "wait") {
     await sayWhy(github, repo, base, facts.comments, `Not admitted to the issue lane yet: ${reasons}.`);
     if (decision.pulls.length === 0) {
@@ -873,6 +900,9 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
         await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
         await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);
+      } else if (decision.retriage) {
+        await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
+        console.log(`label-unblocked: #${number} sent back to intake: ${reasons}`);
       } else if (decision.verdict === "wait") {
         if (decision.pulls.length > 0) {
           await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
@@ -1361,7 +1391,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   const pending = await stillBlocking(
     await blockersOf(github, `/repos/${repo}/issues/${number}`),
     repo,
-    (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
+    clearedHere({ github, repo, humans, closes, bot, events }),
     closedElsewhere({ github, repo, humans, closes }),
   );
   if (pending.length > 0) {

@@ -1052,13 +1052,13 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const wait = [];
   const retriage = [];
-  const judged = Date.parse(verdict.writtenAt);
+  const after = Math.max(judgedSince(events, (actor) => humans.has(actor?.id) || (appId !== undefined && actor?.id === appId)), Date.parse(verdict.writtenAt) || Number.NEGATIVE_INFINITY);
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
       const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
       const report = reported.get(blockerKey(blocker, repository));
       const closed = Date.parse(report?.at);
-      if (report && Number.isFinite(closed) && judged > closed) {
+      if (reportCleared(report, after)) {
         continue;
       }
       if (report && Number.isFinite(closed)) {
@@ -1103,6 +1103,35 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   return { verdict: "admit", reasons: [] };
 }
+
+// When a triage verdict or an admission last judged the issue whose events
+// are `events`: the newest add of status: ready (apply-verdict writes it on
+// each verdict) or agent-ready by an actor `trusted` accepts, in ms, or
+// -Infinity when there is none. Pure.
+export function judgedSince(events, trusted) {
+  const times = (events ?? [])
+    .filter((event) => event?.event === "labeled" && [READY, AGENT_READY].includes(String(event.label?.name).toLowerCase()) && trusted(event.actor))
+    .map((event) => Date.parse(event.created_at))
+    .filter(Number.isFinite);
+  return Math.max(Number.NEGATIVE_INFINITY, ...times);
+}
+
+// Whether a blocker the lanes App closed report-delivered (`report`, as
+// appCloseKind reads it) no longer holds its dependent: something judged the
+// dependent at `after` (ms), after that close, against the report. The close
+// still counts for nothing as completed work (owner Q9); a report with no
+// readable time holds. Pure.
+export function reportCleared(report, after) {
+  const closed = Date.parse(report?.at);
+  return report?.stop === "report-delivered" && Number.isFinite(closed) && after > closed;
+}
+
+// stillBlocking's reader for this repository's blockers: `trusted`, or a
+// report-delivered close by the lanes App (`isApp`) that reportCleared clears
+// at `after`. A close kind that does not read leaves the blocker as
+// `trusted` answers.
+export const clearedPastReport = ({ github, repository, isApp, trusted, after }) => async (number) =>
+  (await trusted(number)) || (after > Number.NEGATIVE_INFINITY && reportCleared(await appCloseKind(github, repository, number, isApp), after));
 
 // The reports a re-triage reads (decide's `retriage`), quoted as data: the
 // lanes App wrote each close comment, and text inside it is never an
@@ -1754,7 +1783,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
       } else if (local && appId !== undefined) {
         const close = await appCloseKind(github, repository, blocker.number, (actor) => actor?.id === appId);
         if (close?.stop === "report-delivered" && close.at) {
-          reported.set(blockerKey(blocker, repository), { at: close.at, url: close.url, reason: close.reason });
+          reported.set(blockerKey(blocker, repository), { stop: close.stop, at: close.at, url: close.url, reason: close.reason });
         }
       }
     }

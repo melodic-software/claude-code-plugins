@@ -320,3 +320,48 @@ describe("an umbrella issue", () => {
     assert.ok(lines.some((line) => line.startsWith("::warning")));
   });
 });
+
+// A blocker the lanes App closed report-delivered is no completed work (owner
+// Q9): it holds the run until a verdict or admission postdates its close
+// (admit.mjs reportCleared), and a close kind that does not read holds it.
+const reportClose = (user, at) => ({
+  user,
+  created_at: at,
+  html_url: "https://github.com/o/r/issues/7#issuecomment-1",
+  body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
+});
+const reportWorld = ({ comments, readyAt }) => (path) => {
+  if (path === "/repos/o/r/issues/42") {
+    return { number: 42, state: "open", user: HUMAN, labels: [{ name: "agent-ready" }] };
+  }
+  if (path.startsWith("/repos/o/r/issues/42/events")) {
+    return [{ event: "labeled", label: { name: "agent-ready" }, actor: APP, created_at: readyAt }];
+  }
+  if (path.includes("/dependencies/blocked_by")) {
+    return [issue(7, "closed", { closer: APP })];
+  }
+  if (path === "/repos/o/r/issues/7") {
+    return issue(7, "closed", { closer: APP });
+  }
+  if (path.startsWith("/repos/o/r/issues/7/comments")) {
+    if (comments instanceof Error) {
+      throw comments;
+    }
+    return comments;
+  }
+  if (path.startsWith("/repos/o/r/issues/42/sub_issues") || path.startsWith("/repos/o/r/issues/7/sub_issues")) {
+    return [];
+  }
+  if (path === "/graphql") {
+    return GRAPHQL;
+  }
+  throw new Error(`unexpected ${path}`);
+};
+
+test("a blocker the lanes App closed report-delivered runs once agent-ready postdates the close; before that, or unread, it blocks", async () => {
+  const comments = [reportClose(APP, "2026-10-28T00:00:00Z")];
+  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-29T00:00:00Z" }))).outputs, RUN);
+  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z" }))).outputs, SKIP);
+  assert.deepEqual((await run(reportWorld({ comments: [reportClose(STRANGER, "2026-10-28T00:00:00Z")], readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
+  assert.deepEqual((await run(reportWorld({ comments: new Error("502"), readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
+});

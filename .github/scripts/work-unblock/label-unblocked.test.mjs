@@ -4319,3 +4319,35 @@ test("a status: ready issue in no queue an open pull request is for gets admissi
     `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`,
   ]);
 });
+
+// A blocker the lanes App closed report-delivered is no completed work (owner
+// Q9); it stops holding its dependent once a status: ready or agent-ready add
+// by the App or a listed human postdates the close (admit.mjs reportCleared).
+const reportDeliveredClose = (user, at) => ({
+  user,
+  created_at: at,
+  html_url: "https://github.com/o/r/issues/7#issuecomment-1",
+  body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
+});
+
+test("a status: ready issue whose blocker the App closed report-delivered is admitted only once a verdict postdates the close", async (t) => {
+  const closedAt = "2026-10-16T06:30:00Z";
+  for (const [comments, readyAt, expected] of [
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "admit"],
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "retriage"],
+    [[reportDeliveredClose(OWNER, closedAt)], "2026-10-16T07:00:00Z", "wait"],
+    [[], "2026-10-16T07:00:00Z", "wait"],
+  ]) {
+    const item = readyIssue(26);
+    const blocker = issue(30, { state: "closed", closer: LANES_BOT, at: closedAt });
+    const { github, calls } = readyWorld({
+      items: [item],
+      events: { 26: [labelAdd("status: ready", LANES_BOT, readyAt)] },
+      extra: { issues: { 26: item, 30: blocker }, comments: { 26: [note()], 30: comments }, blockedBy: { 26: [blocker] } },
+    });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    const written = writes(calls);
+    assert.equal(written.includes(labeled(26)), expected === "admit", readyAt);
+    assert.equal(written.includes(`DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`), expected === "retriage", readyAt);
+  }
+});
