@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.2] - 2026-10-30
+
+### Fixed
+
+- The post-merge check treats a red attempt 1 of a full run as settled, not awaiting a re-run, once a
+  newer full run it already listed passed on a descendant commit on the branch, so such a run holds
+  no merge pending and is never named for the lane re-run.
+
 ## [4.3.1] - 2026-10-30
 
 ### Changed
