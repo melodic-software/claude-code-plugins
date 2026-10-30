@@ -17,7 +17,17 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 
 1. `scripts/run-validity.py <json> --runs <n>`. Only `verdict: VALID` lets a number be reported;
    on `verdict: INVALID`, report INVALID and its reasons. The command and its exits are in
-   [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta).
+   [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta). Add `--scaffolded` only when the
+   eval ran with `--scaffold`. Without the flag, the `scaffold` check fails each case whose
+   `case.yaml` sets `context.scaffold_script`; a `case.yaml` it cannot locate or read leaves that
+   check unchecked.
+
+   - **Pointer**: [Add setup or history with case.yaml](https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml);
+     the `--scaffold` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options);
+     [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result)
+   - **As of**: 2026-10-27
+   - **Recheck trigger**: that first section changes when a `scaffold_script` runs, the JSON result
+     gains a field recording `--scaffold`, or a release note touches `--scaffold`
 2. `partial`. When `true`, `partialReason` is `cost_ceiling`, `interrupted`, or `auth_failed`. The
    suite did not finish; report that and keep the document out of any trend. The check is done when
    the field has been read, not inferred from the exit code.

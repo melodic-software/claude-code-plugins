@@ -608,13 +608,47 @@ resolves `false` (audit-only mode), `false` is guard-enforced as an outright den
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
-the **skill-frontmatter belt** (`powershell_decision`), denied outright in audit-only, for the **rest of
-the process that invoked the skill**. There is no "while the skill is active" window for the belt. The asymmetry
-is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowed-tools` grants DO clear
-on the user's next message, but its `hooks` do not, so "skill-scoped" is true of the tool grants and
-false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
-the same process (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
-retracted by finishing the cleanup.
+the **skill-frontmatter belt** (`powershell_decision`), denied outright in audit-only, **while a clean run
+is open**. A skill's `allowed-tools` and `disallowed-tools` grants clear on the user's next message, but
+its `hooks` stay registered for the rest of the process, so the belt decides for itself when it applies.
+
+**When a run is open.** The belt keeps one marker per session id, `clean-runs/<session_id>.json` under
+the plugin data directory. Admitting a `preview` writes it, and so does admitting an `apply` or
+`handoff-apply`. Each records the file whose writing ends that step: the preview's `--plan`, or the
+mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
+follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
+timeout ends that step. While a verify's run is open, a later `preview`, `apply` or `handoff-apply`
+only restarts its idle clock and records no end file, so no engine call can end the manual lane early;
+only a `handoff-verify` opens it and only the timeout ends it. Any other admitted engine call, a `scan` included, only restarts an open run's
+idle clock, so a completed or refused scan with no preview after it is a scan-only outcome. With no
+marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
+keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
+deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
+names, and when a `preview` of the plan it names ends in `manual-handoff-lane` or `blocked`. A marker
+that goes an hour without an engine call reads as no run, and the engine deletes it on its next call.
+The guard never deletes a marker. The kill switch wins over the release: when `disk_hygiene_enabled`
+is `false` the belt never stands down, so Bash keeps its deny-by-default and PowerShell deletion
+spellings stay denied whether or not a run is open. `clean-runs/` is engine-owned state, so no engine `--output` or
+`--report` can land on a marker.
+It fails closed: a marker it cannot parse holds the belt until that hour passes, and a payload with no
+session id, or a session with no authorized data root, keeps the belt on. Releasing the belt opens no
+engine delete path, because the engine gate and the approval token still gate every engine mutation.
+Outside a run, other Bash and PowerShell deletes answer to the session's own permission rules. A data
+root the guard cannot write leaves no marker, so the belt stays off; the engine writes its snapshot and
+report there too.
+
+**Accepted residual: the session can end its own run outside the engine.** No allowed engine call
+ends a verify's manual lane early: a later preview, apply or handoff-apply records no end file (above). The belt's hook matches only Bash and
+PowerShell, and while a run is open it holds Bash to the engine shapes but lets a PowerShell command
+that spells no deletion through. So a PowerShell command the belt does not read as a delete (one that
+sets the marker's write time an hour back, say) can make the marker read as timed out and release the
+belt before the run's real end. Nothing on disk can be made a signal the
+session cannot write without widening the belt to every file-writing tool, which the run-scoped design
+does not do. What a forged end buys is the state a natural run end gives anyway: the engine gate and the
+approval token still gate every engine mutation, and other deletes answer to the session's own
+permission rules, the same as after a scan-only run. The difference is timing, chiefly in the manual
+lane, where the belt's `ask` is the only prompt on a PowerShell delete; a forged end there drops that
+prompt for the rest of the verify's hour.
 
 **Treat a resumed process as one without the belt.** Our probe found the belt absent after
 `claude -p --resume`, so a resumed session has no deny-by-default Bash lane and no PowerShell deletion

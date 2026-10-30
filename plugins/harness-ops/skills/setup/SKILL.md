@@ -160,16 +160,23 @@ The options live in Claude Code's native config surface, which setup must not ha
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure harness-ops@<marketplace>`
-  any time, or headless `claude plugin install harness-ops@<marketplace> -s <scope> --config
-  registry_dir=<path>` (repeatable per key, `session_event_log_enabled=true` included). Against an
-  already-installed plugin it prints `already installed` **and still writes the value**. Do **not**
-  uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting
-  every option in the README's Options reference (the audit toggles included) to its manifest
-  default. `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
-  run from that project's directory for a `project`/`local` scope, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; the value itself always lands in
-  user settings. A rejected `--config` value prints a warning and still exits 0, so read the
-  command's output rather than its exit code. This skill never writes user settings or
+  any time. Headless, preferred on Claude Code 2.1.285 or later:
+  `claude plugin configure harness-ops@<marketplace> --values-stdin < values.json`, where
+  `values.json` holds `{"registry_dir": "<path>"}` (every value a string,
+  `"session_event_log_enabled": "true"` included; keys left out keep their saved values). Headless
+  fallback, before 2.1.285: `claude plugin install harness-ops@<marketplace> -s <scope> --config
+  registry_dir=<path>` (repeatable per key); against an already-installed plugin it prints
+  `already installed` **and still writes the value**. Do **not** uninstall to reconfigure: that
+  drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
+  Options reference (the audit toggles included) to its manifest default. The value always lands
+  in user settings, whichever route writes it. `claude plugin configure` has no scope flag, so run
+  it from the project the plugin is installed in. For the rerun, `-s` defaults to `user`; pass the
+  scope `claude plugin list` reports for this plugin (from the home directory pass `user`), and run from that project's directory for a
+  `project`/`local` scope, or the rerun adds a second install record at the scope passed and
+  enables the plugin there. Check each route's own failure signal: `--values-stdin` rejects a bad
+  value with exit 1 and saves nothing, but stores an empty string as `""`; a rejected `--config`
+  value prints a warning and still exits 0, so read the command's output rather than its exit
+  code. This skill never writes user settings or
   `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**: the rendered `${user_config.*}` is injected at skill load and each
   hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a

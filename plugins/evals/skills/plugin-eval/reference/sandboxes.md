@@ -87,6 +87,26 @@ outside the system temp directory.
 - **Recheck when:** either upstream issue closes, or a release note touches `plugin eval` sandbox
   paths or `TMPDIR`.
 
+## Docker link swap
+
+When the user says yes to the swap, wrap the run step's CLI command, unchanged:
+
+```bash
+python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
+```
+
+It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
+every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
+its target, runs the command, and puts the links back when the command exits, fails, or is
+interrupted. Anything written into the copies is discarded. A dangling link, whose target does
+not exist, is removed for the run and recreated with the same target after. Overlapping runs on one machine share one swap, and the last to exit restores. A
+run killed before it could restore (`~/.docker-link-swap.json` names no live run) is put back by
+the next run's start, or by `docker-links.py restore`, which refuses while a live run still
+holds the copies. Never edit, move or delete the links any other way, and never repoint
+`DOCKER_CONFIG`. A plugin in this repository's
+own checkout still meets the linked-worktree refusal after the swap; take that route from the hub
+as well. Why every link and not a list of names: [records.md](records.md#sandbox-and-credential-store).
+
 ## Record
 
 - **Pointer:** the `--keep-temp` row of <https://code.claude.com/docs/en/plugin-evals#command-options>

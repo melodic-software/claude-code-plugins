@@ -297,17 +297,22 @@ jobs:
           interactions or concurrency.
         - Uncertainty: Known when the approach is clear from the issue, Knowable when reading or
           asking first would settle it, Unknown when only an experiment would.
-        - Flags: intent when the intended outcome is not exact or needs the owner's decision;
+        - Flags: intent when the intended outcome or done-when is not exact, or the issue lists
+          primary-design alternatives and picks none (ESCALATION says which choices those are);
           security only for a very-high security risk, the security review's CRITICAL tier: the
           work would expose a credential or secret, bypass a trust boundary, or open an external
           attack surface (other security-related work gets no flag); cost as COST below describes.
 
         UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
         host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
-        host outside the issue lane's web access) is no reason for needs_human, the intent flag or
-        a none class on its own: triage the lane-checkable items as usual, with their work class
-        and fields. Admission holds the issue and posts the split itself. RE-ENTRY (d) below still
-        applies: a recorded decision that leaves such a step to a person gets the `needs-human` label.
+        host outside the issue lane's web access) is no reason for needs_human, the `needs-human`
+        label, the intent flag or a none class on its own: triage the lane-checkable items as
+        usual, with their work class and fields. Admission routes host work to `host-run`, or
+        holds the issue and posts the split itself. A `status: needs-decision` or `needs-human`
+        label you apply holds only beside a flag on the Flags line; the verdict step takes it off
+        when the Flags line is none and nothing else holds the issue. RE-ENTRY (d)
+        below still applies: a recorded decision that leaves such a step to a person gets the
+        `needs-human` label with `Flags: intent`.
 
         VERDICT LINES. Begin your comment with these five lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
@@ -325,11 +330,15 @@ jobs:
         COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
         paid service or subscription, a plan upgrade, or an account, organization or repository
         billing setting such as a paid GitHub feature, Actions retention or a spending limit),
-        apply the `needs-human` label and keep needs_human false, so your comment is kept, and add one line to it:
-        `Cost: <what bills, where; the owner decision it lacks>`.
+        set `Flags: cost`, apply the `needs-human` label and keep needs_human false, so your comment
+        is kept, and add one line to it: `Cost: <what bills, where; the owner decision it lacks>`.
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
-        author whose login does not end in `[bot]`, already covers that charge; then name it on the
-        Cost line.
+        author whose login does not end in `[bot]`, already covers that charge; then name it on one
+        `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line,
+        which holds the issue for the owner. Write a Cost line exactly as
+        `Cost: <what bills, where; the owner decision it lacks>` or
+        `Cost decided: <what bills; the decision that covers it>`, with no bold, list marker or
+        other label: any other shape holds the issue. Work with no charge gets no Cost line.
         A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.
@@ -356,9 +365,16 @@ jobs:
           as usual. The code and security review lanes judge the diff.
         - Unclear scope or an approach you are unsure of is Uncertainty Knowable or Unknown, not an
           escalation; work too big for one change is Size Large.
-        - An intent question the issue cannot answer (it lists options and picks none, or its
-          intended outcome is not exact): set `Flags: intent`, apply `status: needs-decision`, and
-          ask each open question as a numbered question with a `RECOMMENDED:` answer and its basis.
+        - An intent question the issue cannot answer (its intended outcome or done-when is not
+          exact, or it leaves a primary-design choice open): set `Flags: intent`, apply `status: needs-decision`, and ask each open question
+          as a numbered question with a `RECOMMENDED:` answer and its basis. A choice among
+          implementation means that leaves the primary design (architecture, cross-module
+          contracts, data ownership, public interfaces) unchanged is not an intent question: the
+          issue lane decides it on evidence, so set no intent flag for it and name your
+          recommendation. A primary-design choice the issue lists and leaves unpicked (two
+          architectures, a new shared store or an existing one) is an intent question: set
+          `Flags: intent`, apply `status: needs-decision`, and ask it as a numbered question with a
+          `RECOMMENDED:` answer and its basis.
         - A question that the repository's files, a merged change, or a comment on this issue whose
           first line is exactly `**Decision recorded.**` by an author whose login does not end in
           `[bot]` already answers is not an intent question: answer it in your comment with that
@@ -388,13 +404,18 @@ jobs:
         b. List the open questions from the issue body and earlier comments, and check each against
            the decision. Treat any assumption, unknown or gap in intent the decision does not settle
            as an open question too.
-        c. When one or more stay open, apply `status: needs-decision` and keep needs_human false.
+        c. When one or more stay open, set `Flags: intent`, apply `status: needs-decision` and keep
+           needs_human false.
            After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
            basis. Never fill one with a default of your own or treat a recommendation as decided.
-        d. When the remaining work needs a person (a host, spend, a trust-boundary decision the
-           recorded decision leaves open, or an attended run), apply the `needs-human` label and keep needs_human false, even when (c)
-           also applies, so your comment with the quote and new questions is kept. The decision
-           comment stays on the issue for the person who picks it up.
+        d. When the remaining work needs a person (spend, with `Flags: cost`, or a trust-boundary
+           decision the recorded decision leaves open, with `Flags: security` only at the CRITICAL
+           tier Flags describes and `Flags: intent` otherwise), apply the
+           `needs-human` label and keep needs_human false, even when (c) also applies, so your
+           comment with the quote and new questions is kept. Work on a host or in an attended run
+           is UNRUNNABLE DONE-WHEN, not a person: admission routes it, unless the recorded decision
+           itself leaves that step to a person, which takes `needs-human` with `Flags: intent`. The decision comment stays
+           on the issue for the person who picks it up.
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.

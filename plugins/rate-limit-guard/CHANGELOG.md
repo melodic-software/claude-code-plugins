@@ -3,6 +3,20 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.9] - 2026-10-30
+
+### Fixed
+
+- For an account with no 5-hour limit, such as a verified Ultra account, the band row no longer shows a permanent `5h -`: once a reading arrives it shows only the windows the account reports. `/rate-limit-guard` says such a window is "not in the last response" rather than "no reading".
+
+- The mod tests' fake file system now matches the resolved Windows path the engine passes (`D:\srv\u\...`), so they pass on Windows as well as Linux.
+
+## [2.1.8] - 2026-10-30
+
+### Changed
+
+- `/rate-limit-guard:setup` names `claude plugin configure rate-limit-guard@<marketplace> --values-stdin` as the preferred headless way to change an option, and keeps the `claude plugin install --config` rerun as the fallback for a Claude Code release without `plugin configure`, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
 ## [2.1.7] - 2026-10-30
 
 ### Changed

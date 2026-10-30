@@ -650,7 +650,7 @@ EXCLUDE_MARKERS = (
         r"Sandbox is required but failed to initialize|Failed to create bridge sockets"
     ),
     re.compile(
-        r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your (\w+ )?limit|429 Too Many Requests"
+        r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your ([\w-]+ ){0,2}limit|429 Too Many Requests"
     ),
 )
 
