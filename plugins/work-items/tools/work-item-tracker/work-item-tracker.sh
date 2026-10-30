@@ -15,8 +15,13 @@ source "$SCRIPT_DIR/lib/gh-version.sh"
 
 readonly EX_USAGE=2
 readonly EX_CONFIG=3
+readonly EX_AUTH=4
 readonly EX_NOT_FOUND=5
 readonly EX_CAPABILITY=6
+
+# The organization issue field that holds item status when the tracker offers it
+# (CONTRACT.md "Verbs", status-storage).
+readonly WIT_STATUS_FIELD="Work status"
 
 # wit_resolve_adapter_dir <provider>: CONTRACT.md "Adapter resolution". When none
 # exists the bundled path is echoed so the caller emits one not-found error.
@@ -57,6 +62,7 @@ Verbs:
   label-provenance <id> --label <name> [--label <name> ...]
   set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
+  status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -130,7 +136,7 @@ main() {
   local adapter_verb="$verb"
   case "$verb" in
   create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | capabilities) ;;
-  list-items) ;;
+  list-items | status-storage) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.
@@ -186,6 +192,59 @@ main() {
       check_gh_present
       ;;
     esac
+  fi
+
+  if [[ "$verb" == "status-storage" ]]; then
+    # Core-derived, so it bypasses the capability gate: an adapter without
+    # get-field-options stores status in labels, which is an answer, not exit 6.
+    local repo_args=() storage="labels" reason fields_out fields_rc fields_err errfile refused
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --repo)
+        [[ $# -ge 2 && -n "$2" ]] || fail_usage
+        repo_args=(--repo "$2")
+        shift 2
+        ;;
+      *) fail_usage ;;
+      esac
+    done
+    if [[ "$(jq -r '.verbs["get-field-options"] // false' "$manifest")" != "true" ]]; then
+      reason="adapter declares no get-field-options"
+    else
+      errfile="$(mktemp)"
+      fields_out="$(bash "$adapter_dir/get-field-options.sh" --field "$WIT_STATUS_FIELD" \
+        "${repo_args[@]+"${repo_args[@]}"}" 2>"$errfile")"
+      fields_rc=$?
+      fields_err="$(<"$errfile")"
+      rm -f "$errfile"
+      # GitHub answers a rate limit with 403 too, which the adapter maps to exit 4; only
+      # a refusal of the read itself means status is not in a field.
+      refused="false"
+      case "$fields_rc" in
+      "$EX_NOT_FOUND") refused="true" ;;
+      "$EX_AUTH")
+        [[ "$fields_err" == *"HTTP 403"* && "$fields_err" != *"rate limit"* ]] && refused="true"
+        ;;
+      *) ;;
+      esac
+      if ((fields_rc == 0)); then
+        if jq -e '.options | length > 0' <<<"$fields_out" >/dev/null 2>&1; then
+          storage="field"
+          reason="'$WIT_STATUS_FIELD' issue field has options"
+        else
+          reason="no '$WIT_STATUS_FIELD' issue field with options"
+        fi
+      elif [[ "$refused" == "true" ]]; then
+        reason="issue-field listing unreadable (exit $fields_rc)"
+      else
+        printf '%s\n' "$fields_err" >&2
+        exit "$fields_rc"
+      fi
+    fi
+    jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg storage "$storage" --arg field "$WIT_STATUS_FIELD" \
+      --arg reason "$reason" '{schema_version: $sv, storage: $storage,
+        field: (if $storage == "field" then $field else null end), reason: $reason}'
+    exit 0
   fi
 
   if [[ "$(jq -r --arg v "$adapter_verb" '.verbs[$v] // false' "$manifest")" != "true" ]]; then

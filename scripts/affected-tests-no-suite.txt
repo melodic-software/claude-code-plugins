@@ -73,6 +73,7 @@
 # here. The toolchain ecosystem YAMLs still have none.
 .github/*
 .gitattributes
+scripts/.gitattributes
 .gitignore
 .gitleaksignore
 .lycheeignore
