@@ -457,6 +457,22 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
   });
 
+  for (const line of ["**Cost:** a paid plan upgrade", "- Cost: a paid plan upgrade", " Cost: a paid plan upgrade", "COST: a paid plan upgrade", "Cost:a paid plan upgrade"]) {
+    test(`a Cost line written as ${JSON.stringify(line)} keeps the needs-human`, () => {
+      const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
+      const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+      assert.deepEqual(result.refused, []);
+      assert.equal(result.ready, false);
+    });
+  }
+
+  for (const line of ["Cost decided: a plan upgrade; decided", "**Cost decided:** a plan upgrade; decided", "> **Cost:** quoted", "  > COST: quoted"]) {
+    test(`a ${JSON.stringify(line)} line still refuses a needs-human this run's triage applied`, () => {
+      const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
+      assert.deepEqual(plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] }).refused, ["needs-human"]);
+    });
+  }
+
   test("a quoted Cost line is issue text and refuses nothing it would not", () => {
     const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "> Cost: quoted"] });
     assert.deepEqual(plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] }).refused, ["needs-human"]);
@@ -1254,6 +1270,31 @@ describe("run", () => {
     assert.match(posted.body.body, /`needs-human` came off: this run's triage applied it with no intent, security or cost flag/);
   });
 
+  // The refused needs-human comes off before a ready verdict's comment posts,
+  // so a failed post leaves the removal with no comment: the run fails red
+  // (the entry point exits 1 on reasonsError) and the summary keeps the record.
+  test("a failed reasons comment after a refused needs-human came off fails the run and keeps the record in the summary", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path === "/repos/o/r/issues/7/comments") {
+        fake.calls.push({ method, path, body });
+        throw new GitHubError(403, "POST comments");
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    assert.equal(result.outcome, "ready");
+    assert.deepEqual(result.plan.refused, ["needs-human"]);
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+    assert.ok(result.reasonsError, "the run fails");
+    assert.match(result.summary, /- Refused: `needs-human` came off/);
+    assert.match(result.summary, /- Reasons comment: not written \(/);
+  });
+
   // security-outside-actor/flag.mjs adds needs-human as github-actions[bot] on
   // GITHUB_TOKEN, so its label can land inside this run's window.
   test("the outside-actor flag's needs-human, landing after this run started, keeps the hold", async () => {
@@ -1956,11 +1997,19 @@ const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.
 
 // Owner's standing direction §2: a choice of means is never a person stop.
 describe("the triage prompt", () => {
-  test("an intent question is an open outcome or done-when, never a choice among listed means", () => {
+  test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
     assert.doesNotMatch(PROMPT, /lists options and picks none/);
     assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
-    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact/);
-    assert.match(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
+    assert.doesNotMatch(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
+    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact, or the issue lists primary-design alternatives and picks none/);
+    assert.match(
+      PROMPT,
+      /A choice among implementation means that leaves the primary design \(architecture, cross-module contracts, data ownership, public interfaces\) unchanged is not an intent question: the issue lane decides it on evidence/,
+    );
+    assert.match(
+      PROMPT,
+      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `status: needs-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
+    );
   });
 
   test("every status: needs-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {

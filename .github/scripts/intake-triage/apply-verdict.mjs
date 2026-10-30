@@ -122,6 +122,7 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
+const COST_LINE = /^(?!\s*>)\W*cost\s*:/i;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
@@ -206,9 +207,11 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
-  // The COST rule's line names a charge an owner decides, whatever Flags reads;
-  // a `Cost decided: ` line names one a recorded decision already covers.
-  const cost = lines.some((line) => line.startsWith("Cost: "));
+  // The COST rule's line names a charge an owner decides, whatever Flags reads,
+  // in any case or Markdown dress (`**Cost:**`, `- Cost:`); a `Cost decided: `
+  // line names one a recorded decision already covers, and a `> ` quote is
+  // issue text.
+  const cost = lines.some((line) => COST_LINE.test(line));
   return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
