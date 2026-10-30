@@ -32,6 +32,18 @@ mismatch, or a `SHASUMS256.txt` without the tarball's line.
     node-version-file: .base/.node-version
 ```
 
-A job with a sparse `.base` checkout lists `/.github/actions/setup-pinned-node/` in it. A composite
+A job with a sparse `.base` checkout lists `/.github/actions/setup-pinned-node/` in it. A job whose
+root checkout is the code under test, and which already runs that code, uses the root copy, so a
+pull request that changes this action is tested by its own CI:
+
+```yaml
+- name: Set up Node
+  uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+  with:
+    node-version-file: .node-version
+```
+
+Never use the root form in a job that runs with main's trust and has a pull request checked out at
+the root: there it would run pull request code. A composite
 action in the same checkout runs `install-node.sh` from its sibling directory instead, as
 `check-wip-cap` does. Tests: `scripts/setup-pinned-node.test.sh`.

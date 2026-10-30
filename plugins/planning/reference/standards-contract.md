@@ -2,7 +2,7 @@
 standards-contract: 1.1.1
 ---
 
-<!-- GENERATED from docs/conventions/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+<!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
 edit the canonical source, then rerun the script. -->
 
 # Standards Convention

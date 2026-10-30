@@ -78,8 +78,8 @@ for e in "${MULTILINE[@]}"; do
   in_src=0
   in_val=0
   needle="$(printf '%s' "$lit" | unesc | norm)"
-  unesc <"$f" | norm | grep -qF -- "$needle" && in_src=1
-  unesc <"$V" | norm | grep -qF -- "$needle" && in_val=1
+  grep -qF -- "$needle" < <(unesc <"$f" | norm) && in_src=1
+  grep -qF -- "$needle" < <(unesc <"$V" | norm) && in_val=1
   if ((in_src && in_val)); then
     ok=$((ok + 1))
     echo "VERBATIM  $(basename "$f") [multi-line]: ${lit:0:56}..."
@@ -98,7 +98,7 @@ fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
 if [[ -z "$fields_needle" ]]; then
   bad=$((bad + 1))
   echo "MISMATCH  WIT_LINEAR_ISSUE_FIELDS could not be extracted from common.sh"
-elif unesc <"$V" | norm | grep -qF -- "$fields_needle"; then
+elif grep -qF -- "$fields_needle" < <(unesc <"$V" | norm); then
   ok=$((ok + 1))
   echo "VERBATIM  WIT_LINEAR_ISSUE_FIELDS [shared field selection]: ${fields_needle:0:56}..."
 else

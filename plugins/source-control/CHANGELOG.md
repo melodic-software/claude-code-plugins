@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads pr-review-main's `verdict=none reason=<reason>` check run as a
+  designed stop. The stop counts no CRITICAL finding and binds no lane. With no verdict on the
+  head, the lane's unbound reason is `main-review-stop:<reason>` instead of
+  `lane-source-changed`, so the gate report names why. It stays the same MED
+  `evidence-unbound:<lane>` lane cause, with no new person hold. Any other title that does not
+  read still counts one CRITICAL.
+- The merge job reads less for a pull request that changes a lane source. It lists only the
+  security lane's pull_request runs, because the code lane binds there on a main-run review
+  alone, and reads the code lane's `pr-review-main` check runs on the head only. The security
+  lane still reads every head of the pull request, so a CRITICAL finding on any head still
+  carries.
+
+## [4.0.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads `merge.diff-check.path-holds` in the pr-merge lane. Absent or
+  false, the `high-path:` floor and configured globs and the `review-path:` holds move out of
+  the risk score into the gate report's `risk.pathHoldsSkipped`. True keeps them. Unsafe or
+  aliasing paths (`high-path:**`), the manifest review and cost holds still hold. The local
+  babysit lane keeps every path hold.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
 ## [3.21.4] - 2026-10-29
 
 ### Added

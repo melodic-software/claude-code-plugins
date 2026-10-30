@@ -1022,6 +1022,91 @@ class MainRunReviewTests(Base):
         for lane in LANES:
             self.assertTrue(matched[lane].bound, lane)
 
+    def test_a_designed_stop_on_the_head_names_the_unbound_reason(self) -> None:
+        # pr-review-main stopped on a diff too large to read whole and posted
+        # `verdict=none reason=too-large`: no verdict, so nothing binds, and
+        # the reason says why; a CRITICAL another head carried still holds.
+        context = dict(
+            CONTEXT,
+            carried_critical={"claude-review": 0, "claude-security-review": 2},
+            head_records={lane: [] for lane in LANES},
+            head_stops={lane: ["too-large"] for lane in LANES},
+        )
+        result = self.main_bind(None, context=context)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "main-review-stop:too-large")
+        self.assertEqual(result["claude-security-review"].blocking_findings, 2)
+        # The scorer reports the stop by name as a lane cause, the same MED
+        # unbound evidence as before; no person code is added for it.
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        unbound = {
+            r.code: (r.severity, r.detail)
+            for r in scored.reasons
+            if r.code.startswith("evidence-unbound:")
+        }
+        self.assertEqual(
+            unbound,
+            {
+                f"evidence-unbound:{lane}": (
+                    risk.Risk.MED,
+                    "not bound: main-review-stop:too-large",
+                )
+                for lane in LANES
+            },
+        )
+        # The carried CRITICAL is the only reason a person reads.
+        self.assertEqual(
+            [r.code for r in risk.person_reasons(scored.reasons)],
+            ["security-finding"],
+        )
+
+    def test_a_verdict_on_the_head_binds_over_a_stop_beside_it(self) -> None:
+        # A re-run reviewed the head whole after an earlier run stopped on it.
+        reviews = [main_review(lane, findings=1, critical=0) for lane in LANES]
+        result = self.main_bind(
+            reviews,
+            context=dict(
+                CONTEXT,
+                head_records={lane: [[1, 0]] for lane in LANES},
+                head_stops={lane: ["binary"] for lane in LANES},
+            ),
+        )
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason)
+
+    def test_the_code_lanes_pull_request_runs_change_nothing(self) -> None:
+        # Pin for the merge job's read cut: a lane-source pull request's
+        # evidence is the same whether or not the code lane's runs were
+        # listed, so the caller lists only the security lane's.
+        security = [whole("claude-security-review", S)]
+        both = [whole(lane, S) for lane in LANES]
+        for reviews in (None, [main_review(lane) for lane in LANES]):
+            with self.subTest(reviews=bool(reviews)):
+                results = [
+                    ev.bind(
+                        S,
+                        runs,
+                        both_markers(),
+                        [],
+                        is_human=is_human,
+                        changed_paths=("app.py", self.SOURCE),
+                        head_file=fixed_head,
+                        main_reviews=reviews,
+                        main_context=recorded(reviews, CONTEXT),
+                    )
+                    for runs in (security, both)
+                ]
+                self.assertEqual(results[0], results[1])
+
     def test_a_clean_main_run_review_of_the_head_binds_both_lanes(self) -> None:
         result = self.main_bind([main_review(lane) for lane in LANES])
         for lane in LANES:
