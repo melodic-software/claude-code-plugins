@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.3] - 2026-10-30
+
+### Changed
+
+- The babysit merge gate reads pr-review-main's `verdict=none reason=chunk-failed` check run as a
+  designed stop, like `too-large`, `binary` and `long-line`: it counts no CRITICAL finding and
+  binds no lane.
+
+### Fixed
+
+- `babysit_postmerge.py` reads a workflow-run listing past GitHub's 1,000-run search cap in halves of its `created` range, so a post-merge floor more than about a week old no longer makes every check unreadable. A range of a day or less still at the cap stays unreadable.
+- The unattended merge gate runs the post-merge check at most once per main head in a pr-merge run: once a check at that head, floor, identity and lane comes back unreadable, including the merge job's own check, each later candidate is refused with the same reason without running it again. An unreadable answer still never passes.
+
 ## [4.2.2] - 2026-10-30
 
 ### Fixed
