@@ -164,5 +164,5 @@ The exception covers the advisory hook only. The same check also runs from guard
   guard), #1314 (the withdrawn guard's measurement and rescope)
 - `docs/contracts/hook-precision/README.md`: over-fire discipline
 - `docs/plugin-philosophy.md`: one mechanism per concern (validation section)
-- `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md`:
+- `melodic-software/standards`, `standards/engineering/enforceability-tiers.md`:
   classify the tier first, justify automation second
