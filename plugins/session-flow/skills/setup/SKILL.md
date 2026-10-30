@@ -121,15 +121,22 @@ Reconfigure the observer's `userConfig` keys through Claude Code's native flow, 
 marketplace's plugin-reconfiguration convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record): interactive `/plugin configure session-flow@<marketplace>`
-any time, or headless `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>`
-(repeatable per key). Against an already-installed plugin it prints `already installed` and still
-writes the value. Do **not** uninstall to reconfigure: that drops the stored `pluginConfigs` entry
-outright, resetting every option in the README's Options reference to its manifest default, with
-nothing left to read the old values from. `-s` defaults to `user`; pass the scope
-`claude plugin list` reports, and run from that project's directory for a `project`/`local` scope,
-or the rerun adds a second install record at the scope passed and enables the plugin there; the
-value itself always lands in user settings. A rejected value prints a warning yet exits 0, so
-read the output. Afterwards rerun `check` in a **fresh session**:
+any time. Headless, preferred (Claude Code 2.1.285 or later):
+`claude plugin configure session-flow@<marketplace> --values-stdin < values.json`, with
+`values.json` holding `{"<key>": "<value>"}` (every value a string, booleans included; keys left
+out keep their saved values). Headless fallback (an older release):
+`claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>` (repeatable
+per key); against an already-installed plugin it prints `already installed` and still writes the
+value. Do **not** uninstall to reconfigure: that drops the stored `pluginConfigs` entry outright,
+resetting every option in the README's Options reference to its manifest default, with nothing
+left to read the old values from. Scope: the value always lands in user settings. Run either route
+from the project the plugin is installed in (`configure` has no scope flag). For the rerun, `-s`
+defaults to `user`, so pass the scope `claude plugin list` reports, or the rerun adds a second
+install record at the scope passed and enables the plugin there; from the home directory, where the
+list can label one settings file both `user` and `project`, pass `user`. Check each route's own failure signal:
+`configure` rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`;
+the rerun prints a warning for a rejected value yet exits 0, so read its output. Afterwards rerun
+`check` in a **fresh session**:
 the rendered `${user_config.*}` is injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*`
 is fixed at session start, so a same-session `check` still reports the OLD value; report the
 observed effective value, never an unobserved change.
