@@ -332,7 +332,8 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 
 A choice of means or a design detail is none of these reasons: the lane doing the work decides it
 on evidence (section 1). The issue lane's pre-edit pushback reaches the owner only when the run
-names `cause: intent`; any other pushback retries
+names `cause: intent`, a security concern or a hold code; any other pushback goes back through
+intake triage
 ([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json) `pushback-means`).
 
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:

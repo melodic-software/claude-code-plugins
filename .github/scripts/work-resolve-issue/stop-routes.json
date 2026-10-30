@@ -22,7 +22,7 @@
   "turn-cap-spent": { "route": "fail", "why": "the run reached its turn cap with no restart left" },
   "retry-spent": { "route": "fail", "why": "the lane has retried this issue as many times as limits.stop-retries, or the stop's own row, allows" },
   "pushback": { "route": "hold", "why": "the run names cause intent: the issue leaves its intended outcome open, an intent question only a person answers", "class": "intent-change" },
-  "pushback-means": { "route": "retry", "retries": 1, "why": "the run pushed back without naming cause intent, so its question is a choice of means or a design detail, which the lane decides on evidence, and a fresh run decides it" },
+  "pushback-means": { "route": "intake", "retries": 1, "why": "the run pushed back without naming cause intent, so its question is a choice of means or a design detail, and intake triage decides it again: refinement settles it on evidence, or flags intent and asks the owner when the issue cannot answer an intent question" },
   "intent-change": { "route": "hold", "why": "the run found the work changes the issue's intent, which a person decides", "code": true, "class": "intent-change" },
   "design-change": { "route": "hold", "why": "the run found the work changes the primary design, which a person decides", "code": true, "class": "design-change" },
   "security-risk": { "route": "hold", "why": "the run reports a HIGH or CRITICAL security risk, which a person decides", "code": true, "class": "security-risk" },

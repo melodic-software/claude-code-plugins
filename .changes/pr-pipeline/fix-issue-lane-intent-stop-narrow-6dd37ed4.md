@@ -4,7 +4,7 @@ bump: patch
 
 ### Fixed
 
-- The issue lane holds a `pushback` for a person only when its outcome names `"cause": "intent"`.
-  Any other pushback is `pushback-means` in `stop-routes.json`: a choice of means or a design
-  detail the lane decides on evidence, which retries at most once and then fails, never reaching
-  a person.
+- The issue lane holds a `pushback` as `intent` only when its outcome names `"cause": "intent"`,
+  in any case. Any other pushback whose reason names a security concern or opens with a hold code
+  takes that hold row; the rest are `pushback-means` in `stop-routes.json`, a choice of means or
+  a design detail, which goes back through intake triage once.
