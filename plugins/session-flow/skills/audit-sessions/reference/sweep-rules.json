@@ -1,7 +1,7 @@
 {
   "schema": "audit-sessions.sweep-rules/v1",
-  "basis": "Thresholds are a shipped reference baseline, the same for every installation: the per-session p90 of a 90-session spike on one reference machine (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry, unless a rule's basis names another source; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. Every number in a rule's basis comes from those reference measurements, not from the store being swept. A null threshold reports the metric without a finding.",
-  "verified": "2026-10-02",
+  "basis": "Thresholds are a shipped reference baseline, the same for every installation, set from per-session p90s measured on one reference machine; a session above a threshold is an outlier against that baseline, not wrong in absolute terms. The reference measurements are in threshold-derivation.md (672 interactive sessions, Claude Code 2.1.283-2.1.312, 2026-10-30): hooks.stop_ms and time.active_s take its p90. The other thresholds keep the p90 of a 90-session spike (Claude Code 2.1.275-2.1.287, 2026-10-02), approved by the maintainer at plan Phase 6 entry, unless a rule's basis names another source; each such basis gives both measurements. Every number in a rule's basis comes from those reference measurements, not from the store being swept. A null threshold reports the metric without a finding.",
+  "verified": "2026-10-30",
   "recheck": "a Claude Code release changes a canary-fed metric, or a swept store's own p90 for a thresholded metric exceeds stale_p90_factor times its threshold. The trigger is one-sided: a p90 below the threshold never fires it, and a threshold of 0 fires on any p90 above 0. sweep.py marks such a metric baseline_stale",
   "stale_p90_factor": 1.5,
   "rules": [
@@ -13,7 +13,7 @@
       "route": "retro-codify",
       "suggested_skill": "/session-flow:retro",
       "confidence": "measured",
-      "basis": "main-session output tokens per session; spike median 72738, p90 205212"
+      "basis": "main-session output tokens per session; spike median 72738, p90 205212; 2026-10-30 derivation median 95196.5, p90 233586"
     },
     {
       "metric": "tokens.sub",
@@ -23,7 +23,7 @@
       "route": "retro-codify",
       "suggested_skill": "/harness-ops:observability",
       "confidence": "measured",
-      "basis": "subagent output tokens per session; spike median 7467, p90 72347"
+      "basis": "subagent output tokens per session; spike median 7467, p90 72347; 2026-10-30 derivation median 13083, p90 546457"
     },
     {
       "metric": "cache.missed_input_tokens",
@@ -33,7 +33,7 @@
       "route": "config-change",
       "suggested_skill": "/harness-ops:observability",
       "confidence": "measured",
-      "basis": "input tokens re-sent after a reported cache miss per session; spike median 0, p90 272137, 18 of 90 sessions nonzero"
+      "basis": "input tokens re-sent after a reported cache miss per session; spike median 0, p90 272137, 18 of 90 sessions nonzero; 2026-10-30 derivation median 0, p90 26553, 78 of 672 nonzero"
     },
     {
       "metric": "cache.write_5m_share",
@@ -43,17 +43,17 @@
       "route": null,
       "suggested_skill": null,
       "confidence": "measured",
-      "basis": "share of cache-write tokens at the 5-minute TTL, machine-wide; spike 0.84 (subagents about 1.0, main about 0); no per-session spread to set a threshold from"
+      "basis": "share of cache-write tokens at the 5-minute TTL, machine-wide; spike 0.84 (subagents about 1.0, main about 0), 2026-10-30 derivation 0.840; no per-session spread to set a threshold from"
     },
     {
       "metric": "time.active_s",
       "lens": "context",
       "unit": "s",
-      "threshold": null,
-      "route": null,
-      "suggested_skill": null,
+      "threshold": 19372,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
       "confidence": "heuristic",
-      "basis": "active seconds per session, read from the main session's record timestamps (store field time.active_gap_s): the sum of gaps between consecutive user, assistant and system records, each capped at the 300 s idle boundary (a judgment value, the same as idle_gaps_gt5m), so it never exceeds wall clock. It approximates Claude Code's native claude_code.active_time.total metric from transcript timestamps and is a second definition beside it. Internal-format read: the earlier definition summed turn_duration records, which are sparse and can time a turn begun in a previous transcript (76 of 764 sessions above wall clock, Claude Code 2.1.241-2.1.288, audit 2026-10-03); time.active_s no longer reads them. Threshold null until #6077 re-derives it on this definition (the old 26064 s came from turn_duration sums)"
+      "basis": "active seconds per session, read from the main session's record timestamps (store field time.active_gap_s): the sum of gaps between consecutive user, assistant and system records, each capped at the 300 s idle boundary (a judgment value, the same as idle_gaps_gt5m), so it never exceeds wall clock. It approximates Claude Code's native claude_code.active_time.total metric from transcript timestamps and is a second definition beside it. Internal-format read: the earlier definition summed turn_duration records, which are sparse and can time a turn begun in a previous transcript (76 of 764 sessions above wall clock, Claude Code 2.1.241-2.1.288, audit 2026-10-03); time.active_s no longer reads them. Threshold is the 2026-10-30 derivation's p90 on this definition (median 6520.5, p90 19372, max 46388, 596 of 672 nonzero; the old 26064 s came from turn_duration sums). Route and skill are the ones the turn_duration rule had"
     },
     {
       "metric": "context.clear_commands",
@@ -63,7 +63,7 @@
       "route": null,
       "suggested_skill": null,
       "confidence": "measured",
-      "basis": "/clear commands per session; spike p90 1, max 1, 33 of 90 sessions start with /clear as the handoff routine, so a threshold would flag normal use"
+      "basis": "/clear commands per session; spike p90 1, max 1, 33 of 90 sessions start with /clear as the handoff routine, so a threshold would flag normal use; 2026-10-30 derivation median 1, p90 1, max 1, 412 of 672 nonzero"
     },
     {
       "metric": "human.turns",
@@ -73,7 +73,7 @@
       "route": "retro-codify",
       "suggested_skill": "/session-flow:retro",
       "confidence": "heuristic",
-      "basis": "typed human turns per session; spike median 3, p90 14"
+      "basis": "typed human turns per session; spike median 3, p90 14; 2026-10-30 derivation median 5, p90 15"
     },
     {
       "metric": "tools.interrupts",
@@ -83,7 +83,7 @@
       "route": "retro-codify",
       "suggested_skill": "/session-flow:retro",
       "confidence": "measured",
-      "basis": "main-session interrupts per session; spike median 0, p90 0, max 2, 3 of 90 sessions nonzero. Raised from 0 to 1 by operator decision (#6076): the first full store (2026-10-03, 764 sessions) had p90 1, and 57 of the 81 sessions threshold 0 flagged had exactly one interrupt; threshold 1 flags 24"
+      "basis": "main-session interrupts per session; spike median 0, p90 0, max 2, 3 of 90 sessions nonzero. Raised from 0 to 1 by operator decision (#6076): the first full store (2026-10-03, 764 sessions) had p90 1, and 57 of the 81 sessions threshold 0 flagged had exactly one interrupt; threshold 1 flags 24. 2026-10-30 derivation median 0, p90 0, max 6, 47 of 672 nonzero"
     },
     {
       "metric": "tools.denials",
@@ -93,7 +93,7 @@
       "route": "config-change",
       "suggested_skill": "/session-flow:audit-friction",
       "confidence": "measured",
-      "basis": "tool denials per session; spike median 3, p90 27. Kinds: collect.py counts each user record's toolDenialKind value into the store field tools.denials, one count per kind; the finding sums those counts over the sessions above the threshold (by_kind) and names the kind with the most (dominant_kind, ties by kind name). Internal-format read: toolDenialKind and its values are undocumented, and no canary watches them. As of 2026-10-29. Recheck trigger: a drift run reports a denial_kind key as new or vanished"
+      "basis": "tool denials per session; spike median 3, p90 27; 2026-10-30 derivation median 3, p90 17. Kinds: collect.py counts each user record's toolDenialKind value into the store field tools.denials, one count per kind; the finding sums those counts over the sessions above the threshold (by_kind) and names the kind with the most (dominant_kind, ties by kind name). Internal-format read: toolDenialKind and its values are undocumented, and no canary watches them. As of 2026-10-29. Recheck trigger: a drift run reports a denial_kind key as new or vanished"
     },
     {
       "metric": "subagents.count",
@@ -103,17 +103,17 @@
       "route": "retro-codify",
       "suggested_skill": "/harness-ops:observability",
       "confidence": "measured",
-      "basis": "subagents spawned per session; spike median 6, p90 33. Route set by owner decision (2026-10-11): /harness-ops:observability reports token burn, cost and per-session activity across sessions, the same route as tokens.sub, the subagent output-token rule"
+      "basis": "subagents spawned per session; spike median 6, p90 33; 2026-10-30 derivation median 7, p90 36. Route set by owner decision (2026-10-11): /harness-ops:observability reports token burn, cost and per-session activity across sessions, the same route as tokens.sub, the subagent output-token rule"
     },
     {
       "metric": "hooks.stop_ms",
       "lens": "hooks",
       "unit": "ms",
-      "threshold": null,
+      "threshold": 152,
       "route": "config-change",
       "suggested_skill": "/harness-ops:audit-performance",
       "confidence": "heuristic",
-      "basis": "a session's p90 Stop wait, read from stop_hook_summary records (store field stop_hooks.wait_ms_p90): per Stop run the slowest hookInfos[].durationMs, since matching hooks run in parallel and the person waits for the slowest. Internal-format read: that durationMs is each hook's own run time is inferred, not documented (Claude Code 2.1.241-2.1.288; across 7,843 multi-hook Stop records the observed wait was at least the max in every record, audit 2026-10-03). It reads every hookInfos entry, with no way to tell a background hook from a blocking one: async and asyncRewake hooks run in the background without blocking (https://code.claude.com/docs/en/hooks#run-hooks-in-the-background, read 2026-10-25), and whether such a Stop hook gets an entry, and what its durationMs then measures, is not checked against a transcript, so where one does the wait includes it and overstates the blocking cost. The earlier definition summed the hooks (stop_hooks.ms_p90, still stored). Threshold null until #6077 re-derives it on this definition. Route kept by owner decision (2026-10-11): /harness-ops:audit-performance is the skill that tunes hook cost, even though its engine does not read transcripts; recheck when #6033 (whether harness-ops summarizes recorded hook durations) is decided"
+      "basis": "a session's p90 Stop wait, read from stop_hook_summary records (store field stop_hooks.wait_ms_p90): per Stop run the slowest hookInfos[].durationMs, since matching hooks run in parallel and the person waits for the slowest. Internal-format read: that durationMs is each hook's own run time is inferred, not documented (Claude Code 2.1.241-2.1.288; across 7,843 multi-hook Stop records the observed wait was at least the max in every record, audit 2026-10-03). It reads every hookInfos entry, with no way to tell a background hook from a blocking one: async and asyncRewake hooks run in the background without blocking (https://code.claude.com/docs/en/hooks#run-hooks-in-the-background, read 2026-10-25), and whether such a Stop hook gets an entry, and what its durationMs then measures, is not checked against a transcript, so where one does the wait includes it and overstates the blocking cost. The earlier definition summed the hooks (stop_hooks.ms_p90, still stored). Threshold is the 2026-10-30 derivation's p90 on this definition (581 sessions with a Stop run, median 86, p90 152, max 111151), which includes the test-judge Stop hook. Route kept by owner decision (2026-10-11): /harness-ops:audit-performance is the skill that tunes hook cost, even though its engine does not read transcripts; recheck when #6033 (whether harness-ops summarizes recorded hook durations) is decided"
     },
     {
       "metric": "edits.churn_per_pr",
@@ -123,7 +123,7 @@
       "route": "retro-codify",
       "suggested_skill": "/session-flow:retro",
       "confidence": "measured",
-      "basis": "edits to one path within one linked PR, summed over the sessions that link only that PR; second spike (320 interactive sessions, Claude Code 2.1.280-2.1.296, 2026-10-13): 46 single-PR sessions, 43 PRs, 1581 path-PR pairs, median 1, p90 5, p99 19",
+      "basis": "edits to one path within one linked PR, summed over the sessions that link only that PR; second spike (320 interactive sessions, Claude Code 2.1.280-2.1.296, 2026-10-13): 46 single-PR sessions, 43 PRs, 1581 path-PR pairs, median 1, p90 5, p99 19; 2026-10-30 derivation 2054 path-PR pairs, median 1, p90 5",
       "caveat": "review outcome not linked: sweep reads only the store; sessions linking more than one PR are left out"
     }
   ]
