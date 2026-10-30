@@ -12,8 +12,9 @@
 #   scripts/affected-tests.sh --run              ... and run them, sequentially
 #   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
 #   scripts/affected-tests.sh --run --budget S   ... timed against an S-second budget, a
-#                                                suite over its share failing (run-plugin-tests.sh
-#                                                BUDGET)
+#                                                suite over its share failing, or warning with
+#                                                PLUGIN_TEST_SHARE_WARN_ONLY=1
+#                                                (run-plugin-tests.sh BUDGET)
 #   scripts/affected-tests.sh --run --write-not-run FILE
 #                                                ... and write each selected suite it did not run
 #                                                to FILE, one per line (exit 3 names them); a
