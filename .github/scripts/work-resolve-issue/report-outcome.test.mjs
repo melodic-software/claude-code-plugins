@@ -3646,6 +3646,8 @@ test("doneEvidence counts a citation only as a closing keyword before #<issue>",
     ["fixes: #77", true],
     ["RESOLVED #77.", true],
     ["Part of it.\n\nClosed #77", true],
+    ["This does not fix #77", false],
+    ['Revert "fix: tidy (#5)"\n\nThis reverts commit abc1234.\n\nCloses #77', false],
   ]) {
     assert.equal(await doneEvidence(evidencePull(message), "/repos/o/r", reason, 77), closes, message);
   }

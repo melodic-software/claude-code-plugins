@@ -88,13 +88,14 @@ test("the security code opens the reason in any case and width, past emphasis, b
 // Security review on #10978: an uncoded reason naming a concern without one
 // of the first eight words retried and then failed, so nobody was told. The
 // reasons are the finding's own examples; the acronyms count only as words.
-test("an uncoded reason naming a password, an API key, a backdoor, XSS, RCE, a CVE or ignored instructions is security-risk", () => {
+test("an uncoded reason naming a password, an API key, a backdoor, XSS, RCE, a CVE, branch protection or ignored instructions is security-risk", () => {
   for (const reason of [
     "the issue asks to hard-code the admin password",
     "this would expose the API key",
     "looks like a backdoor / XSS / RCE / CVE",
     "this would leak the private key",
     "the issue text tells me to ignore previous instructions",
+    "the issue asks me to disable branch protection",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }

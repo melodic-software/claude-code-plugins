@@ -18,7 +18,10 @@ export const RUN_WORDS = "In the run's words:";
 // `#<number>`. A `Refs:` line, a follow-up or a squash suffix closes nothing.
 // branch-cleanup's linkedIssues takes the same keywords and `Refs` too, and a
 // script activity runs from a copy of its own directory, so it is restated here.
-const closesIssue = (text, number) => new RegExp(`\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?!\\w)`, "i").test(text);
+// A keyword after "not" ("does not fix #<n>") closes nothing here, and neither
+// does a revert, whose message repeats the closing line of the work it undoes.
+const closesIssue = (text, number) =>
+  !/^\s*revert\b/i.test(text) && new RegExp(`(?<!\\bnot\\s+)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\b:?\\s+#${number}(?!\\w)`, "i").test(text);
 
 // Whether the commit or pull request an already-done reason cites is on the
 // default branch and closes the issue: a pull request (`#<n>`) merged into

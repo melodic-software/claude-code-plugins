@@ -2178,7 +2178,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
   A security mention always reaches the owner: a reason with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
-  `credential`, `secret`, `token`, `exfiltrat` or `malicious`, in any case and even inside a word)
+  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key,
+  `backdoor`, `exploit` or branch protection, in any case and even inside a word; `XSS`, `RCE` or
+  `CVE` as a whole word; or an ignore-instructions phrase)
   takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
   `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
