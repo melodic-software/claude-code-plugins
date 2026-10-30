@@ -6,4 +6,5 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --nope
+assert_usage_error "$S" "github:o/r#1" --holder
 [[ $FAILED -eq 0 ]] || exit 1
