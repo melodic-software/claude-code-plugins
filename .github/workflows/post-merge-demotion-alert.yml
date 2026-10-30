@@ -139,6 +139,8 @@ jobs:
       created: ${{ steps.run.outputs.created }}
       # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
+      # 'true' when the red run's head is no longer main's tip: nothing to report.
+      superseded: ${{ steps.file.outputs.superseded }}
       # 'true' when every newly failing suite was outside the merges'
       # affected set or quarantined: no record, and no red-main report.
       excused: ${{ steps.file.outputs.excused }}
@@ -415,6 +417,7 @@ jobs:
               rm -f -- "$tip_err"
               if [[ "$RUN_SHA" != "$tip" ]]; then
                 echo "::notice::$RUN_URL is on ${RUN_SHA:0:12}, not main's tip ${tip:0:12}: a superseded head is not re-run or waited on, so nothing filed"
+                echo 'superseded=true' >>"$GITHUB_OUTPUT"
                 exit 0
               fi
               polls=20
@@ -927,6 +930,7 @@ jobs:
       && needs.alert.outputs.branch == 'main'
       && needs.alert.outputs.repo == github.repository
       && needs.alert.outputs.recovered != 'true'
+      && needs.alert.outputs.superseded != 'true'
       && needs.alert.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04

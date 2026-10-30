@@ -791,7 +791,7 @@ fi
 # on, so attempt 1 is not judged and nothing is filed.
 TIP="$OTHER" RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
-  "$OUT" == *"::notice::$RUN_URL is on ${SHA:0:12}, not main's tip ${OTHER:0:12}"*"nothing filed"* ]]; then
+  "$OUT" == *"::notice::$RUN_URL is on ${SHA:0:12}, not main's tip ${OTHER:0:12}"*"nothing filed"* ]] && grep -qx 'superseded=true' "$TMP_ROOT/stub/output"; then
   ok "a red run on a superseded head is not re-run, not waited on, and files nothing"
 else
   fail "superseded head: rc=$RC log='$LOG' out='$OUT'"
@@ -799,7 +799,7 @@ fi
 TIP="$OTHER" VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
   run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
-  "$OUT" == *"not main's tip ${OTHER:0:12}"*"nothing filed"* ]]; then
+  "$OUT" == *"not main's tip ${OTHER:0:12}"*"nothing filed"* ]] && grep -qx 'superseded=true' "$TMP_ROOT/stub/output"; then
   ok "a bot-dispatched red run on a superseded head is not waited on and files nothing"
 else
   fail "bot-dispatched superseded head: rc=$RC log='$LOG' out='$OUT'"
