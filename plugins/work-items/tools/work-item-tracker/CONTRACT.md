@@ -539,7 +539,7 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
   The lane releases its lease when its report job ends; a lane run cancelled by hand before that,
-  or a release that fails, leaves the lease to its TTL, which is accepted behaviour.
+  or a release that fails, leaves the lease to its TTL, which is accepted behavior.
 
 Arbitration is the same in both modes (step 4), so a local claim made while a lane lease is live
 backs off, and a lane run that finds a live local lease backs off without starting its model.

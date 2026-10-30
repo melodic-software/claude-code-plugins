@@ -207,6 +207,7 @@ holds "report-outcome and apply-issue-patch pass the selected read call's lease 
 #     <lease> <caller-releases-lease> <handed-off> <prior: none|stop|branch> <patch-state> <apply-skip>
 who() {
   local got
+  # shellcheck disable=SC2016  # node source with JS template expressions, never shell-expanded
   got="$(node -e '
     const { createRequire } = require("node:module");
     const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
@@ -216,8 +217,8 @@ who() {
     const load = (f) => yaml.parse(fs.readFileSync(f, "utf8"));
     const read = load(readYml), write = load(writeYml), caller = load(callerYml);
     const expr = (src, ctx) => {
-      const js = String(src).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ")
-        .replace(/\b(inputs|needs|github|vars|steps)(\.[\w-]+)+/g, (m) => JSON.stringify(ctx[m] ?? ""))
+      const js = String(src).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ") // portability-ok: JS regex in node -e, not a shell tool
+        .replace(/\b(inputs|needs|github|vars|steps)(\.[\w-]+)+/g, (m) => JSON.stringify(ctx[m] ?? "")) // portability-ok: JS regex in node -e, not a shell tool
         .replace(/always\(\)/g, "true").replace(/cancelled\(\)/g, "false")
         .replace(/==/g, "===").replace(/!=(?!=)/g, "!==");
       const format = (f, a) => String(a);
