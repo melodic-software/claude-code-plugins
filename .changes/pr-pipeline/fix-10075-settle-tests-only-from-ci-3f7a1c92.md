@@ -12,5 +12,5 @@ bump: patch
   `test-python` leg, `test-node` and each `pr-test-windows` job. If every one passed and no
   unplanned test lane ran, a fixed reply says every check the plan selected passed and resolves the
   thread. If any test run on the head failed, the thread stays open with no escalation, and fix-ci
-  takes the red head. If a check is pending, missing or skipped, the round
+  takes the red head. If a check is pending, cancelled, missing or skipped, the round
   ends `feedback-unadjudicated` as before. No job gains a permission.

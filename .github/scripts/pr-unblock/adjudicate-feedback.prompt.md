@@ -29,8 +29,9 @@ a claim to check against the code, not evidence on its own. Return:
 - `verdict: lane`, `question: none` when the code at the cited locations shows the finding does
   not hold.
 - `verdict: tests-only`, `question: none` when the finding's only ask is that tests or checks be
-  run (for example "run the suite to prove this passes") and it names no defect in the code: CI
-  runs those tests, and a script settles the finding from the head's check-run results.
+  run (for example "run the suite to prove this passes") and it names no defect in the code: a
+  script settles the finding from the head's check-run results for the tests the pull request's
+  plan selects.
 - `verdict: human` when the answer turns on something the code cannot settle, with `question`
   naming it: `intent` (what the change is meant to do), `design` (a choice between workable
   approaches) or `security` (a judgment about a risk to the repository, its secrets or its

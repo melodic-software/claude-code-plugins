@@ -1789,18 +1789,22 @@ test("ciSnapshot is green only when every covering check's latest real run passe
   assert.equal((await snapshot([...GREEN, checkRun(10, "test-node", "failure", { app: { slug: "other" } })])).state, "green");
 });
 
-test("ciSnapshot is red when a covering check failed or was cancelled", async () => {
-  for (const conclusion of ["failure", "timed_out", "cancelled"]) {
+test("ciSnapshot is red when a covering check failed, and unsettled when one was cancelled", async () => {
+  for (const conclusion of ["failure", "timed_out", "startup_failure"]) {
     const red = await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(6, "test-bash (1)", conclusion)]);
     assert.equal(red.state, "red", conclusion);
   }
+  // fix-ci does not take a cancelled-only head, so a cancelled run leaves the
+  // finding to end feedback-unadjudicated, not to wait on fix-ci (#11041 review).
+  assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(6, "test-bash (1)", "cancelled")])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN, checkRun(8, "test-windows-hooks", "cancelled")])).state, "unsettled");
   assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(7, "test-bash (1)", "failure")], { complete: false })).state, "red");
 });
 
 // The plan is read from the base tree, so the head's select-tests job can run
 // lanes it does not name (#11041 review).
 test("ciSnapshot is red when any test lane on the head failed, planned or not, and cites the failed runs", async () => {
-  const red = await snapshot([...GREEN, checkRun(20, "test-python (0)", "failure"), checkRun(21, "test-windows-hooks", "cancelled")]);
+  const red = await snapshot([...GREEN, checkRun(20, "test-python (0)", "failure"), checkRun(21, "test-windows-hooks", "timed_out")]);
   assert.equal(red.state, "red");
   assert.deepEqual(red.runs.map((run) => run.name), ["test-python (0)", "test-windows-hooks"]);
   // A failed check that is not a test lane is not CI for a tests-only finding.

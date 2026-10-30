@@ -124,17 +124,19 @@ export function coveringLanes(plan) {
 // A test lane's check-run name: every test job in pr-require-checks.yml and
 // pr-test-windows.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
 const TEST_LANE = /^test-[a-z0-9]+(?:-[a-z0-9]+)*(?: \(\d+\))?$/;
-const failed = (run) => run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled");
+// A cancelled run is not red: fix-ci does not take a head whose only failing
+// checks were cancelled (fix-ci-dispatch.mjs), so it settles nothing instead.
+const failed = (run) => run.status === "completed" && FAILING.has(run.conclusion);
 const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
 // The head's CI for the tests the PR selects, which the reply job settles a
 // tests-only finding from (adjudicate-feedback.mjs settleDisputes): the
 // latest real run (gate-source.mjs latestRuns) of each github-actions check.
 // The plan is read from the base tree, so it can list fewer lanes than the
-// head's select-tests job ran. red: any test lane run on the head failed or
-// was cancelled, planned or not; green: every covering lane the plan names
+// head's select-tests job ran. red: any test lane run on the head failed,
+// planned or not; green: every covering lane the plan names
 // has a run, each one passed, and no test lane the plan does not name ran;
-// unsettled otherwise (pending, missing or skipped, an unplanned lane that
+// unsettled otherwise (pending, cancelled, missing or skipped, an unplanned lane that
 // ran, a listing past its pages, no covering lane, or a failed read), which
 // settles nothing.
 export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
