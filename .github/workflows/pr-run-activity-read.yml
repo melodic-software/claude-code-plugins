@@ -543,6 +543,8 @@ jobs:
       carry-work-outcome-bytes: ${{ steps.carry.outputs.work-outcome-bytes }}
       carry-lane-bytes: ${{ steps.carry.outputs.lane-bytes }}
       carry-sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      # Set after the model ran, so forgeable: post.mjs checks every row.
+      api-failures: ${{ steps.api-failures.outputs.api-failures }}
       carry-sealed-1: ${{ steps.seal.outputs.sealed-1 }}
       carry-sealed-2: ${{ steps.seal.outputs.sealed-2 }}
       carry-sealed-3: ${{ steps.seal.outputs.sealed-3 }}
@@ -2024,6 +2026,34 @@ jobs:
           echo "::error::the skill's launcher run left no result"
           exit 1
 
+      # The failed GitHub API calls this job's scripts recorded (recordFailure
+      # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
+      # report comment. The model shares RUNNER_TEMP and could plant or change
+      # the file, and PATH with it, so only rows of the recorded shape pass, at
+      # most 50, with the rest counted as dropped, and post.mjs checks them again.
+      - name: Carry the failed API calls to the report job
+        id: api-failures
+        if: always()
+        continue-on-error: true
+        env:
+          FAILURES: ${{ runner.temp }}/lane-run-report/api-failures.jsonl
+        run: |
+          none='{"rows":[],"dropped":0}'
+          rows=$none
+          if [ -f "$FAILURES" ] && [ ! -L "$FAILURES" ]; then
+            rows=$(head -c 65536 "$FAILURES" | jq -cRn '
+              [inputs | select(length > 0)] as $lines
+              | [$lines[] | (try fromjson catch null)
+                | select(type == "object"
+                  and (.method | type) == "string" and (.method | test("^(GET|POST|PATCH|PUT|DELETE)$"))
+                  and (.path | type) == "string" and (.path | test("^/[A-Za-z0-9/_.-]{1,200}$"))
+                  and (.status | type) == "number" and .status == (.status | floor)
+                  and .status >= 0 and .status <= 599)
+                | {method, path, status}] as $rows
+              | {rows: $rows[:50], dropped: (($lines | length) - ([($rows | length), 50] | min))}') || rows=$none
+          fi
+          echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
+
   # Issue mode: the run job's pre-model fields, which pick the issue's lane
   # branch and the commit its patch applies to, checked before any caller
   # sees them. The run job's runner is hostile and could forge any of them,
@@ -3359,3 +3389,30 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
+
+      # One comment per lane run on the PR (lane-run-report/post.mjs), found
+      # by a marker naming the activity and run id, so a re-run edits it. A
+      # checked-out base without the script, or a failed post, warns and
+      # leaves the job green.
+      - name: Post the lane run report comment
+        if: always()
+        continue-on-error: true
+        env:
+          LANE: ${{ inputs.lane }}
+          ACTIVITY: ${{ inputs.activity }}
+          RUN_ID: ${{ github.run_id }}
+          PULL: ${{ steps.pr-head.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_RESULT: ${{ needs.run.result }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          PUSHED_COMMIT: ''
+          READ_LANE: 'true'
+          API_FAILURES: ${{ needs.run.outputs.api-failures }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          script=.base/.github/scripts/lane-run-report/post.mjs
+          if [ ! -f "$script" ]; then
+            echo "::warning::the checked-out base has no lane run report script; no comment is posted"
+            exit 0
+          fi
+          node "$script"
