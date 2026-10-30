@@ -223,6 +223,17 @@ REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
 export STUB_COMMENTS="[$NEW,$REFUSAL]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
 expect "a newer pr-merge refusal beats an older security hold, naming its fenced reasons" 1 1 "needs-human" 0 \
   "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
+# A reason line past 100 columns wraps at a space, its continuation indented
+# two spaces, and more than 20 lines fold into <details>: the reason reads
+# back as one line either way.
+WRAPPED_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\npr-merge\'s gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)\n```'
+export STUB_COMMENTS="[$NEW,$(hold "$APP" "$WRAPPED_BODY")]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
+expect "a wrapped pr-merge refusal names its reason on one line" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Changes a trust gate"
+FOLDED_BODY="${WRAPPED_BODY/$'```text'/$'<details><summary>Its reasons (21 lines)</summary>\n\n```text'}"$'\n\n</details>'
+export STUB_COMMENTS="[$NEW,$(hold "$APP" "$FOLDED_BODY")]"
+expect "a folded pr-merge refusal names its reason too" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Its reasons"
 export STUB_COMMENTS="[$REFUSAL,$NEW]"
 expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
 # A lane's refusal (no attend-queue marker) set no label, so a newer one
