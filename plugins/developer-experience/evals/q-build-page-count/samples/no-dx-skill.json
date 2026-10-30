@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call at all"},
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Core/Paging.cs", "old_string": "return total / pageSize + 1;", "new_string": "return (total + pageSize - 1) / pageSize;"}}],
+      "why": "fixed the method directly"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:setup"}}],
+      "why": "another developer-experience skill is outside this check"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "testing:diagnose"}}],
+      "why": "another plugin's skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:build-cli"}}],
+      "why": "build-cli fired on a library bug fix"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}],
+      "why": "audit-tools fired"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "build-cli", "args": "fix PageCount"}}],
+      "why": "bare skill name"
+    }
+  ]
+}
