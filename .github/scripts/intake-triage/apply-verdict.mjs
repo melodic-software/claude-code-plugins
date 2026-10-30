@@ -29,13 +29,13 @@
 // labels and, when the comment write fails, adds no label and takes off only
 // `status: ready`, so no hold lands without its record; needs-human, and
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
-// person, or an unread setter set, holds. One exception: a needs-human this
-// run's triage applied (github-actions[bot], at or after STARTED_AT) on a
+// person, or an unread setter set, holds. One exception: a needs-human or
+// status: needs-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
 // verdict that did not escalate, with a readable `Flags: none` and no
 // outside-actor or untrusted-provenance hold, is refused and taken off when
 // the rest of the plan is ready, so a capability limit (a host run, a paid
 // eval) reaches admission, which routes it to `host-run` or holds it with a
-// split. The
+// split, and a choice of means stays the issue lane's. The
 // `needs-triage` floor label is taken off after the verdict is written.
 // The work class gates nothing (owner Q85, #9668) except
 // `work-class: untrusted-provenance`, which holds the issue and is never taken
@@ -108,6 +108,8 @@ const NEEDS_TRIAGE = "needs-triage";
 const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION, OUTSIDE_ACTOR_LABEL]);
 // Holds only a person lifts: a clean verdict never removes them.
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
+// Holds this run's triage may apply only beside a flag (planWrites refuses one without).
+const TRIAGE_REFUSABLE = [NEEDS_HUMAN, NEEDS_DECISION];
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -294,29 +296,30 @@ export function planWrites(
     return { appHolds, found };
   };
   const isReady = (found) => reasons.length + found.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
-  // needs-human this run's triage applied on a verdict whose Flags line reads
-  // none is refused when the rest of the plan is ready, so admission routes the
-  // capability limit it stands for. An unreadable Flags line, an outside-actor
-  // or untrusted-provenance hold (flag.mjs adds needs-human as the same
-  // github-actions[bot]), or any other reason keeps it.
+  // needs-human or status: needs-decision this run's triage applied on a
+  // verdict whose Flags line reads none is refused when the rest of the plan
+  // is ready: only a flag names a person reason, so admission routes the
+  // capability limit or the agent decides the means. An unreadable Flags line,
+  // an outside-actor or untrusted-provenance hold (flag.mjs adds needs-human
+  // as the same github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
-  const candidate =
+  const candidates =
     !verdict.escalated &&
     !verdict.untrusted &&
     Array.isArray(verdict.flags) &&
     verdict.flags.length === 0 &&
-    labels.includes(NEEDS_HUMAN) &&
-    triageLabels.includes(NEEDS_HUMAN) &&
     !labels.includes(OUTSIDE_ACTOR_LABEL) &&
-    !labels.includes(UNTRUSTED);
+    !labels.includes(UNTRUSTED)
+      ? TRIAGE_REFUSABLE.filter((label) => labels.includes(label) && triageLabels.includes(label))
+      : [];
   let held = holdReasons(holds);
   let refused = [];
-  if (candidate) {
-    const without = holdReasons(holds.filter((label) => label !== NEEDS_HUMAN));
+  if (candidates.length > 0) {
+    const without = holdReasons(holds.filter((label) => !candidates.includes(label)));
     if (isReady(without.found)) {
       held = without;
-      refused = [NEEDS_HUMAN];
-      remove.push(NEEDS_HUMAN);
+      refused = candidates;
+      remove.push(...candidates);
     }
   }
   const { appHolds } = held;
@@ -563,7 +566,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     labeled
       ? `- Labels added: ${add.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
       : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
-    ...(plan.refused.length ? [`- Refused: ${REFUSED_NOTE}`] : []),
+    ...(plan.refused.length ? [`- Refused: ${refusedNote(plan.refused)}`] : []),
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
@@ -647,9 +650,9 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// Why a ready verdict took needs-human off, for the comment and the summary.
-const REFUSED_NOTE =
-  "`needs-human` came off: this run's triage applied it with no intent, security or cost flag, and a capability limit (a host run, a paid eval) is admission's to route, never a person's.";
+// Why a ready verdict took a triage hold off, for the comment and the summary.
+const refusedNote = (refused) =>
+  `${refused.map((label) => `\`${label}\``).join(", ")} came off: this run's triage applied ${refused.length > 1 ? "them" : "it"} with no intent, security or cost flag, and only a flag stops for a person: admission routes a capability limit (a host run, a paid eval), and the issue lane decides a choice of means.`;
 
 // Admission's stand-in outcome when a blocked-by edge was missed.
 const EDGE_MISSING = "waits for a blocked-by edge";
@@ -689,7 +692,7 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
             : after
               ? "admission did not finish, so the issue's status is not settled."
             : `the issue is at \`${READY}\`.`
-      }${plan.refused.length ? `\n\n${REFUSED_NOTE}` : ""}`
+      }${plan.refused.length ? `\n\n${refusedNote(plan.refused)}` : ""}`
     : [
         VERDICT_MARKER,
         `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,

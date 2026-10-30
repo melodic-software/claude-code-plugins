@@ -307,9 +307,9 @@ jobs:
         host outside the issue lane's web access) is no reason for needs_human, the `needs-human`
         label, the intent flag or a none class on its own: triage the lane-checkable items as
         usual, with their work class and fields. Admission routes host work to `host-run`, or
-        holds the issue and posts the split itself. The `needs-human` label you apply holds only
-        beside a flag on the Flags line; the verdict step takes it off when the Flags line is none
-        and nothing else holds the issue.
+        holds the issue and posts the split itself. A `status: needs-decision` or `needs-human`
+        label you apply holds only beside a flag on the Flags line; the verdict step takes it off
+        when the Flags line is none and nothing else holds the issue.
 
         VERDICT LINES. Begin your comment with these five lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
@@ -392,7 +392,8 @@ jobs:
         b. List the open questions from the issue body and earlier comments, and check each against
            the decision. Treat any assumption, unknown or gap in intent the decision does not settle
            as an open question too.
-        c. When one or more stay open, apply `status: needs-decision` and keep needs_human false.
+        c. When one or more stay open, set `Flags: intent`, apply `status: needs-decision` and keep
+           needs_human false.
            After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
            basis. Never fill one with a default of your own or treat a recommendation as decided.
         d. When the remaining work needs a person (spend, with `Flags: cost`, or a trust-boundary

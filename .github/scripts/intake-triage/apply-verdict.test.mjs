@@ -378,6 +378,39 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
+  // Run 41064812826 (#9953) also applied status: needs-decision with no flag.
+  // Owner's standing direction §2: only a flag (intent, security, cost) stops
+  // for a person, so this run's flagless needs-decision gives way like needs-human.
+  test("status: needs-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
+    const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.remove, [NEEDS_DECISION]);
+    assert.deepEqual(result.refused, [NEEDS_DECISION]);
+  });
+
+  test("needs-human and status: needs-decision this run's triage applied with no flag are both refused", () => {
+    const result = plan(laneBody(), { labels: ["needs-human", NEEDS_DECISION], triageLabels: ["needs-human", NEEDS_DECISION] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.refused, ["needs-human", NEEDS_DECISION]);
+    assert.deepEqual(result.remove, ["needs-human", NEEDS_DECISION]);
+  });
+
+  for (const [name, options] of [
+    ["beside an intent flag", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent"] }) }],
+    ["with an unreadable Flags line", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known"] }) }],
+    ["beside security: outside-actor", { labels: ["security: outside-actor"] }],
+    ["beside work-class: untrusted-provenance", { labels: ["work-class: untrusted-provenance"] }],
+    ["beside status: needs-info", { labels: ["status: needs-info"] }],
+  ]) {
+    test(`status: needs-decision this run's triage applied holds ${name}`, () => {
+      const result = plan(options.body ?? laneBody(), { labels: [NEEDS_DECISION, ...(options.labels ?? [])], triageLabels: [NEEDS_DECISION] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.refused, []);
+      assert.ok(!result.remove.includes(NEEDS_DECISION));
+    });
+  }
+
   // Only a person lifts the outside-actor flag: a clean verdict neither removes it nor reaches ready.
   test("security: outside-actor the lanes App set stays on a clean verdict and holds", () => {
     const label = "security: outside-actor";
@@ -1186,6 +1219,32 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
+  test("#9953's shape: needs-human and status: needs-decision this run's triage applied with no flag both come off before admission", async () => {
+    const at = "2026-10-22T12:04:00Z";
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }, { name: NEEDS_DECISION }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: at },
+        { event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: ACTIONS_BOT }, created_at: at },
+      ],
+    });
+    const deleted = (name) => writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(name)}`);
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        assert.ok(deleted("needs-human") && deleted(NEEDS_DECISION));
+        return { outcome: "refused", reasons: ["host work"], status: "status: confirmed" };
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    assert.match(result.summary, /- Refused: `needs-human`, `status: needs-decision` came off/);
+  });
+
   test("a needs-human github-actions[bot] applied before this run started keeps the hold", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -1714,5 +1773,10 @@ describe("the triage prompt", () => {
     assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
     assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact/);
     assert.match(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
+  });
+
+  test("every status: needs-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
+    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `status: needs-decision`/);
+    assert.match(PROMPT, /A `status: needs-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
   });
 });
