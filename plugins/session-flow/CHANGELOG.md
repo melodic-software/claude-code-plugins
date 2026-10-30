@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [1.10.3] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
 ## [1.10.2] - 2026-10-29
 
 ### Changed

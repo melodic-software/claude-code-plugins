@@ -39,7 +39,7 @@ probe_icacls_deny() {
   fi
   # shellcheck disable=SC2016
   # ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
-  if powershell.exe -NoProfile -Command 'icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates"' 2>/dev/null | grep -q '(DENY)(W)'; then
+  if grep -q '(DENY)(W)' < <(powershell.exe -NoProfile -Command 'icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates"' 2>/dev/null); then
     echo "applied"
   else
     echo "absent"

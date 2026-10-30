@@ -1718,3 +1718,13 @@ test("a run.json whose ci snapshot is malformed posts nothing", async () => {
     assert.equal(api.posted().length, 0);
   }
 });
+
+// A mode-only fix (#10080): GitHub lists the file with no patch and no
+// changed lines, and the lane's commit still credits the thread.
+test("a VALID reply whose fix commit only changes the file's mode is posted and resolved", async () => {
+  const modeOnly = [{ filename: "src/a.js", status: "changed", changes: 0 }];
+  const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: modeOnly }, commits: { [FIX]: { files: modeOnly } } });
+  const result = await run(api, lines(reply({ disposition: "VALID", evidence: ["src/a.js:1"], note: "Dropped the executable bit." })));
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
