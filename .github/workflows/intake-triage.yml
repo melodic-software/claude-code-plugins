@@ -297,7 +297,7 @@ jobs:
           interactions or concurrency.
         - Uncertainty: Known when the approach is clear from the issue, Knowable when reading or
           asking first would settle it, Unknown when only an experiment would.
-        - Flags: intent when the intended outcome is not exact or needs the owner's decision;
+        - Flags: intent when the intended outcome or done-when is not exact;
           security only for a very-high security risk, the security review's CRITICAL tier: the
           work would expose a credential or secret, bypass a trust boundary, or open an external
           attack surface (other security-related work gets no flag); cost as COST below describes.
@@ -358,9 +358,11 @@ jobs:
           as usual. The code and security review lanes judge the diff.
         - Unclear scope or an approach you are unsure of is Uncertainty Knowable or Unknown, not an
           escalation; work too big for one change is Size Large.
-        - An intent question the issue cannot answer (it lists options and picks none, or its
-          intended outcome is not exact): set `Flags: intent`, apply `status: needs-decision`, and
-          ask each open question as a numbered question with a `RECOMMENDED:` answer and its basis.
+        - An intent question the issue cannot answer (its intended outcome or done-when is not
+          exact): set `Flags: intent`, apply `status: needs-decision`, and ask each open question
+          as a numbered question with a `RECOMMENDED:` answer and its basis. A choice among means
+          the issue lists, or of how to do the work, is not an intent question: the issue lane
+          decides it on evidence, so set no intent flag for it and name your recommendation.
         - A question that the repository's files, a merged change, or a comment on this issue whose
           first line is exactly `**Decision recorded.**` by an author whose login does not end in
           `[bot]` already answers is not an intent question: answer it in your comment with that

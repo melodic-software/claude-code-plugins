@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -1697,5 +1698,21 @@ describe("run", () => {
     const fake = fakeGitHub({ comments: [laneComment(`${ESCALATED_BODY}\nBlocked by: #12`)] });
     await go(fake);
     assert.ok(!fake.calls.some(({ path }) => path.includes("dependencies")));
+  });
+});
+
+// The prompt's paragraphs as flowing text, keyed by their capitalized lead.
+const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
+  .split("\n")
+  .map((line) => line.trim())
+  .join(" ");
+
+// Owner's standing direction §2: a choice of means is never a person stop.
+describe("the triage prompt", () => {
+  test("an intent question is an open outcome or done-when, never a choice among listed means", () => {
+    assert.doesNotMatch(PROMPT, /lists options and picks none/);
+    assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
+    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact/);
+    assert.match(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
   });
 });
