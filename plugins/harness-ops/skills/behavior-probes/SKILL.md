@@ -110,7 +110,7 @@ a slash command in `prompt.md` prints instead of a tool call: its `target` holds
 regex over the first non-blank printed line, `example`, the text the dry run prints, and optional
 `printed_match`, a regex a line must match to be judged at all (else `inconclusive`). A `deny` or `refused`
 case names its positive control in `control`, a case that differs only in the element that causes the
-denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/liveness-assertion/README.md).
+denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/liveness-assertion/README.md).
 A `prints` case may name a `prints` control whose `example` its `text_match` rejects; either kind
 keeps a `pass` only while its control passes.
 Run `validate` and `dry-run`, then a live run of the new case and its control, and add its record.
