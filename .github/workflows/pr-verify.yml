@@ -228,6 +228,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -453,7 +454,8 @@ jobs:
           exit 1
 
   # The subscription leg, as its own job on a new VM: check-intent's
-  # processes, files and environment do not reach it. Its steps repeat
+  # processes and environment do not reach it, and of its files only the
+  # pre-judge reads do, through the `reads` output. Its steps repeat
   # check-intent's from a fresh checkout but for the credential, the
   # key-leg check and the reads it takes from check-intent's `reads` output
   # (workflow.test.mjs holds them equal), so the trigger gate, the kill

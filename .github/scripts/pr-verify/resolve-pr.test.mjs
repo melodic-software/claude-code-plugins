@@ -1520,6 +1520,7 @@ const CARRY = {
   headSha: HEAD,
   baseSha: "b".repeat(40),
   headRef: "feat/41-carry",
+  relinkSinceHead: "false",
   linkedIssues: [{ number: 7 }],
   specText: [{ number: 7, body: "spec" }],
   context: { pr: { number: 41 }, items: [], dropped: {} },
@@ -1532,6 +1533,8 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   assert.ok(packed.length > 0 && packed.length <= CARRY_MAX);
   const { attempt, ...rest } = CARRY;
   assert.deepEqual(takeReads(packed, "1"), rest);
+  // relink-since-head survives as written, both ways.
+  assert.equal(takeReads(packReads({ ...CARRY, relinkSinceHead: "true" }), "1").relinkSinceHead, "true");
   // A re-run of the subscription job alone is a new attempt: it reads again.
   assert.equal(takeReads(packed, "2"), null);
   assert.equal(takeReads(packed, ""), null);
@@ -1543,6 +1546,9 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
     { linkedIssues: null },
     { specText: {} },
     { context: [] },
+    { relinkSinceHead: "" },
+    { relinkSinceHead: "yes" },
+    { relinkSinceHead: undefined },
   ]) {
     assert.equal(takeReads(packReads({ ...CARRY, ...broken }), "1"), null, JSON.stringify(broken));
   }
@@ -1550,6 +1556,8 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   assert.equal(takeReads("", "1"), null);
   // Too large to hand on: empty, so the subscription job reads again.
   assert.equal(packReads({ ...CARRY, context: { pad: "x".repeat(CARRY_MAX) } }), "");
+  // The taker caps size too, whoever wrote the bundle.
+  assert.equal(takeReads("A".repeat(CARRY_MAX + 1), "1"), null);
 });
 
 test("carry hands on the base-side files, and nothing when one is missing", (t) => {
@@ -1562,6 +1570,7 @@ test("carry hands on the base-side files, and nothing when one is missing", (t) 
     HEAD_SHA: CARRY.headSha,
     BASE_SHA: CARRY.baseSha,
     HEAD_REF: CARRY.headRef,
+    RELINK_SINCE_HEAD: CARRY.relinkSinceHead,
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     CONTEXT_FILE: path.join(dir, "context.json"),
@@ -1575,6 +1584,10 @@ test("carry hands on the base-side files, and nothing when one is missing", (t) 
   carryMain(env);
   const reads = /^reads=(.+)$/m.exec(readFileSync(env.GITHUB_OUTPUT, "utf8"))[1];
   assert.equal(takeReads(reads, "1").context.pr.number, 41);
+  // With no relink-since-head output, nothing is handed on.
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  carryMain({ ...env, RELINK_SINCE_HEAD: "" });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^reads=\n$/, "no relink-since-head");
 });
 
 test("main takes the carried reads with no API read, and reads again when they do not hold", async (t) => {
@@ -1598,7 +1611,7 @@ test("main takes the carried reads with no API read, and reads again when they d
   await main(env, { github: noReads() });
   assert.equal(
     readFileSync(env.GITHUB_OUTPUT, "utf8"),
-    `proceed=true\nreason=carried\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${CARRY.baseSha}\nhead-ref=feat/41-carry\ncarried=true\n`,
+    `proceed=true\nreason=carried\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${CARRY.baseSha}\nhead-ref=feat/41-carry\nrelink-since-head=false\ncarried=true\n`,
   );
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), CARRY.linkedIssues);
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8")), CARRY.specText);

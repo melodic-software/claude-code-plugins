@@ -693,8 +693,10 @@ export const CARRY_MAX = 96_000;
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 const ATTEMPT = /^[1-9][0-9]{0,4}$/;
 
-export function packReads({ attempt, prNumber, headSha, baseSha, headRef, linkedIssues, specText, context }) {
-  const packed = Buffer.from(JSON.stringify({ v: 1, attempt, pr: prNumber, head_sha: headSha, base_sha: baseSha, head_ref: headRef, linked_issues: linkedIssues, spec_text: specText, context })).toString("base64");
+export function packReads({ attempt, prNumber, headSha, baseSha, headRef, relinkSinceHead, linkedIssues, specText, context }) {
+  const packed = Buffer.from(
+    JSON.stringify({ v: 1, attempt, pr: prNumber, head_sha: headSha, base_sha: baseSha, head_ref: headRef, relink_since_head: relinkSinceHead, linked_issues: linkedIssues, spec_text: specText, context }),
+  ).toString("base64");
   return packed.length <= CARRY_MAX ? packed : "";
 }
 
@@ -703,6 +705,9 @@ export function packReads({ attempt, prNumber, headSha, baseSha, headRef, linked
 // and what was judged may have changed since, so it reads again. Anything
 // malformed is null, never a partial bundle.
 export function takeReads(carried, attempt) {
+  if (String(carried ?? "").length > CARRY_MAX) {
+    return null;
+  }
   let reads;
   try {
     reads = JSON.parse(Buffer.from(String(carried ?? ""), "base64").toString("utf8"));
@@ -718,13 +723,14 @@ export function takeReads(carried, attempt) {
     SHA.test(reads.head_sha ?? "") &&
     SHA.test(reads.base_sha ?? "") &&
     HEAD_REF.test(reads.head_ref ?? "") &&
+    (reads.relink_since_head === "true" || reads.relink_since_head === "false") &&
     Array.isArray(reads.linked_issues) &&
     Array.isArray(reads.spec_text) &&
     reads.context !== null &&
     typeof reads.context === "object" &&
     !Array.isArray(reads.context);
   return valid
-    ? { prNumber: reads.pr, headSha: reads.head_sha, baseSha: reads.base_sha, headRef: reads.head_ref, linkedIssues: reads.linked_issues, specText: reads.spec_text, context: reads.context }
+    ? { prNumber: reads.pr, headSha: reads.head_sha, baseSha: reads.base_sha, headRef: reads.head_ref, relinkSinceHead: reads.relink_since_head, linkedIssues: reads.linked_issues, specText: reads.spec_text, context: reads.context }
     : null;
 }
 
@@ -739,6 +745,7 @@ export function carryMain(env = process.env) {
       headSha: env.HEAD_SHA,
       baseSha: env.BASE_SHA,
       headRef: env.HEAD_REF,
+      relinkSinceHead: env.RELINK_SINCE_HEAD,
       linkedIssues: JSON.parse(readFileSync(env.SPEC_FILE, "utf8")),
       specText: JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8")),
       context: JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")),
@@ -768,6 +775,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
         `head-sha=${taken.headSha}`,
         `base-sha=${taken.baseSha}`,
         `head-ref=${taken.headRef}`,
+        `relink-since-head=${taken.relinkSinceHead}`,
         "carried=true",
       ];
       appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
