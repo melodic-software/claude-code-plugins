@@ -2170,7 +2170,7 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 4
     permissions:
       contents: read
     steps:
@@ -2211,7 +2211,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
       - name: Install the locked root toolchain
-        timeout-minutes: 2
+        timeout-minutes: 3
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           # --loglevel http logs each registry request, so a stalled install
