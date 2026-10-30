@@ -26,7 +26,8 @@ from the app argument when `--dir` names another directory:
    ready), then `/app-control:drive cleanup <slug> --out <dir>`.
 2. Step 5, the proof: `/app-control:drive <slug> <feature> --out <dir>`, then
    `/app-control:drive capture --kind <kind> <slug> --out <dir>` for one artifact, then
-   `/app-control:drive cleanup <slug> --out <dir>`.
+   `/app-control:drive cleanup <slug> --out <dir>`, then
+   `/app-control:drive ready <slug> --out <dir>` with the app stopped (Ready when stopped, below).
 
 Step 2's report must carry `No control skill: drive used <fallback>.`, name
 `.claude/skills/control-<slug>`, or name a plugin's `<plugin>:control-<slug>` as its control skill.
@@ -59,6 +60,12 @@ skill. Step 5's report must name
 - **Evidence.** Every path in drive's step 5 report, each step's `artifacts` and the
   `cleanup` evidence list alike, exists in its run directory and is not
   empty. A missing or empty one means unproven.
+- **Ready when stopped.** The `ready` call after step 5's cleanup (The drive calls, item 2) runs
+  with the app stopped. Record its `ready.exit` from drive's report beside the passing one from the
+  proof run. It must be non-zero: a Ready that passes with the app stopped cannot tell an unfit
+  instance from a fit one. Fix the command per the contract's "The Ready command" and run step 5
+  again, which is its one rerun under Proving; until this check passes, the skill is unproven. When
+  cleanup left the app running because this run did not start it, say the check did not run.
 - **No orphan.** For each launch record drive wrote (step 2 and step 5), read the pid's start time
   and command line bytes from the process table and hash the bytes as drive's launch record does. A
   process whose pid, start time and hash all equal the record is one this run started and left

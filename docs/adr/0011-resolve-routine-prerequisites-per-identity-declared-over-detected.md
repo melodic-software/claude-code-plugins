@@ -76,7 +76,7 @@ where no contradicting fact exists); it never licenses intent to outrank a fact.
   exists to prevent. The contradiction is simultaneously emitted as a **finding**: someone's
   tracked configuration is now wrong, and the moment of detection is the one moment the drift is
   visible, routed per that contract's two limbs (fail loud, or publish to a channel an agent
-  reads; `docs/conventions/liveness-assertion/README.md` owns the definitions): in a gate
+  reads; `docs/contracts/liveness-assertion/README.md` owns the definitions): in a gate
   context the resolver's non-zero exit is the loud limb; in a report context the divergence
   finding in the emitted resolution is the agent-readable one; the interactive `apply` path
   additionally proposes correcting the declaration.

@@ -85,6 +85,7 @@ jobs:
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
+            /.github/actions/setup-pinned-node/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json
             /.node-version
@@ -93,10 +94,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Resolve the review model
         id: models
@@ -137,14 +137,14 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -251,8 +251,6 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_util.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py
-        .github/workflows/pr-require-checks.yml
-        .github/workflows/pr-merge.yml
         docs/conventions/pr-pipeline.yaml
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
@@ -278,9 +276,42 @@ jobs:
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
-        .github/workflows/pr-unblock.yml
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        .github/scripts/pr-review-main/**
+        **/.claude/**
+        **/.claude-lane/**
+        docs/conventions/instruction-exception-register/**
+        docs/conventions/untrusted-content/**
+        **/.mcp.json
+        **/CLAUDE.md
+        **/CLAUDE.local.md
+        **/AGENTS.md
+        REVIEW.md
+        docs/standards/**
+        .github/workflows/dependabot-fragments.yml
+        .github/workflows/eval-browser-dispatch.yml
+        .github/workflows/intake-reenter.yml
+        .github/workflows/intake-triage.yml
+        .github/workflows/maintenance-audit-lane-runs.yml
+        .github/workflows/maintenance-reconcile-lost-runs.yml
+        .github/workflows/post-merge-demotion-alert.yml
+        .github/workflows/post-merge-test-mutation.yml
+        .github/workflows/pr-feedback-dispatch.yml
+        .github/workflows/pr-merge.yml
+        .github/workflows/pr-refine.yml
+        .github/workflows/pr-require-checks.yml
+        .github/workflows/pr-review-hosted.yml
+        .github/workflows/pr-review-main.yml
+        .github/workflows/pr-review-security-hosted.yml
+        .github/workflows/pr-run-activity-read.yml
+        .github/workflows/pr-run-activity-write.yml
+        .github/workflows/pr-unblock-dispatch.yml
+        .github/workflows/pr-unblock.yml
+        .github/workflows/pr-verify.yml
+        .github/workflows/release-publish-plugins.yml
+        .github/workflows/work-resolve-issue.yml
+        .github/workflows/work-unblock.yml
         plugins/review/skills/security-review/**
         plugins/review/evals/security-review-*/**
       # END hold-floor hold-paths

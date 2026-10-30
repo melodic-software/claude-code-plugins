@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "using Tarnquill.Core;\n\nvar failures = 0;\n\nvoid Check(string name, int expected, int actual)\n{\n    if (expected == actual)\n    {\n        Console.WriteLine($\"PASS {name}\");\n        return;\n    }\n\n    Console.WriteLine($\"FAIL {name}: expected {expected}, got {actual}\");\n    failures++;\n}\n\nCheck(\"PageCount(11, 5)\", 3, Paging.PageCount(11, 5));\nCheck(\"PageCount(1, 5)\", 1, Paging.PageCount(1, 5));\nCheck(\"PageCount(10, 5)\", 2, Paging.PageCount(10, 5));\nCheck(\"PageCount(0, 5)\", 0, Paging.PageCount(0, 5));\n\nConsole.WriteLine(failures == 0 ? \"All checks passed.\" : $\"{failures} check(s) failed.\");\nreturn failures == 0 ? 0 : 1;\n",
+      "why": "the seeded checks program"
+    },
+    {
+      "answer": "Check(\"PageCount(11, 5)\", 3, Paging.PageCount(11, 5));\nCheck(\"PageCount(1, 5)\", 1, Paging.PageCount(1, 5));\nCheck(\"PageCount(10, 5)\", 2, Paging.PageCount(10, 5));\nCheck(\"PageCount(0, 5)\", 0, Paging.PageCount(0, 5));\nCheck(\"PageCount(15, 5)\", 3, Paging.PageCount(15, 5));\n\nreturn failures == 0 ? 0 : 1;\n",
+      "why": "added a check for another exact multiple"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "Check(\"PageCount(11, 5)\", 3, Paging.PageCount(11, 5));\nCheck(\"PageCount(1, 5)\", 1, Paging.PageCount(1, 5));\nCheck(\"PageCount(10, 5)\", 3, Paging.PageCount(10, 5));\nCheck(\"PageCount(0, 5)\", 0, Paging.PageCount(0, 5));\n\nreturn failures == 0 ? 0 : 1;\n",
+      "why": "near miss: changed the expectation to match the bug"
+    },
+    {
+      "answer": "Check(\"PageCount(11, 5)\", 3, Paging.PageCount(11, 5));\nCheck(\"PageCount(1, 5)\", 1, Paging.PageCount(1, 5));\nCheck(\"PageCount(10, 5)\", 2, Paging.PageCount(10, 5));\n\nreturn failures == 0 ? 0 : 1;\n",
+      "why": "removed the zero-total check"
+    },
+    {
+      "answer": "Check(\"PageCount(11, 5)\", 3, Paging.PageCount(11, 5));\nCheck(\"PageCount(1, 5)\", 1, Paging.PageCount(1, 5));\nCheck(\"PageCount(10, 5)\", 2, Paging.PageCount(10, 5));\nCheck(\"PageCount(0, 5)\", 0, Paging.PageCount(0, 5));\n\nreturn 0;\n",
+      "why": "always exits 0"
+    }
+  ]
+}

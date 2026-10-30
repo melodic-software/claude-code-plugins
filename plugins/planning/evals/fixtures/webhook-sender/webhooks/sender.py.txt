@@ -1,0 +1,43 @@
+"""Delivers webhook events to subscriber endpoints, retrying a failed delivery."""
+import time
+import urllib.request
+
+MAX_ATTEMPTS = 3
+BACKOFF_SECONDS = 2
+
+
+class DeliveryError(Exception):
+    pass
+
+
+class WebhookSender:
+    def __init__(self, timeout=5):
+        self.timeout = timeout
+
+    def send(self, endpoint, payload):
+        try:
+            return self._post(endpoint, payload)
+        except DeliveryError:
+            return self._retry(endpoint, payload)
+
+    def _retry(self, endpoint, payload):
+        for attempt in range(2, MAX_ATTEMPTS + 1):
+            time.sleep(BACKOFF_SECONDS * attempt)
+            try:
+                return self._post(endpoint, payload)
+            except DeliveryError:
+                if attempt == MAX_ATTEMPTS:
+                    raise
+
+    def _post(self, endpoint, payload):
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                return response.status
+        except OSError as error:
+            raise DeliveryError(str(error)) from error

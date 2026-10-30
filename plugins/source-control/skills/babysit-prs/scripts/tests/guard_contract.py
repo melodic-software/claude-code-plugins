@@ -641,6 +641,26 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="babysit_resolve_thread.py::main",
     ),
     Refusal(
+        id="resolve.own-pr-lane-logins-requires-autonomous",
+        claim=(
+            "--own-pr-lane-logins is the worker tier's own-PR exception and nothing "
+            "else: outside --autonomous it is refused at exit 2, so it can never widen "
+            "the explicit or independent-resolver modes."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--own-pr-lane-logins",
+            "lane",
+        ),
+        exit_code=2,
+        error_contains=("--autonomous",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
         id="resolve.wrapper-reaches-failclosed-cli",
         claim=(
             "The resolve wrapper is a pure passthrough: no --allowed-owners refuses at "
@@ -890,6 +910,7 @@ def _thread(
     severity_flagged: bool | None = None,
     finding_count: object = _OMITTED,
     human_deferred: bool = False,
+    lane_answered: bool | None = None,
 ) -> dict[str, object]:
     thread: dict[str, object] = {
         "isResolved": resolved,
@@ -907,6 +928,10 @@ def _thread(
         # MEANINGFUL value here (the projection reports it for a truncated
         # comment page), which is why omission needs its own sentinel.
         thread["findingCount"] = finding_count
+    if lane_answered is not None:
+        # Omitted by default, so the own-PR rows keep exercising the guard's
+        # fail-closed `.get(..., False)` default.
+        thread["laneAnswered"] = lane_answered
     return thread
 
 
@@ -1146,6 +1171,70 @@ PREDICATES: tuple[Predicate, ...] = (
         expected="eligible",
     ),
     Predicate(
+        id="classify.own-pr-requires-a-lane-answer",
+        claim=(
+            "On a PR whose author is a self login, an outdated clean bot thread is "
+            "still refused unless a lane login answered it: the resolver is the PR's "
+            "author, so the 'handled' claim must come from another actor. An absent "
+            "signal fails closed."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False, bot_only=True, outdated=True, severity_flagged=False
+        ),
+        flags={
+            "autonomous": True,
+            "only_outdated": False,
+            "include_human": False,
+            "own_pr": True,
+        },
+        expected="skipped-own-pr-not-lane-answered",
+    ),
+    Predicate(
+        id="classify.own-pr-keeps-the-severity-line",
+        claim=(
+            "A lane answer never buys past the severity line: a CRITICAL or security "
+            "thread on an own PR stays with a person."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=True,
+            lane_answered=True,
+        ),
+        flags={
+            "autonomous": True,
+            "only_outdated": False,
+            "include_human": False,
+            "own_pr": True,
+        },
+        expected="skipped-severity-marked",
+    ),
+    Predicate(
+        id="classify.own-pr-lane-answered-is-eligible",
+        claim=(
+            "The own-PR exception admits exactly an outdated, bot-opened, unflagged "
+            "thread a lane already answered."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            lane_answered=True,
+        ),
+        flags={
+            "autonomous": True,
+            "only_outdated": False,
+            "include_human": False,
+            "own_pr": True,
+        },
+        expected="eligible",
+    ),
+    Predicate(
         id="classify.already-resolved-precedes-every-guard",
         claim=(
             "An already-resolved thread is skipped before any other guard is consulted, "
@@ -1252,6 +1341,15 @@ MECHANISMS: tuple[Mechanism, ...] = (
         ),
         entry_point=WHOLE_REVIEW_CLI,
         must_contain=("markPullRequestReadyForReview",),
+    ),
+    Mechanism(
+        id="whole-review.toggles-draft",
+        claim=(
+            "babysit_whole_review.py toggle performs GitHub writes: it converts a "
+            "pull request to a draft and marks it ready again through GraphQL."
+        ),
+        entry_point=WHOLE_REVIEW_CLI,
+        must_contain=("convertPullRequestToDraft", "markPullRequestReadyForReview"),
     ),
     Mechanism(
         id="review.posts-a-comment",
@@ -1556,15 +1654,21 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         wrapper=None,
         mutation=MUTATING,
         mutates_what="a pull request's draft state",
-        gate="pr-merge.yml runs `recover` with the lane token, live mode only",
+        gate=(
+            "pr-merge.yml's merge job runs `recover`, and enable-auto-merge.mjs "
+            "runs `recover`, `request` and `toggle`, with the lane token, live "
+            "mode only"
+        ),
         claim=(
             "`recover` reads each listed draft's comments and newest "
             "conversion to draft, and marks ready a draft whose newest "
             "reasons comment (`<!-- babysit-merge-risk -->`) by the lane "
             "identity records a whole-review request, when the lane identity "
-            "also made that conversion within ten minutes after a record."
+            "also made that conversion within ten minutes after a record. "
+            "`request` writes nothing; `toggle` converts the pull request to "
+            "a draft and marks it ready again."
         ),
-        backed_by=("whole-review.marks-ready",),
+        backed_by=("whole-review.marks-ready", "whole-review.toggles-draft"),
     ),
     EntryPoint(
         path=SKIP_CLI,

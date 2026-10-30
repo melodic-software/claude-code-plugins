@@ -3,10 +3,10 @@
 # of pr-body-linkage-gate.test.sh. Same caveat as that file: expectations are
 # transcribed by hand from a reading of the ci-workflows pr-issue-linkage
 # validator, not proven against it. What these cases cover is the payload
-# handling unique to the MCP surface (create-without-body blocks,
-# update-without-body allows, owner/repo scope guard, kill switch) plus the
-# validator shapes a hand port gets wrong (comment stripping, deeper headings
-# as Related content, bare `Closes #`).
+# handling unique to the MCP surface (a missing body field allows, owner/repo
+# scope guard, kill switch) plus the validator shapes a hand port gets wrong
+# (comment stripping and code masking ahead of the negated-closer scan, bare
+# `close #`), and that a body missing a section or closing line passes.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures
 # and invokes the hook as a subprocess.
@@ -96,41 +96,42 @@ NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Relate
 OPTOUT=$'No linked issue'"$SECTIONS"
 OPTOUT_ALIAS=$'No related issue: tracked in the profile file itself.'"$SECTIONS"
 PAST_TENSE=$'Fixed #31'"$SECTIONS"
-COMMENTED=$'<!-- Closes #12 -->\n\n## Summary\n\nx\n\n<!-- ## Related\n- N/A -->'
-BARE_HASH=$'Closes #'"$SECTIONS"
-DEEP_HEADING=$'Fixes #7\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody\n\n## Verification\n\n### evidence\n\nbody\n\n## Related\n\n### sub\n\ncontent'
 CROSS_REPO=$'Resolves other/repo#9'"$SECTIONS"
 # #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
+# A negated closer is the one body problem the gate blocks on.
+BAD=$'Refs: #12\n\nThis does not close #12.'"$SECTIONS"
 
 run 0 "valid body passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
-run 2 "missing Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 2 "a workflow wiring only pr-require-checks/check-contract enforces" "$(payload "$RENAMED" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 2 "empty Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
-run 2 "missing keyword blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
-run 2 "#3205 body (no ## Fix) is blocked" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
-FENCED_FIX=$'Closes #12\n\n## Summary\n\nx\n\n```\n## Fix\ntemplate only\n```\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
-NESTED_TICKS=$'See the format: `` closes #5 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
-ESCAPED_TICK=$'Use `` ` `` because `closes #5` is shown.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
-run 2 "a ## Fix that exists only inside a fenced sample is blocked" "$(payload "$GATED" $CREATE $OWNER $REPO "$FENCED_FIX")"
-run 2 "a decoy closing keyword inside nested backticks is not linkage" "$(payload "$GATED" $CREATE $OWNER $REPO "$NESTED_TICKS")"
-run 2 "a decoy keyword after an escaped-backtick idiom is not linkage" "$(payload "$GATED" $CREATE $OWNER $REPO "$ESCAPED_TICK")"
+run 2 "negated closer blocks beside a Refs: marker" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
+run 2 "negated closer blocks beside a real closing keyword" "$(payload "$GATED" $CREATE $OWNER $REPO $'Closes #4\n\nThis is not meant to resolve #12 here.'"$SECTIONS")"
+run 2 "a workflow wiring only pr-require-checks/check-contract enforces" "$(payload "$RENAMED" $CREATE $OWNER $REPO "$BAD")"
+# CI reports the rest of the body contract as advisory, so none of it blocks.
+run 0 "missing Related passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "empty Related passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
+run 0 "missing closing line passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
+run 0 "#3205 body (no ## Fix) passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
+run 0 "an empty body passes" "$(payload "$GATED" $CREATE $OWNER $REPO "")"
+# Comment stripping and code masking still apply before the negation scan.
+NESTED_TICKS=$'Refs: #5\n\nSee the format: `` does not close #5 `x` `` for reference.'"$SECTIONS"
+ESCAPED_TICK=$'Refs: #5\n\nUse `` ` `` because `does not close #5` is shown.'"$SECTIONS"
+COMMENTED=$'Refs: #12\n\n<!-- This does not close #12. -->'"$SECTIONS"
+run 0 "a negated closer inside nested backticks is masked" "$(payload "$GATED" $CREATE $OWNER $REPO "$NESTED_TICKS")"
+run 0 "a negated closer after an escaped-backtick idiom is masked" "$(payload "$GATED" $CREATE $OWNER $REPO "$ESCAPED_TICK")"
+run 0 "a negated closer inside an HTML comment is stripped" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
 run 0 "No linked issue opt-out passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
 run 0 "No related issue alias passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
 run 0 "past-tense keyword (Fixed #N) passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"
-run 2 "markers only inside HTML comments block" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
-run 2 "bare 'Closes #' with no number blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
-run 0 "deeper heading is section content" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
+run 0 "a negated 'close #' with no number is no closer and passes" "$(payload "$GATED" $CREATE $OWNER $REPO $'This does not close #.'"$SECTIONS")"
 run 0 "owner/repo#N keyword form passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
 run 0 "Refs: #N non-closing marker passes" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12'"$SECTIONS")"
-run 2 "negated closer blocks beside a Refs: marker" "$(payload "$GATED" $CREATE $OWNER $REPO $'Refs: #12\n\nThis does not close #12.'"$SECTIONS")"
-run 2 "create with no body field blocks (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
+run 0 "create with no body field passes (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
 run 0 "update with no body field passes" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
-run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"
-run 0 "different target repo is out of scope" "$(payload "$GATED" $CREATE other-org other-repo "$NO_RELATED")"
-run 0 "gated repo with no origin remote allows (undeterminable target)" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
+run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$BAD")"
+run 0 "different target repo is out of scope" "$(payload "$GATED" $CREATE other-org other-repo "$BAD")"
+run 0 "gated repo with no origin remote allows (undeterminable target)" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$BAD")"
+run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$BAD")"
+run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$BAD")"
 run 0 "empty stdin allows" ""
 
 # A GitHub server bundled by a plugin names its tools
@@ -139,14 +140,14 @@ run 0 "empty stdin allows" ""
 # opens PRs past the gate.
 SCOPED_CREATE=mcp__plugin_github_github__create_pull_request
 SCOPED_UPDATE=mcp__plugin_my-plugin_github__update_pull_request
-run 2 "scoped create with a failing body blocks" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$NO_RELATED")"
+run 2 "scoped create with a failing body blocks" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$BAD")"
 run 0 "scoped create with a passing body passes" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$GOOD")"
-run 2 "scoped create with no body field blocks (empty body)" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO)"
-run 2 "scoped update with a failing body blocks" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO "$NO_RELATED")"
+run 0 "scoped create with no body field passes (empty body)" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO)"
+run 2 "scoped update with a failing body blocks" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO "$BAD")"
 run 0 "scoped update with a passing body passes" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO "$GOOD")"
 run 0 "scoped update with no body field passes" "$(payload "$GATED" $SCOPED_UPDATE $OWNER $REPO)"
-run 0 "scoped different target repo is out of scope" "$(payload "$GATED" $SCOPED_CREATE other-org other-repo "$NO_RELATED")"
-run 0 "unrelated scoped tool is ignored" "$(payload "$GATED" mcp__plugin_x_github__get_file_contents $OWNER $REPO "$NO_RELATED")"
+run 0 "scoped different target repo is out of scope" "$(payload "$GATED" $SCOPED_CREATE other-org other-repo "$BAD")"
+run 0 "unrelated scoped tool is ignored" "$(payload "$GATED" mcp__plugin_x_github__get_file_contents $OWNER $REPO "$BAD")"
 
 # The hooks.json row that wires this gate must route both name shapes here and
 # nothing else.
@@ -174,7 +175,7 @@ for name in mcp__github__merge_pull_request mcp__github__create_pull_request_rev
 done
 
 # Field shapes of the batched reader. A non-string body is rendered as text and
-# judged (it can hold no section, so it blocks). Trailing newlines on the
+# judged (it holds no negated closer, so it passes). Trailing newlines on the
 # exact-match fields are chomped. A CR inside owner is stripped and the call
 # gated. A tool_input that is not an object fails the batch and takes the
 # per-field fallback, whose verdict for an undeterminable target is allow.
@@ -183,13 +184,13 @@ payload_raw_body() { # <cwd> <tool> <owner> <repo> <body-json>
     '{session_id:"test", cwd:$d, tool_name:$t, tool_input:{owner:$o, repo:$r, title:"t", body:$b}}'
 }
 for raw in 5 true '{"a":1}' '["x"]'; do
-  run 2 "non-string body $raw is judged as text and blocks" "$(payload_raw_body "$GATED" $CREATE $OWNER $REPO "$raw")"
+  run 0 "non-string body $raw is judged as text and passes" "$(payload_raw_body "$GATED" $CREATE $OWNER $REPO "$raw")"
 done
-run 2 "owner with a trailing newline still names this repo" "$(payload "$GATED" $CREATE "$OWNER"$'\n' $REPO "$NO_RELATED")"
-run 2 "repo with a trailing newline still names this repo" "$(payload "$GATED" $CREATE $OWNER "$REPO"$'\n' "$NO_RELATED")"
-run 2 "tool name with a trailing newline still matches" "$(payload "$GATED" "$CREATE"$'\n' $OWNER $REPO "$NO_RELATED")"
-run 2 "cwd with a trailing newline still finds the gate file" "$(payload "$GATED"$'\n' $CREATE $OWNER $REPO "$NO_RELATED")"
-run 2 "owner with a carriage return is gated (accepted stricter case)" "$(payload "$GATED" $CREATE "$OWNER"$'\r' $REPO "$NO_RELATED")"
+run 2 "owner with a trailing newline still names this repo" "$(payload "$GATED" $CREATE "$OWNER"$'\n' $REPO "$BAD")"
+run 2 "repo with a trailing newline still names this repo" "$(payload "$GATED" $CREATE $OWNER "$REPO"$'\n' "$BAD")"
+run 2 "tool name with a trailing newline still matches" "$(payload "$GATED" "$CREATE"$'\n' $OWNER $REPO "$BAD")"
+run 2 "cwd with a trailing newline still finds the gate file" "$(payload "$GATED"$'\n' $CREATE $OWNER $REPO "$BAD")"
+run 2 "owner with a carriage return is gated (accepted stricter case)" "$(payload "$GATED" $CREATE "$OWNER"$'\r' $REPO "$BAD")"
 run 0 "tool_input that is not an object allows (undeterminable target)" \
   "$(jq -cn --arg d "$GATED" --arg t $CREATE '{session_id:"test", cwd:$d, tool_name:$t, tool_input:"x"}')"
 
@@ -200,15 +201,15 @@ mkdir -p "$GATED/.claude"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
 JSON
-run 0 "consumer's own tracked gate defers the plugin copy" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "consumer's own tracked gate defers the plugin copy" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"bash","args":[".claude/hooks/pr-linkage-mcp-gate.sh"]}]}]}}
 JSON
-run 0 "exec-form wiring (gate name only in args) also defers" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "exec-form wiring (gate name only in args) also defers" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
 JSON
-run 2 "unrelated settings hooks do not defer" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 2 "unrelated settings hooks do not defer" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
 
 # Deferral telemetry envelope: status must be the documented "skipped" (an
 # unknown status maps to error in the reference sink); the domain detail rides
@@ -221,7 +222,7 @@ CAPTURE="$WORK/captured-envelope.json"
 printf '#!/usr/bin/env bash\ncat > "%s"\n' "$CAPTURE" >"$SINK"
 chmod +x "$SINK"
 HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
-  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")" >/dev/null 2>&1 || true
+  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")" >/dev/null 2>&1 || true
 # The sink is fire-and-forget (backgrounded); poll in 20ms steps like the
 # established wait_for_sink helper (markdown-format.test.sh) — a coarse sleep
 # races variable process-spawn latency, notably on Windows Git Bash.
@@ -241,7 +242,7 @@ rm -rf "$GATED/.claude"
 # Kill switch: disabled via the userConfig mirror allows a bad body through.
 rc=0
 CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED=false \
-  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")" >/dev/null 2>&1 || rc=$?
+  bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" == "0" ]]; then
   PASS=$((PASS + 1))
 else

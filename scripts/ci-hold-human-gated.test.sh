@@ -99,9 +99,9 @@ fi
 # .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
 # BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
 # arguments. A labels read fails its first STUB_FAILS calls, then
-# prints STUB_LABELS one per line. A comments read fails when STUB_COMMENTS_FAIL
-# is set, else applies the --jq filter to the STUB_COMMENTS array, as gh does
-# per page.
+# answers STUB_LABELS (comma separated) as the API's label list. A comments
+# read fails when STUB_COMMENTS_FAIL is set, else answers the STUB_COMMENTS
+# array.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -109,12 +109,11 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 */labels*)
   [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { printf '%s\n' "${STUB_FAIL_TEXT:-}" >&2; exit 1; }
-  [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS"
+  jq -cn --arg l "$STUB_LABELS" '$l | split(",") | map(select(. != "") | {name: .})'
   ;;
 */comments*)
   [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
-  while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
-  jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
+  printf '%s\n' "${STUB_COMMENTS:-[]}"
   ;;
 *) exit 1 ;;
 esac
@@ -152,6 +151,16 @@ expect() {
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
+  # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
+  # none with STUB_NO_MODULE.
+  if [[ -z "${STUB_NO_MODULE:-}" ]]; then
+    mkdir -p "$TMP_ROOT/base-config/.github/scripts/pr-merge"
+    if [[ -n "${STUB_MODULE_TEXT:-}" ]]; then
+      printf '%s\n' "$STUB_MODULE_TEXT" >"$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
+    else
+      cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
+    fi
+  fi
   if [[ -n "${STUB_PIPELINE:-}" ]]; then
     mkdir -p "$TMP_ROOT/base-config/docs/conventions"
     printf '%s\n' "$STUB_PIPELINE" >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
@@ -166,7 +175,7 @@ expect() {
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls labels call(s) got $calls"
-  elif [[ "$calls" -gt 0 && "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name" ]]; then
+  elif [[ "$calls" -gt 0 && "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/6419/labels?per_page=100 --paginate" ]]; then
     fail "$label: unexpected labels call '$(grep '/labels' "$TMP_ROOT/log" | sort -u)'"
   elif grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the tracker config was read through the API: '$(sort -u "$TMP_ROOT/log")'"
@@ -214,6 +223,19 @@ REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
 export STUB_COMMENTS="[$NEW,$REFUSAL]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
 expect "a newer pr-merge refusal beats an older security hold, naming its fenced reasons" 1 1 "needs-human" 0 \
   "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
+# A reason line past 100 columns wraps at a space, its continuation indented
+# two spaces, and more than 20 lines fold into <details>: the reason reads
+# back as one line either way.
+WRAPPED_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\npr-merge\'s gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)\n```'
+WRAPPED="$(hold "$APP" "$WRAPPED_BODY")"
+export STUB_COMMENTS="[$NEW,$WRAPPED]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
+expect "a wrapped pr-merge refusal names its reason on one line" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Changes a trust gate"
+FOLDED_BODY="${WRAPPED_BODY/$'```text'/$'<details><summary>Its reasons (21 lines)</summary>\n\n```text'}"$'\n\n</details>'
+FOLDED="$(hold "$APP" "$FOLDED_BODY")"
+export STUB_COMMENTS="[$NEW,$FOLDED]"
+expect "a folded pr-merge refusal names its reason too" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Its reasons"
 export STUB_COMMENTS="[$REFUSAL,$NEW]"
 expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
 # A lane's refusal (no attend-queue marker) set no label, so a newer one
@@ -284,7 +306,24 @@ expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not r
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
-unset STUB_TRACKER
+export STUB_TRACKER='   '
+expect "a whitespace-only tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  owner-call "}}}'
+expect "the tracker's label is trimmed" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  "}}}'
+expect "a blank tracker label falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
+# The rule is the base's merge-holds.mjs humanGatedLabel: a base that cannot
+# judge fails closed before any read.
+export STUB_TRACKER="$CUSTOM" STUB_NO_MODULE=1
+expect "a base with no merge-holds.mjs fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE with its merge-holds.mjs"
+unset STUB_NO_MODULE
+export STUB_MODULE_TEXT='export const other = 1;'
+expect "a base module without humanGatedLabel fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => 7;'
+expect "a base module answering no label fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "";'
+expect "a base module answering an empty label fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+unset STUB_TRACKER STUB_MODULE_TEXT
 export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA

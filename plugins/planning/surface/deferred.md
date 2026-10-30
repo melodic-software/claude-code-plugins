@@ -31,3 +31,5 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 | Image export | Park |
 | The self-improvement loop (the interview skill improving the interview process) | Park |
 | Several sessions each taking a group | Park |
+| The shared page's question screen on this page: the answer in the same scroll as the question, with a folded Claude section under it | Open: #8633 recommends its own phase, designed with the shared lane |
+| The visual-viewport pin above 820 px, for a phone held landscape | Open |

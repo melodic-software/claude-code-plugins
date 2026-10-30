@@ -26,7 +26,9 @@
 //      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
-//      root comment and resolves it only when it is VALID. The PR head is
+//      root comment and resolves it only when it is VALID, and only on a
+//      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
+//      the thread is left open for the person or their babysit worker tier. The PR head is
 //      re-read before each post and each resolve: once it is not the head
 //      this job gated, nothing more is posted or resolved.
 //   4. Posts the round marker, as the lanes App, once per model run: a
@@ -106,7 +108,7 @@ import {
   staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
-import { DISPUTED, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
+import { DISPUTED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
@@ -147,9 +149,22 @@ function check(condition, why) {
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+// The check runs a ci snapshot may cite: a github-actions job page.
+const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
+const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
+const ciValid = (ci) =>
+  ci !== null &&
+  typeof ci === "object" &&
+  Object.keys(ci).sort().join(",") === "runs,state" &&
+  ["green", "red", "unsettled"].includes(ci.state) &&
+  Array.isArray(ci.runs) &&
+  ci.runs.length <= 100 &&
+  ci.runs.every((run) => run !== null && typeof run === "object" && Object.keys(run).sort().join(",") === "name,url" && CI_RUN_NAME.test(String(run.name)) && CI_RUN_URL.test(String(run.url)));
+
 // run.json is the select job's: the gated head and the threads it kept, with
 // the comment ids the model was shown and, from a select job that records
-// them, the reviewed heads it kept them on.
+// them, the reviewed heads it kept them on and the head's covering check runs
+// (address-feedback.mjs ciSnapshot).
 export function parseRun(text) {
   let run;
   try {
@@ -173,6 +188,7 @@ export function parseRun(text) {
     run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
     "run.json holds a malformed reviewed_heads list",
   );
+  check(run.ci === undefined || ciValid(run.ci), "run.json holds a malformed ci snapshot");
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -675,6 +691,18 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason, posted: [] };
     }
     replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
+    // GitHub lets only a PR's author or a writer resolve its threads, and the
+    // lanes App is neither on a PR a person opened: there each answered thread
+    // is left open with the lanes App's reply, for the person or their
+    // babysit worker tier to resolve. The stand-in returns LEFT_OPEN, so
+    // settleDisputes reports such a thread as left open, not resolved.
+    const appPr = (await api.getPull(pr))?.user?.id === appId;
+    const resolve = appPr
+      ? resolveAfterReply
+      : async (_api, id) => {
+          log(`${id}: left open; the lanes App cannot resolve a thread on a PR it did not open`);
+          return LEFT_OPEN;
+        };
     const posted = [];
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
@@ -706,7 +734,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
           throw new Error(`the reply on ${reply.thread} did not land on its thread`);
         }
         posted.push({ thread: reply.thread, disposition: reply.disposition });
-        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id], headMoved))) {
+        if (reply.disposition === "VALID" && !(await resolve(api, reply.thread, [...ids, answer.id], headMoved))) {
           log(`replied on ${reply.thread} but left it open: it or the PR head changed while the reply was posted`);
           escalationReason = "feedback-partial";
           continue;
@@ -716,7 +744,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
         escalationReason = "feedback-partial";
         break;
       }
-      log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
+      log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" && appPr ? "; resolved" : ""}`);
     }
     // A thread left open (INCORRECT, UNCERTAIN or VALID-defer) goes to the
     // adjudicator's verdict, not straight to a person (owner decision): it is
@@ -732,14 +760,16 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       api,
       pr,
       adjudicatedSha: run.head_sha,
+      headSha,
       posted,
       replies,
       shown,
       now,
       verdicts: posted.some((entry) => DISPUTED.includes(entry.disposition)) ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      ci: run.ci,
       pushed: run.head_sha !== headSha,
       headMoved,
-      resolveAfterReply,
+      resolveAfterReply: resolve,
       escalationReason,
       log,
     });

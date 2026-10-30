@@ -13,7 +13,8 @@
 #
 #   ci_gh_read::reset <dir> <deadline>
 #
-# Clears the rate-guard stops an earlier case left in <dir> and sets the
+# Clears the rate-guard stops and kept pull request reads (pr_read) an
+# earlier case left in <dir> and sets the
 # wait deadline to the epoch second <deadline>, so a case runs on a stub clock.
 ci_gh_read::install() {
   local workflow="$1" dir="$2" budget=
@@ -40,6 +41,7 @@ ci_gh_read::install() {
 }
 
 ci_gh_read::reset() {
+  rm -rf "$1/pr-reads"
   rm -rf "$1/api-budget"
   echo "$2" >"$1/gh-read.deadline"
 }

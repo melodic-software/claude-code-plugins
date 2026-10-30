@@ -1,0 +1,21 @@
+# Shell suites that scripts/run-plugin-tests.sh lets run past the default
+# per-suite ceiling. README.md "Per-suite time budget in CI" holds the
+# threshold, the ceiling and their basis. A suite listed here still warns
+# above the threshold.
+#
+# One `<suite> <ceiling-seconds>` row per suite, its reason in a comment above
+# it. An entry that matches no discovered suite fails the runner (exit 2).
+
+# Each shell suite whose scripts/suite-seconds.txt median is over 150 s, half
+# the default ceiling, at 480 s: the 9-minute test-bash leg less its setup.
+# Remove a row once its suite's median is under 150 s.
+plugins/guardrails/hooks/block-root-delete-target.test.sh 480
+plugins/planning/shared/tests/align.test.sh 480
+plugins/planning/shared/tests/ui-a.test.sh 480
+plugins/planning/shared/tests/ui-c.test.sh 480
+plugins/planning/surface/surface-journey.test.sh 480
+plugins/planning/surface/surface-ui-c.test.sh 480
+plugins/planning/surface/surface.test.sh 480
+plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 480
+plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 480
+plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 480

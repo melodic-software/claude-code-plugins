@@ -1,11 +1,20 @@
 <!--
   Variant switcher for the explore-directions HTML mockup. Paste this whole fragment just before
   </body>. Each variant is an element carrying data-variant (its key) and data-variant-label (its
-  name), for example: <section data-variant="A" data-variant-label="Quiet">...</section>.
-  Keys 1-N and the left and right arrows switch (wrapping around), R replays the current variant's
-  entrance, and keys are ignored while a field has focus or a modifier is held. State lives in
-  memory only, so the page works from file:// under the mockup's CSP (inline style and script,
-  nothing remote). Add data-position="top" to the nav when a variant occupies the bottom center.
+  name), for example: <section data-variant="A" data-variant-label="Quiet">...</section>. Inside a
+  variant, each screen state is an element carrying data-screen-state (its key, the same in every
+  variant) and data-screen-state-label, for example:
+  <div data-screen-state="empty" data-screen-state-label="Empty">...</div>. The attribute is not
+  data-state, which component libraries (Radix, Headless UI) set on their own open/closed parts.
+  Keys 1-N and the left and right arrows switch variants (wrapping around), the state button and
+  the up and down arrows step through the current variant's states (wrapping around, kept across a
+  variant switch), R replays the current variant's entrance, and keys are ignored while a field has
+  focus or a modifier is held. The up and down arrows still scroll the page when the variant has
+  fewer than two states. The switcher keeps what it shows in memory only, so the page works from
+  file:// under the mockup's CSP (inline style and script, nothing remote). It reads the variant
+  and state elements once, when it runs, so render them before it: in the markup or a plain
+  inline script above it, never a module script or a DOMContentLoaded listener. Add
+  data-position="top" to the nav when a variant occupies the bottom center.
   Switching and replay remount a variant from a copy of its markup, so listeners attached to
   elements inside it are lost: wire variant interactions with listeners delegated from document.
   Chrome, not a contestant: leave its look alone.
@@ -15,6 +24,8 @@
   <button type="button" class="vs-item vs-step" data-step="-1" aria-label="Previous variant">&larr;</button>
   <span class="vs-items"></span>
   <button type="button" class="vs-item vs-step" data-step="1" aria-label="Next variant">&rarr;</button>
+  <span class="vs-divider vs-state-part" aria-hidden="true"></span>
+  <button type="button" class="vs-item vs-state vs-state-part"></button>
   <span class="vs-divider" aria-hidden="true"></span>
   <button type="button" class="vs-item vs-replay" aria-label="Replay the variant (R)">&#8635;</button>
 </nav>
@@ -74,16 +85,21 @@
   .vs-item:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); outline-offset: 2px; }
   .vs-item[aria-current="true"] { color: #fff; }
   .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
-  [data-variant][hidden] { display: none !important; }
+  .vs-state { color: #fff; }
+  .vs-state-part[hidden] { display: none; }
+  [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
 </style>
 <script>
   (() => {
     const nav = document.querySelector(".vs");
     const list = nav.querySelector(".vs-items");
     const highlight = nav.querySelector(".vs-highlight");
+    const stateButton = nav.querySelector(".vs-state");
+    const stateParts = nav.querySelectorAll(".vs-state-part");
     const variants = [...document.querySelectorAll("[data-variant]")];
     if (variants.length === 0) { nav.hidden = true; return; }
     let current = 0;
+    let stateKey = null;
 
     const items = variants.map((v, i) => {
       const b = document.createElement("button");
@@ -107,6 +123,35 @@
       variants[i] = fresh;
     }
 
+    // Queried on each use, since remounting replaces the state elements.
+    const states = () => [...variants[current].querySelectorAll("[data-screen-state]")];
+
+    // Falls back to the first state for display only, so the pick survives a variant without it.
+    function applyState() {
+      const all = states();
+      stateParts.forEach((p) => { p.hidden = all.length === 0; });
+      if (all.length === 0) return;
+      const shown = all.find((s) => s.dataset.screenState === stateKey) || all[0];
+      all.forEach((s) => { s.hidden = s !== shown; });
+      const text = `state · ${shown.dataset.screenStateLabel || shown.dataset.screenState}`;
+      stateButton.textContent = text;
+      stateButton.setAttribute("aria-label", `${text}, next state (down arrow)`);
+    }
+
+    function stepState(step) {
+      const all = states();
+      if (all.length < 2) return false;
+      const i = Math.max(0, all.findIndex((s) => s.dataset.screenState === stateKey));
+      stateKey = all[(i + step + all.length) % all.length].dataset.screenState;
+      applyState();
+      return true;
+    }
+
+    function replay() {
+      remount(current);
+      applyState();
+    }
+
     function show(i) {
       current = (i + variants.length) % variants.length;
       variants.forEach((v, j) => { v.hidden = j !== current; });
@@ -114,12 +159,13 @@
         if (j === current) b.setAttribute("aria-current", "true");
         else b.removeAttribute("aria-current");
       });
-      remount(current);
+      replay();
       place();
     }
 
     nav.querySelectorAll(".vs-step").forEach((b) => b.addEventListener("click", () => show(current + Number(b.dataset.step))));
-    nav.querySelector(".vs-replay").addEventListener("click", () => remount(current));
+    stateButton.addEventListener("click", () => stepState(1));
+    nav.querySelector(".vs-replay").addEventListener("click", replay);
     window.addEventListener("resize", place);
 
     document.addEventListener("keydown", (e) => {
@@ -130,7 +176,9 @@
       if (n >= 1 && n <= variants.length) show(n - 1);
       else if (e.key === "ArrowRight") show(current + 1);
       else if (e.key === "ArrowLeft") show(current - 1);
-      else if (e.key === "r" || e.key === "R") remount(current);
+      else if (e.key === "ArrowDown") { if (!stepState(1)) return; }
+      else if (e.key === "ArrowUp") { if (!stepState(-1)) return; }
+      else if (e.key === "r" || e.key === "R") replay();
       else return;
       e.preventDefault();
     });

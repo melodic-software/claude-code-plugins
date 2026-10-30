@@ -613,7 +613,7 @@ bad_value "a null value" $'proof_level: null\n' "proof_level is null"
 bad_value "an empty quoted string" $'proof_level: ""\n' 'proof_level=""'
 bad_value "a flow list" $'proof_level: [strict]\n' "proof_level=[strict]"
 bad_value "a block list" $'proof_level:\n  - strict\n' "proof_level"
-bad_value "a key set twice" $'proof_level: strict\nproof_level: live\n' "set more than once"
+bad_value "a key set twice" $'proof_level: strict\nproof_level: live\n' "duplicate key \`proof_level\` (first at line 1)"
 file_level() { # file_level <label> <file body>
   local r out
   r="$(new_root "fl-$1")"

@@ -152,13 +152,9 @@ plugin's task-end judge rule `testing/judge/rule-restated-expectation`.
 
 `--record-mutants <file>` writes the mutants an exercised run applied, with their states.
 `--replay-mutants <before> --record-mutants <after>` applies exactly those mutants again after the
-tests changed, writes their new states, and compares the two records with
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/compare-records.sh" <before> <after>`: every mutant detected
-before must still be detected. The report carries one `Gate: pass` or `Gate: block` line and one
-`newly-surviving <path>:<line_start> <operator>` line per blocking mutant. Both runs use the manual
-protocol with `test-command`, and a red baseline stops either one and names the failing tests.
-Read [`context/mutant-record.md`](context/mutant-record.md) before either run: it owns the record
-format, the refusals, and the replay's Phase 0.
+tests changed and compares the records with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compare-records.sh" <before> <after>`:
+every mutant detected before must still be detected. Read [`context/mutant-record.md`](context/mutant-record.md)
+before either run: it owns the record format, the refusals, the replay's Phase 0, and the `Gate:` lines.
 
 ## The contract this skill holds
 
@@ -184,11 +180,15 @@ Three properties, stated first because everything below depends on them:
 
 ## Phase 0: Preflight
 
-Refuse to proceed, with the specific remediation, when any of these fail. Under `--exercised`, run
-them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
+Resolve the config first, then refuse, with the specific remediation, when any later check fails.
+Under `--exercised`, run them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
 
-- **Config missing** → `/mutation-testing:setup apply`.
-- **Tool unavailable** → `/mutation-testing:setup check` names the install line.
+- **Config.** Read and merge every layer the setup skill's [config merge model](../setup/SKILL.md#the-config-merge-model)
+  names. **No config at any layer** → fall back to defaults, never refuse. **Tool unavailable** →
+  name the install command and offer `tool: manual` for this run; refuse only when the user declines
+  both. Read [`context/config-fallback.md`](context/config-fallback.md) before resolving the config:
+  it owns the merge, the `Config:` line, the fallback defaults, and the rule that **the test command
+  is never guessed**, so an unattended run with no test command stops and asks for one.
 - **Working tree dirty in a file about to be mutated** → stop. A mutation harness reverts by
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.

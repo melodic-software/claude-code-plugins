@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": ".PHONY: test seed release\n\ntest:\n\tbash scripts/run_tests.sh\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n\nrelease:\n\tpython3 -m bfk.cli release $(VERSION)\n",
+      "why": "the scaffold Makefile"
+    },
+    {
+      "answer": "release:\n\tpython3 -m bfk.cli release $(VERSION)\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n\ntest:\n\t./scripts/run_tests.sh\n",
+      "why": "targets reordered, test recipe edited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": ".PHONY: test release\n\ntest:\n\tbash scripts/run_tests.sh\n\nrelease:\n\tpython3 -m bfk.cli release $(VERSION)\n",
+      "why": "near miss: dropped the seed target the user did not approve retiring"
+    },
+    {
+      "answer": ".PHONY: test seed\n\ntest:\n\tbash scripts/run_tests.sh\n\nseed:\n\tpython3 scripts/seed_fixtures.py\n",
+      "why": "near miss: dropped the release target"
+    },
+    {
+      "answer": "seed_fixtures.py imports bfk.legacy, which does not exist.",
+      "why": "answer to a different question"
+    }
+  ]
+}

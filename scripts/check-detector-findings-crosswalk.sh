@@ -12,7 +12,7 @@
 #                                                          restated findings
 #                                                          table
 #
-# The contract it enforces (docs/conventions/detector-findings/README.md, "The
+# The contract it enforces (docs/contracts/detector-findings/README.md, "The
 # severity crosswalk"): severity.md decides a tier by TEST, so a threshold-to-tier
 # mapping with no argument in it is nominal closure. An empty test cell is the
 # machine-checkable half of that bar -- whether the argument is SOUND stays
@@ -25,7 +25,11 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-doc="${CROSSWALK_DOC:-docs/conventions/detector-findings/README.md}"
+# The contract moved from docs/conventions/, which keeps a stub; the old path is
+# read only when the new one is absent.
+default_doc=docs/contracts/detector-findings/README.md
+[[ -f "$default_doc" ]] || default_doc=docs/conventions/detector-findings/README.md
+doc="${CROSSWALK_DOC:-$default_doc}"
 header='| Rule id | What fires it | The test the disposition is argued from | Tier or disposition | Auto-applicable |'
 
 mode="${1:-discover}"

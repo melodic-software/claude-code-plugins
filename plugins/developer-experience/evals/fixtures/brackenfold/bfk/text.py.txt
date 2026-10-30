@@ -1,0 +1,8 @@
+"""Text helpers."""
+
+import re
+
+
+def slugify(value):
+    """Lower-case value and join its words with hyphens: 'Hello World' -> 'hello-world'."""
+    return re.sub(r"[^a-z]+", "-", value.lower()).strip("-")

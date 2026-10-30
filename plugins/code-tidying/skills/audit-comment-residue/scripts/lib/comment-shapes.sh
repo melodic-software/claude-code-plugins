@@ -29,15 +29,17 @@ cr_line_skipped() {
   [[ "$prev" == *'comment-residue-ignore'* || "$line" == *'comment-residue-ignore'* ]]
 }
 
-# Extract the comment portion of a line, or empty. A leader (`//`, `/*`, `#`, `--`) opens a
+# Set REPLY to the comment portion of a line, or empty. A leader (`//`, `/*`, `#`, `--`) opens a
 # comment only OUTSIDE a "...", '...', or `...` span, so a URL's `//` or a quoted phrase is
 # not a comment. Heuristic, not a per-language lexer: enough for a read-only audit.
+# REPLY, not stdout, so a per-line caller forks no command substitution.
 cr_comment_text() {
+  REPLY=""
   local line="${1//$'\r'/}"
   [[ "$line" =~ ^[[:space:]]*#! ]] && return 0 # shebang, not a comment
   # Block-comment continuation line ("* ..." inside a /* */ block): whole body is comment.
   if [[ "$line" =~ ^[[:space:]]*\*[[:space:]] ]]; then
-    printf '%s' "${line#*\*}"
+    REPLY="${line#*\*}"
     return 0
   fi
   local n=${#line} i ch nx quote="" rest
@@ -64,14 +66,14 @@ cr_comment_text() {
       # `///` and `//!` are doc-comment leaders. Left in the text they occupy the
       # clause-opening position, so a cue right behind one would never anchor.
       [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
-      printf '%s' "$rest"
+      REPLY="$rest"
       return 0
     elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
-      printf '%s' "${rest%%\*/*}"
+      REPLY="${rest%%\*/*}"
       return 0
     elif [[ "$ch" == '#' ]]; then
-      printf '%s' "${line:i+1}"
+      REPLY="${line:i+1}"
       return 0
     fi
   done
@@ -131,7 +133,10 @@ cr_run_lines_with() {
     n=$((n + 1))
     if cr_is_comment_line "$line"; then
       ((start == 0)) && start=$n
-      ((cue)) || { "$predicate" "$(cr_comment_text "$line")" && cue=1; }
+      ((cue)) || {
+        cr_comment_text "$line"
+        "$predicate" "$REPLY" && cue=1
+      }
       continue
     fi
     ((start > 0 && cue)) && for ((i = start; i < n; i++)); do printf '%s\n' "$i"; done
@@ -154,9 +159,14 @@ cr_justified_run_lines() {
   cr_run_lines_with cr_has_workaround_justification "$1"
 }
 
-# Emit zero or more shape names, one per line; return 1 if any emitted.
+# Set REPLY to zero or more shape names, newline-separated.
 cr_detect_shapes() {
-  cr_detect_shapes_text "$(cr_comment_text "$1")" "${2:-0}" "${3:-0}"
+  cr_comment_text "$1"
+  cr_detect_shapes_text "$REPLY" "${2:-0}" "${3:-0}"
+}
+
+cr_add_shape() {
+  REPLY+="${REPLY:+$'\n'}$1"
 }
 
 # The same over comment text already extracted from a line, or joined from two lines.
@@ -165,9 +175,9 @@ cr_detect_shapes_text() {
   local ct="$1"
   local in_license_block="${2:-0}"
   local in_justified_run="${3:-0}"
+  REPLY=""
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
   local lc="${ct,,}"
-  local found=0
 
   # Every tier-1 cue is a whole phrase: the start boundary keeps `formerly` out of `reformerly`
   # and `changed to` out of `unchanged to`; the end boundary keeps `used to` out of `used tokens`.
@@ -178,24 +188,21 @@ cr_detect_shapes_text() {
     [[ "$lc" =~ ${sb}(changed[[:space:]](from|to)|renamed[[:space:]](from|to)|refactored[[:space:]](from|to|into))${eb} ]] ||
     [[ "$lc" =~ ${sb}(we[[:space:]](switched|changed|pivoted|migrated)|this[[:space:]](used[[:space:]]to|was[[:space:]](previously|formerly)))${eb} ]] ||
     [[ "$lc" =~ ${sb}now[[:space:]]((does|returns|handles|uses)${eb}|it[[:space:]]) ]]; then
-    printf '%s\n' 'history-narration'
-    found=1
+    cr_add_shape 'history-narration'
   fi
 
   # plan-reference (tier 1): references a work plan / session / changeset, not the code.
   if [[ "$lc" =~ ${sb}(per[[:space:]]the[[:space:]]plan|as[[:space:]]planned|replaces[[:space:]]the[[:space:]]old)${eb} ]] ||
     [[ "$lc" =~ ${sb}in[[:space:]]this[[:space:]](pr|change|refactor|commit|session)${eb} ]] ||
     [[ "$lc" =~ ${sb}(task|plan|phase|step)[[:space:]]#?[0-9]+[[:space:]]+(of|in)[[:space:]]the[[:space:]]plan${eb} ]]; then
-    printf '%s\n' 'plan-reference'
-    found=1
+    cr_add_shape 'plan-reference'
   fi
 
   # conversational-antecedent (tier 1): addresses the requester / the producing conversation.
   if [[ "$lc" =~ ${sb}(per[[:space:]]your[[:space:]]request|as[[:space:]]requested|per[[:space:]]our[[:space:]](conversation|discussion|chat))${eb} ]] ||
     [[ "$lc" =~ ${sb}as[[:space:]](you|we)[[:space:]](asked|requested|discussed|mentioned|said|wanted|decided)${eb} ]] ||
     [[ "$lc" =~ ${sb}(you[[:space:]](asked|wanted|mentioned|requested)|like[[:space:]]you[[:space:]]said)${eb} ]]; then
-    printf '%s\n' 'conversational-antecedent'
-    found=1
+    cr_add_shape 'conversational-antecedent'
   fi
 
   # origin-note (tier 1): the comment names where the block came from or when it was
@@ -207,8 +214,7 @@ cr_detect_shapes_text() {
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
       [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then
-      printf '%s\n' 'origin-note'
-      found=1
+      cr_add_shape 'origin-note'
     fi
   fi
 
@@ -220,8 +226,7 @@ cr_detect_shapes_text() {
   if [[ "$wk" =~ ${sb}(as[[:space:]]+before|always[[:space:]]+used)${eb} ]] ||
     [[ "$wk" =~ ${sb}the[[:space:]]+old[[:space:]]+[[:alnum:]] ]] ||
     [[ "$wk" =~ ${sb}phase[[:space:]]+[0-9]+([a-z]${eb}|[[:space:]]*([^[:alnum:][:space:]]|$)) ]]; then
-    printf '%s\n' 'history-narration-weak'
-    found=1
+    cr_add_shape 'history-narration-weak'
   fi
 
   # unjustified-workaround (tier 2): the comment names a workaround and gives neither a link
@@ -230,8 +235,7 @@ cr_detect_shapes_text() {
   if cr_has_workaround_cue "$ct"; then
     workaround=1
     if ((!in_justified_run)) && ! cr_has_workaround_justification "$ct"; then
-      printf '%s\n' 'unjustified-workaround'
-      found=1
+      cr_add_shape 'unjustified-workaround'
     fi
   fi
 
@@ -241,12 +245,11 @@ cr_detect_shapes_text() {
   if ((!workaround)) && ! cr_is_sanctioned_todo "$ct"; then
     if [[ "$lc" =~ (see[[:space:]]+(pr|mr|issue)|(^|[^[:alnum:]])(pr|issue|mr)[[:space:]]*#?[0-9]|github\.com/[^[:space:]]+/(pull|issues)/[0-9]+|[a-z0-9_.-]+/[a-z0-9_.-]+#[0-9]+|(^|[^[:alnum:]_.-])[a-z0-9][a-z0-9_.-]{2,}#[0-9]+([^[:alnum:]]|$)|from[[:space:]]+branch|from[[:space:]]+(the[[:space:]]+)?[a-z0-9][a-z0-9._/-]*[[:space:]]+branch|in[[:space:]]this[[:space:]]session([^[:alnum:]]|$)) ]] ||
       [[ "$lc" =~ (ticket|issue|jira|linear)([[:space:]]#?[a-z0-9]*-?[0-9]|-[0-9]) ]]; then
-      printf '%s\n' 'ticket-pr-residue'
-      found=1
+      cr_add_shape 'ticket-pr-residue'
     fi
   fi
 
-  return "$found"
+  return 0
 }
 
 cr_shape_tier() {
