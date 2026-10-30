@@ -4,9 +4,10 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, credentialIn, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
-import { findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
@@ -1226,6 +1227,51 @@ test("the publish gate and apply-patch catch the same shared credential shapes",
     assert.notEqual(findSecret(text), null, text);
     assert.ok(scanLeak(Buffer.from(text)).block, text);
   }
+});
+
+// apply-patch keeps its own copy of the shapes (it runs from a staged copy that
+// cannot reach root lib/), so this test is what keeps the two lists one.
+test("apply-patch's CREDENTIAL_SHAPES equals lib/publish-gate.mjs's, in order", () => {
+  const shape = (list) => list.map(([name, pattern]) => [name, pattern.source, pattern.flags]);
+  assert.deepEqual(shape(CREDENTIAL_SHAPES), shape(GATE_SHAPES));
+});
+
+// collect-base-activity runs apply-patch from $RUNNER_TEMP/base-script, a copy
+// of this directory, beside $RUNNER_TEMP/lib (.github/scripts/lib) and what the
+// write runner's apply-base step stages: pr-merge/merge-holds.mjs and four
+// pr-unblock files. Every import must resolve there.
+test("apply-patch loads from the staged layout its script activity runs in", async () => {
+  const root = tempDir("base-activity-");
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    cpSync(here, join(root, "base-script"), { recursive: true });
+    cpSync(join(here, "..", "lib"), join(root, "lib"), { recursive: true });
+    mkdirSync(join(root, "pr-merge"));
+    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(root, "pr-merge", "merge-holds.mjs"));
+    mkdirSync(join(root, "pr-unblock"));
+    for (const file of ["thread-scope.mjs", "dependency-classify.mjs", "escalation-routes.mjs", "escalation-routes.json"]) {
+      cpSync(join(here, "..", "pr-unblock", file), join(root, "pr-unblock", file));
+    }
+    const staged = await import(pathToFileURL(join(root, "base-script", "apply-patch.mjs")).href);
+    assert.equal(typeof staged.push, "function");
+    assert.equal(staged.credentialIn(`t ${GITHUB_TOKENS[0]} t`), "GitHub token");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A blob too large for the runner's buffer cannot be cleared, so it counts as
+// leaked and holds rather than throwing out of push as a retry.
+test("leakedBlob counts a blob the runner cannot read whole as leaked", (t) => {
+  const fix = repoWithPatch(t, () => {});
+  writeFileSync(join(fix.repo, "big.txt"), "x".repeat(4096));
+  git(fix.repo, ["add", "big.txt"]);
+  const sha = git(fix.repo, ["rev-parse", ":big.txt"]);
+  const entry = { newSha: sha, newMode: "100644", path: "big.txt" };
+  const small = (args) => execFileSync("git", args, { cwd: fix.repo, maxBuffer: 64, stdio: ["ignore", "pipe", "ignore"] });
+  assert.equal(leakedBlob(small, [entry])?.path, "big.txt");
+  const roomy = (args) => execFileSync("git", args, { cwd: fix.repo, stdio: ["ignore", "pipe", "ignore"] });
+  assert.equal(leakedBlob(roomy, [entry]), undefined, "the same clean blob read whole is not leaked");
 });
 
 // A patch made on another commit is refused, but its blobs on that commit are

@@ -68,7 +68,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CREDENTIAL_SHAPES } from "../../../lib/publish-gate.mjs";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
@@ -131,8 +130,13 @@ export const REFUSALS = {
 export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
-// The shapes are lib/publish-gate.mjs CREDENTIAL_SHAPES, the read runner's
-// scan job's own, so the two scanners never disagree.
+// The source is lib/publish-gate.mjs CREDENTIAL_SHAPES, the read runner's scan
+// job's list. This script runs from a staged copy that cannot reach root lib/,
+// so it keeps this copy; apply-patch.test.mjs fails when the two differ.
+export const CREDENTIAL_SHAPES = Object.freeze([
+  ["GitHub token", /\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{22,})/],
+  ["Anthropic key", /sk-ant-[A-Za-z0-9_-]{20,}/],
+]);
 export const credentialIn = (text) => CREDENTIAL_SHAPES.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
@@ -453,10 +457,23 @@ function readCapped(file, cap) {
 // undefined. Each blob is read whole, so the size refusals come after it, as
 // does every invalid refusal once the patch applies (a symlink, a path count,
 // a blob's size, a patch made on another commit), so a fault beside a
-// credential never turns its hold into a retry. A gitlink names a commit, not
-// a blob, and is skipped.
-const leakedBlob = (git, entries) =>
-  entries.find((entry) => !ZERO.test(entry.newSha) && entry.newMode !== GITLINK && credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
+// credential never turns its hold into a retry. A blob too large for the
+// runner's buffer cannot be cleared, so it counts as leaked (`unread`). A
+// gitlink names a commit, not a blob, and is skipped.
+export function leakedBlob(git, entries) {
+  for (const entry of entries) {
+    if (ZERO.test(entry.newSha) || entry.newMode === GITLINK) continue;
+    try {
+      if (credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1"))) return entry;
+    } catch (error) {
+      if (error?.code === "ENOBUFS") return { ...entry, unread: true };
+      throw error;
+    }
+  }
+  return undefined;
+}
+// The log line for a leakedBlob hit.
+const leakWhy = (leaked) => `the patched ${leaked.path} ${leaked.unread ? "is too large to scan, so it may carry" : "carries"} a credential shape`;
 
 // Why the patch file is not to be applied, as {kind, why}, or null when it is:
 // a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
@@ -730,7 +747,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       }
       const leaked = leakedBlob(git, entries);
       if (leaked) {
-        return escalate("credential", `the patched ${leaked.path} carries a credential shape`);
+        return escalate("credential", leakWhy(leaked));
       }
     } else if (patchFile) {
       return escalate("invalid", "a clean merge takes no patch");
@@ -900,7 +917,7 @@ export async function push({
     const atProducer = SHA.test(String(patchHeadSha)) && hasCommit(git, patchHeadSha) ? applyOnto(git, patchHeadSha, patchFile, false) : "";
     const leaked = atProducer ? leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer]))) : undefined;
     if (leaked) {
-      return escalate("credential", `the patched ${leaked.path} carries a credential shape`);
+      return escalate("credential", leakWhy(leaked));
     }
     return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
   }
@@ -930,7 +947,7 @@ export async function push({
   }
   const leaked = leakedBlob(git, entries);
   if (leaked) {
-    return escalate("credential", `the patched ${leaked.path} carries a credential shape`);
+    return escalate("credential", leakWhy(leaked));
   }
   // A start commit that is not on the default branch (a resumed lane
   // branch's tip) brings its own commits to the new branch, so the refusals
