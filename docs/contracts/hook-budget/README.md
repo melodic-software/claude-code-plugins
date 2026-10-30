@@ -273,7 +273,7 @@ loads the row and ignores it ([`onFailure` probes](#onfailure-probes-melo-desk-0
   key.
 
 These rows set `block`. `git grep -n '"onFailure"' -- 'plugins/*/hooks/hooks.json'` lists exactly
-them:
+them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gains or loses the key:
 
 | Plugin | Row | Why `block` |
 | --- | --- | --- |
