@@ -617,7 +617,9 @@ the plugin data directory. Admitting a `preview` writes it, and so does admittin
 `handoff-apply`. Each records the file whose writing ends that step: the preview's `--plan`, or the
 mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
 follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
-timeout ends that step. Any other admitted engine call, a `scan` included, only restarts an open run's
+timeout ends that step. While a verify's run is open, a later `preview`, `apply` or `handoff-apply`
+only restarts its idle clock and records no end file, so no engine call can end the manual lane early;
+only a `handoff-verify` opens it and only the timeout ends it. Any other admitted engine call, a `scan` included, only restarts an open run's
 idle clock, so a completed or refused scan with no preview after it is a scan-only outcome. With no
 marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
 keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
@@ -635,7 +637,8 @@ Outside a run, other Bash and PowerShell deletes answer to the session's own per
 root the guard cannot write leaves no marker, so the belt stays off; the engine writes its snapshot and
 report there too.
 
-**Accepted residual: the session can end its own run.** The belt's hook matches only Bash and
+**Accepted residual: the session can end its own run outside the engine.** No allowed engine call
+ends a verify's manual lane early: a later preview, apply or handoff-apply records no end file (above). The belt's hook matches only Bash and
 PowerShell, and while a run is open it holds Bash to the engine shapes but lets a PowerShell command
 that spells no deletion through. So a PowerShell command the belt does not read as a delete (one that
 sets the marker's write time an hour back, say) can make the marker read as timed out and release the

@@ -11380,6 +11380,40 @@ class GuardTests(unittest.TestCase):
         self._age_run_marker()
         self.assertIsNone(self._belt("Remove-Item x", tool_name="PowerShell"))
 
+    def test_terminal_preview_after_a_verify_keeps_the_manual_lane_open(self) -> None:
+        for outcome, code in (("manual-handoff-lane", 0), ("blocked", 3)):
+            with self.subTest(outcome=outcome):
+                self._scan()
+                verify = self._engine_words(
+                    f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+                )
+                self.assertEqual("allow", self._belt(verify))
+                preview = self._engine_words(
+                    f"preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}"
+                )
+                self.assertEqual("allow", self._belt(preview))
+                self.assertEqual(code, self._engine_preview(outcome))
+                self.assertTrue(self._run_marker().is_file())
+                self.assertEqual(
+                    "ask", self._belt("Remove-Item x", tool_name="PowerShell")
+                )
+                self._age_run_marker()
+
+    def test_handoff_apply_after_a_verify_keeps_the_manual_lane_open(self) -> None:
+        self._scan()
+        verify = self._engine_words(
+            f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+        )
+        self.assertEqual("allow", self._belt(verify))
+        handoff = self._engine_words(
+            f"handoff-apply --execute --snapshot {self.snapshot_arg} --tier medium "
+            f"--report {self.report_arg} --path rel/junk"
+        )
+        self.assertEqual("ask", self._belt(handoff))
+        self.assertEqual(0, self._engine_handoff_apply())
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+
     def test_scan_after_a_timed_out_run_does_not_reopen_it(self) -> None:
         self._scan()
         verify = self._engine_words(

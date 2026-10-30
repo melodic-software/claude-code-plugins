@@ -2681,6 +2681,12 @@ def _record_run_step(
             if _run_open(authority, session_id):
                 os.utime(marker)
             return
+        if ends_with is not None and _manual_lane_open(marker, authority, session_id):
+            # A step that did not open the manual lane cannot name its end: a
+            # preview ending in manual-handoff-lane, or a report, would delete
+            # the marker and drop the `ask` on the lane's PowerShell deletes.
+            os.utime(marker)
+            return
         if ends_with is not None:
             ends_with = os.path.abspath(os.path.expanduser(ends_with))
         marker.parent.mkdir(parents=True, exist_ok=True)
@@ -2691,6 +2697,19 @@ def _record_run_step(
         # Residual: an unwritable data root leaves no marker, so the belt
         # stays off; the engine writes its snapshot and report there too.
         pass
+
+
+def _manual_lane_open(marker: Path, authority: str, session_id: str) -> bool:
+    """Whether an open run was opened by a handoff-verify (no end file).
+
+    Fails closed: an open marker that cannot be read counts as one.
+    """
+    if not _run_open(authority, session_id):
+        return False
+    try:
+        return json.loads(marker.read_text(encoding="utf-8"))["ends_with"] is None
+    except Exception:  # noqa: BLE001 - an unreadable marker keeps the run
+        return True
 
 
 def _run_open(authority: str | None, session_id: str | None) -> bool:
