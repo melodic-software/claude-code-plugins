@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "app/cache.py",
+            "content": "CACHE = {}\n"
+          }
+        }
+      ],
+      "why": "wrote code during a review"
+    }
+  ]
+}
