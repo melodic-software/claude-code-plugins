@@ -106,6 +106,17 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(self.links_during_run(), "")
         self.assert_restored()
 
+    @unittest.skipUnless(Path("/proc/self/status").exists(), "reads SigIgn from /proc")
+    def test_command_starts_with_sigpipe_and_sigxfsz_at_default(self):
+        result = self.wrapped('grep "^SigIgn:" /proc/self/status > "$HOME/sigign"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        ignored = int(
+            (self.home / "sigign").read_text(encoding="utf-8").split()[1], 16
+        )
+        for sig in (signal.SIGPIPE, signal.SIGXFSZ):
+            self.assertFalse(ignored & (1 << (sig - 1)), f"{sig.name} is ignored")
+        self.assert_restored()
+
     def test_missing_command_exits_127_and_restores_the_links(self):
         result = self.cli("run", "--", "docker-links-no-such-command")
         self.assertEqual(result.returncode, 127, result.stderr)
