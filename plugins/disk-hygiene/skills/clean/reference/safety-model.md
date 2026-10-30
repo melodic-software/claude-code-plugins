@@ -705,7 +705,8 @@ sole placeholder its `args` carry and the `--authorized-data-root` channel stays
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
-nothing, because Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
+nothing unless its row sets `"onFailure": "block"` (only the two `hygiene.py` rows do, on Claude
+Code 2.1.295 or later), because Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
 it approved" and "the guard denied nothing because it never ran, or ran and silently died" looked
 identical from outside the harness. `skills/clean/scripts/guard_launch_monitor.py` closes that gap with a
 second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, so
@@ -729,7 +730,9 @@ in monitor mode, emits the `systemMessage` itself when nothing resolves, so a ho
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
 host where `node` is missing, or where that launcher resolves no bash, takes the guard and
-its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+its detector down together with nothing left to report it. The two plugin-level `hygiene.py` rows
+set `"onFailure": "block"`, so on Claude Code 2.1.295 or later that failure denies an engine call
+instead of letting it run unchecked. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
