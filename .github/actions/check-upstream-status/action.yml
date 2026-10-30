@@ -1,0 +1,24 @@
+name: Check upstream status
+description: >
+  Skip a token-spending lane while GitHub Actions or npm package installation
+  reports a degraded component on its status page. Emits degraded=true only
+  for a degraded component; a page that cannot be read, or lists no such
+  component, emits degraded=false (fail open). Logs a notice naming each
+  component that is not operational. Gate on `degraded != 'true'` and run the
+  step with continue-on-error, so a failed step also lets the lane proceed.
+
+outputs:
+  degraded:
+    description: "`true` when a gated component is degraded, otherwise `false`."
+    value: ${{ steps.check.outputs.degraded }}
+  reason:
+    description: "`ok`, `unknown`, or the degraded components and their statuses."
+    value: ${{ steps.check.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check upstream status
+      id: check
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/check-upstream-status.mjs"
