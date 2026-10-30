@@ -1,20 +1,71 @@
 # Unsupported-platform handoff (Windows, macOS)
 
-The manual removal lane for Windows and macOS, where the `disk-hygiene:clean` engine never
-deletes. Read this only after [`../SKILL.md`](../SKILL.md) section 6 has sent you here: the
-engine lane and this lane never co-execute, and nothing below may be improvised from the engine
-steps.
+The removal lanes for Windows and macOS, where the `disk-hygiene:clean` engine's `apply` never
+runs: on Windows one `handoff-apply` per tier sends each approved path to the Recycle Bin, and on
+macOS deletion is a manual handoff. Read this only after [`../SKILL.md`](../SKILL.md) section 6
+has sent you here: the engine lane and these lanes never co-execute, and nothing below may be
+improvised from the engine steps.
 
 ## Contents
 
+- [The Windows lane: one handoff-apply per tier](#the-windows-lane-one-handoff-apply-per-tier)
 - [The gated manual lane](#the-gated-manual-lane)
 - [The PowerShell guard lane](#the-powershell-guard-lane)
 - [Hook registration outlives the cleanup](#hook-registration-outlives-the-cleanup)
 
+## The Windows lane: one handoff-apply per tier
+
+It needs the same execution request as the manual lane below, and the same tier narrowing: show
+one tier's exact paths from the §3 report. Then run one `handoff-apply` for that tier, one inline
+`--path` per approved path:
+
+```text
+"<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
+  --snapshot "<run-dir>/snapshot.json" --tier "<tier>" \
+  --report "<run-dir>/report-handoff-<tier>.json" \
+  --path "relative/one.tmp" --path "relative/two.tmp" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+The guard answers this command with a hook `ask` whose prompt lists the tier, the count, and every
+path. That prompt is the tier's removal question at the
+[confirmation gate](../SKILL.md#confirmation-gate), so ask nothing separately before it. Confirm it
+only when it names exactly the tier and paths you just showed; a declined prompt runs nothing.
+Whether a hook `ask` prompts in the session's mode: see the pointer in
+[the PowerShell guard lane](#the-powershell-guard-lane). Where it would not prompt, ask the gate's
+removal question first.
+
+The engine then removes nothing at all when `--tier` ranks above the lowest `confidence_ceiling`
+among any path's hints, or any path has no hint (exit 2, no report), and when any path's volume
+reports no Recycle Bin (`no-recycle-bin`, exit 3). Otherwise it handles the paths in order, and
+for each one:
+
+1. It re-runs the `handoff-verify` checks immediately before that path's removal. A path whose
+   verdict is not `clear` is skipped and reported.
+2. It sends a `clear` path to the Recycle Bin whole. A path the shell reports it cannot recycle is
+   refused (`recycle-refused`, detail `would-delete-permanently`) and left in place. If the shell
+   deletes an item outright anyway, or the path goes with no recycle reported, the batch stops
+   there.
+
+An error partway also stops the batch: each remaining path is skipped as `batch stopped`. The
+report lists each removed path under `removed` (`recycled: true` when it went to the bin), each
+skip with its outcome and detail, and each path's verdict. `permanent_delete_used` is true when any
+removal was not a recycle. Exit 0 means every path was removed, 4 some were skipped, 3 none was
+removed. Recycled bytes stay on the volume until the bin is emptied, and the manual lane's step 3
+forbids emptying it.
+
+A standalone Git checkout adds `--vcs-evidence "<run-dir>/vcs-evidence.json"`, written as in the
+manual lane's step 1. A path with no hint, such as a checkout, is refused until a policy overlay
+adds a hint for it and a rescan records it. Report each refused or skipped path. A path the Recycle
+Bin cannot take leaves this lane only through the manual lane's step 2 and its separate
+permanent-deletion approval, never under the tier's.
+
 ## The gated manual lane
 
+This is macOS's removal lane. On Windows it holds the rules the Windows lane above refers to.
+
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
-the engine never deletes there. When that is the only blocker on every candidate, preview exits 0
+the engine's `apply` never runs there. When that is the only blocker on every candidate, preview exits 0
 with `outcome: manual-handoff-lane`. Any other blocker exits 3 with `outcome: blocked`, which
 means do not proceed, even when the platform blocker is also present. The default outcome is the report. The manual lane is gated by
 an execution request exactly as the engine lane is: `--execute`, or the user's own in-session
@@ -106,9 +157,9 @@ engine plan:
    `"accept_unpublished": true` and the operator's `"reason"` to the entry whose `path` is the
    exact approved path, and tell the operator that unpushed commits and untracked or ignored files
    in it will be lost. The acknowledgement relaxes only those two gates; see
-   [the safety model](safety-model.md#standalone-git-checkout-evidence). This lane is for Windows
-   and macOS; on Linux the engine's `handoff-apply` (command in `safety-model.md`) reads the same evidence
-   file and does the verify and the deletion in one process. Then run:
+   [the safety model](safety-model.md#standalone-git-checkout-evidence). This lane is for macOS;
+   on Linux and Windows the engine's `handoff-apply` (command in `safety-model.md`) reads the same
+   evidence file and does the verify and the removal in one process. Then run:
 
    ```text
    "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-verify \

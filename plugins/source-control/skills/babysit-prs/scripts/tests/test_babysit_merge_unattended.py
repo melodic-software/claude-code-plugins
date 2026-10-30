@@ -1174,7 +1174,7 @@ class LaneMode(Unattended):
         super().setUp()
         self.config = policy.PipelineConfig(
             BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
-            require_verifier_verdict=True,
+            require_verifier_verdict=True, path_holds=True,
         )  # fmt: skip
         # A passing verdict at every head (test_babysit_verify_evidence covers
         # the reader).
@@ -1264,6 +1264,23 @@ class LaneMode(Unattended):
                 self.assertEqual(
                     f"high-path:{gate}" in codes, user["type"] == "Bot", codes
                 )
+
+    def test_path_holds_off_skips_the_floor_and_reports_it(self) -> None:
+        # Owner decision Q15: off, a lanes App gate-script change scores LOW
+        # and the gate report names the hold it skipped; on, it holds.
+        gate = ".github/scripts/pr-merge/clear-escalations.mjs"
+        self.config = dataclasses.replace(self.config, denied_paths=())
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        for on, score, skipped in (
+            (False, "LOW", [{"code": f"high-path:{gate}", "detail": gate}]),
+            (True, "HIGH", []),
+        ):
+            self.config = dataclasses.replace(self.config, path_holds=on)
+            with self.subTest(path_holds=on):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                self.assertEqual(risk["pathHoldsSkipped"], skipped)
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the

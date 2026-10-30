@@ -1,5 +1,132 @@
 # Changelog for the PR pipeline convention
 
+## [8.3.0] - 2026-10-30
+
+### Changed
+
+- enable-auto-merge leaves an unarmed lanes App pull request on its lane refusal (a risk-score hold
+  or a pr-unblock stop) with no read when nothing it reads has changed since the last reader run:
+  head, `updatedAt`, labels, check and status rollup, reviews, comments, review threads, rung and
+  main's code and config. It reuses `merge.skip-unchanged` (max-minutes, max-skips), never skips
+  past the refusal's escalation to a failing status, never skips an armed one, and logs
+  `enable-auto-merge: skip-unchanged skipped=N recorded=M keyed=K of L`. The records ride in the
+  `pr-merge-verify-answers` artifact.
+- enable-auto-merge's discussion read lists the changed files, so a head with no rename reads no
+  REST files page.
+- A `pull_request_target` run of pr-merge handles only the pull request its event names; the
+  15-minute schedule keeps the full sweep. A pending event run no longer supersedes another one.
+- The merge job lists its candidates with one `gh pr list` and a jq author filter in place of one
+  `gh pr list --author` call per author.
+
+## [8.2.0] - 2026-10-30
+
+### Added
+
+- pr-merge's scheduled `clear-escalations` removes a human-gated label a review lane added when every hold comment since the label was last removed names an earlier head, as `stale-review-hold`. At the current head it needs a trusted move (every push since the one that landed the newest held head is by a `human` of the base trusted-actor list, never the lanes App), a whole review from both lanes that passed (each caller's newest run's status job succeeded with a review-complete notice and no hold notice for the head, on a head that changes neither review caller), no HIGH or CRITICAL finding: `critical-findings: 0` from the security lane, every finding inline for the security lane and any lane a hold names, and no unresolved lane thread at `CRITICAL` or `IMPORTANT` (for those strict lanes, none with no readable severity either), one of the pull request's own commits since each held head (not reachable from `main`) that is not a merge, and for a `critical-security` hold at least one `CRITICAL` inline finding of its lane at the held head, each in a file one of those commits changed. A label it keeps on the re-read gets no clear comment. It reads the head and the hold comments again just before the removal. A lane that still finds the cause holds the new head again.
+- `ci-status`'s review-lane lift check counts the lanes App's removal only after its own newest `stale-review-hold` comment since the hold names a head no hold comment since the label's last removal names, while none names the event's head, and only when the base commit's `clear-escalations.mjs` `recheckStaleHold`, the same predicate, passes again with the job's own token at the head that comment names, as it was when the App removed the label, including the check-signed-commits hold, other lanes App markers and a person speaking up to the removal. A later head is judged by its own review lanes, so a clean push after the clear stays green before they run. The App's comment only points at the hold; ci-status does not take its judgment on trust.
+
+### Fixed
+
+- A hand dispatch of `pr-unblock.yml` with `activity: resolve-conflicts` on a mergeable pull
+  request now merges the default branch tip into its head when the head is behind, through the
+  same no-model clean-merge push a conflicting pull request gets, instead of skipping it as
+  `not-applicable`. A head that already holds the tip is skipped as `up-to-date` and gets no
+  check run. The draft, hold, protected-path, repeat-cap and lanes App identity gates are
+  unchanged, and the dispatcher still sends only conflicting pull requests.
+- `resolve-conflicts` skips a pull request whose base is not the default branch, such as a stacked
+  layer, as `not-applicable`, so a hand dispatch never merges the default branch into it.
+
+### Security
+
+- The issue lane no longer works from an outsider's issue text once a listed human applies
+  `agent-ready`: the admit job's `check-blockers.mjs` stops the run for good, through the existing
+  `Stop on untrusted provenance` step, when the issue's author is neither a listed human nor the
+  lanes App. `report-skip` then runs `report-outcome` with `dimension-skip: outside-author`, which
+  removes `agent-ready` and comments that a listed human re-files the work as a new issue, adding
+  no label. `write-issue.mjs` also fails the run on such an issue. Admission, intake refinement and
+  verdicts, the issue lane and intake re-entry now share one author check, `admit.mjs`
+  `authorAdmitted`, which also refuses an issue with no author.
+
+## [8.1.1] - 2026-10-30
+
+### Fixed
+
+- address-feedback can now revert an executable bit the pull request itself added, so such a
+  finding no longer escalates `feedback-uncertain`. The review-threads skill may run `chmod -x`,
+  and its patch carries the mode. apply-patch's `review-threads` row refuses any new file at
+  mode `100755` or a change to that mode (the new optional `new-exec-bit` refusal). Its new
+  `pr-mode-revert` content rule admits a mode change only back to the mode the path has at the
+  merge base of the PR head and its base, or to `100644` for a file the PR added, read through
+  the GitHub API, with no workflow change.
+  The refusal stays off the other rows, so `ci-context` and the `issue` row's `script-exec-bit`
+  still set script bits, and `babysit_risk.py` still rates a mode change `high-path`.
+
+## [8.1.0] - 2026-10-29
+
+### Added
+
+- A work-resolve-issue run that starts fresh because the earlier run's lane branch is behind the
+  default branch now gives the model that branch's work. `report-outcome --find-prior` outputs
+  `stale-branch` and `stale-tip` (the tip it checked every commit of), and `write-issue.mjs` adds
+  `stale_branch` to `issue.json`: the branch, the tip, each commit's subject and the files it
+  changed, from the same capped `GET /compare` a resume uses, as data. report-outcome names the
+  branch on the issue once, in a comment opening with
+  `<!-- work-resolve-issue stale-branch=<branch> -->`, and deletes no branch
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+### Changed
+
+- pr-review-main records a designed stop instead of failing. A diff that holds a binary file, is
+  over the 300000-byte cap, or has a line over 1800 bytes leaves the leg green with no verdict.
+  The record job then posts the check run `pr-review-main: <lane>` on the head, titled
+  `verdict=none reason=<too-large|binary|long-line>` with conclusion neutral, and logs a
+  `pr-review-main stop` notice. Each stop is one countable record, and a real failure (a failed
+  fetch or diff write, an empty diff) still fails the run.
+
+### Fixed
+
+- A `work-resolve-issue` reuse PR whose runner check failed no longer carries `Hold: a human merges
+  this` or the `human-merge-hold` label. A failed check is not a reason for a person: the PR opens,
+  its Verification section lists the failure, and `ci-status` reruns the check on the head, where
+  the fix lanes take it. A `done` run with a failed runner check still opens no PR and retries
+  (`check-failed`). `merge: human`, untrusted provenance, an unreadable denied-path or changed-file
+  list, path holds and a reuse leak scan that is not `clean` still hold (`mustHold` in
+  `report-outcome.mjs`).
+
+- `clear-escalations.mjs` takes off a `needs-human` the lanes App set for `feedback-not-landed` once the head is none of that escalation's resume keys and no unresolved review thread carries a lanes App comment. It pages the PR's review threads over GraphQL, and a listing that may be cut short keeps the label. A person who commented or reviewed since the label went on still keeps it. The monitor's stalled-stop signal does not count that clear as a stop standing on the head.
+
+## [8.0.0] - 2026-10-29
+
+### Changed
+
+- `merge.diff-check.path-holds` turns off every path-based merge hold with one switch. Absent or
+  false (the default, and this repository's setting by owner decision Q15), a changed path no
+  longer holds a pull request for its path alone. This covers the risk scorer's path floor,
+  denied-paths and `review-path:` holds, enable-auto-merge's hold paths and ci-status's
+  merge-holds step. A standing refusal that names only hold paths comes off without an approval.
+  Set it to true to bring every one back. Cost paths, unsafe or aliasing paths, the manifest
+  review, the trusted-actor widening, body holds, vetoes and `do-not-merge` still hold. The gate
+  report (`risk.pathHoldsSkipped`), enable-auto-merge's log and merge-holds.mjs name each hold
+  the switch skipped.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
+## [7.7.0] - 2026-10-29
+
+### Added
+
+- A lanes App pull request that holds for a person carries the `human-merge-hold` label as well as
+  the `Hold: a human merges this` body line, which the App can edit
+  ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)). report-outcome
+  adds the label right after it opens the pull request, or when it reuses its open one; a pull
+  request the label cannot reach is closed and the issue retried (`hold-label-failed`). ci-status's
+  new `Fail a human-merge hold a listed person has not lifted` step fails while the label is on,
+  and once it is off unless the first removal at or after its newest add was by a `human` of the
+  base's trusted-actor list acting directly, not through an App. `enable-auto-merge.mjs`
+  (`HOLD_LABELS`) never arms a pull request carrying it, and merge-holds.mjs `labelHolds` holds it
+  in the merge queue, so deleting the hold line or rewriting `Refs: #N` to `Closes #N` no longer
+  lets a held pull request merge.
+
 ## [7.6.2] - 2026-10-29
 
 ### Fixed

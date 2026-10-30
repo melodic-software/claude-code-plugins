@@ -20,5 +20,5 @@ wit_body_has_legacy_frontier_tier_signal() {
   local pattern
   pattern="$(printf '%s|' "${patterns[@]}")"
   pattern="${pattern%|}"
-  printf '%s' "$body" | grep -Eq "$pattern"
+  grep -Eq "$pattern" <<<"$body"
 }

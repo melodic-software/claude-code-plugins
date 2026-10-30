@@ -35,7 +35,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ADMIT_MARKER } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, authorAdmitted } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
@@ -138,8 +138,7 @@ async function liftReenters({ github, base, issue, humans, lanesAppId }) {
   if (labels.some((name) => name?.startsWith("status:")) || [NEEDS_HUMAN, NEEDS_TRIAGE, "agent-ready"].some((name) => labels.includes(name))) {
     return false;
   }
-  const author = issue.user?.id;
-  if (!(humans.has(author) || (lanesAppId !== null && author === lanesAppId))) {
+  if (!authorAdmitted(issue, humans, lanesAppId)) {
     return false;
   }
   const actor = await lastLifter(github, base);
@@ -218,8 +217,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       // Intake admits an issue only from a listed human or the lanes App; any
       // other issue waits in needs-triage for a person, so its author cannot
       // start a model run with each reply.
-      const author = issue.user?.id;
-      if (!(humans.has(author) || (lanesAppId !== null && author === lanesAppId))) {
+      if (!authorAdmitted(issue, humans, lanesAppId)) {
         log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
         return 0;
       }

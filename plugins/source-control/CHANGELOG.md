@@ -3,6 +3,77 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.2] - 2026-10-30
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now says the mode may run `chmod -x` on a file
+  whose executable bit the pull request added, when a finding asks to drop it.
+
+## [4.1.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-remote.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The `origin` lookup reads the remote list through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [4.1.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads pr-review-main's `verdict=none reason=<reason>` check run as a
+  designed stop. The stop counts no CRITICAL finding and binds no lane. With no verdict on the
+  head, the lane's unbound reason is `main-review-stop:<reason>` instead of
+  `lane-source-changed`, so the gate report names why. It stays the same MED
+  `evidence-unbound:<lane>` lane cause, with no new person hold. Any other title that does not
+  read still counts one CRITICAL.
+- The merge job reads less for a pull request that changes a lane source. It lists only the
+  security lane's pull_request runs, because the code lane binds there on a main-run review
+  alone, and reads the code lane's `pr-review-main` check runs on the head only. The security
+  lane still reads every head of the pull request, so a CRITICAL finding on any head still
+  carries.
+
+## [4.0.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads `merge.diff-check.path-holds` in the pr-merge lane. Absent or
+  false, the `high-path:` floor and configured globs and the `review-path:` holds move out of
+  the risk score into the gate report's `risk.pathHoldsSkipped`. True keeps them. Unsafe or
+  aliasing paths (`high-path:**`), the manifest review and cost holds still hold. The local
+  babysit lane keeps every path hold.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
+## [3.21.4] - 2026-10-29
+
+### Added
+
+- `babysit_whole_review.py request` answers the record line for a whole review of `--head` under
+  the merge gate's caps (once per head, `MAX_TOGGLES`, one per run, the running-jobs and
+  rate-limit floors), reading the prior reasons comment on stdin; `toggle` drafts the pull request
+  and marks it ready again. The gate and enable-auto-merge share `babysit_whole_review.request`.
+- `babysit_verify_evidence.py evidence --lane-reviews` reports `wholeReviewWanted`, so native
+  auto-merge requests the gate's whole review for a lanes App pull request.
+
+### Changed
+
+- The babysit merge lane holds a pull request carrying `human-merge-hold`
+  (`babysit_merge_policy.MERGE_HOLD_LABELS`), the label the lanes App puts on a pull request a
+  person merges ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)).
+
+### Fixed
+
+- `babysit_whole_review.wanted` also requests a whole review for a `review-path:` hold whose bound
+  security review counts open findings below CRITICAL that a clean whole review of the head
+  closes, such as threads the lanes App resolved. Before, only a CRITICAL `security-finding` hold
+  qualified, so such a hold waited for a person.
+- `babysit_whole_review.toggle` reads the pull request's draft state, labels and body just before
+  converting it, and refuses one already a draft, one with a merge-hold label, the tracker's
+  human-gated label (`--human-gated`) or a body hold, or one that did not read, so a person's draft
+  or hold is never undone. Record lines count only outside the comment's fenced reasons, where a
+  changed path could otherwise plant one, and a person's refusal comment keeps them, so a head
+  recorded before an escalation is never toggled again.
+
 ## [3.21.3] - 2026-10-29
 
 ### Changed

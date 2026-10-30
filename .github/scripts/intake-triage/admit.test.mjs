@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, authorAdmitted, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -2120,5 +2120,20 @@ describe("attended", () => {
     const before = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]), events: [label("unlabeled", HUMAN, "2026-10-19T00:00:00Z")] }));
     assert.equal(before.verdict, "refuse");
     assert.equal(before.attended, true);
+  });
+});
+
+describe("authorAdmitted", () => {
+  const humans = new Set([101]);
+  test("admits a listed human's or the lanes App's issue, nobody else's", () => {
+    assert.equal(authorAdmitted({ user: { id: 101 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 303 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 202 } }, humans, 303), false);
+  });
+  test("refuses an issue with no author, whatever App id is unset", () => {
+    for (const appId of [undefined, null, 303]) {
+      assert.equal(authorAdmitted({}, humans, appId), false, String(appId));
+      assert.equal(authorAdmitted({ user: { id: 303 } }, humans, appId === 303 ? undefined : appId), false, String(appId));
+    }
   });
 });

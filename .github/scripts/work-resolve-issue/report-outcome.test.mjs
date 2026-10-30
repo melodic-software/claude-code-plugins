@@ -23,6 +23,7 @@ import {
   main,
   mustHold,
   parseOutcomeMarker,
+  heldPaths,
   readHoldPaths,
   readFunding,
   readChecks,
@@ -308,6 +309,25 @@ for (const [name, text] of [
     });
   });
 }
+
+// merge.diff-check.path-holds (owner decisions Q15 and Q16): off, a denied
+// path holds nothing; on, it holds as before; an unreadable list still holds.
+test("with path holds off a denied path holds nothing, and on it holds the PR", () => {
+  const config = (pathHolds) => JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"], ...(pathHolds === undefined ? {} : { "path-holds": pathHolds }) } } });
+  for (const off of [undefined, false]) {
+    withDir({ "resolved-config.json": config(off) }, (dir) => {
+      const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+      assert.deepEqual(holdPaths, []);
+      assert.ok(!decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.includes("Hold: a human merges this"));
+    });
+  }
+  withDir({ "resolved-config.json": config(true) }, (dir) => {
+    const holdPaths = heldPaths(join(dir, "resolved-config.json"));
+    assert.deepEqual(holdPaths, ["a/**"]);
+    assert.ok(decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.split("\n").includes("Hold: a human merges this"));
+  });
+  withDir({ "resolved-config.json": "{" }, (dir) => assert.equal(heldPaths(join(dir, "resolved-config.json")), null));
+});
 
 test("an unreadable resolved config reads as no denied-path list and holds the PR", () => {
   withDir({}, (dir) => {
@@ -874,6 +894,91 @@ for (const [reason, step] of [
     });
   });
 }
+
+// An issue whose author is outside the trusted list stops at the admit job;
+// report-skip says so on the issue and takes agent-ready off, with no
+// needs-human: a listed human re-files the work, and a retry stops again.
+test("main on an outside-author stop removes agent-ready and posts one comment telling a listed human to re-file", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    assert.deepEqual(calls.filter((c) => c.method === "DELETE").map((c) => c.path.split("/labels/")[1]), ["agent-ready"]);
+    const comments = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments"));
+    assert.equal(comments.length, 1);
+    const comment = comments[0].body.body;
+    assert.equal(parseOutcomeMarker(comment).outcome, "outside-author");
+    assert.match(comment, /trusted/);
+    assert.match(comment, /re-file/);
+    assert.ok(!comment.includes("add `agent-ready` again"), comment);
+  });
+});
+
+// lane.json's `stale`: the stale lane branch the run started fresh past,
+// which issue-prior found no comment naming. report-outcome names it once on
+// the issue, beside its usual report, and never deletes it.
+test("main names lane.json's stale branch on the issue once, and deletes no branch", async () => {
+  const stale = "work-resolve-issue/issue-77-400-1";
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+    const named = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments") && c.body.body.startsWith("<!-- work-resolve-issue stale-branch="));
+    assert.equal(named.length, 1);
+    assert.equal(named[0].body.body.split("\n")[0], `<!-- work-resolve-issue stale-branch=${stale} -->`);
+    assert.ok(named[0].body.body.includes(`\`${stale}\``), named[0].body.body);
+    assert.equal(parseOutcomeMarker(named[0].body.body), null, "the stale comment is no outcome marker");
+    assert.ok(!calls.some((c) => c.path.includes("/git/refs")), "no branch is deleted");
+  });
+});
+
+test("main names no stale branch when lane.json has none, or one of another shape", async () => {
+  for (const stale of ["", "main", "work-resolve-issue/issue-7-400-1"]) {
+    await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", stale }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.body?.body?.includes("stale-branch=")), JSON.stringify(stale));
+    });
+  }
+});
+
+// A re-run of report-skip finds the lanes App's own outside-author comment and
+// posts no second one; the same marker from anyone else (the outside author
+// can write it) does not count.
+test("main on an outside-author stop posts no second comment when the lanes App already posted one", async () => {
+  const marker = "<!-- work-resolve-issue outcome=outside-author run=99 -->\nThe lane did not start this issue.";
+  for (const [login, posts] of [
+    ["melodic-automation-lanes[bot]", 0],
+    ["stranger", 1],
+  ]) {
+    await withDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments$/, 200, [{ id: 5, user: { login }, body: marker }]],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).length, posts, login);
+      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")), login);
+    });
+  }
+});
 
 test("main refuses a dimension skip it does not know and writes nothing", async () => {
   await withDir({}, async (dir) => {
@@ -2082,7 +2187,7 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
     assert.deepEqual(
       prior({ branches, markers: [marked("stopped", "400")] }),
-      { action: "run", stale: { branch: lane(400), behindBy } },
+      { action: "run", stale: { branch: lane(400), tip: SHA_400, behindBy } },
       String(behindBy),
     );
   }
@@ -2141,9 +2246,33 @@ test("--find-prior names the resumed branch, its tip and the cause, and still ru
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
 });
 
-test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main", async () => {
+test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main, naming that branch and its tip", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
   const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nstale-branch=${lane(400)}\nstale-tip=${"a".repeat(40)}\nstale-noted=false\n`);
+  // Only the reads the resume decision already made: one compare per lane branch.
+  assert.equal(calls.filter((c) => c.path.includes("/compare/")).length, 1);
+  assert.deepEqual(writesToGitHub(calls), []);
+});
+
+// report-outcome names a stale branch once: a lanes App comment opening with
+// its marker, from any earlier run, makes stale-noted true.
+test("--find-prior marks a stale branch noted only when a lanes App comment opens with that branch's marker", async () => {
+  const stopped = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" };
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const noted = async (comment) =>
+    (await runPrior({ comments: [stopped, comment], refs: [refOf(lane(400))], comparison })).output.match(/^stale-noted=(.*)$/m)?.[1];
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->\nNamed.`, created_at: "2026-10-16T12:00:00Z" }), "true");
+  assert.equal(await noted({ user: { login: BOT }, body: `<!-- work-resolve-issue stale-branch=${lane(401)} -->\nAnother branch.`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: "stranger" }, body: `<!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+  assert.equal(await noted({ user: { login: BOT }, body: `Quoted: <!-- work-resolve-issue stale-branch=${lane(400)} -->`, created_at: "2026-10-16T12:00:00Z" }), "false");
+});
+
+test("--find-prior names no stale branch when a commit on the behind branch is not the lanes App's", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 2, behind_by: 865, total_commits: 2, commits: [LANE_TIP, { ...LANE_TIP, author: { login: "stranger" } }] };
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
@@ -2512,7 +2641,7 @@ const summaryFile = (overrides = {}, output = {}) =>
   });
 // Readable denied paths, so the README-only, read-only-class reuse PRs below
 // hold only because no runner checks or leak scan reached them.
-const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS } } });
+const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS, "path-holds": true } } });
 const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVED_CONFIG: join(dir, "resolved.json") });
 const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
 const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };
@@ -3330,7 +3459,6 @@ const HOLD_CASES = {
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "a trusted labeler set merge: human": { humanMerge: true },
-  "a runner check failed": { checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } },
 };
 // A reuse's scan word, when it is anything but clean: lint-repo's gitleaks
 // does not cover what scanLeak flags, so a missing scan holds like a finding.
@@ -3369,17 +3497,36 @@ test("a capped listing holds a reuse PR only while some path is denied", () => {
   assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
 });
 
-test("mustHold: a reuse holds on any scan word but clean and on a failed check; runner checks that did not report hold nothing", () => {
+// A failed runner check is not a reason for a person: the PR opens, its
+// Verification section names the failure, and its own CI stays red until fixed.
+test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
+  const plan = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } });
+  assert.equal(plan.hold, false);
+  assert.ok(!plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  assert.ok(plan.body.includes(`${FRAGMENTS}: failed (exit 1)`), plan.body);
+  assert.ok(plan.body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), plan.body);
+});
+
+test("a reuse PR whose runner check failed still holds on a leak scan that is not clean", () => {
+  const failed = [{ check: FRAGMENTS, exit: 1 }];
+  for (const checks of [{ ...CLEAN_CHECKS, results: failed, scan: "found" }, { ...CLEAN_CHECKS, results: failed, scan: "failed" }, { tip: TIP, results: failed }]) {
+    const plan = reusePlan({ ...CLEAN_REUSE, checks });
+    assert.equal(plan.hold, true, JSON.stringify(checks));
+    assert.ok(plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  }
+});
+
+test("mustHold: a reuse holds on any scan word but clean; a failed runner check and runner checks that did not report hold nothing", () => {
   const facts = { issueLabels: CLEAN_REUSE.issueLabels, humanMerge: false, holdPaths: HOLD_GLOBS, changedFiles: ["README.md"], reused: true };
   assert.equal(mustHold({ ...facts, checks: CLEAN_CHECKS }), false, "clean reuse");
   assert.equal(mustHold({ ...facts, checks: { tip: TIP, results: CLEAN_CHECKS.results } }), true, "scan missing");
   assert.equal(mustHold({ ...facts, checks: null }), true, "checks and scan missing");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "failed" } }), true, "scan failed");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, scan: "found" } }), true, "scan found");
-  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "a failed check");
+  assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "a failed check");
   assert.equal(mustHold({ ...facts, checks: { ...CLEAN_CHECKS, results: [] } }), false, "reuse, clean scan, no runner check reported");
   assert.equal(mustHold({ ...facts, reused: false, checks: null }), false, "no reuse, runner checks missing");
-  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), true, "no reuse, a failed check");
+  assert.equal(mustHold({ ...facts, reused: false, checks: { tip: TIP, results: [{ check: FRAGMENTS, exit: 1 }] } }), false, "no reuse, a failed check");
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
@@ -3405,8 +3552,8 @@ test("readChecks carries a reused branch's scan word, reads an unknown one as fa
 
 // main on a reuse with no outcome of its own: the runner's checks for the
 // reused branch at TIP, with `scan` (null: none), and the issue's labels and events.
-async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
-  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit: 0 }], ...(scan === null ? {} : { scan }) });
+async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
+  const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit }], ...(scan === null ? {} : { scan }) });
   return withAsyncDir({ "runner-checks": checks, "resolved.json": RESOLVED, "trusted.json": TRUSTED_LIST }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
@@ -3426,6 +3573,15 @@ async function runReuse({ scan = "clean", labels = ["agent-ready", "work-class: 
 test("main opens a clean reuse PR with no hold line, and holds it on a leak scan that is not clean", async () => {
   assert.ok(!holds((await runReuse()).body));
   for (const scan of ["found", "failed", null]) assert.ok(holds((await runReuse({ scan })).body), String(scan));
+});
+
+test("main opens a reuse PR whose runner check failed with no hold line or hold label, and still holds it on a leak scan that is not clean", async () => {
+  const holdLabeled = (calls) => calls.some((c) => c.method === "POST" && c.path.endsWith("/labels") && c.body?.labels?.includes(HUMAN_MERGE_HOLD));
+  const failing = await runReuse({ exit: 1 });
+  assert.ok(!holds(failing.body), failing.body);
+  assert.ok(failing.body.includes(`${FRAGMENTS}: failed (exit 1)`), failing.body);
+  assert.ok(!holdLabeled(failing.calls));
+  for (const scan of ["found", null]) assert.ok(holds((await runReuse({ exit: 1, scan })).body), String(scan));
 });
 
 test("main holds a reuse PR on a denied path or a failed compare, and opens a clean one unheld", async () => {

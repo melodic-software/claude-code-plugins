@@ -166,6 +166,10 @@
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
 //                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
+//   EVENT_PR             a pull_request_target run's pull request number, the only one it handles
+//   EAM_SKIP_IN, EAM_SKIP_OUT  the skip records the last reader run kept, and
+//                        the file this one keeps (SKIPPABLE); no OUT, no skip
+//   SKIP_MAX_MINUTES, SKIP_MAX_SKIPS  merge.skip-unchanged's limits; 0 in either: no skip
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
 //                        when unknown: lane-room reads the report again)
@@ -195,7 +199,8 @@
 // refusal keeps waiting for a person to remove the label.
 
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -228,6 +233,7 @@ import {
   pathHoldKind,
   pathLifters,
   personWrote,
+  readPathHolds,
   readStatuses,
   unblockStops,
   vetoers,
@@ -278,6 +284,7 @@ export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
       reviewThreads(last: 100) { totalCount nodes { ${THREAD_FIELDS} } }
       timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT], last: 1) { nodes { ... on AutoMergeDisabledEvent { actor { __typename login } } } }
+      files(first: 100) { totalCount nodes { path changeType } }
     }
   }
 }`;
@@ -515,6 +522,19 @@ function trustedHumans(env) {
   }
 }
 
+// The changed paths DETAIL_QUERY's `files` lists, or null when the REST
+// listing must be read: a list cut at one page, or a rename or copy, whose
+// old path only REST names (previous_filename).
+export function listedFiles(files) {
+  const nodes = files?.nodes;
+  if (!Array.isArray(nodes) || files.totalCount !== nodes.length || nodes.length >= 100) {
+    return null;
+  }
+  return nodes.every((node) => typeof node?.path === "string" && typeof node.changeType === "string" && !["RENAMED", "COPIED"].includes(node.changeType))
+    ? nodes.map((node) => node.path)
+    : null;
+}
+
 // The head's changed paths, null when a page did not read, and `capped`
 // when the listing has a page past MAX_FILE_PAGES, which no later read
 // completes. Exactly MAX_FILE_PAGES full pages read one page more to tell.
@@ -664,26 +684,40 @@ function personReasons(body, head, label) {
 // (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
 // escalation a trusted person's approval of the head lifts, so the lane may
 // take its label off. A cost, risk or verifier reason, a label a person set
-// with no refusal, or a comment at another head is not one.
+// with no refusal, or a comment at another head is not one, except that with
+// `pathHolds` false a risk reason whose every code is a path hold
+// (babysit_risk.is_path_hold: `high-path:<glob>` but `high-path:**`, or
+// `review-path:`) is one too.
 const HOLD_PATH_LINE = /^it changes .+, a hold path$/;
-export function holdPathOnly(body, head, label) {
+const PATH_HOLD_CODE = /^(high-path:(?!\*\*$)|review-path:)\S/;
+const pathOnlyRisk = (line) =>
+  line.startsWith(READER_HOLDS.risk) &&
+  line.endsWith(")") &&
+  line
+    .slice(READER_HOLDS.risk.length, -1)
+    .split("; ")
+    .every((part) => PATH_HOLD_CODE.test(part.split(": ")[0]));
+export function holdPathOnly(body, head, label, pathHolds = true) {
   const reasons = personReasons(body, head, label);
-  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line));
+  return reasons !== null && reasons.length > 0 && reasons.every((line) => HOLD_PATH_LINE.test(line) || (pathHolds === false && pathOnlyRisk(line)));
 }
 
 // Whether the lane lifts `label` off `pull`: its newest refusal at the head
 // names only hold paths, the changed files still hold on nothing but a hold
 // path (no cost hold, a listing read whole), and `detail.lifters` holds a
 // trusted person whose approval binds the head (merge-holds pathLifters, or
-// liftersOf over base merges).
-export function approvalLift(pull, detail, { bot, label, holdPaths }) {
-  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label)) {
+// liftersOf over base merges), or `pathHolds` is false, so no hold path holds.
+export function approvalLift(pull, detail, { bot, label, holdPaths, pathHolds = true }) {
+  if (!holdPathOnly(priorRefusal(detail?.comments?.nodes, bot)?.body, pull.headRefOid, label, pathHolds)) {
     return false;
   }
-  if (!Array.isArray(holdPaths) || detail.filesCapped === true || pathHoldKind(detail.files, holdPaths)?.kind !== "hold-path") {
+  // Off, a risk refusal's path may be one only the gate's floor holds, so a
+  // readable listing is enough.
+  const listed = pathHolds === false ? Array.isArray(detail.files) : pathHoldKind(detail.files, holdPaths)?.kind === "hold-path";
+  if (!Array.isArray(holdPaths) || detail.filesCapped === true || !listed) {
     return false;
   }
-  return costHold(detail.files, detail.costDecision) === null && Array.isArray(detail.lifters) && detail.lifters.length > 0;
+  return costHold(detail.files, detail.costDecision) === null && (pathHolds === false || (Array.isArray(detail.lifters) && detail.lifters.length > 0));
 }
 
 // Whether `label` stands for enable-auto-merge's refusal alone, so the lane
@@ -1231,7 +1265,7 @@ export function unblockHold(stops) {
 // `detail` is its discussion; undefined means not read yet, and an arm or a
 // keep then waits on it (action `read`). Its `verify` is the gate's verifier
 // evidence; absent, an arm or a keep waits on it (action `verify`).
-export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
+export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = true }, detail) {
   if (pull.author?.__typename !== "Bot" || pull.author.login !== bot) {
     return { action: "none", reason: "not the lanes App's" };
   }
@@ -1276,7 +1310,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   // head or of an earlier head carried over base merges (`lifters`) as
   // ci-status lifts it; a listing or check that could not run
   // is a lane's, which the next run reads again.
-  const pathHeld = pathHoldKind(detail.files, holdPaths);
+  const pathHeld = pathHoldKind(detail.files, holdPaths, pathHolds);
   if (pathHeld !== null && pathHeld.kind !== "hold-path") {
     return { action: armed ? "disarm" : "none", reason: pathHeld.reason, clears: "lane" };
   }
@@ -1332,6 +1366,127 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   return armed ? { action: "none", reason: "already armed" } : { action: "arm", reason: "no hold" };
 }
 
+// Skip-unchanged, as babysit_merge_skip.py keys the merge gate's skip: a
+// reader run keeps, for each unarmed lanes App pull request it left on a
+// lane's refusal in SKIPPABLE with nothing written, the key of every input
+// that refusal reads: its head, update time and labels, its head's check and
+// status rollup, review decision and count, newest comments and review
+// threads (none of which need move `updatedAt`), main's code and config,
+// the resolved config and the rung the gate scores at. The next reader run leaves a pull request whose
+// key still matches on that refusal with no read, for at most
+// merge.skip-unchanged max-minutes from its judgment and max-skips runs in a
+// row, and never past the time its lane comment turns into a failing status.
+// A skip only repeats a refusal: it never arms. A verdict refusal is never
+// kept, since a new pr-verify artifact changes nothing in the key. The
+// records ride in the pr-merge-verify-answers artifact (EAM_SKIP_IN, _OUT).
+export const SKIP_VERSION = 1;
+export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head ("]);
+// merge.skip-unchanged's defaults (babysit_merge_skip.py).
+export const SKIP_MAX_MINUTES = 60;
+export const SKIP_MAX_SKIPS = 3;
+const SKIP_CHUNK = 20;
+// The paths of main whose tree ids go in the key: the config this run reads
+// and every script it, the verifier and the risk score run.
+export const SKIP_MAIN_PATHS = Object.freeze([
+  "docs/conventions/pr-pipeline.yaml",
+  ".work-item-tracker.json",
+  ".github/standards/trusted-actors/trusted-actors.json",
+  ".github/workflows/pr-merge.yml",
+  ".github/actions",
+  ".github/scripts",
+  "plugins/source-control",
+]);
+const SKIP_STATE_FIELDS =
+  "number headRefOid updatedAt reviewDecision reviews { totalCount } comments(last: 50) { totalCount nodes { databaseId updatedAt } } reviewThreads(first: 100) { totalCount nodes { isResolved isOutdated } } commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100) { totalCount nodes { __typename ... on CheckRun { databaseId name status conclusion } ... on StatusContext { context state } } } } } } }";
+export const SKIP_STATE_PREFIX = "query($o: String!, $r: String!) { repository(owner: $o, name: $r) {";
+export const skipStateQuery = (numbers) => `${SKIP_STATE_PREFIX} ${numbers.map((n) => `p${n}: pullRequest(number: ${n}) { ...s }`).join(" ")} } } fragment s on PullRequest { ${SKIP_STATE_FIELDS} }`;
+const ZONED_TIME = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
+
+// A merge.skip-unchanged limit: empty is `fallback`, a whole number is itself,
+// anything else 0 (off).
+export function skipLimit(text, fallback) {
+  const value = String(text ?? "").trim();
+  if (value === "" || value === "null") return fallback;
+  return /^[0-9]{1,6}$/.test(value) ? Number(value) : 0;
+}
+
+// main's tree ids of SKIP_MAIN_PATHS in the `.base` clone, or null.
+export function mainInputsOf(base = ".base") {
+  const run = spawnSync("git", ["-C", base, "ls-tree", "HEAD", "--", ...SKIP_MAIN_PATHS], { encoding: "utf8" });
+  return run.status === 0 && run.stdout.trim() !== "" ? run.stdout : null;
+}
+
+// A state node as the key reads it, or null when any part is missing, cut
+// or not at `head`: the head's check and status rollup (a status's time is
+// left out, so the same state posted again on the next run is no change),
+// the review decision and count, the newest comments' ids and edit times,
+// and the review threads' resolved and outdated flags, none of which need
+// move `updatedAt`, as babysit_merge_skip.pr_state keys them.
+export function rollupOf(node, head) {
+  const commit = node?.commits?.nodes?.[0]?.commit;
+  if (commit?.oid !== head) return null;
+  const whole = (list, cap) => Array.isArray(list?.nodes) && list.totalCount === list.nodes.length && list.nodes.length <= cap;
+  const contexts = commit.statusCheckRollup == null ? { totalCount: 0, nodes: [] } : commit.statusCheckRollup.contexts;
+  if (!whole(contexts, 100) || !whole(node.reviewThreads, 100) || !Array.isArray(node.comments?.nodes) || !Number.isSafeInteger(node.comments.totalCount) || !Number.isSafeInteger(node.reviews?.totalCount)) {
+    return null;
+  }
+  return {
+    checks: contexts.nodes.map((c) => JSON.stringify([c?.__typename ?? null, c?.databaseId ?? c?.context ?? null, c?.name ?? null, c?.status ?? c?.state ?? null, c?.conclusion ?? null])).sort(),
+    reviewDecision: node.reviewDecision ?? null,
+    reviews: node.reviews.totalCount,
+    comments: [node.comments.totalCount, ...node.comments.nodes.map((c) => [c?.databaseId ?? null, c?.updatedAt ?? null])],
+    threads: node.reviewThreads.nodes.map((t) => JSON.stringify([Boolean(t?.isResolved), Boolean(t?.isOutdated)])).sort(),
+  };
+}
+
+export const skipKey = (pull, rollup, main) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({
+        v: SKIP_VERSION,
+        pr: pull.number,
+        head: pull.headRefOid,
+        updatedAt: pull.updatedAt ?? null,
+        labels: (pull.labels?.nodes ?? []).map((node) => String(node?.name).toLowerCase()).sort(),
+        rollup,
+        main,
+      }),
+    )
+    .digest("hex");
+
+// The kept records at `path` that still stand at `at`, by number; any doubt
+// keeps none.
+export function loadSkips(path, repo, at, { maxMinutes, maxSkips }) {
+  let data;
+  try {
+    data = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return {};
+  }
+  if (data?.v !== SKIP_VERSION || data.repo !== repo || data.entries === null || typeof data.entries !== "object") return {};
+  const kept = {};
+  for (const [number, entry] of Object.entries(data.entries)) {
+    const judged = ZONED_TIME.test(String(entry?.at)) ? Date.parse(entry.at) : Number.NaN;
+    const until = ZONED_TIME.test(String(entry?.until)) ? Date.parse(entry.until) : Number.NaN;
+    if (
+      /^[0-9]+$/.test(number) &&
+      at - judged >= 0 &&
+      at - judged < maxMinutes * 60_000 &&
+      at < until &&
+      Number.isSafeInteger(entry.skips) &&
+      entry.skips >= 0 &&
+      entry.skips < maxSkips &&
+      /^[0-9a-f]{64}$/.test(String(entry.key)) &&
+      SHA.test(String(entry.head)) &&
+      typeof entry.reason === "string" &&
+      SKIPPABLE.some((prefix) => entry.reason.startsWith(prefix))
+    ) {
+      kept[number] = { at: entry.at, until: entry.until, key: entry.key, head: entry.head, reason: entry.reason, skips: entry.skips };
+    }
+  }
+  return kept;
+}
+
 async function listPulls(github, owner, name) {
   const pulls = [];
   let after = null;
@@ -1350,7 +1505,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1370,6 +1525,9 @@ export async function main({ env = process.env, github, actions, verify, room, w
     const statuses = [];
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
+    // merge.diff-check.path-holds (owner decision Q15): off, no hold path
+    // holds, and a refusal naming only hold paths comes off (approvalLift).
+    const pathHolds = readPathHolds(env.RESOLVED_CONFIG ?? "");
     // The newest answer's rate limit and body, for an arm GitHub refuses.
     let answer = null;
     const onResponse = (response) => {
@@ -1398,7 +1556,10 @@ export async function main({ env = process.env, github, actions, verify, room, w
     whole ??= pythonWholeReview(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const serve = cacheMode(env) === "serve";
-    const pulls = await listPulls(github, repo[1], repo[2]);
+    // A pull_request_target run handles only the pull request its event
+    // names, as the listing holds it; a scheduled or hand-started run, every one.
+    const listed = await listPulls(github, repo[1], repo[2]);
+    const pulls = env.EVENT_NAME === "pull_request_target" ? listed.filter((pull) => String(pull.number) === String(env.EVENT_PR ?? "")) : listed;
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     // Only a reader run arms, so only it reads the room.
     let lane = null;
@@ -1484,6 +1645,8 @@ export async function main({ env = process.env, github, actions, verify, room, w
     // pull request itself:
     // under merge.lane-prs native the gate never lists it, so a log line
     // would be all anyone saw.
+    // Writes note sent or tried, for skip-unchanged.
+    let sent = 0;
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -1498,6 +1661,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
       // budget the next run asks.
       let record = null;
       if (write && refusal.wholeReview === true && refusal.clears === "lane" && typeof refusal.comment !== "string" && now() <= deadline) {
+        sent += 1;
         try {
           const answer = whole.request(pull, priorRefusal(detail?.comments?.nodes, slug)?.body ?? "");
           if (typeof answer?.line === "string" && WHOLE_REVIEW_RECORD.test(answer.line)) {
@@ -1531,6 +1695,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
         return;
       }
       const base = `/repos/${repo[0]}/issues`;
+      sent += 1;
       try {
         if (writes.body === null) {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
@@ -1570,6 +1735,43 @@ export async function main({ env = process.env, github, actions, verify, room, w
         }
       }
     };
+    // Skip-unchanged (SKIPPABLE): a reader run that writes keeps its records
+    // and reads the last run's.
+    const skips = { on: reads && write && Boolean(env.EAM_SKIP_OUT), maxMinutes: skipLimit(env.SKIP_MAX_MINUTES, SKIP_MAX_MINUTES), maxSkips: skipLimit(env.SKIP_MAX_SKIPS, SKIP_MAX_SKIPS) };
+    const rollups = new Map();
+    const kept = {};
+    let skipStore = {};
+    let skipMain = null;
+    let skipped = 0;
+    let recorded = 0;
+    let keyable = 0;
+    if (skips.on && skips.maxMinutes > 0 && skips.maxSkips > 0) {
+      skipMain = (mainInputs ?? (() => mainInputsOf()))();
+      try {
+        // The rung the gate scores the risk at (pythonVerify's `rung`).
+        skipMain = skipMain === null ? null : `${skipMain}\n${readFileSync(env.RESOLVED_CONFIG ?? "", "utf8")}\n${minutes}\n${lane?.rung ?? ""}\n${env.RUNG_CAP ?? ""}`;
+      } catch {
+        skipMain = null;
+      }
+      if (skipMain !== null) {
+        skipStore = loadSkips(env.EAM_SKIP_IN ?? "", repo[0], now(), skips);
+        const numbers = pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null).map((pull) => pull.number);
+        keyable = numbers.length;
+        for (let start = 0; start < numbers.length; start += SKIP_CHUNK) {
+          try {
+            const read = (await github("POST", "/graphql", { query: skipStateQuery(numbers.slice(start, start + SKIP_CHUNK)), variables: { o: repo[1], r: repo[2] } }))?.data?.repository;
+            for (const number of numbers.slice(start, start + SKIP_CHUNK)) {
+              const node = read?.[`p${number}`];
+              const listed = pulls.find((pull) => pull.number === number);
+              const rollup = node?.number === number && node.headRefOid === listed.headRefOid && node.updatedAt === listed.updatedAt ? rollupOf(node, listed.headRefOid) : null;
+              if (rollup !== null) rollups.set(number, rollup);
+            }
+          } catch (error) {
+            console.log(`enable-auto-merge: skip-unchanged state read failed, so those pull requests are read in full: ${describe(error)}`);
+          }
+        }
+      }
+    }
     for (let pull of rotated(pulls, Number(env.GITHUB_RUN_NUMBER))) {
       if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
@@ -1578,7 +1780,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
           console.log(`enable-auto-merge: #${pull.number} labels did not read whole: ${describe(error)}`);
         }
       }
-      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
+      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths, pathHolds });
       let clears;
       let comment;
       let withdraw;
@@ -1616,6 +1818,15 @@ export async function main({ env = process.env, github, actions, verify, room, w
       if (widen) {
         action = "read";
       }
+      // This pull request's skip key, when its outcome may be kept or skipped.
+      const key = skipMain !== null && action === "read" && !widen && held === null && stopped === null && pull.autoMergeRequest == null && rollups.has(pull.number) ? skipKey(pull, rollups.get(pull.number), skipMain) : null;
+      const prior = key === null ? undefined : skipStore[pull.number];
+      if (prior !== undefined && prior.key === key && prior.head === pull.headRefOid) {
+        skipped += 1;
+        kept[pull.number] = { ...prior, skips: prior.skips + 1 };
+        console.log(`enable-auto-merge: #${pull.number} left, unchanged since ${prior.at} (skip ${prior.skips + 1} of ${skips.maxSkips}): ${escapeCommand(prior.reason)}`);
+        continue;
+      }
       if (action === "read") {
         try {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
@@ -1626,10 +1837,11 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // A hold-path refusal with a trusted person's approval in the
             // discussion reads on, for approvalLift below.
             const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && trustedHumans(env).has(item.userId) && item.state === "APPROVED");
-            unmarked = widen && !isPartial(standing, pull.headRefOid) && !(approvedBy && holdPathOnly(standing, pull.headRefOid, humanGated));
+            unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
-            const { paths: files, capped } = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+            const graphed = listedFiles(detail.files);
+            const { paths: files, capped } = graphed !== null ? { paths: graphed, capped: false } : await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
             const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             let lifters = headLifters(detail, humans, pull.headRefOid);
@@ -1637,7 +1849,11 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // (merge-holds.liftersOf) lifts the hold path as ci-status lifts
             // it, so a base merge after a person's approval does not send the
             // pull request back to them.
-            if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths)?.kind === "hold-path") {
+            const skipped = pathHolds === false ? pathHoldKind(files, holdPaths) : null;
+            if (skipped?.kind === "hold-path") {
+              console.log(`enable-auto-merge: #${pull.number} path holds are off (merge.diff-check.path-holds), so nothing holds it for this: ${escapeCommand(skipped.reason)}`);
+            }
+            if (!lifters.length && Array.isArray(holdPaths) && pathHoldKind(files, holdPaths, pathHolds)?.kind === "hold-path") {
               lifters = (await liftersOf(github, repo[0], pull.number, pull.headRefOid, humans, holdPaths)).lifters;
             }
             let stops = null;
@@ -1656,7 +1872,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
             // The label must stand for that refusal alone (liftBlocker), and
             // the head read again just before the delete must be the one
             // judged. A read that fails keeps the label.
-            let lift = widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths });
+            let lift = widen && approvalLift(pull, detail, { bot: slug, label: humanGated, holdPaths, pathHolds });
             if (lift) {
               let kept;
               try {
@@ -1677,7 +1893,8 @@ export async function main({ env = process.env, github, actions, verify, room, w
               if (write) {
                 await github("DELETE", `/repos/${repo[0]}/issues/${pull.number}/labels/${encodeURIComponent(humanGated)}`);
               }
-              console.log(`enable-auto-merge: #${pull.number} ${write ? "lifted" : "would lift (report-only)"} ${escapeCommand(humanGated)}: ${detail.lifters.join(", ")} approved its head, which lifts its hold path`);
+              const why = pathHolds === false ? "path holds are off (merge.diff-check.path-holds)" : `${detail.lifters.join(", ")} approved its head`;
+              console.log(`enable-auto-merge: #${pull.number} ${write ? "lifted" : "would lift (report-only)"} ${escapeCommand(humanGated)}: ${why}, which lifts its hold path`);
               widen = false;
               // Off in this run's view too, so a person's reason the verifier
               // read adds puts the label back (refusalWrites).
@@ -1692,7 +1909,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
         ({ action, reason, clears, comment, withdraw, partial, fold = null } =
           widen && (detail === null || unmarked)
             ? { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null }
-            : decide(judged, { bot: slug, humanGated, holdPaths }, detail));
+            : decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, detail));
         if (detail && reason === unblockHold(detail.unblockStops)) {
           unblockSkips.push(`#${pull.number} ${action === "disarm" ? "disarmed" : "not queued"}: ${escapeCommand(reason)}`);
         }
@@ -1742,7 +1959,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
         }
         answered = evidence !== null && !decided;
         if (!decided) {
-          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
         }
         // A kept answer that holds nothing: read in full once, never armed on.
         if (!decided && action === "verify") {
@@ -1751,7 +1968,7 @@ export async function main({ env = process.env, github, actions, verify, room, w
           } else {
             evidence = await read({ fresh: true });
             if (!decided) {
-              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
             }
           }
         }
@@ -1800,7 +2017,21 @@ export async function main({ env = process.env, github, actions, verify, room, w
         if (reads && write && withdraw === true && sinceAt(priorRefusal(detail?.comments?.nodes, slug)?.body, pull.headRefOid) !== undefined) {
           statuses.push({ sha: pull.headRefOid, state: "success", description: "its lanes refusal no longer stands" });
         }
+        const sentBefore = sent;
+        const failedBefore = failed;
         await note(pull, detail, { clears, reason, comment, cached, partial, answered, wholeReview });
+        // Kept only when this run wrote nothing for it, so the key read
+        // before it still stands.
+        if (key !== null && detail != null && sent === sentBefore && failed === failedBefore && stopped === null && clears === "lane" && typeof comment !== "string" && wholeReview !== true && SKIPPABLE.some((prefix) => String(reason).startsWith(prefix))) {
+          const since = sinceAt(priorRefusal(detail.comments?.nodes, slug)?.body, pull.headRefOid);
+          const at = now();
+          const escalated = unarmedStatus(pull, detail.comments?.nodes, { clears, reason, comment }, { bot: slug, now: at, minutes }) !== null;
+          const until = Math.min(at + skips.maxMinutes * 60_000, escalated ? Number.POSITIVE_INFINITY : Date.parse(String(since)) + minutes * 60_000);
+          if (since !== undefined && until > at) {
+            recorded += 1;
+            kept[pull.number] = { at: new Date(at).toISOString(), until: new Date(until).toISOString(), key, head: pull.headRefOid, reason: String(reason), skips: 0 };
+          }
+        }
         continue;
       }
       if (!write) {
@@ -1904,6 +2135,15 @@ export async function main({ env = process.env, github, actions, verify, room, w
     }
     for (const [level, text] of lines) {
       console.log(`::${level} title=enable-auto-merge::${text}`);
+    }
+    if (skips.on) {
+      console.log(`enable-auto-merge: skip-unchanged skipped=${skipped} recorded=${recorded} keyed=${rollups.size} of ${keyable}`);
+      try {
+        writeFileSync(`${env.EAM_SKIP_OUT}.tmp`, JSON.stringify({ v: SKIP_VERSION, repo: repo[0], entries: kept }));
+        renameSync(`${env.EAM_SKIP_OUT}.tmp`, env.EAM_SKIP_OUT);
+      } catch (error) {
+        console.log(`::warning title=enable-auto-merge::the skip records were not kept, so the next run reads every pull request: ${describe(error)}`);
+      }
     }
     if (statuses.length > 0 && env.GITHUB_OUTPUT) {
       try {

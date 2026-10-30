@@ -1145,7 +1145,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `permission-widening-review`, and an added `pull_request_target` or `workflow_run` trigger as
    `privileged-trigger-review`, all of which a person clears. A pull request that changes a lane
    source binds its review lanes only on `pr-review-main.yml`'s verdict from main
-   (`babysit_review_evidence._main_bound`).
+   (`babysit_review_evidence._main_bound`); a designed stop that review recorded on the head
+   (`verdict=none reason=<reason>`) binds nothing and names the unbound reason
+   `main-review-stop:<reason>`.
    Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

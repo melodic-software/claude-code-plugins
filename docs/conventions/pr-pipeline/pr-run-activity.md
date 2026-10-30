@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -964,8 +964,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    over it under `feedback/` with an empty `feedback/state/`; after the head checkout the run job
    copies them to `.lane/feedback/` and makes the files, the wrapper and the directory read-only,
    all but `state/`. Edit, Write and NotebookEdit are denied on each staged file. The skill gets
-   the tool set of a read skill that hands on a patch and one Bash rule, the wrapper's absolute
-   path, bare and double-quoted, and the preamble names that path and its three subcommands. The
+   the tool set of a read skill that hands on a patch and two Bash rules, the wrapper's absolute
+   path, bare and double-quoted, and `chmod -x`, and the preamble names that path and its three
+   subcommands and says `chmod -x` reverts an executable bit the pull request added. The patch
+   carries the mode, and the `review-threads` row pushes no new executable bit (`new-exec-bit`) and
+   a mode change only back to the merge base's (`pr-mode-revert`). The
    tool lists the kept threads, checks paths, and records a reply in `state/replies.jsonl`: it
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
@@ -2030,7 +2033,11 @@ listing and re-fires the issue on main's files, once per version of the two file
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+step under the escalation marker and an `outcome=<reason>` marker. When the admit job stops the
+run because the issue's author is neither a listed human nor the lanes App, `report-skip` runs
+with `dimension-skip: outside-author`: it removes `agent-ready` and comments, under an
+`outcome=outside-author` marker and with no label, that a listed human re-files the work as a new
+issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -2082,7 +2089,12 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   branch, the run resumes it; when that run's branch is gone, fails a check or is behind the
   default branch (its stale base would fail the runner's whole-branch checks), the run starts from
   the default branch under a new lane branch, never from an older run's branch, and leaves the old
-  branch as it is: `issue-prior`
+  branch as it is. A branch left behind that way, when every commit on it passes the same checks,
+  comes out as `stale-branch` and `stale-tip` (the tip it read), with `stale-noted` true when a
+  lanes App comment already opens with `<!-- work-resolve-issue stale-branch=<branch> -->`; the
+  runner's `lane.json` carries it as `stale` only while unnoted, and report-outcome then posts that
+  comment naming it, once per branch, so a person can find and delete it (no lane deletes it):
+  `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
   out that tip, so its patch is made there instead of on the default branch tip. Any failed
   read, or an answer of the wrong shape, fails the step, so no model runs.
@@ -2098,7 +2110,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   comment created or edited after that is left out, and a title or body changed since fails the
   step, so text edited after admission does not steer the run. On a resume, `issue.json` also
   carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
-  base and each changed file with its line counts, from `GET /compare`. The skill leaves its
+  base and each changed file with its line counts, from `GET /compare`. On a fresh start past a
+  stale branch it carries `stale_branch` instead: that branch, the tip `issue-prior` checked, and
+  the same commit subjects and file list, as data whose approach the run may reuse. The skill leaves its
   change uncommitted; the read file collects it as a patch against the commit it checked out
   ([Patch output mode](#patch-output-mode)), also after a failed skill step (a turn cap or a usage
   limit) whose permission mode checked out, so partial work reaches a branch a resumed run
@@ -2211,9 +2225,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
-  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
-  them on the head. The summary never decides the hold or reaches a status:
+  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  reported (missing or another tip): the Verification section lists each result, and `ci-status`
+  reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none

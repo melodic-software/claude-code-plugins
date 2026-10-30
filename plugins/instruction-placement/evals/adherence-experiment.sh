@@ -293,8 +293,7 @@ score_trial() {
   # or an `=`, so no later token on the line can be reached to stand in for the
   # field. A multi-declarator line (`private decimal _a, _b;`) credits on its
   # first name only, which is the documented under-crediting bias.
-  printf '%s\n' "$body" |
-    grep -qE 'private[^;{(=]*[[:space:]]_[A-Za-z][A-Za-z0-9]*[[:space:]]*(;|=[^>])' &&
+  grep -qE 'private[^;{(=]*[[:space:]]_[A-Za-z][A-Za-z0-9]*[[:space:]]*(;|=[^>])' <<<"$body" &&
     underscore=1
   printf '%d\t%d' "$sealed" "$underscore"
 }
