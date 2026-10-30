@@ -1848,6 +1848,12 @@ class Reader:
         for sha, artifacts in sorted(self.fail_artifacts[number].items()):
             for run_id, name, artifact_id in artifacts:
                 entry: dict[str, Any] = {"head": sha, "run": run_id}
+                # Only a run of verified origin has its record read: any
+                # other could carry anyone's text.
+                if self._run_state(run_id, shared=True) not in (ORIGIN, COUNTED):
+                    entry["unreadable"] = "run origin not verified"
+                    found.append(entry)
+                    continue
                 try:
                     record = self._record(run_id, name, artifact_id)
                 except _Unreadable as exc:
@@ -3432,6 +3438,15 @@ def _marked(
 ) -> re.Match[str] | None:
     """The identity's capped-close record for pull request `number` among
     REST `comments`, or None."""
+    found = _capped_record(comments, identity, number)
+    return found[0] if found else None
+
+
+def _capped_record(
+    comments: list[dict[str, Any]], identity: str, number: int
+) -> tuple[re.Match[str], datetime] | None:
+    """`_marked`'s record and when it was posted; a record with no readable
+    time raises `PostMergeReadError`."""
     for c in comments:
         first = str(c.get("body") or "").split("\n", 1)[0].rstrip("\r")
         if (
@@ -3440,8 +3455,30 @@ def _marked(
             and (match := CAPPED_CLOSE_RE.fullmatch(first))
             and int(match[1]) == number
         ):
-            return match
+            return match, postmerge._time(c.get("created_at"))
     return None
+
+
+def _undone_by_lane(
+    events: list[dict[str, Any]], identity: str, since: datetime
+) -> bool:
+    """Whether the newest `agent-ready` removal among the issue's REST
+    `events` is the lanes App's own, made after its record (`since`): the one
+    an earlier run made for the fresh attempt and could not undo."""
+    removals = [
+        e
+        for e in map(json_object, events)
+        if e.get("event") == "unlabeled"
+        and str(json_object(e.get("label")).get("name") or "").lower() == AGENT_READY
+    ]
+    if not removals:
+        return False
+    newest = max(removals, key=lambda e: postmerge._time(e.get("created_at")))
+    return (
+        str(json_object(newest.get("actor")).get("login") or "").lower()
+        == identity.lower()
+        and postmerge._time(newest.get("created_at")) > since
+    )
 
 
 def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
@@ -3482,7 +3519,12 @@ def capped_close(
     (`holds`) is left alone, and so is one whose issue link the pr-merge lane
     does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
     or whose issue carries an `issue_holds` label (`issue_hold_refusal`; none
-    resolved refuses). Raises `RuntimeError` on a failed
+    resolved refuses). A pull request is closed at the cap once: one reopened
+    after its record stays open, and a rerun after a failed close writes no
+    issue label, except putting back an `agent-ready` the newest removal of
+    which was the lanes App's own after its record (`_undone_by_lane`).
+    FAIL findings come only from runs of verified origin. Raises
+    `RuntimeError` on a failed
     write or a failed issue read, `PostMergeReadError` on a failed comments
     read."""
     identity = reader.agent_identity or ""
@@ -3525,31 +3567,59 @@ def capped_close(
     except _Unreadable as exc:
         raise RuntimeError(f"FAIL findings: {exc}") from exc
     repo = reader.repo
+    pr_comments = postmerge._paginated(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+    )
+    # A pull request is closed at the cap once: one reopened after its
+    # record is a person's, and stays open.
+    if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
+        json_object(e).get("event") == "reopened"
+        and postmerge._time(json_object(e).get("created_at")) > pr_record[1]
+        for e in postmerge._paginated(
+            f"repos/{repo}/issues/{number}/events?per_page=100", f"#{number} events"
+        )
+    ):
+        return {"closed": False, "reason": "reopened after its capped-close record"}
     # `attempt` None: the issue did not carry agent-ready when read (a person
     # may have taken it off), so it is recorded without an attempt and not
-    # restarted. A record naming an attempt means an earlier run took the
-    # label off for it, so a rerun restarts it.
-    plan: list[tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool]] = []
+    # restarted. `readd`: whether its labels are written. A record naming an
+    # attempt means an earlier run started it: a rerun writes no label unless
+    # the newest removal of agent-ready is that run's own (`_undone_by_lane`),
+    # which it puts back without a second toggle.
+    plan: list[
+        tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]
+    ] = []
     for issue in issues:
         comments = postmerge._paginated(
             f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
         )
-        prior = _marked(comments, identity, number)
-        if prior is not None and prior[3] is not None:
+        found = _capped_record(comments, identity, number)
+        carried = AGENT_READY in (
+            label.lower() for label in merge_policy._label_names(live[issue]) or []
+        )
+        if found is not None and found[0][3] is not None:
+            prior, since = found
             attempt, parked = (int(prior[3]), int(prior[4])), bool(prior[5])
+            if parked:
+                labels = "park"
+            elif carried:
+                labels = "none"
+            else:
+                events = postmerge._paginated(
+                    f"repos/{repo}/issues/{issue}/events?per_page=100",
+                    f"#{issue} events",
+                )
+                labels = "add" if _undone_by_lane(events, identity, since) else "none"
         else:
             spent = _spent(comments, identity, number)
             parked = spent >= attempts
-            carried = AGENT_READY in (
-                label.lower()
-                for label in merge_policy._label_names(live[issue]) or []
-            )
             attempt = (
                 (spent if parked else spent + 1, attempts)
                 if parked or carried
                 else None
             )
-        plan.append((issue, comments, attempt, parked))
+            labels = "park" if parked else ("toggle" if carried else "none")
+        plan.append((issue, comments, attempt, parked, labels))
     first = plan[0] if plan else None
     pr_body, _ = capped_close_bodies(
         number,
@@ -3561,10 +3631,7 @@ def capped_close(
         first[2] if first else None,
         first[3] if first else False,
     )
-    pr_comments = postmerge._paginated(
-        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-    )
-    if _marked(pr_comments, identity, number) is None:
+    if pr_record is None:
         _gh_write(
             [
                 "api",
@@ -3576,7 +3643,7 @@ def capped_close(
             ],
             "pull request record",
         )
-    for issue, comments, attempt, parked in plan:
+    for issue, comments, attempt, parked, labels in plan:
         _, issue_body = capped_close_bodies(
             number,
             head,
@@ -3615,13 +3682,14 @@ def capped_close(
                 f"#{issue} {STATUS_READY}",
                 missing_ok=True,
             )
-        if not parked and attempt is None:
+        if labels == "none":
             continue
-        _gh_write(
-            ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
-            f"#{issue} {AGENT_READY}",
-            missing_ok=True,
-        )
+        if labels != "add":
+            _gh_write(
+                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
+                f"#{issue} {AGENT_READY}",
+                missing_ok=True,
+            )
         if parked:
             continue
         args = ["api", "-X", "POST", base, "-f", f"labels[]={AGENT_READY}"]
@@ -3639,9 +3707,9 @@ def capped_close(
     return {
         "closed": True,
         "refusal": evidence.refusal,
-        "restarted": [i for i, _, a, parked in plan if not parked and a is not None],
-        "parked": [issue for issue, _, _, parked in plan if parked],
-        "unrestarted": [i for i, _, a, parked in plan if not parked and a is None],
+        "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
+        "parked": [i for i, _, _, parked, _ in plan if parked],
+        "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
     }
 
 

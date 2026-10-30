@@ -72,8 +72,22 @@ class StubReader:
         }
 
 
-def comment(body: str, login: str = BOT) -> dict[str, Any]:
-    return {"user": {"login": login}, "body": body}
+RECORDED = "2026-10-29T10:00:00Z"
+LATER = "2026-10-29T11:00:00Z"
+EARLIER = "2026-10-29T09:00:00Z"
+
+
+def comment(body: str, login: str = BOT, at: str = RECORDED) -> dict[str, Any]:
+    return {"user": {"login": login}, "body": body, "created_at": at}
+
+
+def event(kind: str, login: str, at: str, label: str = "agent-ready") -> dict[str, Any]:
+    return {
+        "event": kind,
+        "actor": {"login": login},
+        "created_at": at,
+        "label": {"name": label},
+    }
 
 
 class World:
@@ -94,11 +108,14 @@ class World:
             "labels": [{"name": n} for n in labels or []],
         }
         self.comments: dict[int, list[dict[str, Any]]] = {PR: [], ISSUE: []}
+        self.events: dict[int, list[dict[str, Any]]] = {PR: [], ISSUE: []}
         self.writes: list[list[str]] = []
         self.fail_once: set[str] = set()
 
     def paginated(self, endpoint: str, label: str) -> list[dict[str, Any]]:
         number = int(endpoint.split("/issues/")[1].split("/")[0])
+        if "/events" in endpoint:
+            return self.events[number]
         return self.comments[number]
 
     def gh(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -239,15 +256,43 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         world.comments[ISSUE] = [comment(world.body(1))]
         world.writes.clear()
         result = world.run()
-        self.assertEqual(result["restarted"], [ISSUE])
+        # The issue still carries the agent-ready the first run put back, so
+        # the rerun only closes: no second toggle starts a second work run.
+        self.assertEqual(result["restarted"], [])
+        self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
+
+    def test_a_pull_request_reopened_after_its_record_is_left_alone(self) -> None:
+        world = World()
+        world.comments[PR] = [comment(f"<!-- verify-capped-close pr={PR} heads= -->")]
+        world.events[PR] = [event("reopened", "kyle-sexton", LATER, label="")]
+        result = world.run()
         self.assertEqual(
-            world.calls(),
-            [
-                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
-                f"POST repos/{REPO}/issues/{ISSUE}/labels",
-                f"PATCH repos/{REPO}/pulls/{PR}",
-            ],
+            result,
+            {"closed": False, "reason": "reopened after its capped-close record"},
         )
+        self.assertEqual(world.writes, [])
+
+    def test_a_rerun_restarts_nothing_a_person_took_off(self) -> None:
+        for name, unlabeled in (
+            ("a person's removal", event("unlabeled", "kyle-sexton", LATER)),
+            ("the App's removal before the record", event("unlabeled", BOT, EARLIER)),
+            ("no removal", None),
+        ):
+            with self.subTest(name):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [
+                    comment(
+                        f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 -->"
+                    )
+                ]
+                world.events[ISSUE] = [unlabeled] if unlabeled else []
+                result = world.run(StubReader(issue_labels=()))
+                self.assertEqual(result["restarted"], [])
+                self.assertEqual(result["unrestarted"], [ISSUE])
+                self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
 
     def test_the_re_add_is_tried_twice(self) -> None:
         world = World()
@@ -328,11 +373,19 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             world.run()
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
+        # Its own removal, after its record, is the one the rerun undoes.
+        world.events[ISSUE] = [event("unlabeled", BOT, LATER)]
         del world.gh
         world.writes.clear()
         result = world.run(StubReader(issue_labels=()))
         self.assertEqual(result["restarted"], [ISSUE])
-        self.assertIn(f"POST repos/{REPO}/issues/{ISSUE}/labels", world.calls())
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
 
     def test_too_old_closes_too(self) -> None:
         self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])

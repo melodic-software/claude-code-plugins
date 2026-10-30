@@ -2311,7 +2311,10 @@ a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run b
 `merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
 lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
 whose issue link the arm path refuses (one closing issue or the `Refs:` one, clearing the trust
-hold) or whose issue carries an issue hold label. In order,
+hold) or whose issue carries an issue hold label. The gate also leaves open one any queued-entry
+hold names (a hold label, a body hold, a member's blocking comment), and one whose human-gated label
+it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
+order,
 so a failed write leaves the pull request open for the next run, which finds its records and
 writes the rest: a comment on the pull request opening with
 `<!-- verify-capped-close pr=<n> heads=<shas> -->`, quoting each FAILed head's verdict summary and
@@ -2320,14 +2323,17 @@ fence; the same record on each linked issue (closing, or the `Refs:` one), its m
 attempt; `agent-ready` off the issue and back on, tried twice, which starts the fresh attempt;
 then the close, so a closed pull request never leaves its issue without `agent-ready`. An issue
 that did not carry `agent-ready` when read (a person may have taken it off) is recorded with no
-attempt and not restarted, since the App's re-add would override that person. `write-issue.mjs` passes that record to the next attempt as
+attempt and not restarted, since the App's re-add would override that person. A rerun after a
+failed close writes no issue label, except putting back an `agent-ready` whose newest removal was
+the App's own after its record. Findings are quoted only from pr-verify runs of verified origin; any
+other is named as not verified. `write-issue.mjs` passes that record to the next attempt as
 `author_kind: verify-findings`, the one lanes App comment it keeps besides intake's refinement. An
 issue that already had `merge.verify-cap-attempts` fresh attempts (lanes App records naming other
 pull requests) is parked instead: its record says so, and before the close it gets
 `status: confirmed` with `status: ready` and `agent-ready` taken off, so neither the readmit sweep
 nor triage starts it again.
 `label-unblocked.mjs` hands no issue to triage for a lane pull request its capped-close record
-names, since the lane already restarted or parked it. An armed pull request is disarmed first.
+names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first.
 `pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
 and post nothing, on a pull request the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the

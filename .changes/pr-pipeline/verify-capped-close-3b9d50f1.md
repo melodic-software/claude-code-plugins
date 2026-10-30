@@ -17,7 +17,12 @@ bump: patch
 - The cross-pull-request FAIL cap leaves out a pull request the lanes App's capped-close record
   names once it is closed, so a fresh attempt starts its own count. A record anyone
   else wrote or edited excuses nothing.
-- `label-unblocked.mjs` hands no issue to triage for a lane pull request closed at the cap, and
+- A pull request reopened after its capped-close record stays open, a rerun after a failed close
+  toggles no issue label again, the gate path leaves open a pull request any queued-entry hold
+  names or whose human-gated label is unreadable, and findings come only from runs of verified
+  origin.
+- `label-unblocked.mjs` hands no issue to triage for a lane pull request closed at the cap whose
+  record names an attempt, and
   `write-issue.mjs` passes the capped-close record to the next attempt as
   `author_kind: verify-findings`, the only other lanes App comment it keeps.
 - `pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci

@@ -3952,12 +3952,21 @@ def close_capped(
     """`verify_evidence.capped_close` for the gate's pull request at its
     head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
     label hold it open, and the issue's hold labels
-    (`merge_policy.issue_hold_labels`) keep it so."""
+    (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
+    a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
+    member's blocking comment; an unreadable one holds) keeps it open first,
+    as enable-auto-merge.mjs decide() does. An unreadable human-gated label
+    raises `PostMergeReadError`: a default could miss the mapped one."""
+    if hold := merge_policy.entry_hold(
+        repo,
+        number,
+        identity,
+        self_logins=inputs.get("self_logins") or frozenset(),
+        permission=inputs.get("permission"),
+    ):
+        return {"closed": False, "reason": f"held: {hold}"}
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    try:
-        label = human_gated_label(repo)
-    except postmerge.PostMergeReadError:
-        label = postmerge.DEFAULT_ROLE_LABEL
+    label = human_gated_label(repo)
     reader = verify_evidence.Reader(
         repo, branch, max_fails=config.max_verify_fails, agent_identity=identity
     )

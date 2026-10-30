@@ -1820,6 +1820,9 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         fake.records[named(EARLIER, "fail")] = record(
             PR, EARLIER, verdict="fail", summary="misses the error path"
         )
+        fake.records[named(IN_PR, "fail")] = record(
+            PR, IN_PR, verdict="fail", summary="text from an unverified run"
+        )
         del fake.runs[3]
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
@@ -1836,7 +1839,10 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
         )
         self.assertEqual(findings[0]["summary"], "misses the error path")
-        self.assertIn("unreadable", findings[1])
+        # A run whose origin is not verified is never downloaded: its text
+        # could be anyone's.
+        self.assertEqual(findings[1]["unreadable"], "run origin not verified")
+        self.assertFalse(any("artifacts/30/zip" in " ".join(c) for c in fake.calls))
 
     def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
@@ -4210,6 +4216,33 @@ class LaneRequiresAVerdict(unattended.Unattended):
                         "issue_holds": ("needs-human",),
                     },
                 )
+
+    def test_a_hold_the_gate_reads_on_the_pull_request_closes_nothing(self) -> None:
+        # A body hold, a member's veto or a hold label (`entry_hold`) keeps
+        # it open, as enable-auto-merge.mjs decide() does on the native path.
+        for hold in ("body-hold", "human-blocking-comment:kyle-sexton", "unreadable"):
+            with self.subTest(hold):
+                self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
+                self.holds[unattended.PR] = hold
+                with mock.patch.object(ve, "capped_close") as close:
+                    _, out = self.lane()
+                close.assert_not_called()
+                self.assertEqual(
+                    out["unattended"]["writes"]["cappedClose"],
+                    {"closed": False, "reason": f"held: {hold}"},
+                )
+
+    def test_an_unreadable_human_gated_label_closes_nothing(self) -> None:
+        # Its default could miss the label the tracker maps, and so the hold.
+        self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
+        self.role_label.side_effect = postmerge.PostMergeReadError("tracker gone")
+        with mock.patch.object(ve, "capped_close") as close:
+            _, out = self.lane()
+        close.assert_not_called()
+        self.assertNotIn("cappedClose", out["unattended"]["writes"])
+        self.assertTrue(
+            any("capped close" in e for e in out["unattended"]["writes"]["errors"])
+        )
 
     def test_a_refusal_that_can_clear_closes_nothing(self) -> None:
         for refusal in ("verify:fail", "verify:unreadable", "verify:spec-changed"):
