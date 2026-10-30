@@ -86,7 +86,9 @@ import { pathToFileURL } from "node:url";
 // enable-auto-merge.test.mjs checks both agree with the gate's Python on every
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
-export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// The hyphenated form written as the label's name (in backticks, before
+// "label", or as an item after a comma) names the label and vetoes nothing.
+export const HUMAN_VETO = /\b(?:do(?:n['’]?t| not)[\s-]*merge\b|(?<![`,])(?<!, )do-not[\s-]*merge\b(?!`|\s*labels?\b))/i;
 // The lanes App's bot login. A `Hold:` line on its own pull request holds the
 // merge, not a fix pushed to it (apply-patch.mjs's held()).
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
