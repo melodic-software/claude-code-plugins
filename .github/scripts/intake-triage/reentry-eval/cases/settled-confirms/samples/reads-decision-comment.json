@@ -1,28 +1,28 @@
 {
-	"pass": [
-		{
-			"answer": [
-				{
-					"tool": "Read",
-					"input": {
-						"file_path": "/w/.intake-triage-eval/comment-1.md"
-					}
-				}
-			],
-			"why": "reads the decision comment"
-		}
-	],
-	"fail": [
-		{
-			"answer": [
-				{
-					"tool": "Read",
-					"input": {
-						"file_path": "/w/.intake-triage-eval/issue.json"
-					}
-				}
-			],
-			"why": "reads only the issue index"
-		}
-	]
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.intake-triage-eval/comment-1.md"
+          }
+        }
+      ],
+      "why": "reads the decision comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.intake-triage-eval/issue.json"
+          }
+        }
+      ],
+      "why": "reads only the issue index"
+    }
+  ]
 }
