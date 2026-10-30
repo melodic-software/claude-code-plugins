@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [8.10.0] - 2026-10-30
+
+### Added
+
+- A chunked pr-review-main diff writes `manifest.txt` in the review's data directory, every file of the whole diff one line each with its chunk, its status (added, modified, deleted, or renamed with its old and new path) and its path, up to what one Read returns whole with the rest counted. Each chunk's prompt names that file for the reviewer to read as untrusted data, so the paths the pull request's author chose never enter the prompt, and asks for a finding naming both paths when a change references a file another chunk holds, so a dependency across chunks reaches the summed verdict. A one-chunk prompt is unchanged, byte for byte. The `pr-review-main chunks` notice adds `manifest_paths=<n>`, the files the manifest names (0 for one chunk).
+
+### Fixed
+
+- A work-resolve-issue run now deletes the issue's leftover lane branches from earlier stopped runs: a branch whose run posted an outcome marker, whose commits are all the lanes App's, and that has no pull request in any state. `issue-prior` names them from the reads it already makes, sparing the branch the run reuses, resumes or starts fresh past and every branch of the run itself, the issue-fields job publishes only the names its own re-derived check also names, and a new `prune-lane-branches` job, the lane's only `contents: write`, re-checks every named branch (pull requests from it in any state, open ones into it) in one GraphQL read and deletes each with one `updateRefs` at the tip it read. The stale-branch comment now says the next run deletes the branch instead of promising no lane does.
+
 ## [8.9.0] - 2026-10-30
 
 ### Added

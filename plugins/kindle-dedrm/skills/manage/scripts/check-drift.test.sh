@@ -6,7 +6,7 @@
 # and that the extracted pin() helper can read a fixture table.
 #
 # Assertion helpers are duplicated per plugin on purpose:
-# docs/conventions/shell-test-helpers/README.md.
+# docs/contracts/shell-test-helpers/README.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

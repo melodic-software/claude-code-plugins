@@ -10,7 +10,7 @@
 //            PASS with its value, or WARN when the file's value is invalid and
 //            the key resolves to its default; write nothing.
 //
-// The YAML reader and parser are the plugin's bundled copies under lib/. The
+// The YAML reader is the plugin's bundled copy under lib/. The
 // other options, the guarantees and the exit codes are in
 // ../../../lib/setup-apply.mjs.
 
@@ -43,7 +43,6 @@ run({
   plugin: "docs-hygiene",
   schema: join(PLUGIN, "schemas", "docs-hygiene.schema.json"),
   reader: join(PLUGIN, "lib", "parse-concern-value.sh"),
-  parser: join(PLUGIN, "lib", "yaml-subset.awk"),
   fixedTemp: true,
   report,
 });

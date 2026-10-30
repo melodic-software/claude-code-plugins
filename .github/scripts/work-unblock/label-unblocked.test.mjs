@@ -2335,6 +2335,96 @@ test("breaker trips at the mint never count toward the failed-mint bound", async
   assert.deepEqual(writes(calls), refired(30));
 });
 
+// With request-lane-token's kill-switch-ok, the same refusal ends the mint
+// step green with no token and a `lane-token-stopped` notice: every step that
+// keys on the token, `Stage the activity from the base` first, skips, and the
+// run ends green. Only that shape in the job listing earns a log read.
+const stoppedJob = (id, name) => ({
+  id,
+  name,
+  conclusion: "success",
+  steps: [
+    { name: "Request the lane token", conclusion: "success" },
+    { name: "Select the trusted PR text", conclusion: "skipped" },
+    { name: "Stage the activity from the base", conclusion: "skipped" },
+    { name: "Write the verdict", conclusion: "success" },
+  ],
+});
+const stoppedLog = ({ stamp = "2026-10-30T01:57:51.9466327Z ", line = "lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest" } = {}) =>
+  [
+    "2026-10-30T01:57:50.6158116Z ##[group]Run request-lane-token",
+    `${stamp}##[notice]${line}`,
+    "2026-10-30T01:57:52.0000000Z ##[group]Run jq -n \\",
+    "",
+  ].join("\n");
+const MINT_STOPPED = [
+  ADMITTED,
+  pickSlot,
+  BROKER_ALLOWED,
+  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  stoppedJob(PATCH_MINT_ID, "apply-issue-patch / run"),
+  stoppedJob(REPORT_MINT_ID, "report-outcome / run"),
+];
+const MINT_STOPPED_LOGS = { [PATCH_MINT_ID]: stoppedLog(), [REPORT_MINT_ID]: stoppedLog() };
+
+test("a green run whose mints the kill switch stopped is a breaker trip, read from one log", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${PATCH_MINT_ID}/logs`]);
+  // Past the failed-mint bound on these workflow files it still goes as a trip.
+  const pumped = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success", ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+  // The model ran, so like a mint refusal it waits limits.reset-clamp-min after the run ended.
+  const early = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
+  assert.deepEqual(writes(early.calls), []);
+});
+
+test("a stopped patch mint before a report the switch also stopped, or one alone, is a breaker trip", async () => {
+  const alone = MINT_STOPPED.filter((job) => job.id !== REPORT_MINT_ID).concat({ name: "report-outcome", conclusion: "skipped", steps: [] });
+  const { github, actions, calls } = stalledRun({ jobs: alone, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+});
+
+test("a run whose stopped mint is followed by a mint that took its token did work, read with no log", async () => {
+  const minted = { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const jobs = [...MINT_STOPPED.slice(0, -1), minted];
+  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, ...earlierPumps(1) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.deepEqual(logReads(calls), []);
+});
+
+// The reverse order: apply-issue-patch minted and pushed, then the switch
+// stopped report-outcome green. The run did work but never reported, so it
+// gets a failed run's once-per-version re-fire at once, not the stranded
+// wait for a green run, and it reads no log.
+test("a green run whose report mint the kill switch stopped after a patch mint is re-fired like a failed run", async () => {
+  const minted = { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const jobs = [...MINT_STOPPED.slice(0, -2), minted, stoppedJob(REPORT_MINT_ID, "report-outcome / run")];
+  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.deepEqual(logReads(calls), []);
+});
+
+test("a stopped mint whose log does not carry the kill-switch notice is a failed mint, never a breaker trip", async () => {
+  for (const [name, log] of [
+    ["a lookalike notice", stoppedLog({ line: "lane-token-stopped: the broker refused the token because a lanes kill switch is onward" })],
+    ["no timestamp", stoppedLog({ stamp: "" })],
+    ["a warning, not a notice", stoppedLog().replace("##[notice]", "##[warning]")],
+    ["over the size cap", `${"x".repeat(2 * 1024 * 1024)}\n${stoppedLog()}`],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: log === undefined ? {} : { [PATCH_MINT_ID]: log }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
 test("breaker trips past limit-stops-per-issue since a person last added agent-ready wait on the stranded backoff", async () => {
   const under = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...(await afterSweeps(2, BROKER_REFUSED, CHECK_KILLED)) });
   assert.equal(await sweep({ github: under.github, actions: under.actions }), 0);
@@ -2569,6 +2659,11 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
+  // A stopped mint is read from the stage step after it, which runs exactly when the token is set.
+  const write = jobs(workflow("pr-run-activity-write.yml")).run;
+  const named = steps(write);
+  assert.ok(named.indexOf("Stage the activity from the base") > named.indexOf("Request the lane token"));
+  assert.match(write, /^ {6}- name: Stage the activity from the base\n {8}id: stage\n {8}if: steps\.lane-token\.outputs\.token != ''\n/m);
 });
 
 // Each re-runner check matches by id. The dispatch lane cannot read its run's
@@ -4318,4 +4413,40 @@ test("a status: ready issue in no queue an open pull request is for gets admissi
     deferredLabel(26),
     `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`,
   ]);
+});
+
+// A blocker the lanes App closed report-delivered is no completed work (owner
+// Q9); it stops holding its dependent once a status: ready or agent-ready add
+// by the App or a listed human postdates the close (admit.mjs reportCleared).
+const reportDeliveredClose = (user, at) => ({
+  user,
+  created_at: at,
+  html_url: "https://github.com/o/r/issues/7#issuecomment-1",
+  body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
+});
+
+test("a status: ready issue whose blocker the App closed report-delivered is admitted only once a verdict postdates the close", async (t) => {
+  const closedAt = "2026-10-16T06:30:00Z";
+  for (const [comments, readyAt, expected, closer = LANES_BOT] of [
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "admit"],
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "retriage"],
+    [[reportDeliveredClose(OWNER, closedAt)], "2026-10-16T07:00:00Z", "wait"],
+    [[], "2026-10-16T07:00:00Z", "wait"],
+    // Reopened and closed again by someone else: the App's older report
+    // speaks for no close the App made.
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "wait", { id: 777, login: "triage-user" }],
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "wait", { id: 777, login: "triage-user" }],
+  ]) {
+    const item = readyIssue(26);
+    const blocker = issue(30, { state: "closed", closer, at: closedAt });
+    const { github, calls } = readyWorld({
+      items: [item],
+      events: { 26: [labelAdd("status: ready", LANES_BOT, readyAt)] },
+      extra: { issues: { 26: item, 30: blocker }, comments: { 26: [note()], 30: comments }, blockedBy: { 26: [blocker] } },
+    });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    const written = writes(calls);
+    assert.equal(written.includes(labeled(26)), expected === "admit", readyAt);
+    assert.equal(written.includes(`DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`), expected === "retriage", readyAt);
+  }
 });

@@ -16,7 +16,7 @@
 # to thousands of rows, which is script work, not prose work.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/conventions/detector-findings/README.md ("The severity crosswalk");
+# docs/contracts/detector-findings/README.md ("The severity crosswalk");
 # that table is the source of truth. A tier change lands there first and is
 # copied here, never the reverse.
 #

@@ -31,7 +31,7 @@
 #
 # CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate never reads
 # `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment as a
-# value: that is channel B of docs/conventions/hook-config-delivery, whose
+# value: that is channel B of docs/contracts/hook-config-delivery, whose
 # unset case a watched repository's own `.claude/settings.json` `env` block
 # owns, and a gate whose enablement (or sentinel, or marker path) the watched
 # repository controls is not a gate. Per-key resolution is, in precedence

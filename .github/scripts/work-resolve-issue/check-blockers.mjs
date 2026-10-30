@@ -46,7 +46,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { authorAdmitted, blockersOf, closedByTrusted, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -75,11 +75,16 @@ export async function main({ env = process.env, github, log = console.log, write
     const base = `/repos/${repository}/issues/${number}`;
     const issue = await client("GET", base);
     outsider = !authorAdmitted(issue, humans, appId);
-    held = !outsider && untrustedHold({ labels: issue?.labels, events: await paginate(client, `${base}/events`), humans, isApp: (actor) => actor?.id === appId });
+    const events = outsider ? [] : await paginate(client, `${base}/events`);
+    const isApp = (actor) => actor?.id === appId;
+    held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
     if (!outsider && !held) {
       // The same close admission counts (admit.mjs closedByTrusted), so a split
       // parent the lanes App closed does not hold an issue admission let through.
-      const trusted = closedByTrusted({ github: client, repository, humans, appId });
+      // A blocker the App closed report-delivered no longer holds once a
+      // verdict or admission postdates its close (admit.mjs reportCleared).
+      const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
+      const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closedByTrusted({ github: client, repository, humans, appId }), after });
       pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
       subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
       if (pending.length === 0 && subs.length === 0) {

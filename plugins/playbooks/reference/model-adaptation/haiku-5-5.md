@@ -39,7 +39,7 @@ included, lives in the Haiku 5.5 launch record; read it there and copy none of i
   for the evidence, see
   [Haiku 5.5 launch record: decisions](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/haiku-5-5-launch.md#decisions);
   for the lanes, see
-  [Alias binding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#alias-binding);
+  [Alias binding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#alias-binding);
   for what the alias resolves to on each provider, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
 - **As of**: 2026-10-10
@@ -158,7 +158,7 @@ add a hook that writes into context after tool results, read the pointers.
   for Claude Code hooks, see
   [Add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude); for our
   convention, see the
-  [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-observability/README.md).
+  [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-observability/README.md).
 - **As of**: 2026-10-10
 - **Recheck trigger**: either upstream section moving, or the convention changing.
 

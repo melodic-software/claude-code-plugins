@@ -172,9 +172,17 @@ for (const [file, job, route, laneSwitch] of [
     }
     // The org and repository switches fail closed in the action; the lane's
     // own switch stops the review only at `true` (github-iac README).
-    const proceeds = (lanes, lane) =>
-      evaluate(gate.outputs.proceed, { "steps.kill.outputs.proceed": lanes, [`vars.${laneSwitch}`]: lane });
+    const proceeds = (lanes, lane, degraded = "false") =>
+      evaluate(gate.outputs.proceed, {
+        "steps.kill.outputs.proceed": lanes,
+        "steps.upstream.outputs.degraded": degraded,
+        [`vars.${laneSwitch}`]: lane,
+      });
     assert.equal(proceeds("true", "false"), "true");
+    // A degraded Actions or npm component stops the review; a gate step that
+    // failed or wrote nothing fails open (check-upstream-status).
+    assert.equal(proceeds("true", "false", "true"), "false");
+    assert.equal(proceeds("true", "false", ""), "true", "an upstream check that wrote nothing leaves the review running");
     assert.equal(proceeds("true", ""), "true", "an unset lane switch leaves the review running");
     assert.equal(proceeds("true", "true"), "false");
     assert.equal(proceeds("false", "false"), "false");
@@ -218,7 +226,7 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
 
   const intake = jobs["intake-triage"];
   assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "") =>
+  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false", action = event === "issues" ? "opened" : "", degraded = "false") =>
     evaluate(intake.if, {
       "github.event_name": event,
       "github.event.action": action,
@@ -226,6 +234,7 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
       "needs.born-triaged.outputs.claude-args": claudeArgs,
       "needs.born-triaged.outputs.rate-limited": limited,
       "needs.kill-switch.outputs.proceed": proceed,
+      "needs.kill-switch.outputs.upstream-degraded": degraded,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
   assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
@@ -238,6 +247,8 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
   assert.equal(runs("false", args, "issues", "false"), false, "the kill switch stops intake");
   assert.equal(runs("false", args, "workflow_dispatch", ""), false, "a failed kill-switch job stops intake");
+  assert.equal(runs("false", args, "issues", "true", "false", "opened", "true"), false, "a degraded Actions or npm component stops intake");
+  assert.equal(runs("false", args, "issues", "true", "false", "opened", ""), true, "an upstream check that wrote nothing fails open");
   assert.equal(runs("false", args, "issues", "true", "true"), false, "a rate limit on the gate's read stops intake");
   assert.equal(runs("true", args, "workflow_dispatch", "true", "true"), false, "and a dispatch too");
   assert.equal(runs("false", args, "issues", "true", ""), true, "a gate job that wrote no output still falls through");
@@ -1388,7 +1399,15 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   assert.doesNotMatch(JSON.stringify(admit), /secrets\./, "the gate names no secret");
   // The trusted trigger, then the blocker gate (check-blockers.mjs), which
   // runs only after the trigger passed, from the default branch tip.
-  assert.equal(admit.outputs.proceed, "${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}");
+  // A degraded Actions or npm component stops admission too; the gate step
+  // fails open (check-upstream-status).
+  assert.equal(
+    admit.outputs.proceed,
+    "${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}",
+  );
+  const upstream = admit.steps.find((s) => s.id === "upstream");
+  assert.equal(upstream.if, "steps.blockers.outputs.proceed == 'true'");
+  assert.equal(upstream["continue-on-error"], true);
   const blockers = admit.steps.find((s) => s.id === "blockers");
   assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
   assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
@@ -5591,6 +5610,32 @@ test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalati
   assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
 });
 
+// A kill switch that stopped apply-issue-patch green dropped this run's patch,
+// so report-outcome skips and work-unblock re-fires the issue as a breaker
+// trip; and a report-outcome the switch stopped green never posts its status
+// as passed.
+test("work-resolve-issue.yml: a kill-switch stop skips report-outcome and never reads as a passed report", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const started = {
+    "needs.resolve-issue-fallback.result": "skipped",
+    "needs.resolve-issue-subscription.result": "skipped",
+    "needs.resolve-issue.outputs.scan-issue-run-started": "true",
+  };
+  for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
+    started[`needs.${id}.outputs.scan-reuse-branch`] = "";
+    started[`needs.${id}.outputs.scan-issue-run-started`] ??= "";
+  }
+  const report = (skip) => evaluate(jobs["report-outcome"].if, { ...started, "needs.apply-issue-patch.outputs.skip-reason": skip });
+  assert.equal(report(""), true);
+  assert.equal(report("rung-up"), true, "another skip still reports");
+  assert.equal(report("kill-switch"), false);
+  const post = jobs["report-statuses"].steps.find((step) => step.env?.REPORT_RESULT !== undefined);
+  const result = (value, skip) => evaluate(post.env.REPORT_RESULT, { "needs.report-outcome.result": value, "needs.report-outcome.outputs.skip-reason": skip });
+  assert.equal(result("success", ""), "success");
+  assert.equal(result("failure", ""), "failure");
+  assert.equal(result("success", "kill-switch"), "stopped");
+});
+
 test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
   const status = (reason, issueMode) =>
@@ -6869,6 +6914,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       if (rest === "result") context[ref] = call === "resolve-issue-fallback" ? "skipped" : "success";
       else context[ref] = call === "resolve-issue" ? first : "";
     }
+    // Another job's value (apply-issue-patch's skip-reason) is the same in both runs.
+    for (const [ref] of String(expression).matchAll(/needs\.[\w-]+\.(?:result|outputs\.[\w-]+)/g)) context[ref] ??= "";
     return evaluate(expression, context);
   };
   let reads = 0;
@@ -6900,6 +6947,7 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue.outputs.scan-outcome-uploaded": first.uploaded ?? "",
       "needs.resolve-issue.outputs.scan-reuse-branch": "",
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
+      "needs.apply-issue-patch.outputs.skip-reason": "",
     }));
   const handedOff = { started: "true" };
   const ran = { started: "true", uploaded: "true", patch: "written" };
@@ -7192,15 +7240,16 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
   ].sort());
 });
 
-// work-unblock re-fires an issue from the failed mint step, and no
-// dispatcher re-fires report-escalation, so only a pull request run of any
-// other activity ends a kill-switch refusal green; those two stay red.
-test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only, never for report-escalation", () => {
+// work-unblock re-fires an issue from its stopped mint step (label-unblocked.mjs
+// STOPPED), but no dispatcher re-fires report-escalation, so every run but
+// report-escalation ends a kill-switch refusal green; that one stays red.
+test("pr-run-activity-write.yml takes kill-switch-ok on every run but report-escalation", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-token");
   const value = step.with["kill-switch-ok"];
   const at = (issue, activity) => evaluate(value, { "inputs.issue-number": issue, "inputs.activity": activity });
   assert.equal(at("", "publish-feedback"), true, "a pull request run skips");
-  assert.equal(at("7", "apply-issue-patch"), false, "an issue run stays red");
+  assert.equal(at("7", "apply-issue-patch"), true, "an issue run's patch skips");
+  assert.equal(at("7", "report-outcome"), true, "an issue run's report skips");
   assert.equal(at("", "report-escalation"), false, "an escalation stays red");
   const { jobs } = workflow("pr-unblock.yml");
   assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");

@@ -1504,6 +1504,16 @@ test("the re-run step re-runs attempt 1 once and records attempt 2", () => {
   assert.match(run.output, /^recorded=true$/m);
 });
 
+// babysit_postmerge.py names in `reruns` only runs no newer green run
+// settles, so the step re-runs the run it is given and reads nothing else
+// first: a second rule here could skip a run the check still holds pending.
+test("the re-run step re-runs the named run after reading only that run", () => {
+  const run = runRerun([1, 2]);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.calls.slice(0, 2).map((c) => c.replace(/ --jq .*/, "")), ["api repos/o/r/actions/runs/11", POST]);
+  assert.match(run.output, /^recorded=true$/m);
+});
+
 test("the re-run step neither re-runs nor records a run past attempt 1", () => {
   const run = runRerun([2]);
   assert.equal(run.status, 0);

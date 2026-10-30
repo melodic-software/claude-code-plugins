@@ -73,7 +73,7 @@ on, or `judgment` only where the call is not consequential (cross-repo, shared
 infrastructure, irreversible, or security). A consequential choice research cannot settle is
 withheld: raise it as an open question naming the evidence that would settle it. Contract:
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
-full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
+full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 
 ## Audit. What to look for
 

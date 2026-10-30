@@ -300,7 +300,7 @@ have stopped this bug from being written. If the answer lies in the design (a mi
 two modules coupled in a way neither shows, callers tangled together, or no seam where a test could
 reach the bug), write a recommendation:
 
-- State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
+- State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar)
 - File it with your issue tracker as an architectural finding
 - If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 

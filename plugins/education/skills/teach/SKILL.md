@@ -130,7 +130,7 @@ surfaced to the user, never merged.
 4. **OS Documents default, `topic` mode only.** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" --default-root`. It
    resolves the platform Documents directory (Windows: the Documents known folder resolved
-   native-side and converted per the marketplace `docs/conventions/windows-path-emit/`
+   native-side and converted per the marketplace `docs/contracts/windows-path-emit/`
    convention, OneDrive-redirected and space-bearing paths handled, failing loud; macOS
    `~/Documents`; Linux `xdg-user-dir DOCUMENTS`) and qualifies it only when it already exists and
    is not `$HOME` itself (an unconfigured `xdg-user-dir` echoes `$HOME`). The home inside it is the

@@ -2237,7 +2237,7 @@ fi
 # auditability rule rather than a behavior change: an explicit key
 # makes the choice reviewable, and a `true` reviewable against the exception
 # classes in the rubric that owns this decision —
-# docs/conventions/invocation-mode/README.md.
+# docs/contracts/invocation-mode/README.md.
 #
 # Severity is scoped by tree, deliberately. A marketplace plugin skill
 # (plugins/*/skills/*) FAILs: the rubric is this fleet's convention and the fleet
@@ -2252,7 +2252,7 @@ fi
 # so every other `true` emits a note for hand-verification against the rubric
 # rather than a warning nothing can clear.
 
-INVOCATION_RUBRIC='docs/conventions/invocation-mode/README.md'
+INVOCATION_RUBRIC='docs/contracts/invocation-mode/README.md'
 # Validated as a BARE YAML boolean, deliberately WITHOUT quote stripping: `"false"`
 # is a YAML string, not the boolean this key takes, and normalizing the quotes
 # away would ship malformed invocation metadata while reporting PASS. Only

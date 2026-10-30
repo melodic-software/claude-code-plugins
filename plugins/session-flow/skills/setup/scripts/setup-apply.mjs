@@ -9,7 +9,7 @@
 //   --check  validate the existing file and print its keys as `PASS <key>: <value>`
 //            lines, or a `WARN` line per problem; write nothing.
 //
-// The YAML reader and parser are the plugin's shared copies under
+// The YAML reader is the plugin's shared copy under
 // skills/retro/scripts/. The other options, the guarantees and the exit codes
 // are in ../../../lib/setup-apply.mjs.
 
@@ -25,6 +25,5 @@ run({
   plugin: "session-flow",
   schema: join(PLUGIN, "schemas", "session-flow.schema.json"),
   reader: join(PLUGIN, "skills", "retro", "scripts", "parse-concern-value.sh"),
-  parser: join(PLUGIN, "skills", "retro", "scripts", "yaml-subset.awk"),
   report: wholeFileReport,
 });

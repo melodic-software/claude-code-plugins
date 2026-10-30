@@ -2,7 +2,7 @@
 // GENERATED from lib/prerequisites.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
 // Read a plugin's prerequisites.json and report which declared dependencies resolve.
-// The contract is docs/conventions/prerequisites/README.md; the schema sits beside it.
+// The contract is docs/contracts/prerequisites/README.md; the schema sits beside it.
 //
 //   prerequisites.mjs report --plugin-root <dir> [--plugin-root <dir>...]
 //   prerequisites.mjs check <plugin-root> [--for <scope>] [--data-dir <dir>]
@@ -387,7 +387,7 @@ function expandPluginPath(p, ctx) {
 
 // A plugin that commits requirements.txt installs its Python packages into the
 // plugin data directory, at <data>/python/<first 12 hex of the lock's sha256>-<the
-// interpreter's sys.implementation.cache_tag>/ (docs/conventions/on-demand-dependencies,
+// interpreter's sys.implementation.cache_tag>/ (docs/contracts/on-demand-dependencies,
 // Rule P3). pluginPythonSet -> null when the plugin has no lock or the interpreter's
 // cache tag cannot be read, { dir: null } when the data directory is unknown here,
 // else { dir } for that interpreter.

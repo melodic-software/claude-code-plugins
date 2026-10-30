@@ -26,7 +26,7 @@ and report what it prints.
 One work directory per video: the directory the user names, else
 `${CLAUDE_PLUGIN_DATA}/videos/<slug>/`. A video and its audio are views, so they never go inside a
 record bundle or beside the markdown record they explain
-([record-bundle](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/record-bundle/README.md)).
+([record-bundle](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/record-bundle/README.md)).
 
 | Path | Who writes it | What it holds |
 |---|---|---|

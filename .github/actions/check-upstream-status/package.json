@@ -1,0 +1,7 @@
+{
+  "name": "check-upstream-status",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
