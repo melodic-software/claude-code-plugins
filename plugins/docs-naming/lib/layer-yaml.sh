@@ -17,7 +17,7 @@
 #
 # THE HOME. `<home>` is the convention home the repository binds in the pointer
 # region of AGENTS.md or CLAUDE.md (lib/resolve-convention-home.sh), else
-# docs/conventions.
+# docs/conventions. A broken pointer is an error, never the default.
 #
 # Needs jq and awk. Bash 3.2-compatible.
 
@@ -26,14 +26,25 @@ LAYER_YAML_AWK="$LAYER_YAML_LIB_DIR/yaml-subset.awk"
 LAYER_YAML_HOME_RESOLVER="$LAYER_YAML_LIB_DIR/resolve-convention-home.sh"
 
 # layer_yaml_home <root>: print the repo-relative convention home. A root that
-# binds none, declined one, or binds a broken pointer gets the default.
+# binds none, declined one, or is not a repository gets the default. A broken
+# pointer (malformed, duplicate, dangling) or an unusable root returns 1 with
+# the resolver's message on stderr, so no caller reads or writes the wrong layer.
 layer_yaml_home() {
-  local out
-  if out="$(bash "$LAYER_YAML_HOME_RESOLVER" --root "$1" 2>/dev/null | tr -d '\r')" && [[ -n "$out" ]]; then
-    printf '%s' "$out"
-  else
-    printf 'docs/conventions'
-  fi
+  local out err rc
+  err="$(mktemp)" || return 1
+  out="$(bash "$LAYER_YAML_HOME_RESOLVER" --root "$1" 2>"$err")"
+  rc=$?
+  out="${out//$'\r'/}"
+  case "$rc" in
+  0) printf '%s' "$out" ;;
+  1 | 4 | 5) printf 'docs/conventions' ;;
+  *)
+    printf 'convention home did not resolve (exit %s): %s\n' "$rc" "$(tr -d '\r' <"$err")" >&2
+    rm -f "$err"
+    return 1
+    ;;
+  esac
+  rm -f "$err"
 }
 
 # layer_yaml_to_json <file>: print the layer as JSON on one line. Returns 1 with
@@ -51,6 +62,18 @@ layer_yaml_to_json() {
   empties="$(LC_ALL=C tr -d '\r' <"$file" |
     sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:[[:space:]]*\[[[:space:]]*\][[:space:]]*\(#.*\)\{0,1\}$/\1/p' |
     jq -R -s -c 'split("\n") | map(select(length > 0))')" || return 1
+  # The parser prints nothing for an empty value (`regex:`), which would read as
+  # an undeclared key and silently inherit a lower layer: a top-level key the
+  # file declares that yields no record and is not `[]` is an error.
+  local declared blank
+  declared="$(LC_ALL=C tr -d '\r' <"$file" | sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:.*$/\1/p')"
+  for blank in $declared; do
+    printf '%s\n' "$records" | grep -q "^$blank[.	]" && continue
+    printf '%s' "$empties" | jq -e --arg k "$blank" 'index($k) != null' >/dev/null && continue
+    printf 'line %s: empty value for `%s`; write a value or `[]`, or remove the key\n' \
+      "$(LC_ALL=C tr -d '\r' <"$file" | grep -n -m 1 -E "^$blank[[:space:]]*:" | cut -d: -f1)" "$blank" >&2
+    return 1
+  done
   printf '%s\n' "$records" | jq -R -s -c --argjson empties "$empties" '
     split("\n")
     | map(select(length > 0) | split("\t"))

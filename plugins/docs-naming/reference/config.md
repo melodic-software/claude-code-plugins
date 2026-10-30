@@ -70,7 +70,8 @@ The YAML is the repository's YAML subset (`lib/yaml-subset.awk`): block
 mappings and sequences, plain and quoted scalars, and `#` comments. Flow
 mappings, anchors and block scalars are rejected, so quote a value that holds a
 colon followed by a space or starts with `*`. An empty list is written `key: []`, which stays a
-declared empty list rather than an absent key. `setup apply` keeps the comment
+declared empty list rather than an absent key. A top-level key with no value (`regex:`) stops the run
+with its line named; write a value or `[]`, or remove the key. `setup apply` keeps the comment
 block at the top of the file and drops comments between keys, because it
 rewrites the file from the merged document. A JSON layer's `_comment` is a
 free-text annotation that is never parsed.

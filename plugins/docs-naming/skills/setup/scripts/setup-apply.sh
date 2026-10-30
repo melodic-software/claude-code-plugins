@@ -101,7 +101,8 @@ if [[ -z "$ROOT" ]]; then
 fi
 [[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
-TARGET_REL="$(layer_yaml_home "$ROOT")/docs-naming.yaml"
+home="$(layer_yaml_home "$ROOT" 2>&1)" || die "$home"
+TARGET_REL="$home/docs-naming.yaml"
 TARGET="$ROOT/$TARGET_REL"
 LEGACY="$ROOT/$LEGACY_REL"
 [[ -f "$LEGACY" ]] || LEGACY_REL=".claude/docs-hygiene.json" LEGACY="$ROOT/.claude/docs-hygiene.json"

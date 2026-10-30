@@ -442,5 +442,36 @@ write_yaml "$home/docs/conventions/docs-naming.yaml" 'regex: "^not-a-team-layer$
 out="$(bash "$SUT" resolve --root "$home" --home "$home")"
 assert_eq "yaml home root: the YAML under a home directory is not a team layer" "$(jq -r '.file_names.regex' "$SCRIPT_DIR/../skills/setup/templates/docs-naming.json")" "$(printf '%s' "$out" | jq -r '.file_names.regex')"
 
+# A broken convention-home pointer stops the run instead of reading docs/conventions.
+root="$(new_root)"
+cat >"$root/AGENTS.md" <<'EOF'
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `missing-dir`, read the topic file there first.
+<!-- END GENERATED: convention-home -->
+EOF
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^default-home$"'
+out="$(resolve "$root" 2>&1)"
+assert_eq "convention home: a dangling pointer exits 2" "2" "$?"
+assert_contains "convention home: a dangling pointer names the resolver failure" "$out" "convention home"
+assert_lacks "convention home: a dangling pointer does not read the default home" "$out" "^default-home$"
+
+# A declined home still falls back to docs/conventions.
+root="$(new_root)"
+printf '<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n' >"$root/AGENTS.md"
+write_yaml "$root/docs/conventions/docs-naming.yaml" 'regex: "^default-home$"'
+assert_eq "convention home: a declined home reads docs/conventions" "^default-home$" "$(resolve "$root" | jq -r '.file_names.regex')"
+
+# An empty scalar is an error, not an undeclared key.
+for value in 'regex:' 'regex:   # todo'; do
+  root="$(new_root)"
+  write_yaml "$root/docs/conventions/docs-naming.yaml" "$value"
+  out="$(resolve "$root" 2>&1)"
+  assert_eq "empty yaml value ($value): resolve exits 2" "2" "$?"
+  assert_contains "empty yaml value ($value): names the key and line" "$out" 'line 1: empty value for `regex`'
+done
+root="$(new_root)"
+write_yaml "$root/docs/conventions/docs-naming.yaml" "$(printf 'roots:\n- docs\nexempt_paths: []\nredirect_map: null')"
+assert_eq "yaml: a compact sequence, an empty list and null still parse" '["docs"] [] null' "$(resolve "$root" | jq -r '[.file_names.roots, .file_names.exempt_paths, .file_names.redirect_map] | map(tojson) | join(" ")')"
+
 printf '\nPASS=%d FAIL=%d\n' "$((CASES - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1

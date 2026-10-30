@@ -184,6 +184,18 @@ assert_eq "no comment line escapes the header" "0" "$(grep -c '^regex: foo' "$(t
 assert_contains "the second comment line is commented" "$(head -n 4 "$(target "$root")")" "# regex: foo"
 assert_eq "the migrated layer still resolves" "$(jq -r '.file_names.regex' "$TEMPLATE")" "$(bash "$SCRIPT_DIR/../../../scripts/resolve-config.sh" resolve --root "$root" --home "$TEST_TMPDIR/nohome" 2>/dev/null | jq -r '.file_names.regex')"
 
+# 11e. A broken convention-home pointer stops the write instead of writing docs/conventions.
+root="$(new_repo)"
+cat >"$root/AGENTS.md" <<'EOF'
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `missing-dir`, read the topic file there first.
+<!-- END GENERATED: convention-home -->
+EOF
+out="$(bash "$SUT" --defaults --root "$root" 2>&1)"
+assert_eq "a dangling pointer exits 2" "2" "$?"
+assert_contains "a dangling pointer names the convention home" "$out" "convention home"
+assert_eq "a dangling pointer writes nothing under docs/conventions" "absent" "$([[ -e "$(target "$root")" ]] && echo present || echo absent)"
+
 # 12. The bundled template itself is valid and carries every documented key.
 missing="$(jq -r '
   ["roots","rule","regex","exempt_basenames","exempt_paths","exempt_extensions",

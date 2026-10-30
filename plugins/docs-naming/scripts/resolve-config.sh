@@ -177,7 +177,7 @@ if [[ "$ROOT_CLASS" != repo ]]; then
   TEAM_SKIP="not-applicable: $ROOT_CLASS root"
   OVERLAY_SKIP="$TEAM_SKIP"
 else
-  CONVENTION_HOME="$(layer_yaml_home "$ROOT")"
+  CONVENTION_HOME="$(layer_yaml_home "$ROOT" 2>&1)" || die "$CONVENTION_HOME"
   TEAM_YAML="$ROOT/$CONVENTION_HOME/docs-naming.yaml"
   OVERLAY_YAML="$ROOT/$CONVENTION_HOME/docs-naming.local.yaml"
   config_root_paths_same "$TEAM_LAYER" "$USER_LAYER" && TEAM_JSON_SKIP="same file as the user-global layer"
