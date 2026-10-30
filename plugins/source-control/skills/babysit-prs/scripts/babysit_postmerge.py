@@ -226,6 +226,9 @@ SETTLED = "settled"
 # The newer passed runs `_Context.superseded` reads ancestry for, per red run;
 # past them the run is not settled and waits for its re-run as before.
 SETTLE_COMPARE_CAP = 5
+# The compare reads `_Context.superseded` may spend in one check, over every
+# red run; once spent, a run is not settled and waits for its re-run.
+SETTLE_COMPARE_BUDGET = 20
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
 # `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
@@ -1170,6 +1173,8 @@ class _Context:
     # The full runs the check already listed, which `superseded` reads
     # instead of a listing of its own.
     held_full_runs: dict[int, Run] = field(default_factory=dict)
+    settle_compares_left: int = SETTLE_COMPARE_BUDGET
+    compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
     # the branch tip the first time it is needed).
     lane_rerun_window: timedelta | None = None
@@ -1444,8 +1449,9 @@ class _Context:
         after `run`, on a commit that has `run`'s head in its history and is
         on the branch, or None. Newest first, it stops at the first passed run
         that descends, as the demotion alert's newer-green.bash does, and
-        reads ancestry for at most SETTLE_COMPARE_CAP of them. It lists
-        nothing, and each ancestry read is cached."""
+        reads ancestry for at most SETTLE_COMPARE_CAP of them, from the
+        check's SETTLE_COMPARE_BUDGET. It lists nothing; `contains` caches
+        each answer by commit pair, `on_branch`'s included."""
         newer = sorted(
             (
                 r
@@ -1459,9 +1465,28 @@ class _Context:
             reverse=True,
         )
         for r in newer[:SETTLE_COMPARE_CAP]:
-            if self.contains(run.head_sha, r.head_sha) and self.on_branch(r):
-                return r
+            if not self._settle_read(run.head_sha, r.head_sha):
+                return None
+            if self.contains(run.head_sha, r.head_sha):
+                tip = self._branch_tip()
+                if not self._settle_read(r.head_sha, tip):
+                    return None
+                if self.on_branch(r):
+                    return r
         return None
+
+    def _settle_read(self, ancestor: str, sha: str) -> bool:
+        """Whether `superseded` may read `contains(ancestor, sha)`: a cached
+        answer is free; otherwise SETTLE_COMPARE_BUDGET must have a compare
+        left, and the compares the read sends are spent from it."""
+        if (ancestor, sha) in self.contains_cache:
+            return True
+        if self.settle_compares_left <= 0:
+            return False
+        before = self.compare_reads
+        self.contains(ancestor, sha)
+        self.settle_compares_left -= self.compare_reads - before
+        return True
 
     def on_branch(self, run: Run) -> bool:
         """Whether `run`'s head commit is on the branch as `refs/heads/`
@@ -1926,6 +1951,7 @@ class _Context:
 
     def _compare(self, ancestor: str, sha: str) -> bool:
         """The compare API's answer to `contains`; a failed read raises."""
+        self.compare_reads += 1
         compare = _read(
             ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
             f"compare {ancestor[:12]}...{sha[:12]}",

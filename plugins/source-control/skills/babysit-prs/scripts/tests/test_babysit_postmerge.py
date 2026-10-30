@@ -2743,6 +2743,41 @@ class ReplacedRuns(CheckCase):
         )
 
 
+class SettleBudget(CheckCase):
+    """`_Context.superseded` spends at most SETTLE_COMPARE_BUDGET compare
+    reads per check; a red run it cannot afford to read stays RERUN."""
+
+    def test_ten_red_runs_spend_at_most_the_budget(self) -> None:
+        reds = [f"{0xAA00 + n:040x}" for n in range(10)]
+        greens = [f"{0xBB00 + n:040x}" for n in range(10)]
+        self.gh.descendants.update(reds)
+        self.gh.on_main.update(reds + greens)
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            *(
+                dispatch_run(40 + n, "failure", head_sha=sha, created_at=f"2026-10-12T10:{1 + n:02d}:00Z")
+                for n, sha in enumerate(reds)
+            ),
+            *(
+                dispatch_run(60 + n, head_sha=sha, created_at=f"2026-10-12T10:{20 + n:02d}:00Z")
+                for n, sha in enumerate(greens)
+            ),
+        )
+        verdict = self.check()
+        compares = [
+            c
+            for c in self.gh.calls
+            if any(f"/compare/{r}...{g}" in " ".join(c) for r in reds for g in greens)
+        ]
+        self.assertEqual(pm.SETTLE_COMPARE_BUDGET, 20)
+        self.assertLessEqual(len(compares), pm.SETTLE_COMPARE_BUDGET)
+        self.assertEqual(sorted(r.run_id for r in verdict.reruns), list(range(40, 50)))
+        for n in range(40, 50):
+            self.assertIn(f"attribution-pending:{n}", verdict.merges[0].pending)
+
+
 class DispatchCoverage(CheckCase):
     """Design "Post-merge" plus the accepted deadlock rule: an unverified
     auto-merge with no identity dispatch run on a SHA containing it needs one;
