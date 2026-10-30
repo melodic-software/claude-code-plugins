@@ -1045,6 +1045,13 @@
           "default": "native",
           "description": "How the agent identity's own pull requests merge. native: GitHub's auto-merge, armed by the enable-auto-merge activity and gated by ci-status; the pr-merge gate does not list, score or enqueue them. gate: the pr-merge gate lists, scores and enqueues them as well (README.md, Native auto-merge)."
         },
+        "refire-skip-branches": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Head branches a workflow owns and rebuilds (a release branch). pr-merge's re-fire step never comments on or pushes an empty commit to a pull request from one of them: the workflow's rebuild moves the branch under it. Empty or absent: every qualifying pull request may be re-fired."
+        },
         "require-verifier-verdict": {
           "type": "boolean",
           "default": false,

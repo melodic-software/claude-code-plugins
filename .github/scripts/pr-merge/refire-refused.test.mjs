@@ -5,12 +5,13 @@
 // of the named workflow file, and only for a PR whose head
 // check-trusted-trigger would trust.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 import { REFIRES_PER_RUN, main, refireComment } from "./refire-refused.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -96,14 +97,18 @@ const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = 
 // `blobs` is main's blob per file; `changed` lists the files each head SHA
 // changes against its merge base with main.
 // `compare` is the status of a run's head against main; `moved` is a PR as a
-// fresh GET /pulls/{n} answers it, when it changed since the listing.
-function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, mainTag = false, failOn } = {}) {
+// fresh GET /pulls/{n} answers it, when it changed since the listing; `refs`
+// is each branch's tip as GET git/ref/heads/{branch} answers it: a SHA, null
+// for a 404, {status} for that error, or {} for an answer with no SHA.
+function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
-    if (failOn && `${method} ${path}`.startsWith(failOn)) {
-      throw new Error(`${method} ${path} failed with status 422`);
+    // `failOn` is a call prefix that answers 422, or {prefix, status}.
+    const fail = typeof failOn === "string" ? { prefix: failOn, status: 422 } : failOn;
+    if (fail && `${method} ${path}`.startsWith(fail.prefix)) {
+      throw new GitHubError(fail.status, `${method} ${path}`);
     }
     const route = path.replace(/\?.*$/, "");
     const page = Number(new URL(path, "https://x").searchParams.get("page") ?? "1");
@@ -132,6 +137,13 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
     }
     if (route === `/repos/${REPO}/git/ref/heads/main`) {
       return { ref: "refs/heads/main", object: { sha: MAIN_TIP } };
+    }
+    if ((match = new RegExp(`^/repos/${REPO}/git/ref/heads/(.+)$`).exec(route)) && match[1] in refs) {
+      const tip = refs[match[1]];
+      if (tip === null || tip?.status !== undefined) {
+        throw new GitHubError(tip?.status ?? 404, `${method} ${path}`);
+      }
+      return typeof tip === "string" ? { ref: `refs/heads/${match[1]}`, object: { sha: tip } } : { ref: `refs/heads/${match[1]}` };
     }
     // Every main-side read names main's tip, never the name main.
     if ((match = /\/contents\/(.+)$/.exec(route))) {
@@ -175,7 +187,27 @@ const refusedWorld = (pulls, { runOptions = {}, ...options } = {}) =>
     ...options,
   });
 
-const env = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_SENDER_ID: String(BOT.id) };
+// resolve-config's output file, holding merge.refire-skip-branches as the
+// repository's pr-pipeline.yaml sets it.
+const OWNED = "release/plugins";
+const resolvedConfig = (skip) => {
+  const file = join(tempDir("refire-config-"), "resolved-config.json");
+  writeFileSync(file, JSON.stringify({ merge: { "refire-skip-branches": skip } }));
+  return file;
+};
+const env = {
+  GITHUB_REPOSITORY: REPO,
+  KILL_SWITCH: "proceed",
+  TRUSTED_ACTORS_PATH: TRUSTED,
+  LANES_APP_SENDER_ID: String(BOT.id),
+  RESOLVED_CONFIG_PATH: resolvedConfig([OWNED]),
+};
+// The lines main() logs, with its exit code.
+const logged = async (t, w, options = {}) => {
+  const log = t.mock.method(console, "log", () => {});
+  const code = await main({ env, github: w.github, actions: w.actions, now: NOW, ...options });
+  return { code, lines: log.mock.calls.map((call) => String(call.arguments[0])) };
+};
 const pushes = (calls) => calls.filter((call) => call.startsWith("PATCH "));
 const posts = (calls) => calls.filter((call) => call.startsWith(`POST /repos/${REPO}/issues/`));
 
@@ -308,10 +340,12 @@ test("the fresh PR read and the tree read come before the marker, and the marker
   assert.ok(reread >= 0 && reread < tree && tree < comment && comment < ref, JSON.stringify({ reread, tree, comment, ref }));
 });
 
-test("a PR pushed, drafted or closed since the listing is not pushed to", async () => {
+test("a PR pushed, drafted or closed since the listing is not pushed to, and warns for that PR alone", async (t) => {
   for (const change of [{ head: { ...pr(9).head, sha: sha(90) } }, { draft: true }, { state: "closed" }]) {
     const w = refusedWorld([pr(9)], { moved: { 9: { ...pr(9), ...change } } });
-    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 1);
+    const { code, lines } = await logged(t, w);
+    assert.equal(code, 0, JSON.stringify(change));
+    assert.ok(lines.includes("::warning title=refire-refused::#9: the PR changed since it was listed; nothing pushed"), lines.join("\n"));
     assert.deepEqual(pushes(w.calls), [], JSON.stringify(change));
     assert.deepEqual(posts(w.calls), [], JSON.stringify(change));
   }
@@ -415,10 +449,12 @@ test("a marker at the current head means the push did not land: it retries the p
   assert.equal(pushes(w.calls).length, 1);
 });
 
-test("a push that has not landed an hour after its marker is not retried again", async () => {
+test("a push that has not landed an hour after its marker is not retried again, and warns so a person looks", async (t) => {
   const w = refusedWorld([pr(9)], { comments: { 9: [marker(UNBLOCK, BLOB, sha(9), { at: "2026-10-17T20:59:00Z" })] } });
-  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
   assert.deepEqual(pushes(w.calls), []);
+  assert.ok(lines.includes(`::warning title=refire-refused::#9 not re-fired: its push for ${UNBLOCK} at ${BLOB} did not land; a person looks`), lines.join("\n"));
 });
 
 test("a marker by anyone but the lanes App counts for nothing", async () => {
@@ -427,10 +463,136 @@ test("a marker by anyone but the lanes App counts for nothing", async () => {
   assert.equal(pushes(w.calls).length, 1);
 });
 
-test("a failed marker comment pushes nothing and fails the run", async () => {
+test("a failed marker comment pushes nothing and fails the run", async (t) => {
   const w = refusedWorld([pr(9)], { failOn: `POST /repos/${REPO}/issues/9/comments` });
-  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 1);
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
   assert.deepEqual(pushes(w.calls), []);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/issues/9/comments failed with status 422`), lines.join("\n"));
+});
+
+// A new commit object names only its tree and parent, so no branch move can
+// refuse it: any error writing it would hit every PR the same way.
+test("a 409 on the commit write fails the run at the first PR instead of warning for each", async (t) => {
+  const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `POST /repos/${REPO}/git/commits`, status: 409 } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.equal(w.calls.filter((call) => call.startsWith(`POST /repos/${REPO}/git/commits `)).length, 1);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/git/commits failed with status 409`), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+});
+
+test("a 403 on the ref update fails the run at the first PR instead of warning for each", async (t) => {
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: { prefix: "PATCH ", status: 403 } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.equal(pushes(w.calls).length, 1);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 403`), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+});
+
+test("a named file with no blob SHA on main fails the run before anything is posted or pushed", async (t) => {
+  const w = refusedWorld([pr(9)], { blobs: { ...MAIN_BLOBS, [UNBLOCK]: undefined } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+  assert.ok(lines.includes(`::error title=refire-refused::${UNBLOCK} on main has no blob SHA`), lines.join("\n"));
+});
+
+test("a failed run listing for a lane fails the run and pushes nothing", async (t) => {
+  const w = refusedWorld([pr(9)], { failOn: `GET /repos/${REPO}/actions/workflows/${LANE}/runs` });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+  assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::${LANE}:`)), lines.join("\n"));
+});
+
+// Run 41065454536: one PR's ref update answered 422, and the step failed the
+// whole merge job.
+// A 409 or 422 on the ref update is that branch moving under the push only
+// when a fresh read of the branch shows it moved or gone.
+test("one PR's failed ref update is a warning for that PR alone: the rest still re-fire and the run passes", async (t) => {
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30`, refs: { "fix/30": sha(31) } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
+  assert.deepEqual(
+    pushes(w.calls).map((call) => /heads\/fix\/(\d+)/.exec(call)[1]),
+    ["9", "30", "41"],
+  );
+  assert.ok(lines.includes(`::warning title=refire-refused::#30: PATCH /repos/${REPO}/git/refs/heads/fix/30 failed with status 422`), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::error")), false, lines.join("\n"));
+  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=2 failed=1 skipped-owned=0 deferred=0");
+});
+
+test("a 409 on the ref update of a branch deleted under the push warns for that PR alone", async (t) => {
+  const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `PATCH /repos/${REPO}/git/refs/heads/fix/9`, status: 409 }, refs: { "fix/9": null } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
+  assert.equal(pushes(w.calls).length, 2);
+  assert.ok(lines.includes(`::warning title=refire-refused::#9: PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 409`), lines.join("\n"));
+  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=1 failed=1 skipped-owned=0 deferred=0");
+});
+
+test("a 422 on the ref update of a branch still at the head it was read at fails the run at that PR", async (t) => {
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30`, refs: { "fix/30": sha(30) } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(
+    pushes(w.calls).map((call) => /heads\/fix\/(\d+)/.exec(call)[1]),
+    ["9", "30"],
+  );
+  assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::#30: PATCH /repos/${REPO}/git/refs/heads/fix/30 failed with status 422`)), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+});
+
+test("a ref update refused with a 409 whose branch cannot be read again fails the run at that PR", async (t) => {
+  for (const [tip, cause] of [
+    [{ status: 500 }, `GET /repos/${REPO}/git/ref/heads/fix/9 failed with status 500`],
+    [{}, `PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 409; the branch's tip cannot be read`],
+  ]) {
+    const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `PATCH /repos/${REPO}/git/refs/heads/fix/9`, status: 409 }, refs: { "fix/9": tip } });
+    const { code, lines } = await logged(t, w);
+    assert.equal(code, 1, JSON.stringify(tip));
+    assert.equal(pushes(w.calls).length, 1, JSON.stringify(tip));
+    assert.ok(lines.includes(`::error title=refire-refused::#9: ${cause}`), lines.join("\n"));
+    assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+  }
+});
+
+test("a PR from a branch the config names as workflow-owned is never commented on or pushed to; the others still are", async (t) => {
+  const w = refusedWorld([pr(9), pr(31, { ref: OWNED })]);
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
+  assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/9 {"sha":"${NEW_SHA}","force":false}`]);
+  assert.deepEqual(posts(w.calls).map((call) => /issues\/(\d+)\//.exec(call)[1]), ["9"]);
+  assert.ok(lines.includes(`refire-refused: #31 not re-fired: its branch ${OWNED} is owned by a workflow that rebuilds it`), lines.join("\n"));
+  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=1 failed=0 skipped-owned=1 deferred=0");
+});
+
+test("the skip list is the config's: a branch it does not name re-fires, and a branch added to it does not", async (t) => {
+  const unlisted = refusedWorld([pr(31, { ref: OWNED })]);
+  assert.equal((await logged(t, unlisted, { env: { ...env, RESOLVED_CONFIG_PATH: resolvedConfig([]) } })).code, 0);
+  assert.deepEqual(pushes(unlisted.calls), [`PATCH /repos/${REPO}/git/refs/heads/${OWNED} {"sha":"${NEW_SHA}","force":false}`]);
+  const added = refusedWorld([pr(9)]);
+  assert.equal((await logged(t, added, { env: { ...env, RESOLVED_CONFIG_PATH: resolvedConfig([OWNED, "fix/9"]) } })).code, 0);
+  assert.deepEqual(pushes(added.calls), []);
+  assert.deepEqual(posts(added.calls), []);
+});
+
+test("an unreadable or malformed resolved config stops the run before anything is pushed", async (t) => {
+  const dir = tempDir("refire-bad-config-");
+  const malformed = join(dir, "bad.json");
+  writeFileSync(malformed, JSON.stringify({ merge: { "refire-skip-branches": "release/plugins" } }));
+  for (const path of [join(dir, "missing.json"), malformed, ""]) {
+    const w = refusedWorld([pr(9)]);
+    const { code } = await logged(t, w, { env: { ...env, RESOLVED_CONFIG_PATH: path } });
+    assert.equal(code, 1, path);
+    assert.deepEqual(pushes(w.calls), [], path);
+    assert.deepEqual(posts(w.calls), [], path);
+  }
 });
 
 test("at most REFIRES_PER_RUN PRs are re-fired in one run, lowest number first", async () => {

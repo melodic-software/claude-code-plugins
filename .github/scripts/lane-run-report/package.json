@@ -1,0 +1,7 @@
+{
+  "name": "lane-run-report",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

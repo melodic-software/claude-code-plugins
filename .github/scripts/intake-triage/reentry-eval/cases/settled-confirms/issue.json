@@ -1,0 +1,27 @@
+{
+  "number": 99904,
+  "title": "maintenance: report stale branches in the weekly run",
+  "author": "kyle-sexton",
+  "labels": ["needs-triage", "priority: medium"],
+  "comments": [
+    {
+      "author": "kyle-sexton",
+      "url": "https://github.com/melodic-software/claude-code-plugins/issues/99904#issuecomment-100000004",
+      "file": "decision.txt"
+    }
+  ],
+  "open": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ]
+}
