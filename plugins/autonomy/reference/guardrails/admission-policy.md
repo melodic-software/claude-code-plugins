@@ -99,9 +99,10 @@ Precedence, top-down, first hit decides:
    too: a false positive fails closed.
 3. Cost hit → refuse, terms matched as whole words in the title or body outside fenced code
    blocks and inline code spans, which name jobs and files, not charges. A charge term always
-   refuses: billing, billed, spending limit, subscription, SKU, retention, a larger or
-   self-hosted runner, seat, Codespaces, a paid plan, top-up, auto-renew, auto-reload, extra
-   usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
+   refuses: billing, billed, spending limit, subscription (but not a subscription login or usage of the
+   subscribed model vendor's subscription, which are model usage, not cost; a change to or
+   purchase of that subscription, and another vendor's subscription usage, still refuse), SKU, retention, a larger or self-hosted runner, seat, Codespaces,
+   a paid plan, top-up, auto-renew, auto-reload, extra usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
    public, where the forge's standard hosted runner minutes are free. A spend word (cost,
    spend, spending, pricing, paid, quota) refuses
    unless that occurrence sits in a phrase naming the subscribed model vendor or its product
