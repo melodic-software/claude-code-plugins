@@ -91,8 +91,10 @@ const CODES = Object.keys(STOP_ROUTES)
 // acronyms (XSS, RCE, CVE) only as whole words, so "source" names none.
 const SECURITY_CONCERN =
   /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
-const SECURITY_WORD =
-  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
+// The secret nouns: a security word everywhere, released only after an
+// ending code and only in a capability phrasing (CAPABILITY below).
+const SECRET_NOUN = String.raw`credential|secret|token|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)`;
+const SECURITY_WORD = new RegExp(`${SECURITY_CONCERN.source}|${SECRET_NOUN}`, "i");
 // The phrasings that name a secret only as something a run needs ("a host
 // with model credentials", "needs an API key the lane does not hold", "tokens
 // per task"). Fail closed: the phrasing counts only when the secret noun,
@@ -105,11 +107,18 @@ const CAPABILITY = new RegExp(
   `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model|deploy)\\s+)*${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
   "gi",
 );
-// A word that says where a secret ended up or who else has it: anywhere in a
-// reason that names a secret noun it holds, whatever capability phrasing the
-// noun sits in, since an exposure can sit in a later sentence than the noun.
-const SINK =
-  /\b(?:leak|expos|compromis|commit|checked[\s-]?in|log(?:s|ged)?\b|output|artifact|summary|url\b|public|visible|print(?:s|ed|ing)?\b|echo|dump|paste|fork|plain[\s-]?text|hard[\s-]?cod|stdout|stderr|cache|env\b|rotat|revok|shar(?:e|ed|es|ing)\b|e-?mail|forward|sent\b|saw\b|seen\b|screenshot|reus|contractor|(?:still|now)\s+ha(?:s|ve)\b)/i;
+// The only words a reason that names a secret noun may hold beside its
+// capability phrasings. Fail closed: any other word, so any exposure however
+// worded ("uploaded", "posted", "the key was ..."), a pronoun that could point
+// at the secret, or a word in another script, holds. "this" and "that" count
+// only before "lane" or "needs".
+const CAPABILITY_WORDS = new Set(
+  "a an the and or to on of for with not no cannot can does only lane host desktop machine gpu run runs need needs requires lacks hold invoke call spend credit prepaid eval evals suite suites claude model live task tasks completed work against records pass rate advisor wall time printer driver".split(" "),
+);
+const capabilityOnly = (text) => {
+  const words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return words.every((word, i) => CAPABILITY_WORDS.has(word) || (/^th(?:is|at)$/.test(word) && /^(?:lane|needs)$/.test(words[i + 1] ?? "")));
+};
 // The routes that end the lane's work on the issue rather than bring it back:
 // a security mention after one of their codes still reaches a person (owner
 // decision 2026-10-29), unless the secret is only named in a capability
@@ -118,8 +127,10 @@ const SINK =
 // the owner"), and a capability limit is none. A wait or retry code comes back
 // to the lane anyway.
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
-const namesEndingRisk = (text) =>
-  SECURITY_CONCERN.test(text) || SECURITY_WORD.test(text.replace(CAPABILITY, " ")) || (SECURITY_WORD.test(text) && SINK.test(text));
+const namesEndingRisk = (text) => {
+  const rest = text.replace(CAPABILITY, " ");
+  return SECURITY_CONCERN.test(text) || SECURITY_WORD.test(rest) || (SECURITY_WORD.test(text) && !capabilityOnly(rest));
+};
 
 // The code a run's stop reason opens with, read NFKC-normalized (so a
 // full-width letter reads as its ASCII one) past any emphasis, backticks and a

@@ -264,6 +264,24 @@ test("an ending reason that names an exposed secret without a risk word holds", 
   assert.equal(runCode(pasted), "security-risk", pasted);
 });
 
+// Security review: the release takes only an allowlist of capability words
+// beside the secret noun, so an exposure worded with no listed sink word, a
+// pronoun or a bare "key" that points at the secret, or text in another
+// script still reaches a person.
+test("an ending reason that names a secret noun beside any unlisted word holds", () => {
+  for (const reason of [
+    "host-only: needs the API key. It was uploaded to the issue thread.",
+    "host-only: needs the credentials. Someone posted them in the issue.",
+    "host-only: it was uploaded to the thread; needs the API key.",
+    "host-only: needs the API key. The key was uploaded to the issue thread.",
+    "host-only: needs the API key. The eval records that.",
+    "attended: needs the token. It is in a gist.",
+    "already-done: needs the password. \u041e\u043d \u0443\u0442\u0451\u043a.",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+});
+
 test("a reason with no code that names a security word holds", () => {
   for (const reason of ["credential printed to the log", "a malicious dependency", "the prompt could inject commands", "the TOKEN is in the URL", "a secret in the fixture"]) {
     assert.equal(runCode(reason), "security-risk", reason);
