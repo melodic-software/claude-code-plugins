@@ -278,12 +278,13 @@ sp() {
 }
 # shared <label> <deny|allow> <data dir> <cwd> <command, each drive Q path as
 # `{<path below the placeholder directory>}`>: the call in the Windows, MSYS and
-# WSL spellings of every drive Q path.
+# WSL spellings of every drive Q path. A group holding a comma is shell brace
+# syntax, never a path, and is sent as written.
 shared() {
   local form cmd rest
   for form in windows msys wsl; do
     cmd="" rest=$5
-    while [[ "$rest" =~ ^([^{]*)\{([^}]*)\}(.*)$ ]]; do
+    while [[ "$rest" =~ ^([^{]*)\{([^},]*)\}(.*)$ ]]; do
       cmd+=${BASH_REMATCH[1]}$(sp "$form" "${BASH_REMATCH[2]}")
       rest=${BASH_REMATCH[3]}
     done
