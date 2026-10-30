@@ -720,10 +720,9 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# The deferred-person sentence adds a Step 5 recommendation of /planning:questionnaire after the row is deferred (#9793); it resolves no row and leaves the scope, item shape and disposition intact.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "588e17ec544b271de308cc0e0020e63bc8b699cefbea4fcf43ac0a8e645cba1b"
+  "39b818b0734420c9aa242a0dcb4ebdc06f2fc7b3af0c1b28b1e479939f5145c2"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
