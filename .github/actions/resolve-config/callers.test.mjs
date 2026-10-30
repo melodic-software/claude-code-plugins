@@ -7077,3 +7077,20 @@ test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only,
   const { jobs } = workflow("pr-unblock.yml");
   assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
 });
+
+// resolve-config reads a split child's fact only from its caller (SPLIT_CHILD)
+// and fails without it, so every resolve here that reads unpinned issue
+// dimensions passes the admit job's split-child, and that job is in its needs.
+test("work-resolve-issue.yml: every resolve without pinned dimensions passes admit's split-child", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const unpinned = [];
+  for (const [name, job] of Object.entries(jobs)) {
+    for (const step of job.steps ?? []) {
+      if (!String(step.uses ?? "").endsWith("/actions/resolve-config") || step.with?.lane !== "work-resolve-issue" || step.with["issue-dimensions"] !== undefined) continue;
+      unpinned.push(name);
+      assert.equal(step.with["split-child"], "${{ needs.admit.outputs.split-child }}", `${name}: ${step.name}`);
+      assert.ok([job.needs].flat().includes("admit"), `${name} needs admit`);
+    }
+  }
+  assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
+});

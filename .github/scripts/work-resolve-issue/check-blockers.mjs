@@ -88,7 +88,7 @@ export async function main({ env = process.env, github, log = console.log, write
       }
     }
   } catch (error) {
-    log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers or sub-issues could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
+    log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers, sub-issues or split-child provenance could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
     write({ proceed: "false", untrusted: "false" });
     return 0;
   }
