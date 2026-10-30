@@ -185,6 +185,7 @@ test("an ending reason that names a secret noun as a capability keeps its route"
     "host-only: tokens per completed task need a live run",
     "host-only: needs a host with model credentials to run the evals",
     "host-only: printer driver needs a host with credentials",
+    "host-only: the lane lacks the deploy token; run on the desktop",
   ]) {
     assert.equal(runCode(reason), "host-only", reason);
     assert.equal(stopRoute(runCode(reason)), "host-run", reason);
@@ -228,6 +229,10 @@ test("an ending reason that names an exposed secret without a risk word holds", 
     "a host with the token printed in its env",
     "the log holds tokens; needs a host",
     "tokens used in the public log are real",
+    "needs the token rotated after it showed up in a screenshot",
+    "requires the old password changed since a contractor saw it",
+    "needs the token revoked",
+    "the deploy key sits in the repo history",
   ];
   for (const code of ["host-only", "manual-external", "already-done"]) {
     for (const exposure of exposures) {

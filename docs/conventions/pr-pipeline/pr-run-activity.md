@@ -2194,14 +2194,15 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
   A security mention always reaches the owner: a reason with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
-  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key,
-  `backdoor`, `exploit` or branch protection, in any case and even inside a word; `XSS`, `RCE` or
-  `CVE` as a whole word; or an ignore-instructions phrase)
+  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
+  SSH or access key, `backdoor`, `exploit` or branch protection, in any case and even inside a
+  word; `XSS`, `RCE`, `CVE` or `PAT` as a whole word; or an ignore-instructions phrase)
   takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route. After
-  an ending code, a secret noun (credential, secret, token, password, API or private key) holds
-  unless it is part of a recognized needs-a-credential capability phrasing, such as "a host with
-  model credentials", "needs an API key" or "tokens per task", so a capability limit takes its
-  code's route. A secret noun beside an exposure word (log, output, public, committed, printed,
+  an ending code, a secret noun (credential, secret, token, password, API key) holds unless it
+  sits in a needs-a-credential capability phrasing ("a host with model credentials", "needs an
+  API key the lane does not hold", "tokens per task") and either ends the clause or is followed
+  by a word naming a lane or host capability, so a capability limit takes its code's route while
+  "needs the token rotated" holds. A secret noun beside an exposure word (log, output, public, committed, printed,
   leaked and the like) always holds, whatever phrasing it sits in.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
   `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person

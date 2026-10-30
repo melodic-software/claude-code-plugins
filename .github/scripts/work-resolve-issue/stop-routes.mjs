@@ -92,11 +92,18 @@ const CODES = Object.keys(STOP_ROUTES)
 const SECURITY_CONCERN =
   /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 const SECURITY_WORD =
-  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
-// The known phrasings that name a secret only as something a run needs ("a
-// host with model credentials", "needs an API key", "tokens per task").
-const CAPABILITY =
-  /\b(?:(?:a|the)\s+)?host\s+with\s+(?:(?:model|an?|the)\s+)*(?:credentials?|api[\s_-]?keys?|tokens?|secrets?)\b|\b(?:needs?|requires?|lacks?)\s+(?:(?:an?|the|model)\s+)*(?:credentials?|api[\s_-]?keys?|tokens?|secrets?|passwords?)\b(?!\s+(?:that|which|who|in|from|is|was|were|are)\b)|\btokens?\s+(?:per|spent|count|usage|budget)\b|,\s*tokens\s*,/gi;
+  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
+// The phrasings that name a secret only as something a run needs ("a host
+// with model credentials", "needs an API key the lane does not hold", "tokens
+// per task"). Fail closed: the phrasing counts only when the secret noun ends
+// the clause or is followed by a word naming a lane or host capability, so
+// "needs the token rotated" still holds.
+const N = "(?:credentials?|api[\\s_-]?keys?|tokens?|secrets?|passwords?)";
+const END = "(?=\\s*(?:$|[.;:,)]|\\s(?:to|for|on|the\\s+lane|this\\s+lane|it\\s+does|which\\s+only|only)\\b))";
+const CAPABILITY = new RegExp(
+  `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model)\\s+)*(?:[a-z]+\\s+)?${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
+  "gi",
+);
 // A word that says where a secret ended up: beside a secret noun it holds,
 // whatever capability phrasing the noun sits in.
 const SINK =
