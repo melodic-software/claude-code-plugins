@@ -138,6 +138,14 @@ export const UNRECORDED = "no lanes App verdict comment shows whether an earlier
 // The wait reason a Size Large issue gets until refine.mjs splits it into
 // sub-issues (owner Q93).
 export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at intake is pending (owner Q93)";
+// The refusal a Size Large issue gets once it has sub-issues and every one is
+// closed but the issue is still open: label-unblocked's closeSplitParent
+// closes a split parent whose sub-issues are done, so one it left open has
+// work no sub-issue covers, or a sub-issue whose close does not count.
+export const SIZE_SPLIT_DONE =
+  "Size large: every sub-issue is closed, but it is still open, so an item no sub-issue covers or a sub-issue's close keeps it from closing as a finished split (owner Q93)";
+// The wait reason for each open sub-issue (decide).
+export const subIssueWait = (number) => `sub-issue #${number} is open`;
 // Opens the lanes App's comment on an issue refine.mjs split into sub-issues;
 // its second line is the split record (splitRecord).
 export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
@@ -962,8 +970,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // Reasons the owner already settled without a person: they park the issue
   // at status: ready (a wait with no pull request), never needs-decision.
   const parked = [];
+  const openSubs = subIssues.filter((item) => item?.state !== "closed");
   if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
-    parked.push(SIZE_SPLIT_PENDING);
+    // An issue with sub-issues is split already (by intake or by hand): while
+    // one is open it waits on them below, and once all are closed it is
+    // refused, so it never parks as split pending every sweep.
+    if (!((issue.sub_issues_summary?.total ?? 0) > 0)) {
+      parked.push(SIZE_SPLIT_PENDING);
+    } else if (openSubs.length === 0) {
+      refuse.push(SIZE_SPLIT_DONE);
+    }
   } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
   }
@@ -1092,9 +1108,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // A split issue's work is its sub-issues' (owner Q93): while one is open the
   // parent waits, so a mechanical refusal or a pending split never loops it.
   // A refusal that holds for a person still refuses first.
-  const openSubs = subIssues.filter((item) => item?.state !== "closed");
   for (const child of openSubs) {
-    wait.push(`sub-issue #${child.number} is open`);
+    wait.push(subIssueWait(child.number));
   }
   if (!hold && openSubs.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -1711,14 +1726,35 @@ const baseTaskList = () =>
 // record with its sub-issues filed (refine.mjs), or it was split by hand:
 // `children` (its sub-issues as listed) is not empty, the newest
 // sub_issue_added naming each child was the App's or a listed human's, it is
-// not `recurring`, and its body holds no task-list item (the admission
-// rules' `task-list`, unticked). `comments` are its comments. A failed read
-// throws.
+// not `recurring`, and each task-list item in its body (the admission rules'
+// `task-list`, unticked) is one of its children in this repository: the item
+// opens or ends with that child's `#N`, says nothing beyond its whole title,
+// and has no line under it. Any other item may be more work.
+// `comments` are its comments. A failed read throws.
 export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
   if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
     return true;
   }
-  if (children.length === 0 || names(issue.labels).includes(RECURRING) || taskItems(issue.body, baseTaskList()).length > 0) {
+  if (children.length === 0 || names(issue.labels).includes(RECURRING)) {
+    return false;
+  }
+  const bare = (text) => String(text ?? "").replaceAll(/[*()[\]`.,;:!]/g, " ").replaceAll(/\s+/g, " ").trim().toLowerCase();
+  const titles = new Map(
+    children.filter((child) => here(child?.repository_url, repository)).map((child) => [Number(child?.number), bare(String(child?.title ?? "").replace(/^\w+(?:\([^)]*\))?!?:\s*/, ""))]),
+  );
+  // A `#N` that opens or ends the item cites it, and only when the rest of the
+  // item is empty or that sub-issue's whole title (less a Conventional Commits
+  // prefix), with no line under it: "Test #12" or "update the README after
+  // #12" is the parent's own work.
+  const cites = (item) =>
+    item.more.length === 0 &&
+    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#=?&])#(\d+)\)?[.;]?\s*$/].some((pattern) => {
+      const match = pattern.exec(item.text);
+      const title = titles.get(Number(match?.[1]));
+      const rest = match ? bare(`${item.text.slice(0, match.index)} ${item.text.slice(match.index + match[0].length)}`) : null;
+      return title !== undefined && (rest === "" || rest === title);
+    });
+  if (!taskItems(issue.body, baseTaskList()).every(cites)) {
     return false;
   }
   const linker = new Map();
