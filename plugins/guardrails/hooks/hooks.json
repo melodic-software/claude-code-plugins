@@ -49,6 +49,7 @@
               "block-windows-drive-tmp.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
           }
         ]
@@ -68,6 +69,7 @@
               "hardcoded-path-check.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking content bound for GitHub for secrets and hardcoded paths..."
           }
         ]
@@ -86,6 +88,7 @@
               "block-unresolved-pr-merge.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the pull request for unresolved review threads and failing checks..."
           }
         ]
@@ -104,6 +107,7 @@
               "block-fix-request-post.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the GitHub comment for the PR-fix lane fix request..."
           }
         ]
@@ -139,6 +143,7 @@
               "block-cross-domain.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, credential-read, PR-merge, fix-request, and identity-domain guards..."
           }
         ]
