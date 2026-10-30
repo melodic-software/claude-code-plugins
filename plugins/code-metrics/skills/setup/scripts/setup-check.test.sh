@@ -35,7 +35,7 @@ assert_contains() {
 # The table pads its subject column, so row assertions match a regex whose
 # `+` absorbs the padding.
 assert_row() {
-  if printf '%s\n' "$2" | grep -Eq -- "$3"; then
+  if grep -Eq -- "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "matches: $3" "$(printf '%s' "$2" | head -c 600)"

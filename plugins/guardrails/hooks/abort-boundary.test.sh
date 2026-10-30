@@ -252,7 +252,7 @@ assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 # primed filters, so the filter has to be there. (A positional index once put
 # the neighboring field into every notice when a filter was added ahead of
 # it; the rg-shift case below covers that shape.)
-if awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh" | grep -Fq "'.hook_event_name'"; then
+if grep -Fq "'.hook_event_name'" < <(awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh"); then
   ok "run-guards.sh primes .hook_event_name"
 else
   bad "run-guards.sh no longer primes .hook_event_name; the dispatcher's notice cannot name the event"
