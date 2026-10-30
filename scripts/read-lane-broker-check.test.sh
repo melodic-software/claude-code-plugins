@@ -119,7 +119,9 @@ STUB
 chmod +x "$STUB_BIN/gh"
 
 lease_body() {
-  printf '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"%s","acquired_at":"2099-01-01T00:00:00Z","renewed_at":"2099-01-01T00:00:00Z","ttl_hours":2} -->' "$1"
+  local now
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"%s","acquired_at":"%s","renewed_at":"%s","ttl_hours":2} -->' "$1" "$now" "$now"
 }
 
 # lease_case <label> <leases-json> <expected-lease> <expected-go-run>
@@ -147,9 +149,9 @@ lease_case() {
   fi
 }
 
-OURS="$(jq -cn --arg b "$(lease_body 987654)" '[{id:2, node_id:"x", body:$b, created_at:"x"}]')"
+OURS="$(jq -cn --arg b "$(lease_body 987654)" '[{id:2, node_id:"x", body:$b, created_at:"x", author_association:"MEMBER"}]')"
 LOCAL_FIRST="$(jq -cn --arg a "$(lease_body alice)" --arg b "$(lease_body 987654)" \
-  '[{id:1, node_id:"x", body:$a, created_at:"x"}, {id:2, node_id:"x", body:$b, created_at:"x"}]')"
+  '[{id:1, node_id:"x", body:$a, created_at:"x", author_association:"MEMBER"}, {id:2, node_id:"x", body:$b, created_at:"x", author_association:"MEMBER"}]')"
 lease_case "an unleased issue is claimed lease-only and the model runs" "$OURS" held true
 lease_case "a live local lease makes the run exit already-leased with no model turn" "$LOCAL_FIRST" already-leased false
 if grep -q '^lease-comment-id=' "$WORK/output"; then

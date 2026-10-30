@@ -551,6 +551,10 @@ backs off, and a lane run that finds a live local lease backs off without starti
   (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
   `--ttl-minutes` or binding `config.lease_ttl_minutes`.
+- A lease with `renewed_at` more than 300 s after now is not live.
+- A lease whose TTL exceeds 168 h is not live.
+- The GitHub adapter counts a lease comment only from an `OWNER`, `MEMBER` or `COLLABORATOR`
+  author, or from `github-actions[bot]` (the issue lane's lease).
 - `renew-lease` renews **only a live lease**. A lease that is still the active
   (non-superseded) lease but already **expired**, meaning `renewed_at + ttl_hours` elapsed with
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a

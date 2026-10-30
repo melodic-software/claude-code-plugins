@@ -127,7 +127,7 @@ gh() {
       cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
       body="$(stub_body_arg "$@")"
       jq -c --argjson id "$cid" --arg b "$body" \
-        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z"}]' \
+        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
         "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
       printf '%s\n' "$cid"
     else
@@ -150,7 +150,7 @@ marker() {
   printf '<!-- work-item-lease v1 %s -->' "$json"
 }
 
-lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z"}]'; }
+lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]'; }
 
 new_scenario() {
   GH_STUB_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -161,7 +161,7 @@ calls() { cat "$GH_STUB_DIR/calls.log"; }
 cleanup_scenario() { rm -rf "$GH_STUB_DIR"; }
 
 PAST="2020-01-01T00:00:00Z"   # renewed_at + ttl long elapsed → expired
-FUTURE="2099-01-01T00:00:00Z" # renewed_at in the future → unambiguously live
+FUTURE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" # renewed now → live for its TTL
 
 # ===========================================================================
 # Finding 1 — renew-lease must refuse an expired active lease (no revive).
@@ -358,8 +358,8 @@ printf 'alice\n' >"$GH_STUB_DIR/login"
 OLD_MARKER="$(marker alice "$FUTURE" 24)"
 NEW_MARKER="$(marker alice "$FUTURE" 24)"
 jq -cn --arg o "$OLD_MARKER" --arg n "$NEW_MARKER" \
-  '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z"},
-    {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z"}]' >"$GH_STUB_DIR/lease-comments"
+  '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+    {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$OLD_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
 rc=0
 bash "$RELEASE" "$ID" --lease-comment-id 100 >/dev/null 2>&1 || rc=$?
@@ -455,5 +455,25 @@ bash "$RELEASE" "$ID" --lease-comment-id 123 --holder "$LANE" >/dev/null 2>&1 ||
 assert_eq "release under --holder refuses (7) another holder's lease" "7" "$rc"
 assert_not_contains "release under --holder does not supersede a local lease" "$(calls)" "PATCH"
 cleanup_scenario
+
+# [lease author] a lease comment counts only from a member, collaborator or owner,
+# or from github-actions[bot] (the lane's GITHUB_TOKEN, association NONE).
+author_case() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '[]\n' >"$GH_STUB_DIR/assignees"
+  jq -cn --arg b "$(marker "$3" "$FUTURE" 24)" --arg a "$2" --arg u "$3" \
+    '[{id:1, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:$a, user:{login:$u}}]' \
+    >"$GH_STUB_DIR/lease-comments"
+  rc=0
+  bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+  assert_eq "$1" "$4" "$rc"
+  cleanup_scenario
+}
+author_case "an outsider-planted lease is ignored: the local claim succeeds (0)" NONE mallory 0
+author_case "a github-actions[bot] lease wins: the local claim backs off (7)" NONE "github-actions[bot]" 7
+author_case "a member's lease wins: the local claim backs off (7)" MEMBER bob 7
+author_case "a collaborator's lease wins: the local claim backs off (7)" COLLABORATOR bob 7
 
 [[ $FAILED -eq 0 ]] || exit 1
