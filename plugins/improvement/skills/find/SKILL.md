@@ -25,8 +25,8 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
 worktree-isolated session refuses a compound command that contains git, which is why each call
 above stays on its own. The dated record for that refusal, and for the pre-compute composition that
-makes it bite, is the `source-control` plugin's
-[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+makes it bite, is the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 
 ## Variables
