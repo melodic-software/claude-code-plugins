@@ -1898,13 +1898,15 @@ leaves it reading more. With no carried run cache, or one whose carried sections
 (the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
 that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
-at once goes cold together: the cold reader starts only when the token's core pool has at least
-1,546 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, 3
-incremental reads of at most 13 pages each, and 3 whole listings of up to 3 attempts of 77 pages, each
-with a top-up of at most 7) times `max_entries_to_build`, plus the read floor (`limits.api`
-`read-floor` of the planned limit, inlined in the job env), left: 7,830 with the queue building 5.
-An entry with a carried run cache but no carried listing pays the listing's part (up to 753)
-without this check. A rule or rate limit that does not read, a stop in the
+at once goes cold together, so the step first lists every artifact page once and the cold reader
+starts only when the token's core pool then has at least one cold read's worst case under the
+listing's caps (the step's own listing, 3 reads per listed FAIL, 3 incremental reads of at most 13
+pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1`
+pages, each with a top-up of at most 7: 1,623 at 7,522 artifacts and 264 FAILs) times
+`max_entries_to_build`, plus the
+read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+An entry with a carried run cache but no carried listing pays the listing's part
+without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
 about 6 to 11, at most about 15. It reads with `ci-status`'s token, which holds no `issues`
@@ -2443,9 +2445,11 @@ and post nothing, on a lanes App pull request (the only kind the close takes; an
 not read) the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
 dispatcher job's read token, last before each dispatch), or `verify:unreadable` because another
-pull request's FAIL run for the same issue cannot be read, which may hide the cap; that one is
-read again next run. A read that fails or times out lets the round run under its own caps, which
-costs at most one round before the lane closes the pull request. While `merge.report-only` is
+pull request's FAIL run for the same issue cannot be read, or because the artifact listing does
+not fit in the 120 s the dispatcher allows the reader; either may hide the cap, so it is read again
+next run. A read that fails or times out, or any other refusal, lets the round run under its own
+caps with a warning naming it, which costs at most one round before the lane closes the pull
+request. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,

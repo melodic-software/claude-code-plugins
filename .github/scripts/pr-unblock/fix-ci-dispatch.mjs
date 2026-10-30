@@ -58,7 +58,7 @@ import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
-import { final as capFinal } from "./verify-cap.mjs";
+import { final as capFinal, deadlineWarning } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -668,6 +668,10 @@ export async function dispatchCiFixes({
     // It closes only the lanes App's: an adopted owner's is never skipped.
     const verifyCap = node.author?.databaseId === appSenderId ? await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid }) : null;
     if (verifyCap) {
+      const warning = deadlineWarning(node.number, verifyCap);
+      if (warning) {
+        log(warning);
+      }
       log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap or cannot all be read (${verifyCap}); pr-merge closes it for a fresh attempt, so no fix-ci round`);
       // The cap never clears for the head: later runs skip it before any
       // read. A sibling read that failed is read again next run.
