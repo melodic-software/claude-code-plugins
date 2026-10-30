@@ -170,14 +170,13 @@ assert_true 'a key given twice with the same value is refused' code_is 1
 assert_true 'a key given twice writes nothing' [ ! -e "$repo/docs" ]
 
 # Write-path races, driven by a preload in the script's own process.
-# swap-docs: docs/ becomes a symlink to an outside directory after the first
-# path check. No directory may be created through it.
+# swap-docs: docs/ becomes a symlink to an outside directory right after this
+# run creates it. No directory may be created through it.
 # pre-tmp: a file already sits at this run's temp-file name. The exclusive open
 # fails, and that file, which this run did not create, must survive.
 PRELOAD="$WORKROOT/preload.mjs"
 cat >"$PRELOAD" <<'JS'
-import childProcess from "node:child_process";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { mkdirSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 const { HOOK_MODE: mode, HOOK_ROOT: root, HOOK_OUTSIDE: outside } = process.env;
 if (mode === "pre-tmp") {
@@ -185,13 +184,12 @@ if (mode === "pre-tmp") {
   writeFileSync(`${root}/docs/conventions/.session-flow.yaml.${process.pid}.tmp`, "not mine\n");
 }
 if (mode === "swap-docs") {
-  const real = childProcess.spawnSync;
-  childProcess.spawnSync = (cmd, ...rest) => {
-    const r = real(cmd, ...rest);
-    if (cmd === "bash") {
-      try {
-        symlinkSync(outside, `${root}/docs`);
-      } catch {}
+  const real = fs.mkdirSync;
+  fs.mkdirSync = (p, ...rest) => {
+    const r = real(p, ...rest);
+    if (String(p).endsWith("/docs")) {
+      fs.rmdirSync(p);
+      fs.symlinkSync(outside, p);
     }
     return r;
   };
