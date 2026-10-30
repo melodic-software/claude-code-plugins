@@ -171,6 +171,24 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(restore.returncode, 0, restore.stderr)
         self.assert_restored()
 
+    def test_restore_refuses_while_a_killed_wrappers_command_still_runs(self):
+        proc = self.start("a")
+        child = int((self.home / "started-a").read_text(encoding="utf-8"))
+        proc.kill()
+        # wait, not communicate: the live command still holds the pipes.
+        proc.wait(timeout=20)
+        restore = self.cli("restore")
+        self.assertEqual(restore.returncode, 2, restore.stderr)
+        self.assertEqual(self.find_links(), [], "copies removed under a live command")
+        os.kill(child, signal.SIGKILL)
+        deadline = time.monotonic() + 20
+        while Path(f"/proc/{child}").exists():
+            self.assertLess(time.monotonic(), deadline, "the command never exited")
+            time.sleep(0.05)
+        restore = self.cli("restore")
+        self.assertEqual(restore.returncode, 0, restore.stderr)
+        self.assert_restored()
+
     def test_overlapping_runs_keep_the_copies_until_the_last_exits(self):
         first = self.start("a")
         second = self.start("b")

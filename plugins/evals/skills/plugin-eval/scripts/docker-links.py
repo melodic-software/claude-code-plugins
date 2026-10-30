@@ -13,11 +13,12 @@ SIGINT, SIGTERM or SIGHUP, which it forwards to the command first.
 
 Before anything is replaced, each link's literal value is written to the
 manifest $HOME/.docker-link-swap.json, which also lists the live runs holding
-the copies. Every change to it happens under an exclusive lock on
-$HOME/.docker-link-swap.lock. Overlapping runs share one swap: the first swaps,
-later ones join, and the last to leave restores. A holder whose process is gone
-(SIGKILL, a forced stop) is pruned, so the next run's start, or `restore`,
-puts back what a killed run left. `restore` refuses while a live run holds the
+the copies, each by its wrapper's pid and its command's. Every change to it
+happens under an exclusive lock on $HOME/.docker-link-swap.lock. Overlapping
+runs share one swap: the first swaps, later ones join, and the last to leave
+restores. A holder whose wrapper and command are both gone (SIGKILL, a forced
+stop) is pruned, so the next run's start, or `restore`, puts back what a
+killed run left. `restore` refuses while a live run holds the
 copies.
 
 The copies are throwaway: anything written into them is discarded at restore,
@@ -77,14 +78,21 @@ def start_time(pid):
     return stat.rsplit(")", 1)[1].split()[19]
 
 
-def is_live(holder):
+def process_live(process):
     try:
-        os.kill(holder["pid"], 0)
+        os.kill(process["pid"], 0)
     except ProcessLookupError:
         return False
     except PermissionError:
         pass
-    return holder.get("start") is None or start_time(holder["pid"]) == holder["start"]
+    return process.get("start") is None or start_time(process["pid"]) == process["start"]
+
+
+def is_live(holder):
+    """A holder is live while its wrapper or the command it started runs, so a
+    wrapper killed alone does not free the copies under its command."""
+    child = holder.get("child")
+    return process_live(holder) or (child is not None and process_live(child))
 
 
 def load():
@@ -211,11 +219,24 @@ def acquire(me):
     return 0
 
 
+def same(holder, me):
+    return (holder["pid"], holder.get("start")) == (me["pid"], me["start"])
+
+
+def track(me):
+    """Record the started command on this run's holder entry."""
+    state = load()
+    if state is None:
+        return
+    state["holders"] = [me if same(h, me) else h for h in state["holders"]]
+    save(state)
+
+
 def release(me):
     state = load()
     if state is None:
         return 0
-    state["holders"] = [h for h in state["holders"] if h != me]
+    state["holders"] = [h for h in state["holders"] if not same(h, me)]
     if state["holders"]:
         save(state)
         return 0
@@ -258,6 +279,10 @@ def run(command):
         try:
             if not received:
                 children.append(subprocess.Popen(command))
+                pid = children[0].pid
+                me["child"] = {"pid": pid, "start": start_time(pid)}
+                with locked():
+                    track(me)
                 code = children[0].wait()
         except OSError as error:
             say(f"could not start {command[0]}: {error}")
