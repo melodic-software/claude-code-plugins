@@ -906,7 +906,7 @@ own_plugin_name() {
 # --- catalog regression --------------------------------------------------------
 # Diff `catalog_versions` across consecutive saved snapshots and report the FIRST
 # interval in which any id moved backward. That interval is what names the cause:
-# in `sync` a regression across pre-refresh→pre is this run's refresh pulling a
+# in `sync` a regression across pre-refresh->pre is this run's refresh pulling a
 # source that moved backward, while one appearing later is the checkout changing
 # under the run. REPORT-ONLY — its output never becomes an id list handed to a CLI.
 catalog_regression_rows() {
@@ -937,7 +937,7 @@ catalog_regression_rows() {
                   and ($after[.key] | triple) < (.value | triple))
          | "\(.key) \(.value) \($after[.key])"]' || continue
     if [[ -n "$rows" && "$rows" != "[]" ]]; then
-      printf -v "$__interval_var" '%s' "${snaps[i]}→${snaps[i + 1]}"
+      printf -v "$__interval_var" '%s' "${snaps[i]}->${snaps[i + 1]}"
       printf -v "$__rows_var" '%s' "$rows"
       return 0
     fi
@@ -1015,7 +1015,7 @@ divergence_block() {
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
       new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
-      note: "a snapshot was missing; the split could not be computed"}'
+      note: "a snapshot was missing, so the split could not be computed"}'
     return 0
   fi
   linked_worktree_paths linked "$post"
@@ -1363,7 +1363,7 @@ run_marketplace() {
       REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
       if ((CLI_RC != 0)); then
         REFRESH_FAILED=1
-        mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}; catalog may be stale, install/enable maintenance deferred"
+        mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}, so the catalog may be stale and install/enable maintenance is deferred"
       fi
     fi
   else
@@ -1942,7 +1942,7 @@ cache_content_block() {
   "$CACHE_CHECK" --marketplace "$mp" --scope user --ids >"$RUN_DIR/cache-stale-ids.$mp.txt" 2>>"$RUN_DIR/.cc-err"
   rc=$?
   json_lines ids "$RUN_DIR/cache-stale-ids.$mp.txt"
-  mp_error "cache-content JSON unusable; stale ids taken from the checker's --ids form (exit $rc)"
+  mp_error "cache-content JSON unusable, so the stale ids come from the checker's --ids form (exit $rc)"
   # Same shape either way, with the per-id detail the `--ids` form cannot know
   # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
   # tell an empty finding from a missing field.

@@ -1,61 +1,20 @@
 # Tracker reference form: what a code comment may say about an issue
 
-Owner doc for how a tracker reference is written inside a **code comment**. The rule is enforced
-in CI by the `check-comment-markers` composite action, which this repository consumes from
-`melodic-software/ci-workflows` at a SHA pinned in
-[`.github/workflows/pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml). That pin is the version of the
-policy in force; this doc describes its shape, and the action remains the source of truth.
-
-The reason this convention needs a written home: **the lane cannot be run locally.** The action is
-not vendored here, so no local command reproduces it, and a violation is discoverable only after
-pushing. Authors need the shape up front rather than from a red lane.
+This contract moved to [`docs/contracts/tracker-reference-form/`](../../contracts/tracker-reference-form/README.md). This page keeps its
+headings so links from installed plugin versions still reach each section.
 
 ## The shape
 
-Use the **bare parenthesized form**, `(#1491)`, to attach an issue number to a comment. It is
-not a tracker reference by the policy's definition and is used throughout this repository.
-
-These forms are rejected in a scanned file's comments:
-
-| Rejected | Example |
-| --- | --- |
-| `owner/repo#N` | `melodic-software/ci-workflows#12` |
-| `PR #N` | `PR #3011` |
-| `GH-N` | `GH-45` |
-| A closing keyword plus a number | `fixes #12`, `resolves #42`, `closed #7` |
-| `issue` / `issues` / `tracked` plus a number, `#` optional | `issue 88`, `tracked #3` |
-| The internal marker | `cc-issue` |
-
-The intent behind the list: outstanding work belongs in the tracker, where it stays current, rather
-than in a comment that no process revisits.
+Moved to [this section](../../contracts/tracker-reference-form/README.md#the-shape).
 
 ## Where it applies
 
-Only to an allowlist of code extensions. At the pinned version that list is `.cs`, `.ts`, `.tsx`,
-`.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.py`, `.sh`, `.ps1`, `.razor`, `.cshtml`.
-
-**Markdown and YAML are not scanned**, which explains apparent counterexamples in the tree: a
-`PR #N` in a workflow comment and an `owner/repo#N` in `dependabot.yml` both sit outside the
-allowlist and pass. Do not read those as evidence the rule is lax. Read them as evidence the rule
-is scoped. A skill's `SKILL.md` is likewise outside it.
-
-Two paths are excluded by configuration rather than by extension: `code-tidying`'s
-`audit-comment-residue` **`scripts/**` and `evals/**`**. That skill is itself a comment
-linter, so its fixtures and shape library must contain the banned markers as test corpus. Both
-exclusions are necessary and the pair is observable: `evals/fixtures/residue-snippet.py` carries
-a scanned extension and a rejected form, and passes only because the `evals` tree is excluded.
-Naming just one of the two would make this doc contradict the policy it describes. The authoritative
-list is the `exclude:` input in [`pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml).
+Moved to [this section](../../contracts/tracker-reference-form/README.md#where-it-applies).
 
 ## What this convention is not
 
-- Not a commit-message or PR-title rule. Those are [`commit-convention`](../commit-convention/README.md);
-  a PR body may reference issues freely, and the linkage gate in fact requires a closing keyword there.
-- Not a ban on issue numbers in comments. The bare `(#N)` form exists precisely so a comment can cite
-  its origin.
-- Not locally enforceable. Check the form by reading it before pushing; there is no local command.
+Moved to [this section](../../contracts/tracker-reference-form/README.md#what-this-convention-is-not).
 
 ## Conformance
 
-Comments added to scanned files use the bare form. When adding a reference, grep the change for the
-rejected shapes first. That is cheaper than a CI round trip on a lane that only runs remotely.
+Moved to [this section](../../contracts/tracker-reference-form/README.md#conformance).

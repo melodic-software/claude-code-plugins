@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -105,6 +105,7 @@ async function gate({
   runDispatcherWorkflow,
   runDispatcherUpstreams,
   expectedUpstreamHead,
+  pushedCommit,
   lanesAppId,
   requirePr,
   runId = OWN_RUN_ID,
@@ -154,6 +155,7 @@ async function gate({
         ? {}
         : { RUN_DISPATCHER_UPSTREAMS: runDispatcherUpstreams }),
       ...(expectedUpstreamHead === undefined ? {} : { EXPECTED_UPSTREAM_HEAD: expectedUpstreamHead }),
+      ...(pushedCommit === undefined ? {} : { PUSHED_COMMIT: pushedCommit }),
       ...(lanesAppId === undefined ? {} : { LANES_APP_ID: lanesAppId }),
       ...(requirePr === undefined ? {} : { REQUIRE_PR: requirePr }),
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
@@ -2335,7 +2337,8 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
 });
 
 // A job after pr-unblock's model job: the review was of the head that job was
-// gated on, and the PR has since moved by the lanes App's own signed commits.
+// gated on, and the PR has since moved to the commit apply-feedback-patch
+// pushed, a lanes App commit GitHub signed during this run.
 const GATED_SHA = "9".repeat(40);
 const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
 // The shape of the lanes App's commits on #7493 and #7520: author the App,
@@ -2352,40 +2355,58 @@ const range = (...commits) => ({ status: "ahead", total_commits: commits.length,
 const afterRoutes = (compare, upstream = {}) =>
   fakeGitHub({ ...runDispatcherRoutes({ upstream: { head_sha: GATED_SHA, ...upstream } }), [afterRoute]: compare });
 
-test("expected upstream head: verified lanes App commits after the gated head proceed", async () => {
-  const github = afterRoutes(range(laneCommit(), laneCommit({ sha: "7".repeat(40) })));
-  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA }), PROCEED);
-  assert.ok(github.calls.includes(afterRoute));
-});
-
 test("expected upstream head: a PR head still at the gated head proceeds with no range read", async () => {
   const github = fakeGitHub(runDispatcherRoutes());
   assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: HEAD_SHA }), PROCEED);
 });
 
-for (const [label, github] of [
-  ["a foreign commit follows the gated head", () => afterRoutes(range(laneCommit(), laneCommit({ author: KYLE })))],
-  ["an unsigned lanes App commit follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: false, reason: "unsigned" } } })))],
-  ["a human signed and pushed a commit naming the App as author", () =>
-    afterRoutes(range(laneCommit({ committer: KYLE })))],
-  ["a verified commit whose reason is not valid follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: true, reason: "bad_email" } } })))],
-  ["an App commit made before this run was created follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T11:00:00Z" }, verification: { verified: true, reason: "valid" } } })))],
-  ["a commit with no linked author follows the gated head", () => afterRoutes(range(laneCommit({ author: null })))],
-  ["GitHub truncated the range", () => afterRoutes({ ...range(laneCommit()), total_commits: 251 })],
-  ["the PR head diverged from the gated head", () => afterRoutes({ ...range(laneCommit()), status: "diverged" })],
-  ["the range read fails", () => afterRoutes(new GitHubError(404, "compare"))],
-  ["the upstream reviewed another head than the gated one", () =>
-    afterRoutes(range(laneCommit()), { head_sha: BASE_SHA })],
-  ["the gated head is not a SHA", () => afterRoutes(range(laneCommit()))],
+for (const [label, upstream, expectedUpstreamHead] of [
+  ["the upstream reviewed another head than the gated one", { head_sha: BASE_SHA }, GATED_SHA],
+  ["the gated head is not a SHA", {}, "main"],
 ]) {
-  test(`expected upstream head: refused with untrusted-actor when ${label}`, async () => {
-    const expectedUpstreamHead = label === "the gated head is not a SHA" ? "main" : GATED_SHA;
-    assert.deepEqual(await runDispatched({ github: github(), expectedUpstreamHead }), STOPPED("untrusted-actor"));
+  test(`expected upstream head: refused with untrusted-actor when ${label}, even at the pushed commit`, async () => {
+    const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })), upstream);
+    assert.deepEqual(await runDispatched({ github, expectedUpstreamHead, pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
   });
 }
+
+// The issue the pushed-commit binding answers: a verified lanes App commit
+// made during this run proves an App token signed it, not that this run's
+// push job made it, so only the commit apply-feedback-patch pushed may follow
+// the gated head.
+test("pushed commit: a verified lanes App commit that is not the pushed commit is refused", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "7".repeat(40) }),
+    STOPPED("untrusted-actor"),
+  );
+});
+
+test("pushed commit: none passed, a head moved by a verified lanes App commit is refused", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA }), STOPPED("untrusted-actor"));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "" }), STOPPED("untrusted-actor"));
+});
+
+test("pushed commit: a PR head equal to the pushed commit proceeds", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA }), PROCEED);
+});
+
+test("pushed commit: a PR head still at the gated head proceeds whether or not a push is named", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: HEAD_SHA, pushedCommit: "7".repeat(40) }), PROCEED);
+});
+
+test("pushed commit: refused when it is not a SHA or rides without an expected upstream head", async () => {
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
+  assert.deepEqual(
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: "A".repeat(40) }),
+    STOPPED("untrusted-actor"),
+  );
+  assert.ok(!github.calls.includes(upstreamRoute), "refused before the upstream read");
+  assert.deepEqual(await runDispatched({ github: fakeGitHub(runDispatcherRoutes()), pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
+});
 
 // GET /pulls lags a push by minutes (run 39615724332 on #8870 gated the head
 // the model job had already moved past), so the gate re-reads it until it
@@ -2397,22 +2418,21 @@ const pullAt = (sha) => {
 };
 
 test("expected upstream head: a pulls read lagging the branch ref is re-read until it shows the pushed head", async () => {
-  const github = afterRoutes(range(laneCommit()));
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
   github.routes[pullRoute] = inTurn(pullAt(GATED_SHA), pullAt(GATED_SHA), pullAt(HEAD_SHA));
   const sleep = fakeSleep();
-  const outputs = await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep });
+  const outputs = await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA, sleep });
   assert.equal(outputs["head-sha"], HEAD_SHA);
   assert.deepEqual(outputs, PROCEED);
   assert.deepEqual(sleep.waits, [5000, 10_000]);
-  assert.ok(github.calls.includes(afterRoute));
 });
 
 test("expected upstream head: a pulls read that never reaches the branch ref stops with head-lag", async () => {
-  const github = afterRoutes(range(laneCommit()));
+  const github = afterRoutes(range(laneCommit({ sha: HEAD_SHA })));
   github.routes[pullRoute] = pullAt(GATED_SHA);
   const sleep = fakeSleep();
   assert.deepEqual(
-    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep }),
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, pushedCommit: HEAD_SHA, sleep }),
     STOPPED("head-lag"),
   );
   assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
@@ -2963,4 +2983,87 @@ test("ci-status re-run: the record vouches only for the upstream run, never this
   });
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
   assert.deepEqual(github.calls, [commitPulls]);
+});
+
+// isTrustedClose and the lanes App's already-done close (owner Q9,
+// 2026-10-29): the close counts only when report-outcome's close comment
+// names already-done and the pull request it cites is still merged into the
+// default branch with a merge commit that closes the issue. The comment body
+// is the shape report-outcome writes on close (its round-trip test pins it).
+const isLanesApp = (actor) => actor?.id === LANES_APP.id;
+const MERGE_SHA = "3333333333333333333333333333333333333333";
+const closeComment = (stop, words, user = LANES_APP) => ({
+  user,
+  body: [
+    "<!-- work-resolve-issue outcome=closed run=555 -->",
+    `The work-resolve-issue lane stopped on this issue (\`${stop}\`): the run found the issue's work already on the default branch.`,
+    "It closes the issue as completed.",
+    "",
+    "In the run's words:",
+    "",
+    `> ${words}`,
+  ].join("\n"),
+});
+const APP_CLOSED = { number: 77, state: "closed", closed_by: LANES_APP };
+const appCloseRoutes = ({ comments = [closeComment("already-done", "already-done: ＃5 shipped it")], message = "fix: tidy (#5)\n\nCloses #77", merged = true, events = [] } = {}) => ({
+  "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } },
+  "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
+  "GET /repos/o/r/issues/77": { number: 77, created_at: "2026-10-01T00:00:00Z" },
+  "GET /repos/o/r/issues/77/events?per_page=100&page=1": events,
+  "GET /repos/o/r": { default_branch: "main" },
+  "GET /repos/o/r/pulls/5": { merged_at: merged ? "2026-10-20T00:00:00Z" : null, base: { ref: "main" }, merge_commit_sha: MERGE_SHA },
+  [`GET /repos/o/r/commits/${MERGE_SHA}`]: { commit: { message } },
+});
+const routeClient = (routes, failOn = "") => async (method, path) => {
+  const key = `${method} ${path}`;
+  if (key === failOn) {
+    throw new GitHubError(502, key);
+  }
+  if (!Object.hasOwn(routes, key)) {
+    throw new GitHubError(404, key);
+  }
+  return routes[key];
+};
+
+test("isTrustedClose: the lanes App's already-done close counts when its merged pull request still closes the issue", async () => {
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
+});
+
+// Security review on #10978: a person who reopens an issue after the cited
+// merge says the work is not done, so the App's later close on that same
+// merge counts for nothing; a reopen before the merge changes nothing.
+test("isTrustedClose: the lanes App's already-done close counts for nothing when the issue was reopened after the cited merge", async () => {
+  const reopened = (at) => [{ event: "reopened", created_at: at }];
+  const close = (routes, failOn) => isTrustedClose(routeClient(routes, failOn), "o/r", APP_CLOSED, new Set(), isLanesApp);
+  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-25T00:00:00Z") })), false);
+  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-10T00:00:00Z") })), true);
+  assert.equal(await close(appCloseRoutes(), "GET /repos/o/r/issues/77/events?per_page=100&page=1"), false, "an unreadable event list");
+});
+
+test("isTrustedClose: the lanes App's already-done close counts for nothing once its evidence no longer verifies", async () => {
+  const humans = new Set();
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the merge commit closes nothing");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ merged: false })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the pull request is not merged");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, humans), false, "a caller that names no App");
+  const forged = [closeComment("already-done", "already-done: ＃5 shipped it", STRANGER)];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: forged })), "o/r", APP_CLOSED, humans, isLanesApp), false, "a close comment the App did not write");
+  const reopened = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
+});
+
+test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {
+  const comments = [closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+});
+
+test("isTrustedClose: a read that fails leaves the lanes App's close untrusted", async () => {
+  for (const failOn of [
+    "GET /repos/o/r/issues/77/comments?per_page=100&page=1",
+    "GET /repos/o/r/issues/77",
+    "GET /repos/o/r",
+    "GET /repos/o/r/pulls/5",
+    `GET /repos/o/r/commits/${MERGE_SHA}`,
+  ]) {
+    assert.equal(await isTrustedClose(routeClient(appCloseRoutes(), failOn), "o/r", APP_CLOSED, new Set(), isLanesApp), false, failOn);
+  }
 });

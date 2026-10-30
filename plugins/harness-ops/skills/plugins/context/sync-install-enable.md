@@ -162,10 +162,13 @@ machine default (same override `fleet-state.sh` honors).
 
   `project-unsorted` is a report row, not a write. `converge` remains the only action that may
   touch that file.
-- **Never silent.** A `normalized keys=N` result becomes the report's `Normalized:` row. A
-  `refused:` result (permission denial, unreadable JSON, a semantic diff) becomes an Action
-  needed bullet: fail loudly, never skip. `--check` is the audit-mode stand-in (predict
-  `would-normalize`, write nothing).
+- **Never silent.** A `normalized moved=K keys=N` result becomes the report's `Normalized:` row,
+  `K of N keys moved`. A `refused:` result (permission denial, unreadable JSON, a semantic diff)
+  becomes an Action needed bullet: fail loudly, never skip. `--check` is the audit-mode stand-in
+  (predict `would-normalize moved=K keys=N`, write nothing).
+- **A missing user settings file is not an error.** `missing-file keys=0` exits `0` and renders as
+  `Normalized: skipped, no user settings file` (`Would normalize:` in audit), never as already
+  sorted.
 - **Skip the write when this step installed nothing.** An already-sorted map is a no-op either
   way (`already-sorted`); the reorder exists to heal the tail this step just created.
 

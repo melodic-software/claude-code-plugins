@@ -16,7 +16,7 @@ Today the plugin has no team-layer reader, YAML parser or resolver. No shared mu
 exists in the repository: each plugin that layers config carries its own, such as `multi-agent`'s
 `scripts/resolve-roles.sh`, and `user-experience` carries the only `yaml-subset.mjs` parser.
 
-The [config-cascade convention](../conventions/config-cascade/README.md#the-layers) defines three
+The [config-cascade convention](../contracts/config-cascade/README.md#the-layers) defines three
 layers: user-global `~/.claude/<name>`, team, and a local overlay
 `${CLAUDE_PROJECT_DIR}/.claude/<stem>.local.<ext>`. Its "What does not move" paragraph keeps the
 user-global and overlay layers under `.claude/` even when the team layer moves to a docs convention
@@ -28,7 +28,7 @@ The maintainer's direction (2026-10-10, recorded on #6594) for config across plu
 for prose, YAML for pure config, one layout mirrored between user scope and project scope, and the
 three scopes user-global (not committed), project (committed) and personal-in-project (not
 committed). Routing-as-data already puts a plugin's team routing in `<home>/<plugin>.yaml`
-([routing-as-data](../conventions/routing-as-data/README.md)), so a separate fenced block would split
+([routing-as-data](../contracts/routing-as-data/README.md)), so a separate fenced block would split
 one plugin's team config across two files.
 
 ## Decision
@@ -111,7 +111,7 @@ changes, and the repo-wide decision on format and folder layout stays on #6594.
 
 - One parser and one resolver serve every adopting plugin. `user-experience`'s `yaml-subset.mjs`
   becomes a generated copy of `lib/yaml-subset.mjs`, and its suite moves to `lib/`.
-- The config-cascade [Implementers](../conventions/config-cascade/README.md#implementers) table
+- The config-cascade [Implementers](../contracts/config-cascade/README.md#implementers) table
   gains a `user-interface` row, stating this deviation, in the change that ships the plugin's
   config on `main`. Implementers rows describe `main`, never intent.
 - Two layout shapes coexist until #6594 decides: plugins on `.claude/` paths and ADR 0044 blocks,

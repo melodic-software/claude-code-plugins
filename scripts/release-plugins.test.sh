@@ -300,24 +300,25 @@ fi
 rm -rf "$f" "$g"
 
 # --- a listed convention: versioned by its newest CHANGELOG heading -------------
-base_fixture f
-mkdir -p "$f/docs/conventions/demo"
-printf '# Changelog for demo\n\n## 2.14.0 - 2026-10-18\n\nProse.\n' >"$f/docs/conventions/demo/CHANGELOG.md"
-printf 'alpha\nbeta\ndemo\n' >"$f/scripts/fragment-plugins.txt"
-git_test_config "$f" add -A
-git_test_config "$f" commit -qm convention
-add_fragment "$f" demo one-44444444 minor "### Changed
+for home in conventions contracts; do
+  base_fixture f
+  mkdir -p "$f/docs/$home/demo"
+  printf '# Changelog for demo\n\n## 2.14.0 - 2026-10-18\n\nProse.\n' >"$f/docs/$home/demo/CHANGELOG.md"
+  printf 'alpha\nbeta\ndemo\n' >"$f/scripts/fragment-plugins.txt"
+  git_test_config "$f" add -A
+  git_test_config "$f" commit -qm convention
+  add_fragment "$f" demo one-44444444 minor "### Changed
 
 - Thing."
-out="$(run_release "$f" 2>&1)"
-rc=$?
-if ((rc == 0)) && [[ "$out" == *"demo: 2.14.0 -> 2.15.0 (minor) from 1 fragment(s)"* ]] && [[ ! -e "$f/.changes/demo" && ! -e "$f/docs/conventions/demo/.claude-plugin" ]]; then
-  ok "releases a listed convention from its newest heading and consumes its fragments"
-else
-  fail "expected demo 2.14.0 -> 2.15.0 with the fragment gone, got rc=$rc: $out"
-fi
-expect_file "writes the convention entry above its newest heading" \
-  "$f/docs/conventions/demo/CHANGELOG.md" '# Changelog for demo
+  out="$(run_release "$f" 2>&1)"
+  rc=$?
+  if ((rc == 0)) && [[ "$out" == *"demo: 2.14.0 -> 2.15.0 (minor) from 1 fragment(s)"* ]] && [[ ! -e "$f/.changes/demo" && ! -e "$f/docs/$home/demo/.claude-plugin" ]]; then
+    ok "[$home] releases a listed convention from its newest heading and consumes its fragments"
+  else
+    fail "[$home] expected demo 2.14.0 -> 2.15.0 with the fragment gone, got rc=$rc: $out"
+  fi
+  expect_file "[$home] writes the convention entry above its newest heading" \
+    "$f/docs/$home/demo/CHANGELOG.md" '# Changelog for demo
 
 ## [2.15.0] - 2026-10-04
 
@@ -329,17 +330,18 @@ expect_file "writes the convention entry above its newest heading" \
 
 Prose.'
 
-# A run cut short after the CHANGELOG write, before the fragments go: the retry
-# must refuse, not release them again under 2.16.0.
-git_test_config "$f" checkout -q HEAD -- .changes
-out="$(run_release "$f" 2>&1)"
-rc=$?
-if ((rc == 2)) && [[ "$out" == *"already has a '## [2.15.0]' entry"* ]] && [[ "$(grep -c '^## \[' "$f/docs/conventions/demo/CHANGELOG.md")" == 1 ]]; then
-  ok "refuses to re-release a convention whose CHANGELOG an earlier run already wrote"
-else
-  fail "expected exit 2 naming 2.15.0 and one released entry, got rc=$rc: $out"
-fi
-rm -rf "$f"
+  # A run cut short after the CHANGELOG write, before the fragments go: the retry
+  # must refuse, not release them again under 2.16.0.
+  git_test_config "$f" checkout -q HEAD -- .changes
+  out="$(run_release "$f" 2>&1)"
+  rc=$?
+  if ((rc == 2)) && [[ "$out" == *"already has a '## [2.15.0]' entry"* ]] && [[ "$(grep -c '^## \[' "$f/docs/$home/demo/CHANGELOG.md")" == 1 ]]; then
+    ok "[$home] refuses to re-release a convention whose CHANGELOG an earlier run already wrote"
+  else
+    fail "[$home] expected exit 2 naming 2.15.0 and one released entry, got rc=$rc: $out"
+  fi
+  rm -rf "$f"
+done
 
 # --- usage ------------------------------------------------------------------------
 base_fixture f

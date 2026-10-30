@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": "namespace Tarnquill.Core;\n\npublic static class Paging\n{\n    /// <summary>Number of pages needed to show <paramref name=\"total\"/> items, <paramref name=\"pageSize\"/> per page.</summary>\n    public static int PageCount(int total, int pageSize)\n    {\n        if (pageSize <= 0)\n        {\n            throw new ArgumentOutOfRangeException(nameof(pageSize), \"page size must be positive\");\n        }\n\n        return (total + pageSize - 1) / pageSize;\n    }\n}\n",
+      "why": "integer ceiling division"
+    },
+    {
+      "answer": "        return (int)Math.Ceiling((double)total / pageSize);\n",
+      "why": "Math.Ceiling over a double division"
+    },
+    {
+      "answer": "        return total / pageSize + (total % pageSize == 0 ? 0 : 1);\n",
+      "why": "adds a page only for a remainder"
+    },
+    {
+      "answer": "        return total % pageSize == 0 ? total / pageSize : total / pageSize + 1;\n",
+      "why": "ternary on the remainder"
+    },
+    {
+      "answer": "        if (total % pageSize == 0)\n        {\n            return total / pageSize;\n        }\n\n        return total / pageSize + 1;\n",
+      "why": "early return for an exact multiple"
+    },
+    {
+      "answer": "        return (int)Math.Ceiling((double)total / (double)pageSize);\n",
+      "why": "both operands cast"
+    },
+    {
+      "answer": "        return Convert.ToInt32(Math.Ceiling(1.0 * total / pageSize));\n",
+      "why": "a 1.0 factor and Convert in place of a cast"
+    },
+    {
+      "answer": "        return (total / pageSize) + (total % pageSize == 0 ? 0 : 1);\n",
+      "why": "bracketed division"
+    },
+    {
+      "answer": "        return total == 0 ? 0 : (total - 1) / pageSize + 1;\n",
+      "why": "guards the zero total before the shifted division"
+    },
+    {
+      "answer": "        if (total % pageSize != 0)\n        {\n            return total / pageSize + 1;\n        }\n\n        return total / pageSize;\n",
+      "why": "adds the page only for a remainder"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "        return total / pageSize + 1;\n",
+      "why": "the seeded bug, unchanged"
+    },
+    {
+      "answer": "        return (total - 1) / pageSize + 1;\n",
+      "why": "near miss: returns 1 for a total of 0, so PageCount(0, 5) still fails"
+    },
+    {
+      "answer": "        return total / pageSize;\n",
+      "why": "drops the last partial page"
+    },
+    {
+      "answer": "        return (int)Math.Ceiling(total / pageSize);\n",
+      "why": "near miss: integer division before the ceiling"
+    }
+  ]
+}

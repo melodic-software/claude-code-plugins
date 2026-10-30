@@ -492,6 +492,33 @@ else
   fail "untracked file missed by diff mode (rc=$RC): $out"
 fi
 
+# --- the name lines answer a level as the tree grep does ---------------------
+# A run greps the tree for its first AFFECTED_TESTS_TREE_GREPS lookups and the
+# name lines after that. The orphan, which nothing names, spends the one tree
+# grep, so the name lines serve every level of the walks that select; a shim
+# counts the tree greps.
+shim="$repo.bin"
+mkdir -p "$shim"
+printf '#!/usr/bin/env bash\n[[ " $* " == *" -F -f "* ]] && echo grep >>"%s"\nexec %q "$@"\n' \
+  "$shim/greps" "$(command -v git)" >"$shim/git"
+chmod +x "$shim/git"
+explain_with() { # <tree-greps> -> the tree greps it ran in GREPS, the output in OUT
+  : >"$shim/greps"
+  OUT="$(cd "$repo" && PATH="$shim:$PATH" AFFECTED_TESTS_TREE_GREPS="$1" bash scripts/affected-tests.sh \
+    --explain --allow-unmapped scripts/zzorphan-tool.sh lib/widget.sh plugins/alpha/hooks/alpha-extra.sh 2>&1)"
+  RC=$?
+  GREPS=$(wc -l <"$shim/greps")
+}
+explain_with 99
+tree_out="$OUT" tree_rc="$RC" tree_greps="$GREPS"
+explain_with 1
+if [[ "$tree_greps" -gt 1 && "$GREPS" -eq 1 && "$RC" -eq "$tree_rc" ]] && [[ -n "$OUT" && "$OUT" == "$tree_out" ]]; then
+  ok "the name lines select what the tree grep selects ($tree_greps tree greps against 1)"
+else
+  fail "name lines diverge from the tree grep (greps $tree_greps/$GREPS, rc $tree_rc/$RC): $OUT // $tree_out"
+fi
+rm -rf "$shim"
+
 # --- a merge in progress diffs against the incoming side, not the fork -----
 # Merging the base branch in leaves HEAD at the pre-merge commit while the
 # working tree already carries the incoming side. A file changed only there is
@@ -627,6 +654,29 @@ for bad in 0 x '' -1; do
     ok "--jobs '$bad' is a usage error, not leg 1 of 1 (rc=2)"
   else
     fail "--jobs '$bad' should exit 2, got rc=$RC"
+  fi
+done
+
+# --budget hands the selection to run-plugin-tests.sh even at one job, since
+# that runner owns the per-suite share.
+out="$(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --budget 600 lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" 'within a 600s budget' && contains "$out" 's of the 600s budget.'; then
+  ok "--run --budget 600 runs the selection through run-plugin-tests.sh against the budget"
+else
+  fail "--run --budget 600 did not run the selection against the budget (rc=$RC): $out"
+fi
+for bad in 0 x -1 '' '='; do
+  if [[ "$bad" == = ]]; then
+    (cd "$repo" && bash scripts/affected-tests.sh --run --budget= lib/widget.sh >/dev/null 2>&1)
+  else
+    (cd "$repo" && bash scripts/affected-tests.sh --run --budget "$bad" lib/widget.sh >/dev/null 2>&1)
+  fi
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--budget '$bad' is a usage error (rc=2)"
+  else
+    fail "--budget '$bad' should exit 2, got rc=$RC"
   fi
 done
 
@@ -827,7 +877,7 @@ fi
 # the files it proves unmapped, and a live run would also fail on main as soon
 # as any other suite began naming one.
 eco_yaml=(plugins/toolchain/reference/ecosystems/zz-probe.yaml
-  docs/conventions/ecosystem-commands/examples/zz-probe.yaml)
+  docs/contracts/ecosystem-commands/examples/zz-probe.yaml)
 mk_repo repo
 for y in "${eco_yaml[@]}"; do
   mkdir -p "$repo/${y%/*}"
@@ -1044,6 +1094,31 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/amb/b/tests/test_child.py && ! has_l
   ok "R3: an ambiguous module resolves from its tests/ child"
 else
   fail "python ambiguous import, tests/ child (rc=$RC): $OUT"
+fi
+
+# An import never resolves across plugins: `from m import (serve,)` imports a
+# function, and `import serve` in another plugin names another module, so
+# neither reaches the only serve.py of the tree.
+mkdir -p "$repo/plugins/alpha/fixtures" "$repo/plugins/beta/surface"
+printf 'def main():\n    return 1\n' >"$repo/plugins/alpha/fixtures/serve.py"
+printf 'from bridge_x import (\n    serve,\n)\n' >"$repo/plugins/beta/surface/test_server.py"
+printf 'import serve\n' >"$repo/plugins/beta/test_plain.py"
+run_sel "$repo" --allow-unmapped plugins/alpha/fixtures/serve.py
+if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
+  ok "R3: an imported name selects nothing through a same-named module in another plugin"
+else
+  fail "python import across plugins (rc=$RC): $OUT"
+fi
+# Inside its plugin, an imported name names a module only in the package it is
+# imported from.
+printf 'from helpers import serve\n' >"$repo/plugins/alpha/test_not_pkg.py"
+printf 'from fixtures import serve\n' >"$repo/plugins/alpha/test_pkg.py"
+run_sel "$repo" plugins/alpha/fixtures/serve.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/test_pkg.py && ! has_line "$OUT" plugins/alpha/test_not_pkg.py &&
+  ! has_line "$OUT" plugins/beta/surface/test_server.py; then
+  ok "R3: an imported name names a module only in the package it is imported from"
+else
+  fail "python imported name outside its package (rc=$RC): $OUT"
 fi
 
 # --- R2: conftest.py and __init__.py reach the test modules below them -----

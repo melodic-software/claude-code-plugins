@@ -139,6 +139,14 @@ jobs:
             echo "Merged release pull request #$PR_NUMBER at $HEAD_SHA."
           fi
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   build:
     needs: [merge]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
@@ -220,7 +228,7 @@ jobs:
           stage=release/plugins-next
           gh api -X DELETE "$refs/heads/$stage" --silent 2>/dev/null || true
           gh api -X POST "$refs" -f ref="refs/heads/$stage" -f sha="$MAIN_SHA" --silent
-          git add -A -- plugins docs/conventions .changes
+          git add -A -- plugins docs/contracts docs/conventions .changes
           # File contents go through stdin and files, never argv, so a large file fits.
           adds="$RUNNER_TEMP/additions.jsonl"
           dels="$RUNNER_TEMP/deletions.json"
@@ -324,3 +332,11 @@ jobs:
             printf '\n%s\n' "$line" >>"$body"
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

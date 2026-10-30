@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.2.2\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq env check`: checks required tools.\n",
+      "why": "the front matter setup writes"
+    },
+    {
+      "answer": "---\ntitle: Developer tooling conventions\nwritten_against: developer-experience@1.10.0\n---\n# Developer tooling conventions\n",
+      "why": "another key first, two-digit minor"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq env check`: checks required tools.\n",
+      "why": "no front matter"
+    },
+    {
+      "answer": "---\nwritten_against: developer-experience@<plugin version>\n---\n# Developer tooling conventions\n",
+      "why": "near miss: the format's placeholder left in"
+    },
+    {
+      "answer": "---\nwritten_against: developer-experience@0.2\n---\n# Developer tooling conventions\n",
+      "why": "near miss: not a full semver"
+    },
+    {
+      "answer": "---\ntitle: Conventions\n---\n# Developer tooling conventions\n\nwritten_against: developer-experience@0.2.2\n",
+      "why": "near miss: the key in the body, after the front matter closed"
+    }
+  ]
+}

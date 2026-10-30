@@ -70,6 +70,35 @@ const CREDENTIAL = {
   [FB]: ["fallback-token", FALLBACK],
 };
 const others = (job) => JOBS.filter((id) => id !== job).map((id) => CREDENTIAL[id]);
+const keyGate = () => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
+// Evaluates a gate of `a == b` terms joined by && and parenthesized || groups
+// on one run's context; an evaluated term of any other shape fails the test.
+const admits = (gate, context) => {
+  const value = (term) => (/^'.*'$/.test(term) ? term.slice(1, -1) : term.split(".").reduce((at, key) => at?.[key], context));
+  const equal = (term) => {
+    assert.match(term, /^\S+ == \S+$/);
+    const [left, right] = term.split(" == ");
+    return value(left) === value(right);
+  };
+  return gate.split(" && ").every((clause) => clause.replace(/^\(|\)$/g, "").split(" || ").some(equal));
+};
+// A branch filter pattern per GitHub's filter pattern cheat sheet: `*` stops
+// at `/`, `**` matches any character including `/`. Every other character is
+// taken literally, so a pattern using `?`, `+`, `[]` or `!` needs more here.
+const glob = (pattern) => {
+  const literal = pattern.replace(/[.+?^$()|[\]{}\\]/g, "\\$&");
+  return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
+};
+const REPO = "melodic-software/claude-code-plugins";
+const upstreamRun = (overrides = {}) => ({
+  github: {
+    ref: "refs/heads/main",
+    repository: REPO,
+    event: {
+      workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: REPO }, ...overrides },
+    },
+  },
+});
 
 test("the upload is each job's only artifact step and follows the written verdict", () => {
   for (const job of JOBS) {
@@ -89,6 +118,24 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.match(step("Write the verdict", job), /^ {8}if: steps\.judge\.outcome == 'success'$/m, job);
   }
   assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)|actions\/download-artifact|actions\/cache/);
+});
+
+// The resolver reads only, and skips on its own reads a run whose head is
+// judged, moved past, a draft, red for anything a person's approval does not
+// lift, or not the lanes App's; so it runs before the trigger gate, whose
+// reads then go only to a run the resolver would judge. The agree step runs
+// only after the gate proceeds, so a gate refusal ends the run without a
+// judgment and without a mismatch error.
+test("the resolver runs before the trigger gate, and the agree step only after the gate proceeds", () => {
+  for (const job of JOBS) {
+    assert.ok(index("Resolve the pull request", job) < index("Check the trigger", job), job);
+    assert.ok(index("Check the trigger", job) < index("Assert the gate and the resolver agree", job), job);
+    assert.match(step("Resolve the pull request", job), /^ {8}if: steps\.kill\.outputs\.proceed == 'true'$/m, job);
+    assert.match(step("Check the trigger", job), /^ {8}if: steps\.pr\.outputs\.proceed == 'true'$/m, job);
+    assert.match(step("Assert the gate and the resolver agree", job), /^ {8}if: steps\.gate\.outputs\.proceed == 'true'$/m, job);
+    // Every judging step hangs off agree, and so does the missing-verdict failure.
+    assert.match(step("Fail without a verdict", job), /steps\.agree\.outcome == 'success'/, job);
+  }
 });
 
 test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
@@ -155,6 +202,52 @@ test("each secret appears only in its own job", () => {
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
+// A failed upstream run reaches resolve-pr, which judges it only when it
+// failed on nothing but holds an approving review of the head lifts, the
+// `do-not-merge` label, or both (heldOnly).
+test("the key job runs on main for a same-repository pull_request run that passed or failed", () => {
+  assert.equal(
+    keyGate(),
+    [
+      "github.ref == 'refs/heads/main'",
+      "&& github.event.workflow_run.event == 'pull_request'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
+      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+    ].join(" "),
+  );
+});
+
+// The trigger's branch filter matches the branch the pr-require-checks run ran
+// on (GitHub's events docs, workflow_run). A merge-queue run's branch is
+// gh-readonly-queue/main/... and a schedule or dispatch run's is main, so
+// neither starts a run that would only skip; every pull request branch still
+// reaches the gate.
+test("a same-repository pull_request run on a feature branch passes the trigger and the key job's gate", () => {
+  const on = /^on:\n([\s\S]*?)\n(?=\S)/m.exec(text)?.[1] ?? "";
+  assert.match(on, /^ {4}workflows: \[pr-require-checks\]$/m);
+  assert.match(on, /^ {4}types: \[completed\]$/m);
+  assert.doesNotMatch(on, /^ {4}branches:/m);
+  const ignored =
+    /^ {4}branches-ignore: \[(.*)\]$/m
+      .exec(on)?.[1]
+      .split(",")
+      .map((pattern) => pattern.trim().replace(/^'|'$/g, "")) ?? [];
+  assert.deepEqual(ignored, ["main", "gh-readonly-queue/**"]);
+  const triggers = (branch) => !ignored.some((pattern) => glob(pattern).test(branch));
+  for (const branch of ["feat/8695-skip-only-runs", "fix/a", "dependabot/npm_and_yarn/a/b", "main-follow-up", "mainline"]) {
+    assert.ok(triggers(branch), branch);
+    assert.ok(admits(keyGate(), upstreamRun({ head_branch: branch })), branch);
+    assert.ok(admits(keyGate(), upstreamRun({ head_branch: branch, conclusion: "failure" })), branch);
+  }
+  for (const branch of ["main", "gh-readonly-queue/main/pr-123-0123456789abcdef0123456789abcdef01234567"]) {
+    assert.ok(!triggers(branch), branch);
+  }
+  // What the trigger still admits but pr-verify does not judge, the gate skips.
+  assert.ok(!admits(keyGate(), upstreamRun({ conclusion: "cancelled" })));
+  assert.ok(!admits(keyGate(), upstreamRun({ event: "push" })));
+  assert.ok(!admits(keyGate(), upstreamRun({ head_repository: { full_name: "someone/fork" } })));
+});
+
 test("the subscription job runs only on a clean handoff or an empty key, on a fixed runner", () => {
   const job = jobText(SUB);
   assert.match(job, /^ {4}needs: check-intent$/m);
@@ -164,7 +257,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
     [
       "github.ref == 'refs/heads/main'",
       "&& github.event.workflow_run.event == 'pull_request'",
-      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
       "&& github.event.workflow_run.head_repository.full_name == github.repository",
       "&& ((needs.check-intent.outputs.handoff == 'true'",
       "&& needs.check-intent.outputs.key-leg-clean == 'true')",
@@ -221,7 +314,7 @@ test("the fallback job runs only on the subscription job's clean handoff, on a f
     [
       "github.ref == 'refs/heads/main'",
       "&& github.event.workflow_run.event == 'pull_request'",
-      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')",
       "&& github.event.workflow_run.head_repository.full_name == github.repository",
       "&& needs.check-intent-subscription.outputs.handoff == 'true'",
       "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
@@ -440,7 +533,9 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
     const block = step("Resolve the pull request", job);
     assert.match(block, /TRUSTED_ACTORS_PATH: \.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json\n/, job);
     assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
-    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS\n/, job);
+    // The issue lane's web hosts, as admission reads them, so a split record holds under the same hosts.
+    assert.match(block, /ISSUE_LANE_WEB_HOSTS=\$\(yq -o=json -I=0 '\(\.activities\."resolve-issue"\."web-access" \| select\(\.enabled == true\) \| \.domains\) \/\/ \[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
+    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS\n/, job);
     assert.match(step("Write the verdict", job), /SPEC_TEXT_FILE: \$\{\{ github\.workspace \}\}\/pr-verify-data\/spec-text\.json\n/, job);
   }
 });

@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -106,9 +106,11 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
-// `queuedIssues` are the numbers the open agent-ready issue search lists, and
-// `deferred` what the open admission-deferred listing answers.
-// `blobs` maps a path to its blob SHA on main.
+// `queuedIssues` are the numbers the open agent-ready issue search lists,
+// `deferred` what the open admission-deferred listing answers, and `ready`
+// what the open `status: ready` listing answers.
+// `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
+// admit.mjs's merged-Refs batch read answers for it.
 // `timeline` and `closing` are per issue, `pulls` per pull request number.
 function world({
   blocking,
@@ -130,11 +132,13 @@ function world({
   pulls = {},
   queuedIssues = [],
   deferred = [],
+  ready = [],
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
   parents = {},
   subIssues = {},
+  done = {},
   failOn,
 } = {}) {
   const calls = [];
@@ -153,6 +157,11 @@ function world({
       if (params.get("labels") === "admission-deferred") {
         assert.equal(params.get("state"), "open");
         return listed(deferred);
+      }
+      if (params.get("labels") === "status: ready") {
+        assert.equal(params.get("state"), "open");
+        assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
+        return listed(ready);
       }
       return listed(params.get("state") === "open" ? openReady : closedList);
     }
@@ -254,6 +263,11 @@ function world({
       Object.values(blockedBy)
         .flat()
         .find((item) => String(item.number) === number && item.repository_url === `${API}/repos/${REPO}`);
+    // admit.mjs mergedRefsPulls: one aliased issue per number asked.
+    if (method === "POST" && route === "/graphql" && body.query.includes("fragment done on Issue")) {
+      const asked = [...body.query.matchAll(/\bi(\d+): issue\(number: \1\)/g)].map((m) => m[1]);
+      return { data: { repository: Object.fromEntries(asked.map((n) => [`i${n}`, done[n] ?? null])) } };
+    }
     // The closer read: the last ClosedEvent of one issue in this repository.
     if (method === "POST" && route === "/graphql" && body.query.includes("closedByPullRequestsReferences")) {
       const refs = { nodes: closing[body.variables.number] ?? [], pageInfo: { hasNextPage: false, endCursor: null } };
@@ -354,8 +368,8 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human or untrusted-provenance stays unlabeled", async () => {
-  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance"]) {
+test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
+  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", "attended"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
@@ -1046,9 +1060,10 @@ const limitedNote = (resets, at, user = LANES_BOT) => ({
 const ready = (n, labels = []) => issue(n, { labels: ["agent-ready", "work-class: read-only", ...labels] });
 const added = (at, actor = LANES_BOT) => ({ event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const restarted = (n) => [`DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`, labeled(n)];
-function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events } = {}) {
+function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events, pulls } = {}) {
   return world({
     openReady: [ready(30, labels)],
+    pulls,
     comments: { 30: comments ?? [note(), limitedNote(resets, at)] },
     events: { 30: events ?? [added("2026-10-16T05:00:00Z")] },
   });
@@ -1314,6 +1329,39 @@ test("retry stops past limits.stop-retries, or any with it at 0, restart nothing
     assert.equal(await sweep({ github }, withLimits(limits)), 0);
     assert.deepEqual(writes(calls), [], JSON.stringify(limits));
   }
+});
+
+// A stop that waits on an open pull request (blocked-by-pr) keeps agent-ready with a wait marker naming it, and the
+// sweep restarts it once that pull request merges or closes, never a person.
+const waitNote = (at, run = 7, pr = 15) => ({
+  id: 35,
+  body: `<!-- work-resolve-issue outcome=wait pr=${pr} run=${run} -->\nThe work-resolve-issue lane stopped on this issue (\`blocked-by-pr\`).`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a stop that waits on a pull request waits while it is open and restarts once it merges or closes", async () => {
+  const open = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: { number: 15, state: "open", merged_at: null } } });
+  assert.equal(await sweep({ github: open.github }), 0);
+  assert.deepEqual(writes(open.calls), []);
+  for (const pull of [
+    { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" },
+    { number: 15, state: "closed", merged_at: null },
+  ]) {
+    const { github, calls } = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: pull } });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), restarted(30), JSON.stringify(pull));
+  }
+});
+
+test("waits are counted apart from retries, and past limits.stop-retries restart nothing", async () => {
+  const merged = { 15: { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" } };
+  const mixed = stopped({ comments: [note(), retryNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: mixed.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(mixed.calls), restarted(30));
+  const spent = stopped({ comments: [note(), waitNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: spent.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(spent.calls), []);
 });
 
 test("the App's remove-and-re-add after a retry stop is a restart, not a stop", async () => {
@@ -3161,8 +3209,9 @@ test("an issue already deferred is not labeled admission-deferred again", async 
 // A deferred issue, number 25, whose one blocker is closed; `deferredBy`
 // added its admission-deferred label (the lanes App by default).
 const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [], closing = [] } = {}) =>
+const deferredWorld = ({ labels = ["admission-deferred", "status: ready"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [], closing = [], specs = {} } = {}) =>
   world({
+    specs,
     openLanePrs,
     timeline: { 25: timeline },
     closing: { 25: closing },
@@ -3177,11 +3226,10 @@ const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", qu
 test("the sweep re-admits a deferred issue only when the lanes App or a listed human added admission-deferred", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(line));
-  for (const actor of [LANES_BOT, OWNER]) {
-    const trusted = deferredWorld({ events: [deferredAdd(actor)] });
-    assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
-    assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)], actor.login);
-  }
+  // A listed human's add is a person's mark, which the markedWorld tests cover.
+  const trusted = deferredWorld({ events: [deferredAdd(LANES_BOT)] });
+  assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
+  assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)]);
   // A stranger's label, or a stranger's newer re-add after the App's: left
   // as is, with nothing written, and reported as a warning.
   const stranger = { id: 999999, login: "drive-by", type: "User" };
@@ -3217,6 +3265,67 @@ test("the sweep lifts a parked status: confirmed beside status: ready when it ad
   const ready = deferredWorld({ labels: ["admission-deferred", "status: ready"] });
   assert.equal(await sweep({ github: ready.github }, PAUSING), 0);
   assert.deepEqual(writes(ready.calls), [labeled(25), undeferred(25)]);
+});
+
+// Three deferred issues, 25 to 27, each ready with no blocker; `done` is what
+// the merged-Refs read answers per issue.
+const doneNode = (pulls = [], refs = 26) => ({ createdAt: "2026-10-01T00:00:00Z", comments: { nodes: [] }, timelineItems: { nodes: pulls.map((number) => ({ source: { number, merged: true, mergedAt: "2026-10-16T07:00:00Z", body: `Refs: #${refs}`, repository: { nameWithOwner: REPO } } })) } });
+const threeDeferred = (extra = {}) => {
+  const labels = ["admission-deferred", "status: ready"];
+  const numbers = [25, 26, 27];
+  return world({
+    deferred: numbers.map((n) => issue(n, { labels })),
+    issues: Object.fromEntries(numbers.map((n) => [n, issue(n, { labels })])),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [deferredAdd(LANES_BOT)]])),
+    done: { 25: doneNode(), 26: doneNode([41]), 27: doneNode() },
+    ...extra,
+  });
+};
+const doneReads = (calls) => calls.filter((call) => call.startsWith("POST /graphql ") && call.includes("fragment done on Issue"));
+
+test("the sweep parks a deferred issue a merged Refs pull request may have done, reading the pass's issues in one call", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred();
+  assert.equal(await sweep({ github }, PAUSING), 0);
+  assert.equal(doneReads(calls).length, 1);
+  assert.deepEqual(writes(calls), [
+    labeled(25),
+    undeferred(25),
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    undeferred(26),
+    labeled(27),
+    undeferred(27),
+  ]);
+});
+
+// intake-reenter lifts status: confirmed only beside the admission comment.
+test("a failed done-check comment leaves the deferred issue queued for the next sweep, not parked", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred({ failOn: (method, path) => method === "POST" && path === `/repos/${REPO}/issues/26/comments` });
+  assert.equal(await sweep({ github }, PAUSING), 1);
+  assert.ok(!writes(calls).some((call) => call.startsWith(`POST /repos/${REPO}/issues/26/labels`) || call.startsWith(`DELETE /repos/${REPO}/issues/26/`)), writes(calls).join("\n"));
+});
+
+test("an issue whose last blocker closed is parked, not labeled, when a merged Refs pull request may have done it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = world({ ...oneDependentWorld(["status: ready"]), done: { 20: doneNode([41], 20) } });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.equal(doneReads(calls).length, 1);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/20/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    `POST /repos/${REPO}/issues/20/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/20/labels/status%3A%20ready`,
+  ]);
+});
+
+test("the sweep admits deferred issues as before when the merged-Refs read fails", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = threeDeferred({ failOn: (method, path, body) => path === "/graphql" && String(body?.query).includes("fragment done on Issue") });
+  assert.equal(await sweep({ github }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(25), undeferred(25), labeled(26), undeferred(26), labeled(27), undeferred(27)]);
 });
 
 // A pull request in this repository that references the deferred issue, as the REST
@@ -3259,6 +3368,25 @@ test("while the issue lane is paused over its WIP cap the sweep keeps a deferred
   assert.ok(lines.some((line) => line.includes("#25") && line.includes("the issue lane is paused")), lines.join("\n"));
 });
 
+// Owner decision 2026-10-28: `attended` holds an issue the App deferred, as
+// the label or as a newest removal by anyone but a listed human.
+test("the sweep keeps a deferred issue attended holds deferred; a listed human's removal of attended re-admits it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const attendedEvent = (event, actor, at) => ({ event, label: { name: "attended" }, actor, created_at: at });
+  const labeledHold = deferredWorld({ labels: ["admission-deferred", "attended"] });
+  assert.equal(await sweep({ github: labeledHold.github }, PAUSING), 0);
+  assert.deepEqual(writes(labeledHold.calls), []);
+  const removedBy = (actor) => [deferredAdd(LANES_BOT), attendedEvent("labeled", LANES_BOT, "2026-10-16T08:30:00Z"), attendedEvent("unlabeled", actor, "2026-10-16T09:00:00Z")];
+  for (const actor of [LANES_BOT, { id: 999999, login: "drive-by", type: "User" }]) {
+    const removed = deferredWorld({ events: removedBy(actor) });
+    assert.equal(await sweep({ github: removed.github }, PAUSING), 0);
+    assert.deepEqual(writes(removed.calls), [], actor.login);
+  }
+  const lifted = deferredWorld({ events: removedBy(OWNER) });
+  assert.equal(await sweep({ github: lifted.github }, PAUSING), 0);
+  assert.deepEqual(writes(lifted.calls), [labeled(25), undeferred(25)]);
+});
+
 test("the sweep keeps a held deferred issue deferred and drops the deferral of one no longer ready", async (t) => {
   t.mock.method(console, "log", () => {});
   const held = deferredWorld({ labels: ["admission-deferred", "needs-owner-decision"] });
@@ -3269,6 +3397,70 @@ test("the sweep keeps a held deferred issue deferred and drops the deferral of o
     assert.equal(await sweep({ github: gone.github }, PAUSING), 0);
     assert.deepEqual(writes(gone.calls), [undeferred(25)], JSON.stringify(options));
   }
+});
+
+// A deferred issue is re-admitted on its deferral only while nothing it was
+// deferred without has changed since (admit.mjs deferralLapsed).
+const editedSpec = (lastEditedAt) => ({ body: "", author: { __typename: "User", databaseId: OWNER.id }, editor: { __typename: "User", databaseId: OWNER.id }, lastEditedAt, comments: [] });
+const SECURITY_REASON = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
+const EDITED_REASON = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+const staleWrites = (reason, status) => [
+  `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reason)}` })}`,
+  `POST /repos/${REPO}/issues/25/labels {"labels":["${status}"]}`,
+  `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+  undeferred(25),
+];
+
+test("the sweep keeps a deferred issue deferred while do-not-merge, needs-human or the untrusted-provenance hold is on it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const label of ["do-not-merge", "needs-human", "work-class: untrusted-provenance"]) {
+    const held = deferredWorld({ labels: ["admission-deferred", "status: ready", label] });
+    assert.equal(await sweep({ github: held.github }, PAUSING), 0);
+    assert.deepEqual(writes(held.calls), [], label);
+  }
+  // The hold class stands when someone unlisted took its label off.
+  const stranger = { id: 999999, login: "drive-by", type: "User" };
+  const removed = { event: "unlabeled", label: { name: "work-class: untrusted-provenance" }, actor: stranger, created_at: "2026-10-16T09:00:00Z" };
+  const unheld = deferredWorld({ events: [deferredAdd(LANES_BOT), removed] });
+  assert.equal(await sweep({ github: unheld.github }, PAUSING), 0);
+  assert.deepEqual(writes(unheld.calls), []);
+});
+
+test("the sweep drops the deferral of a deferred issue that lost status: ready, without labeling it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const lost = deferredWorld({ labels: ["admission-deferred"] });
+  assert.equal(await sweep({ github: lost.github }, PAUSING), 0);
+  assert.deepEqual(writes(lost.calls), [undeferred(25)]);
+});
+
+test("a deferred issue already agent-ready only loses admission-deferred, whatever changed since", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const running = deferredWorld({ labels: ["admission-deferred", "status: ready", "agent-ready"], specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
+  assert.equal(await sweep({ github: running.github }, PAUSING), 0);
+  assert.deepEqual(writes(running.calls), [undeferred(25)]);
+});
+
+test("the sweep refuses a deferred issue that gained area: security since its deferral, at status: needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const labels = ["admission-deferred", "status: ready", "area: security"];
+  const added = (at) => ({ event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: at });
+  const after = deferredWorld({ labels, events: [deferredAdd(LANES_BOT), added("2026-10-16T09:00:00Z")] });
+  assert.equal(await sweep({ github: after.github }, PAUSING), 0);
+  assert.deepEqual(writes(after.calls), staleWrites(SECURITY_REASON, "status: needs-decision"));
+  // On it before the deferral, the admission it was deferred from judged it.
+  const before = deferredWorld({ labels, events: [added("2026-10-16T07:00:00Z"), deferredAdd(LANES_BOT)] });
+  assert.equal(await sweep({ github: before.github }, PAUSING), 0);
+  assert.deepEqual(writes(before.calls), [labeled(25), undeferred(25)]);
+});
+
+test("the sweep refuses a deferred issue whose body was edited since its deferral, at status: confirmed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const after = deferredWorld({ specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
+  assert.equal(await sweep({ github: after.github }, PAUSING), 0);
+  assert.deepEqual(writes(after.calls), staleWrites(EDITED_REASON, "status: confirmed"));
+  const before = deferredWorld({ specs: { 25: editedSpec("2026-10-16T07:00:00Z") } });
+  assert.equal(await sweep({ github: before.github }, PAUSING), 0);
+  assert.deepEqual(writes(before.calls), [labeled(25), undeferred(25)]);
 });
 
 test("at the queued cap a run the WIP cap skipped is still re-fired: runs are never paced", async () => {
@@ -3316,10 +3508,12 @@ const markedWorld = ({
   comments = [note()],
   extraEvents = [],
   blockers = [issue(10, { state: "closed" })],
+  done = {},
   failOn,
 } = {}) =>
   world({
     specs,
+    done,
     failOn,
     closing: { 25: closing },
     deferred: [markedIssue(labels)],
@@ -3348,6 +3542,28 @@ test("a person's mark admitted with a parked status: confirmed beside status: re
   const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(calls), [labeled(25), undeferred(25), `DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`]);
+});
+
+test("a person's mark on an issue a merged Refs pull request may have done parks it at status: confirmed, not needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([41]))}` })}`,
+    `POST /repos/${REPO}/issues/25/labels {"labels":["status: confirmed"]}`,
+    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+    undeferred(25),
+  ]);
+});
+
+test("a person's mark refused for a merged Refs pull request and another reason keeps needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
+  assert.equal(await sweep({ github, admission: admissionFor(4242) }, PAUSING), 0);
+  const posted = writes(calls);
+  assert.ok(posted.includes(`POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`), posted.join("\n"));
+  assert.ok(!posted.some((call) => call.includes("status: confirmed")), posted.join("\n"));
+  assert.match(posted[0], /merged pull request #41 names it/);
 });
 
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
@@ -3417,6 +3633,37 @@ test("a person's admissible mark with no room stays deferred", async (t) => {
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
   assert.ok(lines.includes("label-unblocked: #25 admission deferred: queued work is at the queued cap"), lines.join("\n"));
+});
+
+// Owner decision 2026-10-28: a refinement recording a manual external step
+// needs the owner present, which asks no decision.
+const manualSpec = (body) => ({
+  body,
+  author: { __typename: "User", databaseId: OWNER.id },
+  editor: null,
+  lastEditedAt: null,
+  comments: [
+    {
+      body: `${REFINE_MARKER}\n**Refinement.**\n\n**Acceptance criteria**\n\n- [ ] Line 3 says nineteen.\n\nExternal state: manual (dns: a CNAME for docs at the registrar)\n`,
+      author: { __typename: "Bot", databaseId: LANES_APP_ID },
+      editor: null,
+      lastEditedAt: null,
+      createdAt: "2026-10-16T06:30:00Z",
+    },
+  ],
+});
+const ATTENDED_REASON = "its refinement records External state: manual (dns: a CNAME for docs at the registrar), a step that needs the owner present (attended)";
+
+test("a person's mark refused only for a manual external step parks at status: confirmed with attended, never needs-decision", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ specs: { 25: manualSpec(markedIssue(MARKED).body) } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(ATTENDED_REASON)}` })}`,
+    `POST /repos/${REPO}/issues/25/labels {"labels":["status: confirmed","attended"]}`,
+    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
+    undeferred(25),
+  ]);
 });
 
 const NEEDS_DECISION_WRITE = `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`;
@@ -3517,6 +3764,20 @@ test("a person's mark the admission rules skip loses admission-deferred with a c
     `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed and status: ready not added since")}` })}`,
     undeferred(25),
   ]);
+});
+
+test("a person's mark on an issue whose body was edited or that gained area: security after the mark is refused", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const edited = markedWorld({ specs: { 25: { ...editedSpec("2026-10-16T09:00:00Z"), body: markedIssue(MARKED).body } } });
+  assert.equal(await sweep({ github: edited.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: needs-decision"));
+  const security = markedWorld({ labels: [...MARKED, "area: security"], extraEvents: [labelAdd("area: security", OWNER, "2026-10-16T09:00:00Z")] });
+  assert.equal(await sweep({ github: security.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(security.calls), staleWrites(SECURITY_REASON, "status: needs-decision"));
+  // A hold decide refuses on gets the person the admission comment.
+  const held = markedWorld({ labels: [...MARKED, "do-not-merge"] });
+  assert.equal(await sweep({ github: held.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(held.calls), staleWrites("it carries do-not-merge", "status: needs-decision"));
 });
 
 // A stranded agent-ready issue: no hold, no open lane PR, no marker since its
@@ -3849,4 +4110,181 @@ test("the ACTIONS_TOKEN clients' readings land under github-token, the App clien
       else process.env[key] = value;
     }
   }
+});
+
+// An open `status: ready` issue with neither agent-ready nor admission-deferred
+// sits in no queue: a deferral whose label was lost, or a `status: ready` set
+// by hand. Each sweep runs intake's admission (admit.mjs decide) on at most
+// limits.readmit-per-run (default 20) of them, oldest updated first, and
+// writes as intake does: agent-ready within the room, admission-deferred past
+// it, a refusal parked at status: confirmed, or at status: needs-decision when
+// it holds for a person.
+const READY_LABELS = ["status: ready", "work-class: mechanical"];
+const readyIssue = (number, { labels = READY_LABELS, updated = "2026-10-16T06:00:00Z", user = OWNER, ...rest } = {}) => ({
+  ...issue(number, { labels }),
+  user,
+  type: { name: "Task" },
+  body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.",
+  created_at: "2026-10-10T00:00:00Z",
+  updated_at: updated,
+  ...rest,
+});
+const readyWorld = ({ items = [readyIssue(26)], events = {}, fields = SMALL_LOW_KNOWN, queuedIssues = [], deferred = [], extra = {} } = {}) =>
+  world({
+    ready: items,
+    deferred,
+    issues: Object.fromEntries(items.map((item) => [item.number, item])),
+    comments: Object.fromEntries(items.map((item) => [item.number, [note()]])),
+    events: Object.fromEntries(items.map((item) => [item.number, events[item.number] ?? [labelAdd("status: ready", LANES_BOT)]])),
+    fieldValues: Object.fromEntries(items.map((item) => [item.number, fields])),
+    queuedIssues,
+    ...extra,
+  });
+const fieldReadsOf = (calls, n) => calls.filter((call) => call === `GET /repos/${REPO}/issues/${n}/issue-field-values`).length;
+const eventReads = (calls, n) => calls.filter((call) => call.startsWith(`GET /repos/${REPO}/issues/${n}/events`)).length;
+
+test("an admissible status: ready issue in no queue is labeled agent-ready within the room", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const by of [LANES_BOT, OWNER]) {
+    const { github, calls } = readyWorld({ events: { 26: [labelAdd("status: ready", by)] } });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), [labeled(26)], by.login);
+  }
+});
+
+test("an admissible status: ready issue in no queue with no room gets admission-deferred", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ queuedIssues: queuedN(24) });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [deferredLabel(26)]);
+});
+
+test("a status: ready issue whose agent-ready a person removed is left alone until status: ready is added again", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T08:00:00Z" };
+  const stands = readyWorld({ events: { 26: [labelAdd("status: ready", LANES_BOT), removed] } });
+  assert.equal(await sweep({ github: stands.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(stands.calls), []);
+  assert.equal(fieldReadsOf(stands.calls, 26), 0);
+  const marked = readyWorld({ events: { 26: [labelAdd("status: ready", LANES_BOT), removed, labelAdd("status: ready", OWNER, "2026-10-16T09:00:00Z")] } });
+  assert.equal(await sweep({ github: marked.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(marked.calls), [labeled(26)]);
+});
+
+test("a status: ready issue added by neither a listed human nor the lanes App is left alone", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({
+    items: [readyIssue(27), readyIssue(26)],
+    events: { 27: [labelAdd("status: ready", { id: 4242, login: "drive-by" })] },
+  });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  // #26, the App's status: ready, is admitted in the same sweep.
+  assert.deepEqual(writes(calls), [labeled(26)]);
+  assert.equal(fieldReadsOf(calls, 27), 0);
+});
+
+test("a status: ready issue with a hold or refuse label, an open blocker or an open sub-issue is not read", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const skipped = [
+    ...["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance", "host-run", "duplicate", "wontfix", "do-not-merge"].map((hold, i) =>
+      readyIssue(40 + i, { labels: [...READY_LABELS, hold] }),
+    ),
+    readyIssue(60, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } }),
+    readyIssue(61, { sub_issues_summary: { total: 2, completed: 1 } }),
+  ];
+  const { github, calls } = readyWorld({ items: [...skipped, readyIssue(26)] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [labeled(26)]);
+  for (const item of skipped) {
+    assert.equal(eventReads(calls, item.number), 0, String(item.number));
+    assert.ok(!calls.includes(`GET /repos/${REPO}/issues/${item.number}`), String(item.number));
+  }
+});
+
+test("a sweep decides at most limits.readmit-per-run status: ready issues, oldest updated first, and skipped ones do not count", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T08:00:00Z" };
+  // #29 is held and #33's agent-ready removal stands: neither is decided, and
+  // each skip writes nothing, so it stays oldest updated on every sweep.
+  const items = [
+    readyIssue(29, { labels: [...READY_LABELS, "needs-human"], updated: "2026-10-16T05:00:00Z" }),
+    readyIssue(33, { updated: "2026-10-16T05:30:00Z" }),
+    readyIssue(27, { updated: "2026-10-16T06:00:00Z" }),
+    readyIssue(28, { updated: "2026-10-16T07:00:00Z" }),
+    readyIssue(26, { updated: "2026-10-16T08:00:00Z" }),
+  ];
+  const { github, calls } = readyWorld({ items, events: { 33: [labelAdd("status: ready", LANES_BOT), removed] } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 2 } })), 0);
+  assert.deepEqual(writes(calls), [labeled(27), labeled(28)]);
+  assert.equal(fieldReadsOf(calls, 33), 0);
+  assert.equal(eventReads(calls, 26), 0);
+});
+
+test("a wait that writes nothing durable (a Size large split pending) does not use up readmit-per-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  // #30 is oldest and waits on its split; with the cap at 1 it must not stop
+  // #26 from being admitted, or the same wait would take the cap every sweep.
+  const items = [readyIssue(30, { updated: "2026-10-16T05:00:00Z" }), readyIssue(26, { updated: "2026-10-16T06:00:00Z" })];
+  const { github, calls } = readyWorld({ items, extra: { fieldValues: { 30: LARGE_LOW_KNOWN, 26: SMALL_LOW_KNOWN } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 1 } })), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: Size large: the split into sub-issues at intake is pending (owner Q93).` })}`,
+    labeled(26),
+  ]);
+});
+
+test("a status: ready issue already agent-ready or deferred is not run through admission a second time", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const queued = readyIssue(31, { labels: [...READY_LABELS, "agent-ready"] });
+  const waiting = readyIssue(32, { labels: [...READY_LABELS, "admission-deferred"] });
+  const { github, calls } = readyWorld({
+    items: [queued, waiting, readyIssue(26)],
+    deferred: [waiting],
+    events: { 32: [labelAdd("status: ready", LANES_BOT), deferredAdd(LANES_BOT)] },
+    extra: { blockedBy: { 32: [] } },
+  });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  // The deferred path alone admits #32, once; #31 is left as it is, and #26,
+  // in no queue, is admitted.
+  assert.deepEqual(writes(calls), [labeled(32), undeferred(32), labeled(26)]);
+  assert.equal(eventReads(calls, 31), 0);
+  assert.equal(fieldReadsOf(calls, 32), 0);
+});
+
+test("a status: ready issue in no queue that admission refuses parks at status: confirmed, or at status: needs-decision for a person", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const refused = (n, status, reasons) => [
+    `POST /repos/${REPO}/issues/${n}/labels {"labels":["${status}"]}`,
+    `DELETE /repos/${REPO}/issues/${n}/labels/status%3A%20ready`,
+    `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
+  ];
+  // Field values no listed human or App set are unset: a mechanical refusal.
+  const unset = readyWorld();
+  assert.equal(await sweep({ github: unset.github, admission: admissionFor(4242) }, PAUSING), 0);
+  assert.deepEqual(writes(unset.calls), refused(26, "status: confirmed", ["Size unset is not one of small, medium", "Uncertainty unset is not one of known, knowable"]));
+  // An author who is not listed is a refusal a person settles.
+  const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
+  assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+test("a status: ready issue in no queue refused for a manual external step parks at status: confirmed with attended", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ extra: { specs: { 26: manualSpec(readyIssue(26).body) } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: confirmed","attended"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(ATTENDED_REASON)}` })}`,
+  ]);
+});
+
+test("a status: ready issue in no queue an open pull request is for gets admission-deferred and the wait comment", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ extra: { timeline: { 26: [{ ...namingPull("open"), source: { issue: { ...namingPull("open").source.issue, body: "Refs: #26" } } }] } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    deferredLabel(26),
+    `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: open pull request #40 is for it.` })}`,
+  ]);
 });

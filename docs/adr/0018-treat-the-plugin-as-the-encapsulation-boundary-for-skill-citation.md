@@ -286,13 +286,13 @@ caller never names, so citing it buys a reader nothing an invocation would not, 
 rename exposure the contract exists to prevent.
 
 This was already ruled, in
-[`detector-findings` 2.8.1](../conventions/detector-findings/CHANGELOG.md), against a row citing
+[`detector-findings` 2.8.1](../contracts/detector-findings/CHANGELOG.md), against a row citing
 `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh`, and its remedy is the one to
 copy: name the thing in the terms the sentence already uses ("its shape library", "the scanner",
 "`/repo-hygiene:clean`'s bundled test-helper copy") so the assertion is unchanged and survives the
 next rename. It is recorded here because a ruling that lives only in one convention's changelog is
 invisible to the next doc that needs it: the commit that wrote 2.8.1 left the byte-identical shape
-standing in `docs/conventions/shell-test-helpers/README.md`, and a separate pass had to close it.
+standing in `docs/contracts/shell-test-helpers/README.md`, and a separate pass had to close it.
 
 ### Plugin-level non-skill trees are outside this ADR's privacy question, and inside clause 3
 
@@ -300,7 +300,7 @@ standing in `docs/conventions/shell-test-helpers/README.md`, and a separate pass
 directory**. The public-surface contract defines privacy relative to a skill directory, so it does
 not reach them, and neither does clause 2's encapsulation half. The repo has ruled on exactly one
 such site, and only in a changelog:
-[`detector-findings` 2.8.1](../conventions/detector-findings/CHANGELOG.md) kept
+[`detector-findings` 2.8.1](../contracts/detector-findings/CHANGELOG.md) kept
 `plugins/review/reference/topic-docs.md` because "that file sits outside every skill directory" and
 because the section around it argues explicitly for naming that file by repo path.
 

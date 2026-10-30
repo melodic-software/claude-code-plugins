@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "brackenfold-bare: none\nbrackenfold-conventions-only: none\nbrackenfold-converged: docs/conventions/developer-experience.md\ntarnquill-bare: none\ntarnquill-conventions-only: none\ntarnquill-converged: docs/conventions/developer-experience.md\ntarnquill-legacy: .claude/developer-experience.md",
+      "why": "the expected reply"
+    },
+    {
+      "answer": "`tarnquill-converged`: `docs/conventions/developer-experience.md`\n`brackenfold-converged`: `docs/conventions/developer-experience.md`",
+      "why": "code spans around both names"
+    },
+    {
+      "answer": "- brackenfold-converged/: docs/conventions/developer-experience.md\n- tarnquill-converged/: docs/conventions/developer-experience.md",
+      "why": "list items with a trailing slash on the directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "tarnquill-converged: docs/conventions/developer-experience.md\nbrackenfold-converged: none",
+      "why": "near miss: the brackenfold pointer line was not seeded"
+    },
+    {
+      "answer": "tarnquill-converged: none\nbrackenfold-converged: none\nBoth hold docs/conventions/developer-experience.md but AGENTS.md does not name it.",
+      "why": "near miss: the file exists but no pointer names it"
+    },
+    {
+      "answer": "The tarnquill CLI is called tq and brackenfold's is bfk.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/cart/README.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/cart.md"
+          }
+        }
+      ],
+      "why": "README tried first, then the flat file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval/.claude/skills/control-shop/features/cart/steps.md"
+          }
+        }
+      ],
+      "why": "a file in the README-less folder"
+    },
+    {
+      "answer": [],
+      "why": "read nothing"
+    }
+  ]
+}

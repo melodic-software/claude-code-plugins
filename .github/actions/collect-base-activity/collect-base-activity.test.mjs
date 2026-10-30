@@ -6,11 +6,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { LIMITS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
+import { LIMITS, UNPLAIN_PATTERN } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1522,9 +1523,9 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
 // tool's wrapper as its one Bash rule (bare and quoted), the thread files
 // staged read-only and denied to the file tools, and state/ left writable for
 // the replies file. pr-run-activity.md, "prepare: review-threads".
-function launchThreads({ runFile = true } = {}) {
+function launchThreads({ runFile = true, threads = '{"threads":[]}\n' } = {}) {
   const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
-  writeFileSync(path.join(feedbackDir, "threads.json"), '{"threads":[]}\n');
+  writeFileSync(path.join(feedbackDir, "threads.json"), threads);
   if (runFile) writeFileSync(path.join(feedbackDir, "run.json"), '{"version":1}\n');
   const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
   mkdirSync(scripts, { recursive: true });
@@ -1537,7 +1538,7 @@ const FEEDBACK_FILE_DENIED = ["threads.json", "run.json", "feedback-thread.sh", 
   ["Edit", "Write", "NotebookEdit"].map((tool) => `${tool}(./.lane/feedback/${file})`),
 );
 
-test("run-claude-cli: review-threads gets the patch tool set and the review-thread wrapper as its one Bash rule", () => {
+test("run-claude-cli: review-threads gets the patch tool set, the review-thread wrapper and chmod -x as its Bash rules", () => {
   const run = launchThreads();
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.tools.toSorted(), ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
@@ -1545,6 +1546,8 @@ test("run-claude-cli: review-threads gets the patch tool set and the review-thre
     "Agent",
     `Bash("${FEEDBACK_TOOL}" *)`,
     `Bash(${FEEDBACK_TOOL} *)`,
+    // Only removes an executable bit; apply-patch refuses a new one.
+    "Bash(chmod -x *)",
     "Edit",
     "Edit(./.lane/scratch/**)",
     "Glob",
@@ -1571,11 +1574,22 @@ test("run-claude-cli: the preamble names the review-thread tool's path and subco
   const sentence =
     `The review-thread tool is ${FEEDBACK_TOOL}: run it by exactly this path as ${FEEDBACK_TOOL} list, ` +
     `${FEEDBACK_TOOL} check-paths <path>... and ${FEEDBACK_TOOL} record <thread-id> <file>, with each disposition file in ${WORKSPACE}/.lane/scratch. ` +
-    "The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record.";
+    "The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record. " +
+    "To revert an executable bit the pull request added, run chmod -x on that file: the fix carries the mode, and only a mode back to the base's is pushed.";
   assert.ok(run.preamble.endsWith(sentence), run.preamble);
+  assert.ok(!run.allowedTools.includes(CHMOD_RULE), "no chmod +x");
   assert.ok(run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
   const named = /The review-thread tool is (\S+):/.exec(run.preamble)[1];
   assert.ok(run.allowedTools.includes(`Bash(${named} *)`), `the allow rule names ${named}`);
+});
+
+test("run-claude-cli: the fresh fixer round's brief from the thread file ends the preamble; a thread file without one adds nothing", () => {
+  const brief = "Fix each finding in the code it names. Never weaken a test.";
+  const run = launchThreads({ threads: `${JSON.stringify({ threads: [], retry: { brief } })}\n` });
+  assert.equal(run.status, 0, run.stdout);
+  assert.ok(run.preamble.endsWith(`a mode back to the base's is pushed. ${brief}`), run.preamble);
+  const plain = launchThreads();
+  assert.ok(plain.preamble.endsWith("a mode back to the base's is pushed."), plain.preamble);
 });
 
 test("run-claude-cli: review-threads stages the thread file, run.json, the tool copy, its wrapper and an empty state/ for .lane/", () => {
@@ -1619,7 +1633,7 @@ test("run-claude-cli: fix-ci and fix-docs get no review-thread wrapper and stage
 
 // fix-docs runs ai-slop:audit under dontAsk: Bash runs exactly the skill's
 // own scripts by absolute path, bare and quoted (its `!` line runs
-// "<dir>/detect.sh" --show-config), and the fix flow's digest commands,
+// "<dir>/detect.sh" --show-config), the fix flow's digest guard among them,
 // with git, the user-scope script and the read-only print commands denied.
 const SLOP = `${WORKSPACE}/.lane/plugins/ai-slop/skills/audit/scripts`;
 test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the shell deny set", () => {
@@ -1634,18 +1648,21 @@ test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the s
     [
       `Bash("${SLOP}/cross-check.sh" *)`,
       `Bash("${SLOP}/detect.sh" *)`,
+      `Bash("${SLOP}/digest-guard.sh" *)`,
       `Bash("${SLOP}/emit-findings.sh" *)`,
       `Bash("${SLOP}/emit-fix-record.sh" *)`,
       `Bash("${SLOP}/rubric-fanout.sh" *)`,
       `Bash(${SLOP}/cross-check.sh *)`,
       `Bash(${SLOP}/detect.sh *)`,
+      `Bash(${SLOP}/digest-guard.sh *)`,
       `Bash(${SLOP}/emit-findings.sh *)`,
       `Bash(${SLOP}/emit-fix-record.sh *)`,
       `Bash(${SLOP}/rubric-fanout.sh *)`,
-      `Bash(mkdir -p ${WORKSPACE}/.lane/scratch/*)`,
-      "Bash(sha256sum *)",
     ].toSorted(),
   );
+  for (const rule of ["Bash(sha256sum *)", `Bash(mkdir -p ${WORKSPACE}/.lane/scratch/*)`]) {
+    assert.ok(!run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
+  }
   for (const rule of [
     ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash")),
     "Read(//proc/**)",
@@ -1779,7 +1796,7 @@ test("run-claude-cli: tidy gives an issue lane's patch skill the tidy skills, th
     run.allowedTools.filter((rule) => rule.startsWith("Skill(")),
     ["Skill(work-items:work)", "Skill(code-tidying:tidy-diff)", "Skill(docs-hygiene:write-for-agents)", "Skill(ai-slop:audit)"],
   );
-  for (const rule of [`Bash(${TIDY_SCRIPTS}/change-shape.sh *)`, `Bash("${TIDY_SCRIPTS}/change-shape.sh" *)`, `Bash(${SLOP}/detect.sh *)`, "Bash(sha256sum *)"]) {
+  for (const rule of [`Bash(${TIDY_SCRIPTS}/change-shape.sh *)`, `Bash("${TIDY_SCRIPTS}/change-shape.sh" *)`, `Bash(${SLOP}/detect.sh *)`, `Bash(${SLOP}/digest-guard.sh *)`]) {
     assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
   }
   for (const rule of [`Bash(${SLOP}/user-scope.sh *)`, "Bash(git *)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)"]) {
@@ -1904,8 +1921,28 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
     [1, LIMITS.reasons, LIMITS.reason],
   );
   assert.deepEqual([schema.properties.evidence.maxItems, schema.properties.evidence.items.maxLength], [LIMITS.evidence, LIMITS.evidenceItem]);
+  assert.deepEqual([schema.properties.reasons.items.not, schema.properties.evidence.items.not], [{ pattern: UNPLAIN_PATTERN }, { pattern: UNPLAIN_PATTERN }]);
   // With no web access the web tools stay denied.
   assert.ok(run.deniedTools.includes("WebFetch") && run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
+});
+
+// The launcher validates structured output against draft-07
+// (https://code.claude.com/docs/en/agent-sdk/structured-outputs), as Ajv's
+// default class does: a bare @-mention, a fence or an HTML comment in a reason
+// or evidence item fails the schema, a URL, a scoped package or a backticked
+// handle passes.
+test("run-claude-cli: the dependency verdict schema rejects a bare @-mention and passes URLs and scoped packages", () => {
+  const run = launchDependency({ web: false });
+  assert.equal(run.status, 0, run.stdout);
+  const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
+  const valid = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8")));
+  const verdict = (text) => ({ verdict: "escalate", reasons: [text], evidence: [text] });
+  for (const text of ["maintained by @koromix alone", "@koromix", "cc @a-b.c", "see\n", "```sh", "<!-- x -->"]) {
+    assert.equal(valid(verdict(text)), false, text);
+  }
+  for (const text of ["https://x/@a", "@scope/name", "maintained by `@koromix` alone", "mail a@b.org", "@ alone"]) {
+    assert.equal(valid(verdict(text)), true, `${text}: ${JSON.stringify(valid.errors)}`);
+  }
 });
 
 test("run-claude-cli: a dependency-review skill with no context file fails red before any output", () => {

@@ -1,0 +1,30 @@
+---
+written_against: developer-experience@0.1.0
+---
+# Developer tooling conventions
+
+## Tools
+<!-- developer-experience: source=chosen -->
+- `bfk release <version>`: interactive; asks for confirmation before tagging. No flags bypass the prompt.
+- `bfk report`: prints a summary of `data/accounts.jsonl`.
+- `scripts/run_tests.sh`: runs the unit tests.
+- `scripts/release.ps1`: tags a release on Windows through `bfk release`.
+
+## Shared helpers
+<!-- developer-experience: source=chosen -->
+- Run external processes through `run` in `bfk/proc.py`.
+
+## CLI contract
+<!-- developer-experience: source=default -->
+- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.
+
+## Secrets
+<!-- developer-experience: source=chosen -->
+- Tokens come from the environment, never from a flag.
+
+## Platforms
+<!-- developer-experience: source=chosen -->
+- Linux and macOS (bash), Windows (pwsh).
+
+## Not yet
+- `--json` on `bfk release`.

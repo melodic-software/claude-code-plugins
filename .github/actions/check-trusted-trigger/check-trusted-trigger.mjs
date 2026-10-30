@@ -260,6 +260,11 @@ export function createGitHub({
     if (!keepGraphQLErrors && Array.isArray(json?.errors) && json.errors.length > 0) {
       throw new GitHubError(response.status, `${method} ${apiPath} (GraphQL errors)`);
     }
+    // A list keeps its Link header for a reader that pages by cursor
+    // (merge-holds.mjs branchActivity).
+    if (Array.isArray(json)) {
+      Object.defineProperty(json, Symbol.for("github.link"), { value: response.headers.get("link") });
+    }
     return json;
   };
 }
@@ -354,9 +359,9 @@ export const graphQLReader = (github) => async (query, variables, signal) =>
 // merge in this repository closed it: the `closer` GraphQL gives the issue's
 // last ClosedEvent is a merged pull request or a commit here, whoever merged
 // it. The REST close event carries no link to the pull request, so GraphQL
-// is the read. Any
-// other close, such as a workflow's GITHUB_TOKEN or an outside author closing
-// their own issue, counts for nothing.
+// is the read; or (c) below. Any other close, such as a workflow's
+// GITHUB_TOKEN or an outside author closing their own issue, counts for
+// nothing.
 const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
@@ -370,7 +375,9 @@ const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
     }
   }
 }`;
-export async function isTrustedClose(github, repo, closedIssue, humans) {
+// (c) The lanes App's close, when the caller names the App with `isApp`,
+// counts only as appDoneClose allows.
+export async function isTrustedClose(github, repo, closedIssue, humans, isApp = () => false) {
   const closer = closedIssue?.closed_by;
   if (humans.has(closer?.id)) {
     return true;
@@ -385,7 +392,32 @@ export async function isTrustedClose(github, repo, closedIssue, humans) {
   });
   const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
   const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
-  return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
+  if (here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true))) {
+    return true;
+  }
+  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), isApp);
+}
+
+// Whether the lanes App's close of issue `number` is an already-done close
+// whose evidence still holds (owner Q9, 2026-10-29): the App's last close
+// comment (report-outcome's, read back by closeStop) names already-done, and
+// doneEvidence re-reads that the pull request or commit it cites is on the
+// default branch with a commit message that closes the issue. A
+// report-delivered close, or any read that fails, counts for nothing. The
+// module loads here, not at the top, so a job that checks out this action
+// alone still runs it.
+async function appDoneClose(github, repo, number, isApp) {
+  try {
+    const { closeStop, doneEvidence } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
+    const close = comments
+      .filter((comment) => isApp(comment?.user))
+      .map((comment) => closeStop(comment.body))
+      .findLast(Boolean);
+    return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
+  } catch {
+    return false;
+  }
 }
 
 // Reads every page of a list endpoint (100 per page).
@@ -710,7 +742,8 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 // run its record names must be one of runDispatcherUpstreams, run on
 // pull_request in this repository, started (and any re-run) by the lanes App
 // or a listed human, at the PR's current head or at expectedUpstreamHead
-// (upstreamHeadHolds). Returns this run's own record.
+// with the PR at it or at pushedCommit (upstreamHeadHolds). Returns this
+// run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -723,6 +756,7 @@ async function verifyDispatcher({
   runDispatcherWorkflow,
   runDispatcherUpstreams,
   expectedUpstreamHead,
+  pushedCommit,
   lanesAppId,
   dispatchedWorkflow,
   runId,
@@ -774,7 +808,10 @@ async function verifyDispatcher({
     throw new Stop("untrusted-actor");
   }
   await requireOnDefaultBranch(github, repository, defaultBranch, dispatcher.head_sha, "untrusted-actor");
-  if (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) {
+  if (
+    (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) ||
+    (pushedCommit !== "" && (expectedUpstreamHead === "" || !SHA.test(pushedCommit)))
+  ) {
     throw new Stop("untrusted-actor");
   }
   const found = await requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep });
@@ -792,7 +829,7 @@ async function verifyDispatcher({
       upstream.head_repository?.full_name === repository &&
       vouches(upstream.actor) &&
       vouches(upstream.triggering_actor) &&
-      (await upstreamHeadHolds({ github, repository, upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, lanesAppId, runCreated: created }));
+      upstreamHeadHolds({ upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, pushedCommit });
     if (!reviewed) {
       throw new Stop("untrusted-actor");
     }
@@ -800,48 +837,18 @@ async function verifyDispatcher({
   return own;
 }
 
-// A job after pr-unblock's model job passes the head that job was gated on:
-// the review must be of it, and every commit from it to the PR's current head
-// one GitHub signed for the lanes App (author the App, committer web-flow,
-// signature valid) during this workflow run. That proves an App-token commit
-// made after this run was created, not which lane made it. A human, foreign,
-// unsigned, older or truncated range refuses. Without one, the review must be
-// of the PR's current head.
-//
-// web-flow, the committer GitHub records on commits it signs (seen on the
-// lanes App's commits of #7493, #7494, #7496, #7520 and #7522).
-const WEB_FLOW_ID = 19864447;
-
-async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, expectedUpstreamHead, lanesAppId, runCreated }) {
+// A job after pr-unblock's model job passes the head that job was gated on,
+// and the commit apply-feedback-patch pushed onto it (empty when it pushed
+// none): the review must be of the gated head, and the PR must be at it or
+// at that pushed commit. Any other head refuses, a verified lanes App commit
+// of another job or run included: a signature proves an App token made it,
+// not this run's push job. Without a gated head, the review must be of the
+// PR's current head.
+function upstreamHeadHolds({ upstreamSha, pullSha, expectedUpstreamHead, pushedCommit }) {
   if (expectedUpstreamHead === "") {
     return upstreamSha === pullSha;
   }
-  if (upstreamSha !== expectedUpstreamHead) {
-    return false;
-  }
-  if (expectedUpstreamHead === pullSha) {
-    return true;
-  }
-  const range = await readOrRefuse(github, `/repos/${repository}/compare/${expectedUpstreamHead}...${pullSha}`);
-  const commits = Array.isArray(range.commits) ? range.commits : [];
-  return (
-    range.status === "ahead" &&
-    commits.length > 0 &&
-    range.total_commits === commits.length &&
-    commits.every(
-      (commit) =>
-        Number.isInteger(commit?.author?.id) &&
-        commit.author.id === lanesAppId &&
-        // GitHub signed it (web-flow): an API commit made with the App's
-        // token. A local commit claiming the App as author is committed
-        // and signed by whoever pushed it.
-        commit.committer?.id === WEB_FLOW_ID &&
-        commit?.commit?.verification?.verified === true &&
-        commit.commit.verification.reason === "valid" &&
-        // Committed during this workflow run, not by an earlier lane.
-        timeOf(commit.commit.committer?.date) >= runCreated,
-    )
-  );
+  return upstreamSha === expectedUpstreamHead && (pullSha === expectedUpstreamHead || (pushedCommit !== "" && pullSha === pushedCommit));
 }
 
 // The re-runner of a dispatched run, read by id from this run's own record:
@@ -1047,6 +1054,7 @@ export async function evaluateTrigger({
   runDispatcherWorkflow = "",
   runDispatcherUpstreams = [],
   expectedUpstreamHead = "",
+  pushedCommit = "",
   lanesAppId = null,
   requirePr = "true",
   requireKind = "",
@@ -1131,13 +1139,14 @@ export async function evaluateTrigger({
       runDispatcherWorkflow,
       runDispatcherUpstreams,
       expectedUpstreamHead,
+      pushedCommit,
       lanesAppId,
       dispatchedWorkflow,
       runId,
       sleep,
     });
     checkDispatchedRerunner(list, deniedIds, own);
-  } else if (expectedUpstreamHead !== "") {
+  } else if (expectedUpstreamHead !== "" || pushedCommit !== "") {
     throw new Stop("untrusted-actor");
   } else {
     // A CI run the reconciler or rerun-ci-status re-ran is started by
@@ -1231,6 +1240,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       runDispatcherWorkflow: env.RUN_DISPATCHER_WORKFLOW ?? "",
       runDispatcherUpstreams: (env.RUN_DISPATCHER_UPSTREAMS ?? "").split(/\s+/).filter(Boolean),
       expectedUpstreamHead: env.EXPECTED_UPSTREAM_HEAD ?? "",
+      pushedCommit: env.PUSHED_COMMIT ?? "",
       lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",

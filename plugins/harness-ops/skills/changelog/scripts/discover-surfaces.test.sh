@@ -105,6 +105,16 @@ mkdir -p "$TMP/half/plugins"
 run "$TMP/half"
 assert_contains "plugins/ without marketplace.json is a consumer" "$OUT" "repo-shape: consumer"
 
+# --- Case 5a: contracts are counted under docs/contracts and docs/conventions -------------
+MKT="$TMP/mkt"
+mkdir -p "$MKT/plugins" "$MKT/.claude-plugin" "$MKT/docs/contracts/a" "$MKT/docs/conventions/b"
+: >"$MKT/.claude-plugin/marketplace.json"
+: >"$MKT/docs/contracts/a/README.md"
+: >"$MKT/docs/conventions/b/README.md"
+run "$MKT"
+assert_contains "marketplace: contracts under docs/contracts are counted" "$OUT" "1  docs/contracts/*/README.md"
+assert_contains "marketplace: contracts left under docs/conventions are counted" "$OUT" "1  docs/conventions/*/README.md"
+
 # --- Case 5b: a standalone plugin has root-level plugin classes ---------------------------
 PLUG="$TMP/plug"
 mkdir -p "$PLUG/.claude-plugin" "$PLUG/skills/a" "$PLUG/skills/empty" "$PLUG/agents"

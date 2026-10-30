@@ -1,6 +1,6 @@
 {
   "name": "source-control",
-  "version": "3.17.2",
+  "version": "4.1.2",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
@@ -25,13 +25,13 @@
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",
       "title": "PR-body-linkage-gate hook",
-      "description": "Blocks a gh pr create or gh pr edit whose statically readable PR body would fail the repository's required PR-contract check: no closing keyword, or a missing or empty Summary, Fix, Verification, or Related section. On by default. A body the hook cannot read statically always passes.",
+      "description": "Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes.",
       "default": true
     },
     "pr_linkage_mcp_gate_enabled": {
       "type": "boolean",
       "title": "PR-linkage-MCP-gate hook",
-      "description": "Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body would fail the repository's required PR-contract check, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names.",
+      "description": "Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names.",
       "default": true
     },
     "branch_issue_pattern": {
@@ -145,7 +145,7 @@
     "babysit_lane_logins": {
       "type": "string",
       "title": "Babysit pipeline lane logins",
-      "description": "Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when on) refuses fail-closed.",
+      "description": "Logins recognized as pipeline lanes: the autopilot merge tier's lane-authored criterion, and the worker tier's resolve of outdated bot threads a lane already answered on your own PRs. Absent: the tier (when on) refuses fail-closed, and the worker resolves nothing on your own PRs.",
       "multiple": true
     },
     "babysit_approver_bot_logins": {

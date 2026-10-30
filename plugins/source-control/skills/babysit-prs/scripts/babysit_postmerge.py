@@ -114,6 +114,15 @@ LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
     r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
 )
+# A completed attempt never changes, so pr-merge.yml's post-merge-dispatch
+# names a file here holding the earlier attempts of re-run full runs that the
+# last check read (`_Context._attempt`), carried in its kept report. An entry
+# answers with no read only for the same run, attempt and head SHA, completed;
+# the check writes back the completed attempts it used. Any other file is no
+# file, and every attempt is read as before.
+ATTEMPTS_ENV = "BABYSIT_POSTMERGE_ATTEMPTS"
+ATTEMPTS_VERSION = 1
+_ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -164,7 +173,9 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # picks nothing, has no set. A suite inside the set always
 # demotes, quarantined or not. A suite outside it demotes nothing and is
 # quarantined: with no open quarantine issue it gets one (`file_quarantines`);
-# an open one older than `merge.quarantine-days` makes it demote again. The
+# an open one older than `merge.quarantine-days` (the smaller of its value at
+# that green SHA and at the red run's, `_Context._quarantine_days`) makes it
+# demote again. The
 # merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
@@ -802,7 +813,8 @@ def _runs(
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
-def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
+def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Any:
+    """The attempt's payload as the API returns it, or None on a 404."""
     args = ["api", f"repos/{owner}/{name}/actions/runs/{run_id}/attempts/{attempt}"]
     try:
         proc = gh_capture(args)
@@ -815,9 +827,60 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
             f"run {run_id} attempt {attempt}: {(proc.stderr or '').strip()}"
         )
     try:
-        return Run.from_api(json.loads(proc.stdout))
+        return json.loads(proc.stdout)
     except ValueError as exc:
         raise PostMergeReadError(f"run {run_id} attempt {attempt}: {exc}") from exc
+
+
+def _attempt_fields(payload: Any) -> dict[str, Any]:
+    """The fields of an attempt payload `Run.from_api` reads, and no others."""
+    item = json_object(payload)
+    return {
+        **{
+            key: item.get(key)
+            for key in (
+                "id",
+                "run_attempt",
+                "status",
+                "conclusion",
+                "head_sha",
+                "head_branch",
+                "created_at",
+                "html_url",
+            )
+        },
+        "actor": {"login": json_object(item.get("actor")).get("login")},
+        "triggering_actor": {
+            "login": json_object(item.get("triggering_actor")).get("login")
+        },
+    }
+
+
+def load_attempts(path: str, repo: str) -> dict[str, dict[str, Any]]:
+    """The completed attempts in the file at `path`, by `<run id>:<attempt>`.
+    Raises `ValueError` for any file of another shape, so none of it is used."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    attempts = data.get("attempts")
+    if (
+        data.get("version") != ATTEMPTS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(attempts)
+    ):
+        raise ValueError("an unexpected shape")
+    for key, entry in attempts.items():
+        try:
+            run = Run.from_api(entry)
+        except PostMergeReadError as exc:
+            raise ValueError(f"{key!r}: {exc}") from exc
+        if not (
+            _ATTEMPT_KEY.fullmatch(key)
+            and key == f"{run.id}:{run.attempt}"
+            and run.status == "completed"
+            and _FULL_SHA.fullmatch(run.head_sha)
+            and entry == _attempt_fields(entry)
+        ):
+            raise ValueError(f"{key!r}: an entry of another shape")
+    return attempts
 
 
 # --- Judging runs -------------------------------------------------------------------
@@ -848,8 +911,13 @@ _BASH_FAIL = re.compile(r"FAIL: (\S+\.test\.sh)")
 _BASH_NO_RESULT = re.compile(
     r"FAIL: (\S+\.test\.sh) \(no result recorded; the worker never reported\)"
 )
+# The runner prints a fresh nonce before any suite runs, in a variable no
+# suite inherits, and repeats it in each advisory warning: a warning a suite's
+# own output prints cannot carry it, so it excuses nothing.
+_BASH_NONCE = re.compile(r"Advisory nonce: ([0-9a-f]{16})")
 _BASH_ADVISORY = re.compile(
-    r"(?:::warning::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
+    r"(?:::warning(?: title=[^:]*)?::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
+    r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
 _PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")
 _PYTEST_SUMMARY = re.compile(
@@ -869,10 +937,13 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
         started: set[str] = set()
         passed: set[str] = set()
         advisory: set[str] = set()
+        nonce: str | None = None
         for line in lines:
             if line.startswith("DISCRIMINATING SKIP"):
                 return None
-            if m := _BASH_START.fullmatch(line):
+            if not started and nonce is None and (m := _BASH_NONCE.fullmatch(line)):
+                nonce = m[1]
+            elif m := _BASH_START.fullmatch(line):
                 started.add(m[1])
             elif m := _BASH_PASS.fullmatch(line):
                 passed.add(m[1])
@@ -880,7 +951,7 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
                 failed.add(m[1])
                 if _BASH_NO_RESULT.fullmatch(line):
                     started.add(m[1])
-            elif m := _BASH_ADVISORY.match(line):
+            elif (m := _BASH_ADVISORY.match(line)) and m[2] == nonce:
                 advisory.add(m[1])
         if started - passed - failed:
             return None
@@ -1085,9 +1156,11 @@ class _Context:
         default_factory=dict
     )
     # When quarantine issues are judged, and `merge.quarantine-days` (None:
-    # read at the red run's head the first time it is needed).
+    # read per red run, `_quarantine_days`).
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
     quarantine_days: int | None = None
+    quarantine_days_cache: dict[int, int] = field(default_factory=dict)
+    green_cache: dict[int, Run | None] = field(default_factory=dict)
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
     # the branch tip the first time it is needed).
     lane_rerun_window: timedelta | None = None
@@ -1120,6 +1193,13 @@ class _Context:
     lane_proved: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Carried records whose sender failed `_lane_sender`: never written back.
     lane_rejected: set[str] = field(default_factory=set)
+    # The attempts file (`ATTEMPTS_ENV`), its attempts once loaded, and the
+    # completed attempts this check used, which `save_attempts` writes.
+    attempts_path: str | None = field(
+        default_factory=lambda: os.environ.get(ATTEMPTS_ENV) or None
+    )
+    attempts_carried: dict[str, dict[str, Any]] | None = None
+    attempts_used: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -1201,7 +1281,7 @@ class _Context:
         if not named:
             return frozenset()
         issues = self._quarantine_issues()
-        days = self._quarantine_days(run.head_sha)
+        days = self._quarantine_days(run)
         expired: set[str] = set()
         for check, suites in named.items():
             for suite in suites:
@@ -1234,7 +1314,7 @@ class _Context:
         excused: list[Quarantine] = []
         if judged:
             issues = self._quarantine_issues()
-            days = self._quarantine_days(run.head_sha)
+            days = self._quarantine_days(run)
             for check, suites in judged.items():
                 for suite in sorted(suites):
                     if (
@@ -1312,6 +1392,15 @@ class _Context:
         full run before `run` and `run` itself (`affected_suites`), or None
         when there is no such run or the set cannot be computed."""
         if run.id not in self.affected_cache:
+            green = self._last_green(run)
+            self.affected_cache[run.id] = (
+                None if green is None else affected_suites(green.head_sha, run.head_sha)
+            )
+        return self.affected_cache[run.id]
+
+    def _last_green(self, run: Run) -> Run | None:
+        """The branch's newest green full run before `run`, on another commit."""
+        if run.id not in self.green_cache:
             created = quote(
                 f"<{run.created_at.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
                 safe="",
@@ -1338,11 +1427,8 @@ class _Context:
                     and r.created_at < run.created_at
                     and r.head_sha != run.head_sha
                 ]
-            green = self._newest_on_branch(greens)
-            self.affected_cache[run.id] = (
-                None if green is None else affected_suites(green.head_sha, run.head_sha)
-            )
-        return self.affected_cache[run.id]
+            self.green_cache[run.id] = self._newest_on_branch(greens)
+        return self.green_cache[run.id]
 
     def on_branch(self, run: Run) -> bool:
         """Whether `run`'s head commit is on the branch as `refs/heads/`
@@ -1393,12 +1479,24 @@ class _Context:
             None,
         )
 
-    def _quarantine_days(self, sha: str) -> int:
-        if self.quarantine_days is None:
-            self.quarantine_days = policy.read_config_at(
-                f"{self.owner}/{self.name}", sha
-            ).quarantine_days
-        return self.quarantine_days
+    def _quarantine_days(self, run: Run) -> int:
+        """`merge.quarantine-days` for `run`: the smaller of the value at its
+        head and at the last green full run's commit before it (the default
+        when there is none), so no merge in the window lengthens its own
+        quarantine, and never above `MAX_QUARANTINE_DAYS`."""
+        if self.quarantine_days is not None:
+            return self.quarantine_days
+        if run.id not in self.quarantine_days_cache:
+            repo = f"{self.owner}/{self.name}"
+            green = self._last_green(run)
+            self.quarantine_days_cache[run.id] = min(
+                policy.read_config_at(repo, run.head_sha).quarantine_days,
+                policy.QUARANTINE_DAYS
+                if green is None
+                else policy.read_config_at(repo, green.head_sha).quarantine_days,
+                policy.MAX_QUARANTINE_DAYS,
+            )
+        return self.quarantine_days_cache[run.id]
 
     def lane_rerun_lookback(self) -> timedelta:
         if self.lane_rerun_window is None:
@@ -1910,7 +2008,60 @@ class _Context:
         return self.outcome_cache[key]
 
     def _attempt(self, run: Run, n: int) -> Run | None:
-        return run if run.attempt == n else _attempt(self.owner, self.name, run.id, n)
+        """Attempt `n` of `run`: the listed run itself, a completed attempt
+        the last check carried for the same run and head SHA, or a read."""
+        if run.attempt == n:
+            return run
+        key = f"{run.id}:{n}"
+        payload = self._carried_attempts().get(key)
+        if payload is None or Run.from_api(payload).head_sha != run.head_sha:
+            payload = _attempt(self.owner, self.name, run.id, n)
+            if payload is None:
+                return None
+        found = Run.from_api(payload)
+        if (
+            found.status == "completed"
+            and f"{found.id}:{found.attempt}" == key
+            and found.head_sha == run.head_sha
+        ):
+            self.attempts_used[key] = _attempt_fields(payload)
+        return found
+
+    def _carried_attempts(self) -> dict[str, dict[str, Any]]:
+        if self.attempts_carried is None:
+            self.attempts_carried = {}
+            path = self.attempts_path
+            if path and Path(path).exists():
+                try:
+                    self.attempts_carried = load_attempts(
+                        path, f"{self.owner}/{self.name}"
+                    )
+                except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+                    text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")
+                    print(f"attempts not used: {text[:300]}", file=sys.stderr)
+        return self.attempts_carried
+
+    def save_attempts(self) -> None:
+        """Write the attempts file: the completed attempts this check used.
+        Untouched when the check looked up no attempt. Best effort: a
+        failure is logged, and the file is left as it was."""
+        path = self.attempts_path
+        if not path or self.attempts_carried is None:
+            return
+        payload = {
+            "version": ATTEMPTS_VERSION,
+            "repo": f"{self.owner}/{self.name}",
+            "attempts": self.attempts_used,
+        }
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp, target)
+        except OSError as exc:
+            print(f"attempts not written to {path}: {exc}", file=sys.stderr)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
 
     def _outcome(self, run: Run, attributable: bool) -> tuple[str, str]:
         first = self._attempt(run, 1)
@@ -2367,6 +2518,7 @@ def check(
     finally:
         if ctx is not None:
             ctx.save_lane_records(merged_since)
+            ctx.save_attempts()
     return PostMergeVerdict(
         True,
         merges=states,
@@ -3817,7 +3969,7 @@ def _judge_run(args: argparse.Namespace) -> int:
                         quarantines,
                         agent_identity=identity,
                         branch=ctx.branch,
-                        days=ctx._quarantine_days(run.head_sha),
+                        days=ctx._quarantine_days(run),
                         report=report["quarantine"],
                     )
                 except (PostMergeReadError, PostMergeWriteError) as exc:

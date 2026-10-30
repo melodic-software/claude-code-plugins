@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #812\n\n## Summary\n\nDelivers the UTF-8 byte order mark from #812.\n\n## Verification\n\n- Unit tests pass.\n\nLeft out: nothing\n\n## Remaining\n\n- Quote cells holding a comma, quote or line break per RFC 4180.\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #812\n\n## Summary\n\nByte order mark.\n\n## Remaining\n\n- RFC 4180 quoting of cells with a comma, quote or line break.\n\n## Verification\n\n- Unit tests pass.\n"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Closes #812\n\n## Summary\n\nx\n"
+          }
+        }
+      ],
+      "why": "closes the issue"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nSee Refs #812\n"
+          }
+        }
+      ],
+      "why": "no colon, not its own line"
+    }
+  ]
+}

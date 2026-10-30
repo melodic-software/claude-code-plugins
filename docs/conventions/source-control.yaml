@@ -14,7 +14,7 @@
 # what actually runs. Re-read it before changing either.
 #
 # subject_pattern is the commit-subject convention, enforced by the guardrails commit-msg hook and
-# block-convention-violation guard (docs/conventions/commit-convention/README.md). Its types are the
+# block-convention-violation guard (docs/contracts/commit-convention/README.md). Its types are the
 # standards components/pr-convention-policy/policy.json `title.allowedTypes`, the scope is optional,
 # and git's own `Merge ...` and `Revert "..."` subjects pass. Single-quoted, with no single quote
 # inside, so every reader gets it unescaped. dialect: posix-ere is the only dialect enforcement reads.
@@ -28,6 +28,14 @@ pr_open_state: ready
 # scripts/check-stale-base-overlap.sh calls overlapping, just before the push, so a push that
 # waited in the rate gate while main moved is not refused by the pre-push stale-base check.
 sync_stale_base: true
+# pre_ready turns off /source-control:pull-request ready's local verify step: it ran the
+# affected suites on the merged head right before the flip starts CI, which runs the same
+# suites there and gates the merge through ci-status. On a shared host the local run took
+# 20-25 minutes and failed on load or a moving main (#10719, 2026-10-28). The pre-push hook
+# still runs check-affected on every push.
+pre_ready:
+  - step: verify
+    enabled: false
 pr_body_required_sections:
   - Summary
   - Fix

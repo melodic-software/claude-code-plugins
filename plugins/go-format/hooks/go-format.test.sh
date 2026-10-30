@@ -82,7 +82,8 @@ else
   PROBE_ARGS=()
   while IFS= read -r probe_arg; do
     PROBE_ARGS+=("${probe_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
   # run_probe_row <data-dir> [NAME=value ...]: the row under a clean environment.
   run_probe_row() {
     local data="$1"
@@ -305,13 +306,14 @@ fi
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that never mentions .go costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" go-format PostToolBatch go-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \
     --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: a batch with no Go costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo

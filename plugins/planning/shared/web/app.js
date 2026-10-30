@@ -535,53 +535,6 @@
       return "";
     }
 
-    // ---------- safe rich text: paragraphs, "- " lists and bare http(s) links, built as DOM nodes ----------
-    const LINK = /\bhttps?:\/\/[^\s<>"']+/g;
-    /** One line's safe inline markdown: **bold** and `code`, each as an element with text only; links and mentions
-     *  inside bold still render. */
-    function inline(parent, line) {
-      for (const part of line.split(/(\*\*[^*\n]+?\*\*|`[^`\n]+`)/)) {
-        if (!part) continue;
-        if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) { const b = E("strong"); links(b, part.slice(2, -2)); parent.append(b); }
-        else if (part.length > 2 && part[0] === "`" && part.endsWith("`")) parent.append(E("code", "vf-code", part.slice(1, -1)));
-        else links(parent, part);
-      }
-    }
-    function link(text, url) { const a = E("a", "vf-link", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
-    function links(parent, line) {
-      let i = 0;
-      for (const m of line.matchAll(LINK)) {
-        const url = m[0].replace(/[).,;:!?]+$/, "");
-        if (m.index > i) refs(parent, line.slice(i, m.index));
-        let ok = false;
-        try { ok = ["http:", "https:"].includes(new URL(url).protocol); } catch {}
-        parent.append(ok ? link(url, url) : url);
-        i = m.index + url.length;
-      }
-      if (i < line.length) refs(parent, line.slice(i));
-    }
-    // ---------- #N and repository paths: links into the session's repository (set-repo), plain text without one ----------
-    const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
-    /** `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2 or more
-     *  characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with a
-     *  lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
-     *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
-    const REF = /(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
-    const repoOf = () => { const { repo, commit } = Core.state; return REPO.test(repo) ? { repo, commit: SHA.test(commit) ? commit : "" } : null; };
-    function refs(parent, s) {
-      const at = s.includes("#") || s.includes("/") ? repoOf() : null;
-      if (!at) { withMentions(parent, s); return; }
-      let i = 0;
-      for (const m of s.matchAll(REF)) {
-        const url = m[1] ? `https://github.com/${at.repo}/issues/${m[1]}`
-          : at.commit && `https://github.com/${at.repo}/blob/${at.commit}/${m[2]}${m[3] ? `#L${m[3]}${m[4] ? `-L${m[4]}` : ""}` : ""}`;
-        if (!url) continue;
-        if (m.index > i) withMentions(parent, s.slice(i, m.index));
-        parent.append(link(m[0], url));
-        i = m.index + m[0].length;
-      }
-      if (i < s.length) withMentions(parent, s.slice(i));
-    }
     // ---------- @mentions: Core turns the server's <@pid> into "@Name" as this page shows that person; each renders as a chip ----------
     const MN = { labels: null, re: null };
     function mentionRe() {
@@ -602,27 +555,11 @@
       }
       if (i < s.length) parent.append(s.slice(i));
     }
-    /** Text as safe markdown, built from elements and text nodes only: paragraphs, "#" headings (a bold line, never a
-     *  page heading), bullet and numbered lists, and inline's bold and code. */
-    function rich(text) {
-      const f = document.createDocumentFragment();
-      for (const block of String(text || "").replace(/\r/g, "").split(/\n\s*\n/)) {
-        let p = null, ul = null;
-        for (const raw of block.split("\n")) {
-          const h = raw.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/), m = raw.match(/^\s*[-*•]\s+(.*)$/), n = raw.match(/^\s*\d{1,3}[.)]\s+(.*)$/);
-          if (h) { p = ul = null; const hd = E("p", "vf-mdh"); inline(hd, h[1]); f.append(hd); }
-          else if (m || n) {
-            p = null; const tag = m ? "ul" : "ol";
-            if (ul?.tagName.toLowerCase() !== tag) { ul = E(tag, m ? "vf-ul" : "vf-ol"); f.append(ul); }
-            const li = E("li"); inline(li, (m || n)[1]); ul.append(li);
-          }
-          else if (raw.trim()) { ul = null; if (p) p.append(E("br")); else { p = E("p"); f.append(p); } inline(p, raw); }
-        }
-      }
-      return f;
-    }
+    /** Text as markdown (question-shape.js): headings are bold lines, never page headings; #N and repository paths
+     *  link into the session's repository (set-repo), plain text without one; @mentions render as chips. */
+    const MD = { repo: () => Core.state, text: withMentions };
     /** Rebuilt when the text or the session's repository changes; _t stays the text (the reader opens it). */
-    function setRich(el, text) { const k = `${Core.state.repo} ${Core.state.commit}`; if (el._t !== text || el._rk !== k) { el._t = text; el._rk = k; el.replaceChildren(rich(text)); } }
+    function setRich(el, text) { const k = `${Core.state.repo} ${Core.state.commit}`; if (el._t !== text || el._rk !== k) { el._t = text; el._rk = k; el.replaceChildren(QuestionShape.markdown(text, MD)); } }
 
     // ---------- clamped text: ~6 lines, Show more expands in place, Open shows it in the reader ----------
     function clampBox(cls = "") {
@@ -5646,7 +5583,9 @@
       pickImg.alt = ""; pickImg.loading = "lazy"; pickThumb.append(pickImg); pickChip.append(pickThumb, pickTxt);
       pickThumb.onclick = () => { const q = qById(k.qid); openLb("choice", k.qid, optionsOf(q).filter(o => o.image).findIndex(o => o.id === k.pick), pickThumb); };
       const why = E("p", "vf-why vf-shownwhy");
-      const basis = E("p", "vf-basis");
+      // The basis carries its own labels (Checked against:, Basis:), folded behind "Why" as the 1:1 page folds it.
+      const basis = E("details", "vf-basis"), basisBody = E("div", "vf-rich vf-basis-body");
+      basis.append(E("summary", "vf-basis-sum", "Why"), basisBody);
       const edited = E("p", "vf-edited");
       const citeRow = E("ul", "vf-citechips vf-card-cites"); citeRow.setAttribute("aria-label", "Cites");
       const foot = E("div", "vf-card-foot");
@@ -5666,7 +5605,7 @@
       li.append(head, pickChip, text, why, basis, edited, modNote, citeRow, foot);
       const attRow = E("ul", "vf-reflist vf-attlist"); attRow.setAttribute("aria-label", "Attachments");
       li.insertBefore(attRow, citeRow);
-      const k = { li, head, ctxB, text, basis, edited, modNote, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
+      const k = { li, head, ctxB, text, basis, basisBody, edited, modNote, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
       if (!compact) {
         k.modHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-hide"); k.modEdit = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-edit", "Edit");
         k.modHide.onclick = () => toggleHidden(k.qid, k.a);
@@ -5751,7 +5690,8 @@
       tm.textContent = since(a.ts);
       const q = qById(qid);
       fillClamp(k.text, (compact ? "c:" : "a:") + qid + ":" + a.cid, a.text, `Answer from ${who}`, q ? `${q.id}: ${q.text}` : "");
-      k.basis.textContent = a.basis ? `Basis: ${a.basis}` : ""; k.basis.hidden = !a.basis || compact;
+      k.basis.hidden = !a.basis || compact;
+      if (!k.basis.hidden) setRich(k.basisBody, a.basis);
       k.edited.textContent = a.editedAfter ? `Edited after ${a.editedAfter} vote${a.editedAfter > 1 ? "s" : ""}` : ""; k.edited.hidden = !a.editedAfter;
       const opt = a.pick && optionsOf(q).find(o => o.id === a.pick && !o.other);
       k.pick = a.pick;

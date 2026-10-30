@@ -175,7 +175,9 @@ class LaneRoom(unittest.TestCase):
             mock.patch.object(
                 policy, "newest_config_commit", return_value=config_commit
             ),
-            mock.patch.object(policy, "_get", return_value=(200, {"sha": MAIN})),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"object": {"sha": MAIN}})
+            ),
             # The recompute's reads at the default branch head: a newer head,
             # no demotion record, and a later floor than the old answer's.
             mock.patch.object(
@@ -597,7 +599,10 @@ class LaneRoom(unittest.TestCase):
             "(b) the config commit moved": dict(
                 config_commit="f" * 40, fresh_floor=FLOOR
             ),
-            "(c) a demotion record changed": dict(demotion_changed=True),
+            "(c) a demotion record was filed": dict(
+                demotion_changed=True,
+                fresh_demotion=policy.Demotion(False, None, (9,)),
+            ),
             "(d) a verifying run reached a conclusion": dict(runs=False),
         }
         for name, kwargs in cases.items():
@@ -605,6 +610,79 @@ class LaneRoom(unittest.TestCase):
                 room, recheck, _ = self.current(**kwargs)
                 self.assertEqual(len(recheck.asked), 1, "one full post-merge check")
                 self.assertEqual((room.refusal, room.unreadable), (None, None))
+
+    def test_an_unverified_answer_whose_demotion_reads_the_same_is_kept(
+        self,
+    ) -> None:
+        # The demotion probe trips on any edit to an issue the lane opened;
+        # the room already keeps a demotion-changed answer when the demotion
+        # reads the same, and an unverified-stale one is no different.
+        room, recheck, _ = self.current(demotion_changed=True)
+        self.assertEqual(recheck.asked, [], "no full post-merge check")
+        self.assertEqual((room.refusal, room.unreadable), (None, None))
+        self.assertEqual(self.reads.call_args.kwargs["self_logins"], frozenset())
+
+    def test_the_report_names_how_the_post_merge_answer_was_settled(self) -> None:
+        # The brief: whether the answer was reused or recomputed and, when
+        # recomputed, the refusal; for an unverified-stale answer not kept,
+        # which of what it was read from moved.
+        def settled(room: policy.LaneRoom) -> object:
+            return room.report()["postMerge"]
+
+        def unreadable(answer: object, branch: str) -> bool:
+            raise policy.PolicyReadError("runs 502")
+
+        self.assertEqual(
+            settled(self.room()), {"answer": "reused", "reason": None, "moved": None}
+        )
+        self.assertEqual(
+            settled(self.current()[0]),
+            {"answer": "kept", "reason": "unverified-stale", "moved": None},
+        )
+        recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        self.assertEqual(
+            settled(
+                self.room(
+                    post_merge=recheck.post_merge,
+                    **self.DEMOTION_CHANGED,  # type: ignore[arg-type]
+                )
+            ),
+            {"answer": "kept", "reason": "demotion-changed", "moved": None},
+        )
+        for moved, kwargs in {
+            "head-moved": dict(head=NEW_MAIN),
+            "config-moved": dict(config_commit="f" * 40, fresh_floor=FLOOR),
+            "runs-moved": dict(runs=False),
+            "unreadable": dict(runs=unreadable),
+            "demotion-changed": dict(
+                demotion_changed=True,
+                fresh_demotion=policy.Demotion(False, None, (9,)),
+            ),
+        }.items():
+            with self.subTest(moved):
+                self.assertEqual(
+                    settled(self.current(**kwargs)[0]),
+                    {
+                        "answer": "recomputed",
+                        "reason": "unverified-stale",
+                        "moved": moved,
+                    },
+                )
+        recheck = Recheck(policy.PostMergeGate(None, {"readable": True}, None))
+        self.assertEqual(
+            settled(
+                self.room(shared(), post_merge=recheck.post_merge, code_unchanged=False)
+            ),
+            {"answer": "recomputed", "reason": "code-changed", "moved": None},
+        )
+        # With no check to read it again, the room refuses it.
+        self.assertEqual(
+            settled(self.room(shared(report=PENDING), now=STALE_NOW)),
+            {"answer": "refused", "reason": "unverified-stale", "moved": None},
+        )
+        # A read that fails before the answer is settled names nothing.
+        failed = self.room(config_error=policy.PolicyReadError("contents 502"))
+        self.assertIsNone(settled(failed))
 
     def test_a_quarantine_that_expired_since_reads_the_answer_again(self) -> None:
         # (e): the answer excused a failing suite under a quarantine that
@@ -827,6 +905,7 @@ class SettleShared(unittest.TestCase):
         runs: bool | None = None,
         keep: bool = True,
         code_unchanged: bool = True,
+        demotion_error: Exception | None = None,
     ) -> tuple[policy.SharedPostMerge | None, str | None]:
         merges = [{"number": n} for n in lane_merges]
 
@@ -834,12 +913,15 @@ class SettleShared(unittest.TestCase):
             return policy.AutoMerge(int(pr["number"]), "a" * 40, "b" * 40, None)  # type: ignore[call-overload]
 
         self.reads = mock.Mock(
-            return_value=fresh_demotion or policy.Demotion(False, None, ())
+            return_value=fresh_demotion or policy.Demotion(False, None, ()),
+            side_effect=demotion_error,
         )
         self.runs = mock.Mock(return_value=runs)
         with (
             mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
-            mock.patch.object(policy, "_get", return_value=(200, {"sha": head})),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"object": {"sha": head}})
+            ),
             mock.patch.object(
                 policy, "_default_branch_head", return_value=("main", head)
             ),
@@ -908,6 +990,32 @@ class SettleShared(unittest.TestCase):
         self.assertEqual(
             self.settle(answer, now=FLOOR + timedelta(minutes=1)), (answer, None)
         )
+
+    def test_an_unverified_stale_answer_keeps_through_a_demotion_that_reads_the_same(
+        self,
+    ) -> None:
+        answer = shared(report=PENDING)
+        stale = dict(now=STALE_NOW, runs=True, demotion_changed=True)
+        # The probe tripped but the demotion reads the same: kept.
+        self.assertEqual(self.settle(answer, **stale), (answer, None))  # type: ignore[arg-type]
+        # A record filed since, or a demotion read that fails: refused.
+        moved = policy.Demotion(False, None, (9,))
+        for name, kwargs in {
+            "moved": dict(fresh_demotion=moved),
+            "unreadable": dict(demotion_error=policy.PolicyReadError("issues 502")),
+        }.items():
+            with self.subTest(name):
+                self.assertEqual(
+                    self.settle(answer, **stale, **kwargs),  # type: ignore[arg-type]
+                    (None, "post-merge answer unverified-stale"),
+                )
+        # A verifying run that reached a conclusion refuses before the
+        # demotion is read again.
+        self.assertEqual(
+            self.settle(answer, now=STALE_NOW, runs=False, demotion_changed=True),
+            (None, "post-merge answer unverified-stale"),
+        )
+        self.reads.assert_not_called()
 
     def test_a_changed_demotion_is_refused_unless_it_reads_the_same(self) -> None:
         answer = shared(report=self.VERIFIED)
@@ -1422,7 +1530,13 @@ class LaneRoomCommand(unittest.TestCase):
                 runs_unchanged=runs_unchanged,
                 code_unchanged=code_unchanged,
             )
-            return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}), rung="C2")
+            return policy.LaneRoom(
+                count=1,
+                cap=5,
+                queued=frozenset({3}),
+                rung="C2",
+                post_merge={"answer": "recomputed", "reason": "stale", "moved": None},
+            )
 
         out = io.StringIO()
         with (
@@ -1463,6 +1577,7 @@ class LaneRoomCommand(unittest.TestCase):
                 "cap": 5,
                 "queued": [3],
                 "rung": "C2",
+                "postMerge": {"answer": "recomputed", "reason": "stale", "moved": None},
             },
         )
         self.assertTrue(callable(hooks["post_merge"]))

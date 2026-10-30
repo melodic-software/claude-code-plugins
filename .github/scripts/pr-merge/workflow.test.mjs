@@ -8,7 +8,7 @@
 // cancelled full run counts as red, unless it never started, so no running
 // pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -219,11 +219,12 @@ const stepIf = (id, name) => {
 };
 const evalStep = (text, steps) =>
   new Function("steps", `return (${text.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(steps);
-const outs = ({ capped = "", uncovered = "", needs = "false", limited = "", proceed = "true", live = "true" } = {}) => ({
+const outs = ({ capped = "", uncovered = "", needs = "false", limited = "", proceed = "true", live = "true", bypass = "" } = {}) => ({
   kill: { outputs: { proceed } },
   mode: { outputs: { live } },
   cover: { outputs: { capped, uncovered, "rate-limited": limited } },
   "post-merge": { outputs: { "needs-dispatch": needs } },
+  bypass: { outputs: { bypass } },
 });
 
 test("dispatch-full-run starts nothing within the cap, and anything outside it", () => {
@@ -245,6 +246,10 @@ test("post-merge-dispatch starts main's uncovered tip for any merge, outside the
   assert.equal(evalStep(expr, outs({ uncovered: "true", limited: "true" })), false, "a rate-limited cover read");
   assert.equal(evalStep(expr, outs({ uncovered: "true", proceed: "false", live: "" })), false, "the kill switch on");
   assert.equal(evalStep(expr, outs({ uncovered: "true", live: "" })), false, "report-only on");
+  // merge.full-run-cap-bypass: an uncovered lane batch starts one run inside the cap.
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true" })), true, "an uncovered lane batch inside the cap");
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", limited: "true" })), false, "a rate-limited cover read");
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", live: "" })), false, "report-only on");
 });
 
 // Review decision on #10491: the scheduled job reads the cover only while the
@@ -255,7 +260,8 @@ test("post-merge-dispatch reads the cover only while the lane is live", () => {
   const block = dispatch.split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
   assert.match(block, /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.mode\.outputs\.live == 'true'\n/);
   const names = [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
-  assert.equal(names.indexOf("Read main's full-run cover") + 1, names.indexOf("Start the full CI run on main"));
+  assert.equal(names.indexOf("Read main's full-run cover") + 1, names.indexOf("Find lane merges no full run covers"));
+  assert.equal(names.indexOf("Find lane merges no full run covers") + 1, names.indexOf("Start the full CI run on main"));
   assert.ok(names.indexOf("Check earlier lane merges") < names.indexOf("Read main's full-run cover"));
   const cover = job("dispatch-full-run").split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
   assert.doesNotMatch(cover, /\n {8}if:/);
@@ -303,7 +309,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
     assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
-    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0\n");
+    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -500,7 +506,7 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
 // sees. Every such job carries the log-api-budget step, run whatever failed
 // or stopped before it, naming github-token: under `always()` alone, so a job
 // that ends before it mints a lane token still logs the job token's calls. A
-// token with no reading gets no line (log-api-budget.test.mjs).
+// token with no reading logs 0 (log-api-budget.test.mjs).
 test("every job that calls GitHub with the job token logs its api-calls", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
@@ -522,9 +528,10 @@ test("every job that calls GitHub with the job token logs its api-calls", () => 
 // A node step whose only token is the job token and whose script builds a
 // createGitHub client keeps each answer's reading under github-token (the
 // client's rate guard writes it when API_BUDGET_TOKEN names the bucket), or
-// the job-end notice counts nothing. A step whose script calls nothing needs
-// no bucket, so none is asked of it.
-test("every createGitHub step that calls GitHub with the job token alone names API_BUDGET_TOKEN github-token", () => {
+// the job-end notice counts nothing; one that also holds the lane token names
+// lanes-app and the github-token override. A step whose script calls nothing
+// needs no bucket, so none is asked of it.
+test("every createGitHub step that calls GitHub with the job token names the bucket its calls go to", () => {
   const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
   const unnamed = [];
   const needless = [];
@@ -534,11 +541,21 @@ test("every createGitHub step that calls GitHub with the job token alone names A
     for (const step of body.split(/\n {6}- name: /).slice(1)) {
       const name = step.split("\n")[0];
       const script = /\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\/(\S+\.mjs)/.exec(step)?.[1];
-      if (!script || !step.includes("${{ github.token }}") || step.includes("${{ steps.lane-token.outputs.token }}")) {
+      if (!script || !step.includes("${{ github.token }}")) {
         continue;
       }
       const calls = readFileSync(new URL(`../../../${script}`, import.meta.url), "utf8").includes("createGitHub(");
       const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+      // A step that also holds the lane token as its GH_TOKEN counts that
+      // token's calls under lanes-app and the job token's under the override
+      // (rate-guard.mjs budgetToken).
+      if (step.includes("${{ steps.lane-token.outputs.token }}")) {
+        const override = /\n {10}API_BUDGET_OVERRIDE_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+        if (calls && (bucket !== "lanes-app" || override !== "github-token")) {
+          unnamed.push(`${id}: ${name}`);
+        }
+        continue;
+      }
       if (calls && (bucket ?? jobBucket) !== "github-token") {
         unnamed.push(`${id}: ${name}`);
       }
@@ -648,8 +665,8 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         encoding: "utf8",
         env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
       });
-      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0$/m);
-      assert.doesNotMatch(out.stdout, /lanes-app/);
+      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+      assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0$/m);
     } finally {
       server.close();
       rmSync(dir, { recursive: true, force: true });
@@ -780,7 +797,10 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "id-token: write"],
+    // statuses: read for the head's pr-unblock statuses: GitHub lists that
+    // endpoint under the "Commit statuses" read permission, which the lanes
+    // App does not hold.
+    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "statuses: read", "id-token: write"],
   );
   // The verifier evidence is read as the gate reads it: the job's
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
@@ -1353,7 +1373,7 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
   // Bounded, so the job's timeout stays above the sum of its steps'.
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
-  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
+  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \|\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
   assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
@@ -1361,4 +1381,106 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
   assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
   assert.doesNotMatch(merge, /uses: actions\/download-artifact[^\n]*\n(?:[^\n]*\n){0,3}[^\n]*verify-answers/);
+});
+
+// merge.full-run-cap-bypass (owner standing direction, relayed 2026-10-29:
+// runner minutes on this repository are not a cost, and the cap now limits
+// lane throughput). Inside the cap, post-merge-dispatch starts one run of
+// main's tip when the post-merge report lists an unverified lane merge with no
+// dispatch under way and no listed run created at or after the merge on a
+// commit that contains it. The checkout is a real history: BEFORE, then the
+// merge MERGED, then TIP; LATER is a commit the checkout lacks.
+const LATER = "f".repeat(40);
+function runBypass({ merges, runs, bypass = true, mergedAt = "2026-10-29T01:00:00Z" }) {
+  const dir = tempDir("pr-merge-bypass-");
+  const git = (...args) =>
+    execFileSync("git", ["-C", join(dir, ".base"), ...args], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    }).trim();
+  mkdirSync(join(dir, ".base/docs/conventions"), { recursive: true });
+  git("init", "-q", "-b", "main");
+  const commit = (message) => {
+    git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", message);
+    return git("rev-parse", "HEAD");
+  };
+  const shas = { BEFORE: commit("before"), MERGED: commit("the lane merge"), TIP: commit("tip"), LATER };
+  const config = bypass === undefined ? "merge: {}\n" : `merge:\n  full-run-cap-bypass: ${bypass}\n`;
+  writeFileSync(join(dir, ".base/docs/conventions/pr-pipeline.yaml"), config);
+  const autoMerges = merges.map((m, i) => ({
+    number: 100 + i,
+    mergeCommit: shas.MERGED,
+    mergedAt,
+    verified: m.verified ?? false,
+    pending: m.pending ?? ["dispatch-run-pending", "canary-run-pending"],
+  }));
+  writeFileSync(join(dir, "post-merge.json"), JSON.stringify({ ok: true, autoMerges }));
+  writeFileSync(join(dir, "cover-runs.json"), JSON.stringify(runs.map((r) => ({ sha: shas[r.at], created: r.created }))));
+  writeFileSync(join(dir, "output"), "");
+  const block = job("post-merge-dispatch").split("\n      - name: Find lane merges no full run covers\n")[1].split("\n      - name: ")[0];
+  writeFileSync(join(dir, "body.sh"), runBody(block));
+  const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
+    cwd: dir,
+    env: { ...process.env, GITHUB_OUTPUT: join(dir, "output"), RUNNER_TEMP: dir, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    encoding: "utf8",
+  });
+  const output = readFileSync(join(dir, "output"), "utf8");
+  rmSync(dir, { recursive: true, force: true });
+  return { status: result.status, out: result.stdout + result.stderr, bypass: /^bypass=true$/m.test(output) };
+}
+// The run that started the window: before the merge, at the commit before it.
+const STARTED = { at: "BEFORE", created: "2026-10-29T00:50:00Z" };
+
+test("inside the cap, an unverified lane merge no started run covers starts one run", () => {
+  const r = runBypass({ merges: [{}, {}], runs: [STARTED] });
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.bypass, true);
+  assert.match(r.out, /::notice::no full run covers lane merge\(s\) #100 #101; one run of main's tip starts inside the cap/);
+});
+
+test("a run created after the merge on a commit that contains it covers the batch: the cap holds", () => {
+  for (const at of ["MERGED", "TIP", "LATER"]) {
+    const r = runBypass({ merges: [{}], runs: [{ at, created: "2026-10-29T01:05:00Z" }, STARTED] });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.bypass, false, `a run at ${at}`);
+  }
+});
+
+test("a run after the merge on a commit without it, or one before the merge at the tip, covers nothing", () => {
+  assert.equal(runBypass({ merges: [{}], runs: [{ at: "BEFORE", created: "2026-10-29T01:05:00Z" }, STARTED] }).bypass, true);
+  assert.equal(runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T00:59:59Z" }, STARTED] }).bypass, true);
+});
+
+test("the second tick in the window finds the run the first tick started and starts none", () => {
+  // The first tick's dispatch, at main's tip, is in the next listing.
+  const r = runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T01:11:30Z" }, STARTED] });
+  assert.equal(r.bypass, false, r.out);
+});
+
+test("no lane merge, a verified one, or one with a run under way keeps the cap", () => {
+  assert.equal(runBypass({ merges: [], runs: [STARTED] }).bypass, false);
+  assert.equal(runBypass({ merges: [{ verified: true, pending: [] }], runs: [STARTED] }).bypass, false);
+  for (const pending of [["dispatch-run-pending", "dispatch-run-in-progress:77"], ["dispatch-run-pending", "attribution-pending:77"], ["canary-run-pending"]]) {
+    assert.equal(runBypass({ merges: [{ pending }], runs: [STARTED] }).bypass, false, pending.join(","));
+  }
+});
+
+test("merge.full-run-cap-bypass false keeps the cap; absent is true", () => {
+  const off = runBypass({ merges: [{}], runs: [STARTED], bypass: false });
+  assert.equal(off.bypass, false);
+  assert.match(off.out, /::notice::merge\.full-run-cap-bypass is false: the cap holds/);
+  assert.equal(runBypass({ merges: [{}], runs: [STARTED], bypass: undefined }).bypass, true);
+});
+
+test("a merge older than every listed run is skipped, not read as uncovered", () => {
+  const r = runBypass({ merges: [{}], runs: [STARTED], mergedAt: "2026-10-29T00:40:00Z" });
+  assert.equal(r.bypass, false, r.out);
+});
+
+test("the bypass step runs only inside the cap after a check that judged, and the yaml default is on", () => {
+  const block = job("post-merge-dispatch").split("\n      - name: Find lane merges no full run covers\n")[1].split("\n      - name: ")[0];
+  assert.match(block, /\n {8}if: >-\n {10}steps\.cover\.outputs\.capped == 'true'\n {10}&& contains\(fromJSON\('\["0","5"\]'\), steps\.post-merge\.outputs\.code\)\n/);
+  const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  assert.match(config, /\n {2}full-run-cap-bypass: true\n/);
+  assert.doesNotMatch(job("dispatch-full-run"), /steps\.bypass/);
 });

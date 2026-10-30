@@ -65,12 +65,12 @@ name: pr-merge
 
 on:
   # Every trigger below is only a wake-up call. The run never trusts the event
-  # to say which PR to look at: it lists the open PRs from the GitHub API and
-  # checks each one, so any trigger leads to the same decisions.
+  # for a PR's state: it lists the open PRs from the GitHub API and checks
+  # each one it reads as listed. A pull_request_target run reads only the PR
+  # its event names (EVENT_PR); the schedule reads every one.
 
-  # A label was removed, the PR body changed, or a draft became ready. Since
-  # every run reads every PR, an event starts a run only when it can make a
-  # PR mergeable sooner. Adding a label can only add a hold, which the next
+  # A label was removed, the PR body changed, or a draft became ready. An
+  # event starts a run only when it can make its PR mergeable sooner. Adding a label can only add a hold, which the next
   # run sees anyway, so it starts none; a body edit can unblock (a new
   # closing-issue line, a removed `Hold:` line). pull_request_target runs
   # this file as it is on main, not the PR's copy, so a PR cannot change
@@ -147,10 +147,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -209,12 +208,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           last=$RUNNER_TEMP/post-merge-last
           scripts=.base/plugins/source-control/skills/babysit-prs/scripts
           code='' code_sha=''
+          # The completed attempts the last check read, which the check
+          # answers with no read (babysit_postmerge.py ATTEMPTS_ENV); kept
+          # below whether or not the check runs.
+          [ ! -f "$last/attempts.json" ] || cp "$last/attempts.json" "$RUNNER_TEMP/post-merge-attempts.json"
           # An idle tick: the last run's report, from a check that passed
           # (exit 0 or 5), stands while the lane room's reuse rule keeps it
           # and nothing else the check reads has moved (settle --idle-tick).
@@ -275,6 +279,7 @@ jobs:
           # A reused report keeps the commit whose code made it.
           [ -z "$code_sha" ] || echo "$code_sha" >"$kept/post-merge-code-sha"
           [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
+          [ ! -f "$RUNNER_TEMP/post-merge-attempts.json" ] || cp "$RUNNER_TEMP/post-merge-attempts.json" "$kept/attempts.json"
           # A rate-limit stop fails the job red once the outputs are written.
           [ "$code" != 75 ] || exit 1
 
@@ -330,6 +335,8 @@ jobs:
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
+          # The listing, for post-merge-dispatch's cap bypass.
+          printf '%s\n' "$runs" >"$RUNNER_TEMP/cover-runs.json"
           since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
           recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
           if [ -n "$recent" ]; then
@@ -340,9 +347,61 @@ jobs:
             echo "uncovered=true" >>"$GITHUB_OUTPUT"
           fi
 
+      # The cap gives way for the lane's own merges (merge.full-run-cap-bypass,
+      # default true): the lane arms nothing past merge.max-in-flight until a
+      # full run verifies the merges in flight, so a batch that lands inside
+      # the cap would wait it out before its one run. bypass=true when the
+      # post-merge check that judged (exit 0 or 5) lists an unverified lane
+      # merge with no dispatch run under way for it, and the cover listing
+      # holds no non-cancelled run created at or after the merge on a commit
+      # that contains it. A run at a commit this checkout lacks is newer than
+      # the checkout, so it counts as cover; a merge the checkout lacks, or
+      # older than the oldest listed run, is skipped. The dispatch then starts
+      # one run of main's tip for the whole batch, and the next tick finds it
+      # in the listing. pr-require-checks.yml's main-dispatch concurrency
+      # group keeps a burst to one run going and one waiting.
+      - name: Find lane merges no full run covers
+        id: bypass
+        if: >-
+          steps.cover.outputs.capped == 'true'
+          && contains(fromJSON('["0","5"]'), steps.post-merge.outputs.code)
+        run: |
+          set -euo pipefail
+          if [ "$(yq '.merge."full-run-cap-bypass"' .base/docs/conventions/pr-pipeline.yaml)" = false ]; then
+            echo "::notice::merge.full-run-cap-bypass is false: the cap holds"
+            exit 0
+          fi
+          report=$RUNNER_TEMP/post-merge.json runs=$RUNNER_TEMP/cover-runs.json
+          [ -f "$report" ] && [ -f "$runs" ] || exit 0
+          oldest=$(jq -r 'map(.created) | min // ""' "$runs")
+          uncovered=()
+          while IFS=$'\t' read -r number sha at; do
+            [[ $number =~ ^[1-9][0-9]*$ && $sha =~ ^[0-9a-f]{40}$ && $at =~ ^[0-9T:-]+Z$ ]] || continue
+            git -C .base cat-file -e "$sha^{commit}" 2>/dev/null || continue
+            [[ -n $oldest && ! $at < $oldest ]] || continue
+            covered=''
+            while IFS=$'\t' read -r run_sha created; do
+              [[ $created < $at ]] && continue
+              if ! git -C .base cat-file -e "$run_sha^{commit}" 2>/dev/null ||
+                git -C .base merge-base --is-ancestor "$sha" "$run_sha"; then
+                covered=1
+                break
+              fi
+            done < <(jq -r '.[] | [.sha, .created] | @tsv' "$runs")
+            [ -n "$covered" ] || uncovered+=("#$number")
+          done < <(jq -r '.autoMerges[]? | select(.verified != true)
+            | select((.pending // []) | any(.[]; . == "dispatch-run-pending")
+              and all(.[]; (startswith("dispatch-run-in-progress:") or startswith("attribution-pending:")) | not))
+            | [.number, .mergeCommit, .mergedAt] | @tsv' "$report")
+          if [ "${#uncovered[@]}" -gt 0 ]; then
+            echo "::notice::no full run covers lane merge(s) ${uncovered[*]}; one run of main's tip starts inside the cap (merge.full-run-cap-bypass)"
+            echo "bypass=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # The same body as dispatch-full-run's step of this name; see there.
       # It also starts main's tip when no full run covers it and none started
-      # within the cap, and starts nothing within the cap.
+      # within the cap, and starts nothing within the cap unless the step
+      # above found lane merges no full run covers.
       # WAIT_CAP: of the 15 minutes, the whole job took 97-127 s on the last
       # ten scheduled runs read on 2026-10-23 (the post-merge check 81-111 s
       # of it). Add 180 s here, the re-run step's POST waits (up to 30 s) and
@@ -356,8 +415,8 @@ jobs:
           steps.kill.outputs.proceed == 'true'
           && steps.mode.outputs.live == 'true'
           && steps.cover.outputs.rate-limited != 'true'
-          && steps.cover.outputs.capped != 'true'
-          && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true')
+          && (steps.cover.outputs.capped != 'true' || steps.bypass.outputs.bypass == 'true')
+          && (steps.post-merge.outputs.needs-dispatch == 'true' || steps.cover.outputs.uncovered == 'true' || steps.bypass.outputs.bypass == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -738,7 +797,7 @@ jobs:
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
     # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
-    # harmless because every run re-reads every PR from the API, and a run
+    # harmless because every run re-reads its PRs from the API, and a run
     # with a pending successor that does its work skips the gate (the
     # superseded step). GitHub caps
     # the waiting line at 100 runs and rejects the rest, so the triggers above
@@ -803,10 +862,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       # The review-evidence binding reads a changed workflow file with PyYAML
       # (babysit_review_evidence.readonly_workflow); without it no workflow
@@ -936,7 +994,9 @@ jobs:
       # run that a change to this file on main superseded is refused
       # `workflow-modified`; it ends green with a warning and no token, so the
       # steps below skip and no stale failed `merge` check lands on a PR. The
-      # newer run checks every PR.
+      # newer run checks every PR. A kill switch turned on after this run read
+      # its variables is refused `kill-switch`; it ends green with a notice and
+      # no token the same way, and the next scheduled run checks every PR.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success'
@@ -952,6 +1012,7 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
@@ -975,6 +1036,8 @@ jobs:
           REPO: ${{ github.repository }}
           DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
           LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
+          # Empty on the schedule and a hand-started run.
+          EVENT_PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -1020,36 +1083,50 @@ jobs:
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           api_budget_wrap_gh github-token
-          listing="$RUNNER_TEMP/listing.jsonl"
-          : >"$listing"
-          for author in "${authors[@]}"; do
+          listing="$RUNNER_TEMP/listing.json"
+          # One list of every open pull request into main (GraphQL), kept
+          # by author below, rather than one `gh pr list --author` search
+          # call per author.
+          limit=1000
+          echo '[]' >"$listing"
+          if [ "${#authors[@]}" -gt 0 ]; then
             for attempt in 1 2 3; do
-              if gh pr list --repo "$REPO" --base main --state open --limit 500 \
-                --author "$author" --json id,number,headRefOid,isDraft,updatedAt,labels,body >>"$listing" 2>"$RUNNER_TEMP/list-stderr"; then
+              if gh pr list --repo "$REPO" --base main --state open --limit "$limit" \
+                --json id,number,headRefOid,isDraft,updatedAt,labels,body,author >"$listing" 2>"$RUNNER_TEMP/list-stderr"; then
                 break
               fi
               cat "$RUNNER_TEMP/list-stderr" >&2
-              stop=$(rate_stop_from "$RUNNER_TEMP/list-stderr" "gh pr list --author $author")
+              stop=$(rate_stop_from "$RUNNER_TEMP/list-stderr" "gh pr list")
               if [ -n "$stop" ]; then
-                echo "::error title=GitHub rate limit::gh pr list --author $author was rate limited ($stop); nothing more is sent, and the next scheduled run lists again"
+                echo "::error title=GitHub rate limit::gh pr list was rate limited ($stop); nothing more is sent, and the next scheduled run lists again"
                 exit 1
               fi
               if [ "$attempt" = 3 ]; then
-                echo "::error::gh pr list --author $author failed 3 times; no candidates listed, the gate does not run"
+                echo "::error::gh pr list failed 3 times; no candidates listed, the gate does not run"
                 exit 1
               fi
               sleep $((attempt * 15))
             done
-          done
-          jq -cs '[(add // [])[] | select(.isDraft | not)
+          fi
+          if [ "$(jq length "$listing")" -ge "$limit" ]; then
+            echo "::error::gh pr list returned $limit pull requests, so the listing may be cut short; no candidates listed, the gate does not run"
+            exit 1
+          fi
+          # A pull_request_target run gates only its own pull request, as the
+          # listing holds it; the scheduled run gates every candidate.
+          jq -c --args '($ARGS.positional | map(ascii_downcase)) as $authors
+              | [.[] | select((.author.login // "" | ascii_downcase) as $a | $authors | index($a))
+              | select(env.EVENT_PR == "" or (.number | tostring) == env.EVENT_PR)]' \
+            "${authors[@]}" <"$listing" >"$RUNNER_TEMP/authored.json"
+          jq -c '[.[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
-              | unique_by(.number)' "$listing" |
+              | unique_by(.number)' "$RUNNER_TEMP/authored.json" |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
-          jq -cs '[(add // [])[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
-              labels: [.labels[].name]}] | unique_by(.number)' "$listing" >"$RUNNER_TEMP/drafts.json"
+          jq -c '[.[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
+              labels: [.labels[].name]}] | unique_by(.number)' "$RUNNER_TEMP/authored.json" >"$RUNNER_TEMP/drafts.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
       # The gate loop below can stop at its time budget, so it starts after
@@ -1248,7 +1325,7 @@ jobs:
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
       - name: Record a failed lane merge
-        if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -1282,7 +1359,7 @@ jobs:
       # request at its current head is marked ready here: one comments read
       # per such draft.
       - name: Re-ready a draft a whole-review request left
-        if: steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1305,7 +1382,7 @@ jobs:
       # saved for the gate's first candidate. Any error gates every
       # candidate. Rules: babysit_merge_skip.py.
       - name: Skip refusals whose inputs have not changed
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1354,7 +1431,7 @@ jobs:
       # back to the capped rotation, never deferred again.
       - name: Run the merge gate on each candidate
         id: gate
-        if: steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The verdict reader's Actions calls, the review-evidence reads
@@ -1726,9 +1803,11 @@ jobs:
         env:
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           # The job's own read-only token lists runs, jobs and annotations;
           # the lane token holds no Actions or Checks permission.
           ACTIONS_TOKEN: ${{ github.token }}
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
@@ -1746,7 +1825,10 @@ jobs:
       # Under merge.lane-prs native, a label enable-auto-merge set at the
       # current head is judged again with the gate's reader, at most three
       # reads a run of up to four minutes each, sharing the gate step's run
-      # cache, listing and head-ref map.
+      # cache, listing and head-ref map. A review lane's hold at an older head
+      # comes off as stale-review-hold once trusted human pushes moved the
+      # head and both review lanes passed there with no HIGH or CRITICAL
+      # security finding.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
@@ -1897,6 +1979,7 @@ jobs:
       pull-requests: read # the lane's merges and the merge queue, for the lane's room
       checks: read # the review lanes' annotations, as the gate binds their evidence
       issues: read # the demotion records the lane's room re-checks
+      statuses: read # the head's pr-unblock statuses (the lanes App holds no statuses permission)
       id-token: write # prove to the token broker which workflow this is
     # The pr-merge/unarmed statuses for the unarmed-status job to post.
     outputs:
@@ -1921,10 +2004,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       # The review-evidence binding reads a changed workflow file with PyYAML
       # (babysit_review_evidence.readonly_workflow); without it no workflow
@@ -2012,6 +2094,7 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
+          kill-switch-ok: true
 
       # The verdict reader of a scheduled or hand-started run ties untied
       # FAILs as the gate job does: the head-ref map and the carried run
@@ -2071,6 +2154,8 @@ jobs:
           API_BUDGET_TOKEN: github-token
           ACTIONS_TOKEN: ${{ github.token }}
           VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
+          # The arm step's skip records, from the same artifact.
+          EAM_SKIP_PATH: ${{ runner.temp }}/eam-skip-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/verify-answers.mjs
 
@@ -2122,14 +2207,23 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
           EVENT_NAME: ${{ github.event_name }}
+          # Empty on the schedule and a hand-started run.
+          EVENT_PR: ${{ github.event.pull_request.number }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # At most one whole-review request per run, as the merge job's gate
+          # (babysit_whole_review.py).
+          BABYSIT_WHOLE_REVIEW_SPENT: ${{ runner.temp }}/whole-review-spent
           # The verifier answers read above, and the file this run keeps.
           VERIFY_ANSWERS_IN: ${{ runner.temp }}/verify-answers-in.json
           VERIFY_ANSWERS_OUT: ${{ runner.temp }}/verify-answers/verify-answers.json
+          # Skip-unchanged (enable-auto-merge.mjs SKIPPABLE): the records read
+          # above, and the file this run keeps beside its answers.
+          EAM_SKIP_IN: ${{ runner.temp }}/eam-skip-in.json
+          EAM_SKIP_OUT: ${{ runner.temp }}/verify-answers/eam-skip.json
           # The lane's room (lane-room): this run's post-merge report and the
           # rung cap as the merge job passes it, empty meaning no cap.
           POSTMERGE_RESULT: ${{ runner.temp }}/post-merge/post-merge.json
@@ -2148,16 +2242,20 @@ jobs:
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           RISK_ESCALATION_MINUTES=$(yq '.merge."risk-escalation-minutes" // ""' "$config")
           VERIFY_CACHE=$(yq '.merge."verify-cache" // "shadow"' "$config")
+          SKIP_MAX_MINUTES=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")
+          SKIP_MAX_SKIPS=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")
+          mkdir -p "$(dirname "$EAM_SKIP_OUT")"
           # The commit whose code ran the report's check, for lane-room: none
           # reads the report again.
           POSTMERGE_CODE_SHA=$(cat "$RUNNER_TEMP/post-merge/post-merge-code-sha" 2>/dev/null || true)
+          export SKIP_MAX_MINUTES SKIP_MAX_SKIPS
           export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES VERIFY_CACHE POSTMERGE_CODE_SHA
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
 
       # The answers this run's reader kept, for the next run: refusals only,
-      # each to expire within the hour. A file name of its own: the merge job
-      # uploads pr-merge-head-refs. Only a scheduled or hand-started run's file
-      # is read back.
+      # each to expire within the hour, with the arm step's skip records. A
+      # file name of its own: the merge job uploads pr-merge-head-refs. Only a
+      # scheduled or hand-started run's file is read back.
       - name: Upload the verifier answers for the next run
         if: >-
           always() && steps.arm.outcome != 'skipped'
@@ -2167,7 +2265,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-verify-answers
-          path: ${{ runner.temp }}/verify-answers/verify-answers.json
+          path: |
+            ${{ runner.temp }}/verify-answers/verify-answers.json
+            ${{ runner.temp }}/verify-answers/eam-skip.json
           retention-days: 1
           if-no-files-found: ignore
 
@@ -2283,10 +2383,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Post the pr-merge/unarmed statuses
         timeout-minutes: 3
@@ -2379,6 +2478,8 @@ jobs:
             echo "::warning::the read of main's full runs failed; no cap applies to this run"
             exit 0
           fi
+          # The listing, for post-merge-dispatch's cap bypass.
+          printf '%s\n' "$runs" >"$RUNNER_TEMP/cover-runs.json"
           since=$(date -u -d "@$(($(date +%s) - CAP_MINUTES * 60))" +%Y-%m-%dT%H:%M:%SZ)
           recent=$(jq -r --arg since "$since" '[.[] | select(.created >= $since) | .created] | max // ""' <<<"$runs")
           if [ -n "$recent" ]; then
@@ -2560,10 +2661,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Read the gate's rows
         id: rows

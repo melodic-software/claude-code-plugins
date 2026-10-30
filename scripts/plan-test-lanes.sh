@@ -172,8 +172,8 @@ done
 
 # --- the selection ----------------------------------------------------------
 
-# select_into <out> <path>...: the selector's suites for <path>... into <out>; sets
-# `unmapped` from its report.
+# select_into <out> <path>...: the selector's suites for <path>... into <out>; adds
+# its report's count to `unmapped`.
 select_into() {
   local out="$1" rc=0
   shift
@@ -181,7 +181,7 @@ select_into() {
   case "$rc" in
   0) ;;
   4)
-    unmapped=$(awk '/^UNMAPPED:/ { print $2; exit }' "$WORK/selector.err")
+    unmapped=$((unmapped + $(awk '/^UNMAPPED:/ { n = $2; exit } END { print n + 0 }' "$WORK/selector.err")))
     awk '/^UNMAPPED:/ { f = 1; print; next } f && /^  - / { print; next } { f = 0 }' "$WORK/selector.err" >&2
     ;;
   *)
@@ -191,31 +191,31 @@ select_into() {
   esac
 }
 
-unmapped=0
-: >"$WORK/selection"
-if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
-  select_into "$WORK/selection" "${changed[@]}"
-fi
-
-# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT,
-# and only reruns the selector when that drops some but not all of them.
-inert=() win_changed=()
+# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT.
+# The selector walks each changed file on its own and unions what they reach,
+# so the selection is that of the Windows files plus that of the inert ones,
+# and no file is walked twice.
+inert=() win_changed=() inert_changed=()
 read_list::into inert "$WINDOWS_INERT" --comments inline || exit 2
 for f in ${changed[@]+"${changed[@]}"}; do
   for pat in ${inert[@]+"${inert[@]}"}; do
     # shellcheck disable=SC2053 # the right-hand side is a glob on purpose.
-    [[ "$f" == $pat ]] && continue 2
+    [[ "$f" == $pat ]] && {
+      inert_changed+=("$f")
+      continue 2
+    }
   done
   win_changed+=("$f")
 done
-WIN_SELECTION="$WORK/selection"
-if ((!whole_windows)) && [[ ${#win_changed[@]} -lt ${#changed[@]} ]]; then
-  WIN_SELECTION="$WORK/win-selection"
-  : >"$WIN_SELECTION"
-  keep_unmapped="$unmapped"
-  [[ ${#win_changed[@]} -eq 0 ]] || select_into "$WIN_SELECTION" "${win_changed[@]}"
-  unmapped="$keep_unmapped"
+unmapped=0
+: >"$WORK/win-selection"
+: >"$WORK/inert-selection"
+if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
+  [[ ${#win_changed[@]} -eq 0 ]] || select_into "$WORK/win-selection" "${win_changed[@]}"
+  [[ ${#inert_changed[@]} -eq 0 ]] || select_into "$WORK/inert-selection" "${inert_changed[@]}"
 fi
+cat "$WORK/win-selection" "$WORK/inert-selection" >"$WORK/selection"
+WIN_SELECTION="$WORK/win-selection"
 
 # Assigned through a nameref, which shellcheck cannot follow (SC2154).
 exclusions=() outside=() rows=()
@@ -370,7 +370,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
-        if (p == "plugins/planning/shared/tests/ui.test.sh" || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
+        if (p ~ /^plugins\/planning\/shared\/tests\/ui-[a-z]\.test\.sh$/ || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s

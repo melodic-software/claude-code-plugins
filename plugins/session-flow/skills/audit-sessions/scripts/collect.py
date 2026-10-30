@@ -82,6 +82,8 @@ COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 # As of: 2026-10-13
 # Recheck trigger: that section stops naming MultiEdit, or moves.
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+# Tool names whose calls `invariant:subagent_files_missing` expects a subagent transcript for.
+AGENT_TOOLS = frozenset({"Agent", "Task"})
 # System subtypes seen on current versions; any other is counted in `unknown.system_subtypes`.
 SYSTEM_SUBTYPES = frozenset(
     {
@@ -265,6 +267,8 @@ def census_keys(record: dict) -> tuple[str, list[str]]:
             keys.append(f"assistant_error:{_label(record.get('error'))}")
         if "effort" in record:
             keys.append(f"effort_value:{_label(record.get('effort'))}")
+    elif kind == "user" and "toolDenialKind" in record:
+        keys.append(f"denial_kind:{_label(record.get('toolDenialKind'))}")
     return f"{version}|{model}", keys
 
 
@@ -321,6 +325,8 @@ class SessionScan:
         self.bucket = ""
         self.usage_peak: dict[tuple[str, str], tuple] = {}
         self.usage_last: dict[tuple[str, str], tuple[str, tuple]] = {}
+        self.agent_calls: dict[str, str] = {}
+        self.agent_call_bucket: str | None = None
         self.friction = friction_scan.FrictionScan()
 
     def add(self, record: dict, side: str) -> None:
@@ -398,6 +404,16 @@ class SessionScan:
             if any(value < peak for value, peak in zip(values, self.usage_peak[group])):
                 self.census[bucket]["invariant:usage_regress"] += 1
 
+    def subagent_gap(self, subagent_files: int) -> None:
+        """Count the session once when an Agent or Task call returned without error but no subagent file exists.
+
+        A rejected, denied or failed call writes no file, so only a call whose tool_result is not
+        an error counts. `subagents.count` counts files; the drift guard's invariant canary reads
+        this count.
+        """
+        if self.agent_call_bucket is not None and not subagent_files:
+            self.census[self.agent_call_bucket]["invariant:subagent_files_missing"] += 1
+
     def _tool_use(self, block: dict) -> None:
         # Streaming can repeat a block in a later record; the id counts it once.
         tool_id = block.get("id")
@@ -413,8 +429,15 @@ class SessionScan:
             self.edits[path] += 1
         if name == "Skill":
             self.skills[str(tool_input.get("skill"))] += 1
+        if name in AGENT_TOOLS and isinstance(tool_id, str):
+            self.agent_calls[tool_id] = self.bucket
 
     def _user(self, record: dict, side: str, ts: float | None) -> None:
+        content = _obj(record.get("message")).get("content")
+        for block in content if isinstance(content, list) else ():
+            if isinstance(block, dict) and block.get("type") == "tool_result" and not block.get("is_error"):
+                bucket = self.agent_calls.pop(str(block.get("tool_use_id")), None)
+                self.agent_call_bucket = bucket or self.agent_call_bucket
         result = record.get("toolUseResult")
         if isinstance(result, str) and result.startswith("User rejected tool use"):
             self.user_rejected += 1
@@ -706,6 +729,7 @@ def build_record(
     scrub = Scrubber(redactor, excerpt_chars)
     time_block = scan.time_block()  # counts the invariant, so call it once per session
     scan.usage_regressions()  # likewise
+    scan.subagent_gap(len(subagents))  # likewise
     # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
     # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {

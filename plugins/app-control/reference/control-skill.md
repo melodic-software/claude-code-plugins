@@ -10,9 +10,11 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 ## Contents
 
 - Hub
+- The Ready command
 - Writing the Capture section
 - Feature files
 - Shared items
+- Size budget
 - Steps files
 - Driver commands
 - Writing the driver CLI
@@ -29,7 +31,7 @@ plugin) holds four sections, an optional `## Gotchas`, and an index:
 | Section | Holds |
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
-| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
+| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
@@ -47,6 +49,37 @@ Below them, an index with one line per feature file, in this form:
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
 the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
+
+A control skill can instead be a command file named `control-<app>`. The command file is the hub:
+it holds the sections and the index. Its commands folder is the top-level folder it loads from: a
+project's `.claude/commands/`, a skills-folder plugin's or a plugin's `commands/`, or the folder a
+plugin manifest's `commands` key names. Its base
+directory is `control-<app>/` in that commands folder's parent, whatever subfolder or file name
+the command file has: a command file under `<base>/commands/` keeps its features at
+`<base>/control-<app>/features/<id>/README.md`, where `<base>` is, for example, `.claude`,
+the skills-folder plugin's folder or the plugin root. A command file the manifest's `commands` key
+names as a file, directly or as a map entry's `source`, has no commands folder: its base directory
+is `control-<app>/` in the plugin root wherever the file sits, so a plugin-root
+`./control-shop.md` keeps its features at `<plugin root>/control-shop/features/<id>/README.md`,
+inside the plugin. The base directory stands in for the skill
+folder everywhere this contract names one, so `features/`, `shared/`, `cli/`, `config/` and steps
+files sit there and the index paths resolve there. Every Markdown file under a commands folder,
+in a subfolder too, loads as a command, so a feature file there would be one a model or a person
+could invoke; one folder per command also keeps two commands in one commands folder from sharing
+one `features/` tree.
+
+## The Ready command
+
+Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
+it must exit non-zero when the thing it checks is wrong. A listing (`docker ps`, `kubectl get pods`)
+exits 0 when its filter matches nothing and it prints no rows, and exits 0 just the same when it
+prints another app's row. A `kubectl get` that names an object (`kubectl get deploy/shop`) is not
+a listing: it exits non-zero when the object is missing. End each listing with `grep -q` on the row the app's own instance prints,
+never with the listing alone. A Ready with a url placeholder runs without a shell
+([Environments](#environments)), where `|` and `&&` are plain arguments: put the listing check in a
+`cli/` command or a script that exits non-zero itself, and name that from Ready.
+`/app-control:map check` reports a Ready command whose last stage is a bare listing, and map's
+proof runs Ready once with the app stopped to show it exits non-zero.
 
 ## Writing the Capture section
 
@@ -146,6 +179,28 @@ Each direct child of `shared/`, a folder or a file, is one item. A feature uses 
 feature file names `shared/<item>`; an item fewer than two features use belongs in that feature's
 own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
 `Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
+
+## Size budget
+
+Drive loads the hub, then one feature file per level of the id, on every run, so their size is a
+cost every run pays. Counted in characters, newlines included, the way
+`/skill-quality:check listing-budget` counts, at about 4 characters per token:
+
+| File | Budget | About |
+|---|---|---|
+| Hub `SKILL.md` or command file | 16,000 characters | 4,000 tokens |
+| Each feature file: a `README.md` under `features/` at any depth, module ones included, or a legacy `features/<feature>.md` | 4,000 characters | 1,000 tokens |
+
+`/app-control:map check` reports a file over its budget, and create reports one it wrote. Over
+budget is a warning, never a stop: move detail into a steps file, a `cli/` command or a
+sub-feature, or group the hub's index by module.
+
+Basis: the control skill measured in
+<https://github.com/melodic-software/claude-code-plugins/pull/10697>. Its hub was 12,160
+characters, 84% of them index lines at about 114 characters each, so 16,000 leaves room for about
+33 more index lines. Its largest feature file was a module README at 3,317 characters (the
+largest seeded feature was 1,588), so 4,000 clears it by a fifth. One drive load at the budgets is
+at most 24,000 characters (hub plus a module and a feature file), against the 16,399 measured.
 
 ## Steps files
 

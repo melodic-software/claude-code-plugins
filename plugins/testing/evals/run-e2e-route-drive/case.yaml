@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: run-e2e-route-drive
+description: With app-control installed and a control skill in the repository, run-e2e hands launching, operating and capturing to /app-control:drive, says the person can decline, and still reports one line per entry point
+tags: [run-e2e, app-control, route, invented]
+expected_outcome: The reply takes the drive route, naming /app-control:drive as what launches, operates and captures. It tells the person they can decline and have run-e2e use its own driving instead. It takes the driving tool from the control skill, not from e2e_driver. Its report has one line per entry point of the touched feature, both the Start button and the t shortcut, each passed, failed or not driven with a reason.
+execution:
+  prompt: "/testing:run-e2e the timer page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has the control skill .claude/skills/control-timer/, whose features/start-a-timer/README.md lists two entry points: the dashboard `Start` button and pressing `t` on the dashboard; its index maps src/timers/** to that feature. This branch changes src/timers/start.ts. docs/conventions/testing.yaml sets `e2e_driver: harness`. I am here. Tell me which route this run takes, what launches, operates and captures the app, what I can say to change that, and the report lines you will write, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: names-drive
+    type: regex
+    pattern: '/?app-control:drive'
+    arm: both
+  - name: drive-route-with-decline-and-entry-lines
+    type: llm
+    criteria: "PASS only if the reply (1) says this run uses /app-control:drive to launch, operate and capture the app, (2) tells the person they can decline it and have run-e2e use its own driving instead, (3) takes the run's driving tool from the control skill rather than from e2e_driver: harness, and (4) gives one report line for each of the two entry points of the touched feature, the dashboard Start button and the t key, each as passed, failed or not driven with a reason. FAIL if it drives the app with run-e2e's own driving or a harness run without the person having declined, waits for the person to opt in before using drive, offers /app-control:map create or an install of app-control, or reports only the Start button."

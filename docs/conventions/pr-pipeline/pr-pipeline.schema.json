@@ -94,6 +94,13 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "readmit-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Open status: ready issues with neither agent-ready nor admission-deferred that one work-unblock sweep runs intake's admission rules on, oldest updated first. Only an issue that reaches the rules counts: one with a hold or refuse label, an open blocker or an open sub-issue, or one admission skips (its status: ready added by neither a listed human nor the lanes App, or its agent-ready removal standing), does not."
+        },
         "limit-stops-per-head": {
           "type": "integer",
           "minimum": 1,
@@ -309,6 +316,20 @@
         }
       }
     },
+    "attended": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Work that needs the owner present: the classes of manual step on external state intake's refinement may record as `External state: manual (<class>: <what>)`, which admission refuses with the `attended` label. Absent: no class, so no refinement records one. Contract: README.md, Attended work.",
+      "properties": {
+        "classes": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {},
+          "description": "Each class name and its one-line meaning, which the refinement model reads; a refinement naming any other class is refused."
+        }
+      }
+    },
     "branch-cleanup": {
       "type": "object",
       "additionalProperties": false,
@@ -348,6 +369,12 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Share of the header's limit left, by the header's remaining, at which the repository kill switch should be set. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "pace": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks (.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
         },
         "read-floor": {
           "type": "number",
@@ -476,6 +503,7 @@
         "research-first",
         "probe-first",
         "workflow-modified",
+        "kill-switch",
         "rung-up",
         "no-model-turn",
         "finding-stands",
@@ -895,7 +923,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["max-turns"],
-      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name no model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
       "oneOf": [
         {
           "required": ["model"],
@@ -908,8 +936,8 @@
       ],
       "properties": {
         "model": {
-          "enum": ["default", "opus", "sonnet"],
-          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
+          "enum": ["opus", "sonnet"],
+          "description": "A model alias, never a full model ID, passed as --model. best and fable stay out until the owner sets a Fable allowance for the lanes, and default stays out because run-claude-cli cannot pass it; the config reader resolves any value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
@@ -930,7 +958,7 @@
         "subagent-model": {
           "enum": ["inherit", "opus", "sonnet"],
           "default": "inherit",
-          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes (README.md, Models)."
+          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes; the config reader resolves any other value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "max-turns": {
           "type": "integer",
@@ -1002,6 +1030,11 @@
           "type": "boolean",
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
+        },
+        "full-run-cap-bypass": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: pr-merge's post-merge-dispatch starts a full run of main inside its 30-minute cap when the post-merge report lists an unverified lane merge that no started full run covers, one run for the whole uncovered batch. false: the cap holds for every merge. Absent is true."
         },
         "lane-prs": {
           "enum": ["native", "gate"],
@@ -1104,6 +1137,13 @@
           },
           "description": "GitHub login the unattended merge lane acts as. It must be the [bot] login of a GitHub App dedicated to this lane: a machine user is a User and would pass every human test, and GitHub's shared built-in bots (github-actions[bot], dependabot[bot]) are rejected in any letter case. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
+        "trust-path-hold-apps": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
+        },
         "diff-check": {
           "type": "object",
           "additionalProperties": false,
@@ -1126,7 +1166,12 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way. The local babysit lane always applies the manifest review."
+              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way while path-holds is true. The local babysit lane always applies the manifest review."
+            },
+            "path-holds": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
             },
             "c2-contradictions": {
               "type": "boolean",

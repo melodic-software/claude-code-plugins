@@ -3,6 +3,303 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.2] - 2026-10-30
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now says the mode may run `chmod -x` on a file
+  whose executable bit the pull request added, when a finding asks to drop it.
+
+## [4.1.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-remote.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The `origin` lookup reads the remote list through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [4.1.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads pr-review-main's `verdict=none reason=<reason>` check run as a
+  designed stop. The stop counts no CRITICAL finding and binds no lane. With no verdict on the
+  head, the lane's unbound reason is `main-review-stop:<reason>` instead of
+  `lane-source-changed`, so the gate report names why. It stays the same MED
+  `evidence-unbound:<lane>` lane cause, with no new person hold. Any other title that does not
+  read still counts one CRITICAL.
+- The merge job reads less for a pull request that changes a lane source. It lists only the
+  security lane's pull_request runs, because the code lane binds there on a main-run review
+  alone, and reads the code lane's `pr-review-main` check runs on the head only. The security
+  lane still reads every head of the pull request, so a CRITICAL finding on any head still
+  carries.
+
+## [4.0.0] - 2026-10-29
+
+### Changed
+
+- The babysit merge gate reads `merge.diff-check.path-holds` in the pr-merge lane. Absent or
+  false, the `high-path:` floor and configured globs and the `review-path:` holds move out of
+  the risk score into the gate report's `risk.pathHoldsSkipped`. True keeps them. Unsafe or
+  aliasing paths (`high-path:**`), the manifest review and cost holds still hold. The local
+  babysit lane keeps every path hold.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
+## [3.21.4] - 2026-10-29
+
+### Added
+
+- `babysit_whole_review.py request` answers the record line for a whole review of `--head` under
+  the merge gate's caps (once per head, `MAX_TOGGLES`, one per run, the running-jobs and
+  rate-limit floors), reading the prior reasons comment on stdin; `toggle` drafts the pull request
+  and marks it ready again. The gate and enable-auto-merge share `babysit_whole_review.request`.
+- `babysit_verify_evidence.py evidence --lane-reviews` reports `wholeReviewWanted`, so native
+  auto-merge requests the gate's whole review for a lanes App pull request.
+
+### Changed
+
+- The babysit merge lane holds a pull request carrying `human-merge-hold`
+  (`babysit_merge_policy.MERGE_HOLD_LABELS`), the label the lanes App puts on a pull request a
+  person merges ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)).
+
+### Fixed
+
+- `babysit_whole_review.wanted` also requests a whole review for a `review-path:` hold whose bound
+  security review counts open findings below CRITICAL that a clean whole review of the head
+  closes, such as threads the lanes App resolved. Before, only a CRITICAL `security-finding` hold
+  qualified, so such a hold waited for a person.
+- `babysit_whole_review.toggle` reads the pull request's draft state, labels and body just before
+  converting it, and refuses one already a draft, one with a merge-hold label, the tracker's
+  human-gated label (`--human-gated`) or a body hold, or one that did not read, so a person's draft
+  or hold is never undone. Record lines count only outside the comment's fenced reasons, where a
+  changed path could otherwise plant one, and a person's refusal comment keeps them, so a head
+  recorded before an escalation is never toggled again.
+
+## [3.21.3] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+- `babysit_risk.py` no longer drops workflow text after a space and `#` inside a quoted string or a block scalar (`run: |`). `gated_workflow` and the permission, trigger and secret backstops used to cut every line at its first space-and-`#`, so a `${{ secrets.X }}` after `echo "a #b` or after a shell comment in a `run:` block went unseen. Such a workflow now counts as a `gate` path, and adding one holds as `secret-exposure-review`. A real YAML comment still counts for nothing.
+
+## [3.21.2] - 2026-10-29
+
+### Changed
+
+- `/source-control:pull-request create` merges the base into the branch before it pushes and opens the draft when the open state resolves to `ready` and `ready`'s `base-merge` step would run, including under `create --pushed` when the worker's branch is behind. `ready`'s base merge then finds nothing to push, so the PR no longer starts a `synchronize` CI run between the `opened` and `ready_for_review` runs. A `draft` state keeps the old behavior.
+
+## [3.21.1] - 2026-10-29
+
+### Changed
+
+- `comments --ci` records `INCORRECT` on a security-review `manifest dependencies: flag` when each entry is a bare name of another plugin in the repository's own `.claude-plugin/marketplace.json` and the flagged plugin cannot work without it. The reply cites, for each entry, a line in the flagged plugin, outside a `## Next` section, that invokes `/<entry>:`. When any entry is optional (presence-gated, with a fallback), it records `UNCERTAIN`.
+
+## [3.21.0] - 2026-10-29
+
+### Added
+
+- `/source-control:babysit-prs` worker tier: the thread resolver takes `--own-pr-lane-logins`, filled from `babysit_lane_logins`. On a PR opened by your own login, `--autonomous` refuses the whole PR. With the flag, it resolves an outdated, bot-opened thread that a configured lane login other than the opener has answered with address-feedback's fixed disposition (`VALID, fixed`) as its latest reply; a left-open disposition is no answer. It still never resolves a CRITICAL or security thread, a thread a person opened, or a thread with a comment from your own login. Other threads report `skipped-own-pr-not-lane-answered`. With `babysit_lane_logins` unset, the lane login is the repository's `merge.agent-identity`, read at the PR's base commit and the default branch head, never the PR head; the setting wins when set. The resolve runs under your existing login, so no permission is added.
+
+- hold credentialed workflows and workflow privilege gains for a person
+
+  Every workflow that names a secret other than GITHUB_TOKEN, mints a lane
+  token, or grants `actions: write` (which dispatches those), the review
+  workflows themselves and ci-status (`pr-require-checks.yml`) are now `gate`
+  floor paths held for a person: 23 workflows. A workflow
+  change that gains a write scope (or drops a permissions block onto the
+  repository default) holds as `permission-widening-review`, and one that
+  adds a pull_request_target or workflow_run trigger as
+  `privileged-trigger-review`; both are person codes no cost decision
+  clears. A secrets reference is also read from the head text, so a
+  workflow with no patch is not skipped.
+
+- bind a lane-source pull request's reviews to a run from main
+
+  A pull request that changes a lane source (a workflow, Claude Code config,
+  the review criteria) now binds each review lane on the verdict artifact a
+  run of main's pr-review-main.yml uploaded for its exact head: the run's
+  path, workflow_run event, default branch, repository and completed
+  success, its head held by main, and the verdict's lane, pull request and
+  tree. Comments, markers and pull_request runs never count for it. The
+  most findings any main-run review of the head's tree reported count, so a
+  re-run never clears one. With no such verdict it stays unbound as before;
+  an enforcement path beside it now waits for that review instead of a
+  person (`review-path-unbindable` is gone). ci-status's own workflow is a
+  `gate` path, so no review verdict clears it.
+
+### Fixed
+
+- The resolver's own-PR refusal never fired. The resolver read the PR author's login from the wrong level of the `gh pr view --json author` payload and always got an empty login, so `--autonomous` treated every PR as someone else's. On your own PRs it could resolve an outdated bot thread you had replied to yourself. It now reads the login correctly, and it refuses when the author cannot be read. With no lane login from either source, the worker now resolves nothing on your own PRs.
+
+- The merge gate's security count reads each earlier review's `critical-findings:` line from the reviewed-head marker's edit history, so an IMPORTANT summary finding an earlier review reported no longer holds the pull request once a clean incremental review covers the head; a history that is missing, truncated, deleted, edited by anyone but the lane, or carries no single line still counts every finding.
+
+- The unattended merge gate's cost check (`babysit_risk.py`) no longer reports changes that cannot bill as cost. A workflow's `--model` or `--max-turns` flag, and on a public repository an added `cron:` key, a raised `timeout-minutes` or `leg-timeout-minutes`, or a raised artifact `retention-days`, no longer raise `cost-finding`. Every check that can bill still holds as `cost-review-required`: infrastructure as code, a larger or non-free runner, and off a public repository a new runner, schedule, raised timeout or raised retention.
+
+- `write-changelog-fragments.sh` writes a fragment for a listed convention whose changelog is at `docs/contracts/<name>/CHANGELOG.md`, as it already did for `docs/conventions/<name>/`.
+- `babysit-prs` counts an edit under `docs/contracts/instruction-exception-register/` or `docs/contracts/untrusted-content/` as a lane-source change, beside the `docs/conventions/` paths, which stay listed because installed plugin versions still read them.
+
+- `pull-request ci --ci` documents the fresh fixer round after a refused weakening: when the
+  context file holds the runner's `retry` brief, the fixer looks for a fix in the code under test
+  that keeps every test's assertions and expected values, and escalates `weaken-required` again
+  when there is none. The never-weaken list is unchanged.
+
+- `pr-linkage-validator.sh` again declares `REQUIRED_SECTIONS` and keeps `linkage::problems` as the whole-contract verdict (sections, negated closer and missing linkage) that the standards `check-pr-convention-copies` lockstep parses and replays. The two linkage hooks now call `linkage::blocking_problems`, so they still block only a negated closing reference.
+
+- The unattended merge gate's cost hold (`babysit_risk.py`) now catches the billed timeout, model-leg, secret and runner shapes its probe passed (#9241). Off a public repository, a raised timeout is compared at each job's or step's own key path, so another job's value moved in the same patch no longer hides it, and one removed (the 360-minute default applies), set to an expression, or written in flow style counts, as does a timeout on a workflow that calls a local workflow or action; one added at or below the highest already at its key path, or a `leg-timeout-minutes` set where none was, does not. A new model leg in a composite action, or a composite action file with no patch to read (unless deleted, re-moded, or renamed from another composite action, with no line added), holds as `agent-surface-review`. `${{ secrets }}`, `contains(secrets, ...)` (inside `${{ }}` or in a bare `if:` value), `secrets.*` and a reference split across a folded scalar hold as `secret-exposure-review`, and a `runs-on` expression's matrix values and input defaults count as runner values.
+
+### Security
+
+- `/source-control:pull-request view` asks for the repository's visibility only on github.com or a host the forge CLI holds a stored login for; any other host gets no request and the visibility reads `UNKNOWN`, so an unknown server cannot report a private repository as public to the explain-change publish gate. An enterprise token in the environment does not count as a login for this lookup ([#6951](https://github.com/melodic-software/claude-code-plugins/issues/6951)).
+
+## [3.20.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it, and `read-pre-ready.sh` fails closed on a key repeated inside a `pre_ready` item with that parse error.
+
+## [3.20.0] - 2026-10-29
+
+### Added
+
+- `review-venue --head <sha>` prints a `tests` line: `ci` when every test-lane check run on that commit passed, was skipped or ended neutral, and at least one passed, otherwise `local`. A skipped re-run from a label or body edit does not hide a lane's earlier failure.
+- `ready --verify-local` runs the verify step's test suites locally even when CI's test lanes already passed on the head.
+
+### Changed
+
+- The pr-merge gate lets a pull request a person on the trusted-actor list opened clear a `gate` floor path that only their own commits touched on a clean security review of a head pr-verify passed, as an `enforcement` path clears; lanes App and bot pull requests, a lane fix on a gate path and every `trust` path still wait for a person; `.github/actions/resolve-config/**` and `docs/conventions/pr-pipeline.yaml`, which scope lane tokens, and `babysit_merge.py`, `babysit_merge_policy.py`, `babysit_risk.py`, `babysit_review_evidence.py`, `merge-holds.mjs` and `scripts/sync-hold-floor.py`, which compute the lift and the hold tables, and `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and `head-ref-map.mjs`, which apply and enforce the holds, are now `trust`, so it never takes the lift.
+
+- `/source-control:babysit-prs`: the post-merge check (`babysit_postmerge.py`) answers an earlier attempt of a re-run full run from the file named in `BABYSIT_POSTMERGE_ATTEMPTS` before reading it, when the file holds that run's attempt, completed, at the same head SHA. A completed attempt never changes, so the answer decides as the read would. The check writes back the completed attempts it used; a check that looks up no attempt leaves the file as it was. A missing or malformed file (another version or repository, a key that does not match its entry, an attempt not completed, a field the reader does not use) is no file, and every attempt is read as before. Without the variable nothing changes.
+
+- `/source-control:pull-request ready` no longer runs the test suites locally when CI's test lanes have already passed on the head it flips. It reports the verify step as `skipped (CI covers it)` and names the skipped suites. A draft's head still runs them, because a draft skips the test lanes.
+
+- cite the gather-block composition record from its new convention doc
+
+  The record that a skill's whole pre-compute block reaches the shell
+  as one invocation moved to the repository's gather-block convention
+  (#7976). The worktree, babysit-prs and resolve-conflicts skills cite
+  it there. The worktree skill's `reference/gather-block.md` keeps the
+  heading as a pointer, so existing links still resolve, and keeps the
+  accepted command shapes section unchanged.
+
+- The `pr-body-linkage-gate` and `pr-linkage-mcp-gate` hooks block a PR body only when it carries a negated closing reference (`does not close #N`), which GitHub still closes on merge. A body missing a closing line or a `## Summary`, `## Fix`, `## Verification` or `## Related` section now passes, matching CI, which reports those as advisory. An MCP `create_pull_request` with no body passes too. The `/source-control:pull-request create` pre-create section check is unchanged.
+
+### Fixed
+
+- read the artifact listing again after a page body cut short
+
+  gh reports a truncated page as `unexpected end of JSON input`, which the
+  verify-evidence reader treated as a permanent failure: the skip step
+  skipped nothing and the gate refused with `verify:unreadable` without a
+  second read. It is now a transient error: a whole listing cut short is
+  read once more, never twice, since each such read may have paged every
+  artifact. The incremental listing's page reads
+  are read again the same way, and so is a page whose body is cut short
+  while gh exits 0, so one bad page no longer costs a whole listing. A
+  listing that keeps failing still refuses.
+
+## [3.19.1] - 2026-10-29
+
+### Fixed
+
+- carry a hold-path approval over pushes that touch no gated code
+
+  The owner's decision Q10 of 2026-10-28 (#10759): a person's approval of
+  a hold-path head stays valid at a later head when the diff between them
+  touches no hold-path file. approvalCarry and its Python twin
+  approval_carry take that as a second carry path beside the base-merge
+  one, read from the compare of the approved head to the head.
+
+  That diff must also touch no file a hold path loads: the enforcement
+  floor, and CARRY_REFUSES for the workflows, actions and scripts
+  hold-path workflows run, the trusted-actor list and the pipeline
+  config, and babysit-prs' own scripts directory. test_merge_holds_sync.py
+  derives that closure, including every tracked script a hold-path
+  workflow names in any directory and scripts run by a bare or
+  variable-prefixed path, and fails on any member outside the floor and
+  CARRY_REFUSES. A compare not read whole, a
+  head not ahead, a dismissal the push did not make, an untrusted or
+  dismissed approval still carry nothing.
+
+## [3.19.0] - 2026-10-29
+
+### Added
+
+- `/source-control:pull-request create` writes a `## Remaining` section when the body links an issue with `Refs:` and closes nothing. It lists what stays open on that issue: its unchecked acceptance items, its open sub-issues, or the slices its body lists, as plain bullets without what this PR delivers. An issue with none gets one line naming what this PR delivers and what closes the issue, with no closing keyword before the issue number. pr-verify fails a `Refs:` pull request whose body names no remaining work, so a body drafted by create now passes that rule without a manual edit.
+
+## [3.18.5] - 2026-10-28
+
+### Fixed
+
+- `/source-control:babysit-prs`: the post-merge judge again excuses an advisory bash suite whose warning carries a title (`::warning title=<suite>::<suite> failed (exit N) but is advisory`), the form `scripts/run-plugin-tests.sh`'s `suite_annotate` prints since #10728. Before, only a bare `::warning::` or a rendered `##[warning]` line matched, so a raw log line marked an advisory suite as failed.
+
+## [3.18.4] - 2026-10-28
+
+### Changed
+
+- `/source-control:babysit-prs`: `settle_shared` keeps a post-merge answer refused as `unverified-stale` when the only thing that tripped is the demotion probe and `read_demotion` reads the same demotion, as it already keeps a `demotion-changed` answer. Before, any edit to an issue the lane opened made the lane room run a full post-merge check, and made the merge job's `settle` and post-merge-dispatch's idle-tick reuse refuse the report. All three take the new keep. A demotion that differs, or a demotion read that fails, still refuses. The merge gate's own keep in `assess` is unchanged.
+- The `lane-room` report gains `postMerge`: `answer` (`reused`, `kept`, `recomputed` or `refused`), `reason` (the reuse refusal behind any but `reused`) and `moved` (for an `unverified-stale` answer not kept: `head-moved`, `config-moved`, `demotion-changed`, `runs-moved` or `unreadable`). enable-auto-merge's `lane room:` log line prints it, so a slow room read shows why it ran the check.
+
+### Fixed
+
+- **A merge can no longer lengthen its own quarantine.** The post-merge judge (`babysit_postmerge.py`, `check` and `--judge-run`) takes `merge.quarantine-days` as the smaller of its value at the red run's commit and at the last green full run's commit before it (the default, 7, when there is none), never above 30. A merged change that raises the value no longer keeps an out-of-set suite excused for longer.
+- **One suite's output can no longer excuse another failing suite.** The judge credits a `failed ... but is advisory` warning only when it carries the nonce `scripts/run-plugin-tests.sh` prints before any suite block (`Advisory nonce: <16 hex>`). A warning printed inside a suite's block, or carrying any other nonce, excuses nothing, and that suite's failure demotes.
+
+## [3.18.3] - 2026-10-28
+
+### Fixed
+
+- `/source-control:babysit-prs`: the merge policy reads the default branch's head by its full ref (`git/ref/heads/<branch>`) instead of `commits/<branch>`, which takes any commit-ish, so no tag or other ref named like the branch answers for it. `_default_branch_head` names the commit that the default branch's pipeline config, lane adoption's trusted actors and the post-merge floor are read at. The in-flight cap and the shared post-merge answer read the head the same way. An absent ref or a SHA that is not 40 lowercase hex still raises `PolicyReadError`.
+
+## [3.18.2] - 2026-10-28
+
+### Changed
+
+- `babysit_verify_evidence.py` reads an incremental artifact listing that missed GitHub's live `total_count` up to three times on the same base, waiting 15 s and then 30 s between reads (`INCREMENTAL_WAITS`), inside one `LISTING_TIMEOUT_SECONDS`, before it pages the whole listing. Scheduled pr-merge run 40726697038 (2026-10-28) read two incremental listings back to back, both missed, and its skip step then made 218 GITHUB_TOKEN requests over 2.5 minutes (207 whole-listing pages at about 0.7 s a page), against 4 in the next run. In run 40600822658 (2026-10-27), a base whose first read missed held the count when read again five minutes later. Of 239 merge runs that week, 60 made over 150 GITHUB_TOKEN requests (median 80). A listing is still kept only when it holds exactly the live count, a persistent miss still pages the whole listing, and a failed read still pages it at once.
+- Each read that misses the live count prints one `babysit-listing-miss` JSON line on stderr: the stage (`incremental`, or a whole listing's `top-up`), the listed and live counts, the fresh and carried entries, the pages read, and the base's age. Stdout and every decision are unchanged.
+
+### Fixed
+
+- The `/source-control:pull-request` ready and create references name `config-root.sh` by its `<plugin-root>/lib/` path, so an agent no longer runs a nonexistent `scripts/config-root.sh` (exit 127).
+
+## [3.18.1] - 2026-10-28
+
+### Fixed
+
+- The pr-merge gate (`babysit_verify_evidence`) no longer refuses a head `verify:fail` for ever after a relink: a FAIL at a head is superseded when every counted FAIL there is the pull request's own, every counted pass there was created after them and records other linked issues, and from the FAIL's creation to each pass run's completion the pull request has at least one body edit or issue connect or disconnect, every one by a trusted human. The lanes App or any other Bot, an unnamed actor, a failed or cut read, or the same linked issues keep the FAIL. A superseded FAIL still counts toward the FAIL cap, and a merge-only head carries a FAIL forward unless it was superseded at its own head.
+
+- The merge-risk hold floor now covers `.github/scripts/pr-unblock/verify-notes.mjs` as an enforcement path, since it adds and removes the `pr-verify-failed` merge hold. An edit to it is held like the other pr-unblock enforcement scripts.
+
+## [3.18.0] - 2026-10-28
+
+### Added
+
+- `worktree-claim.sh stale --batch --repo-dir DIR` reads NUL-delimited paths on stdin and prints one `exit<TAB>path<TAB>note` row per path, carrying the exit code and note single-path `stale` gives for it. The worktree list is parsed once and the transcript directory scanned once per run, and a clean absolute path to an existing directory starts no subshell, so the process count stays the same as worktrees and paths grow. `/source-control:worktree cleanup` identifies its candidates with one batch per repository in Step 2 instead of one `stale` call per locked worktree; each locked candidate's removal still waits on a fresh single-path `stale` just before its release (#10562).
+
+### Changed
+
+- The babysit merge floor holds `.github/actions/report-check-run/posting-run.mjs` as `gate`: the pr-merge re-fire script now loads it to find which run posted a check run.
+
+### Fixed
+
+- `worktree-discover.sh` lists every worktree a listed repository registers below a resolved root, not only the root's direct children. A worktree nested inside another worktree's `.work/`, or under a plain directory in the root, now gets a `worktree` row with its repository, so the cross-repository `status` and `cleanup` inventory it (#10562).
+
+## [3.17.3] - 2026-10-28
+
+### Changed
+
+- `babysit_risk.FLOOR_CLASSES` is the one hold-floor table: `scripts/sync-hold-floor.py` writes its copies (merge-holds.mjs `HOLD_PATH_CLASSES` and `COST_PATHS`, the review callers' `hold-paths`, ci-status's `hold_patterns`), and `test_merge_holds_sync.py` runs `sync-hold-floor.py --check` in place of comparing the copies. The floor holds that generator as `gate`, so a change to it waits for a person.
+
 ## [3.17.2] - 2026-10-28
 
 ### Changed

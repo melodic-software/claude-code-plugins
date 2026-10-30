@@ -3,6 +3,74 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-config.sh` and the `test-scan` hook no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The resolver finds an unknown adapter's line through process substitution, so under `set -o pipefail` a found line can no longer come back as a failure, which left the error without its file and line, when `grep -m1` exits before `sed` finishes writing. The hook's config-error lookup takes the same form; its captured text was already correct.
+
+## [1.6.0] - 2026-10-29
+
+### Changed
+
+- **`/testing:audit --judge` gives tests of one shape one verdict** ([#11009](https://github.com/melodic-software/claude-code-plugins/issues/11009)). Before dispatching, the judge pass computes a shape key for every block with the new `skills/audit/scripts/judge-check.sh shape`. Blocks with the same key have the same body apart from the test's name, the same lines around them in their file, and the same judge class and effort. The judge sees only the first block of each key, and the others take its verdict, reported as `same shape as <path>:<start> <name>`. Before, each file got its own judge run, so identical tests could come back FLAG in one file and PASS in another.
+- **A comment-only repair is now caught by a script.** The judge pass runs `judge-check.sh comment-only` on each FLAG's proposed diff. When every line the diff adds or removes is blank or a comment, the verdict turns UNKNOWN. This check used to be the orchestrator's own reading of the diff. It applies the comment syntax of the scanner adapters' languages, from the same `judge-lib.sh` function the calibration harness uses.
+
+## [1.5.0] - 2026-10-29
+
+### Added
+
+- **`/testing:cleanup` offers cannot-fail-only mode when the mutation run cannot gate the folder** ([#11005](https://github.com/melodic-software/claude-code-plugins/issues/11005)). Step 3 used to stop the batch when `/mutation-testing:audit` recorded `K0 empty` or ended as `no mapping: scope empty`. A suite that reaches its code through dependency injection or an interface, common in .NET, maps nothing. Cleanup now names the result and offers cannot-fail-only mode, continuing only on your yes. It does the same when the audit refuses because you declined both its install command and `tool: manual`. Any step 2 quarantines stay in the batch, and a batch with no cannot-fail candidate still reports them. Unattended, it still stops. A new `cannot_fail_only_offered_on_empty_mapping` eval covers the offer on the `cleanup-dotnet` fixture.
+
+## [1.4.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.4.3] - 2026-10-29
+
+### Fixed
+
+- **`/testing:cleanup` finds a C# test's production files** ([#11004](https://github.com/melodic-software/claude-code-plugins/issues/11004)). The gate-blind check in step 5 and the candidate changes listed under `Gate: block` in step 6 used to read the production files a test file imports. A C# `using` names a namespace, not a file, so those checks had no answer on C#. Both now read the files defining the code a test reaches: what it calls directly, through a helper, an interface or dependency injection. When no changed test reaches a newly surviving mutant's file, `Gate: block` lists every changed test, since each mutant ran against the whole test set. Step 6 now says the replay compares the two records mutant by mutant, and the classifier brief hands over the production files each test reaches.
+- A new `dotnet_gate_runs` eval runs the gated batch on the `cleanup-dotnet` fixture with `test-command: dotnet test {tests}`, and expects `Gate: pass` from the replay. The fixture gains its two `.csproj` files, a `.gitignore` for build output, and a `PriceFeedTests.cs.fixture` that calls `PriceFeed` directly. A `mutation-testing-dotnet.md` config beside it has the keys `/mutation-testing:setup apply` writes.
+
+## [1.4.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [1.4.1] - 2026-10-29
+
+### Changed
+
+- **`diagnose`, `plan`, `run-e2e` and `write` cite the gather-block convention.** The dated record
+  for why git reads stay out of the pre-compute block now links the repository's gather-block
+  convention, at the same heading, instead of a reference file inside the source-control plugin's
+  worktree skill.
+
+## [1.4.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` resolves a feature id named in the scenario, either `<module>/<feature>` or a single-level `<feature>`, to its feature file in `/app-control:drive`'s order, on the drive route and on its own driving alike. The id comes from the control skill's index path, and a legacy flat `features/<feature>.md` gives `<feature>`, so the touched-feature refresh names `/app-control:map refresh cart`, never `cart.md`.
+
+## [1.3.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` keeps a control skill current. After the run, each feature whose index `sources` globs match a changed file gets `/app-control:map refresh <feature id>` when app-control is installed, with `--unattended` on an unattended run. Without app-control, the report names the feature's possible drift and the refresh command in `## Next`; the run never stops or fails for it. run-e2e never edits a control skill itself, and a caller that splits one drive across several runs refreshes once over the merged report instead.
+
+## [1.2.0] - 2026-10-28
+
+### Changed
+
+- `/testing:run-e2e` chooses who drives each run. When the app-control plugin is installed and the app has a control skill, it hands launching, operating and capturing to `/app-control:drive` and judges what drive recorded; with app-control installed but no control skill it offers `/app-control:map create`; without app-control it suggests installing it. The person can decline any of these, and an unattended run asks nothing: it takes run-e2e's own driving and records the suggestion in its report. testing does not depend on app-control.
+- run-e2e's own driving (the bundled `run` launch step, prerequisites, run config, Workspace environment, session names and teardown) moved from the skill body to `context/own-driving.md`, which loads only on that route. The entry-point chooser and the per-entry-point report line are separate sections of the body.
+- `e2e_driver`, `reuse_running_instance` and `browser_driver` now apply only to run-e2e's own driving; on a run through `/app-control:drive`, the control skill supplies the tools. `recording` and `browser_mode` (`.claude/testing/e2e.md`) also apply only to own driving: drive has no headed or headless setting, and a recording on the drive route is the control skill's `video` capture.
+- On the drive route each touched feature gets its own `--out` directory, so one feature's drive report does not overwrite another's.
+
 ## [1.1.5] - 2026-10-27
 
 ### Changed

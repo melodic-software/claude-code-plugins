@@ -294,6 +294,48 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
     },
     {
+      "name": "model usage on the subscription login admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly when the lane runs on the subscription login." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "model usage under the Claude subscriptions admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly; the fix spends only Claude subscription usage." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "model usage under the Claude subscription admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly when the lane reports Claude subscription usage." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "subscription usage another vendor bills refuses",
+      "source": "owner standing direction 2026-10-27: only model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until the lane raises Copilot subscription usage." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "a Claude subscription upgrade refuses",
+      "source": "owner standing direction 2026-10-27: plan or seat changes are cost; only model usage under the Claude subscriptions is not",
+      "issue": { "body": "Two rows in the install table read awkwardly until we upgrade the Claude subscription to a higher plan." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "a plan or seat change refuses",
+      "source": "owner standing direction 2026-10-27: plan or seat changes are cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until a plan or seat change lands." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: seat;" }
+    },
+    {
+      "name": "a paid subscription purchase refuses",
+      "source": "owner standing direction 2026-10-27: anything that can bill the owner is cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until a paid subscription purchase lands." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
       "name": "larger runners in prose refuse on a public repository",
       "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
       "visibility": "public",
