@@ -3,12 +3,10 @@
 usage: split-diff.py <patch> <out-dir> <max-bytes> <max-chunks>
 
 Writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes, the
-patch's bytes in order and nothing else. A chunk ends at a file boundary
-(a `diff --git` line). A file over max-bytes splits at its hunks (`@@` lines),
-each piece led by the file's own header lines, so every chunk reads as a
-patch. A hunk that does not fit one chunk beside its header, or a patch that
-needs more than max-chunks chunks, is too large: nothing is written and the
-exit status is 3. An empty patch writes no chunk.
+patch's bytes in order and nothing else. A chunk ends at a file boundary (a
+`diff --git` line), and a file is never split: a file over max-bytes, or a
+patch that needs more than max-chunks chunks, is too large: nothing is
+written and the exit status is 3. An empty patch writes no chunk.
 """
 
 import sys
@@ -23,34 +21,10 @@ class TooLarge(Exception):
 
 def lines_of(data: bytes) -> list[bytes]:
     """Each line with its newline; a content line always starts with a
-    prefix byte, so a line that starts `diff --git ` or `@@ ` is git's."""
+    prefix byte, so a line that starts `diff --git ` is git's."""
     lines = [line + b"\n" for line in data.split(b"\n")]
     lines[-1] = lines[-1][:-1]
     return [line for line in lines if line]
-
-
-def pieces(lines: list[bytes], max_bytes: int) -> list[bytes]:
-    """The file patch whole, or split at its hunks under its header."""
-    whole = b"".join(lines)
-    if len(whole) <= max_bytes:
-        return [whole]
-    start = next((i for i, line in enumerate(lines) if line.startswith(b"@@ ")), None)
-    if start is None:
-        raise TooLarge("a file with no hunk is larger than one chunk")
-    header = b"".join(lines[:start])
-    hunks: list[bytes] = []
-    for line in lines[start:]:
-        if line.startswith(b"@@ "):
-            hunks.append(b"")
-        hunks[-1] += line
-    found = [header]
-    for hunk in hunks:
-        if len(header) + len(hunk) > max_bytes:
-            raise TooLarge("a hunk with its file's header is larger than one chunk")
-        if found[-1] != header and len(found[-1]) + len(hunk) > max_bytes:
-            found.append(header)
-        found[-1] += hunk
-    return found
 
 
 def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
@@ -60,7 +34,9 @@ def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
             files.append([])
         files[-1].append(line)
     chunks: list[bytes] = []
-    for unit in (piece for lines in files for piece in pieces(lines, max_bytes)):
+    for unit in (b"".join(lines) for lines in files):
+        if len(unit) > max_bytes:
+            raise TooLarge("a file is larger than one chunk")
         if not chunks or len(chunks[-1]) + len(unit) > max_bytes:
             chunks.append(b"")
         chunks[-1] += unit

@@ -12,7 +12,8 @@ name: pr-review-main
 # code runs here: the diff, the trusted pull request text and the lane's
 # criteria (copied from main) are data files in pr-review-main-data, and the
 # model reads them with the Read tool alone. A diff over one review's size
-# cap is reviewed in chunks, one run each, and the verdict sums them. Each
+# cap is reviewed in chunks of whole files, one run each, and one verdict
+# sums their findings and takes the most CRITICAL ones in a chunk. Each
 # lane uploads its verdict as
 # the artifact pr-review-main-<lane>-<pr>-<tree> (write-verdict.mjs); only a
 # run's own steps can upload its artifacts, so the gate authenticates the
@@ -197,10 +198,11 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap, at file boundaries and a larger
-      # file's hunks (split-diff.py), and each chunk is reviewed by its own
-      # run; the verdict sums them. A patch that still shows a binary file,
-      # needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
       # returns whole gets no verdict: the step stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
@@ -254,12 +256,12 @@ jobs:
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
-          # diff more chunks than MAX_CHUNKS hold, or a hunk over one chunk.
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
           python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
           if [ "$split" -eq 3 ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes each read whole"
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
           elif [ "$split" -ne 0 ]; then
             echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
@@ -402,7 +404,7 @@ jobs:
             prompt=${prompt//DIFF_PARTS/$parts}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
-              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries (a larger file at its hunks, each piece under the file's header lines), and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
             fi
             prompt=${prompt//CHUNK_NOTE/$note}
             prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
@@ -947,10 +949,11 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap, at file boundaries and a larger
-      # file's hunks (split-diff.py), and each chunk is reviewed by its own
-      # run; the verdict sums them. A patch that still shows a binary file,
-      # needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
       # returns whole gets no verdict: the step stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
@@ -1004,12 +1007,12 @@ jobs:
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
-          # diff more chunks than MAX_CHUNKS hold, or a hunk over one chunk.
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
           python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
           if [ "$split" -eq 3 ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes each read whole"
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
           elif [ "$split" -ne 0 ]; then
             echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
@@ -1152,7 +1155,7 @@ jobs:
             prompt=${prompt//DIFF_PARTS/$parts}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
-              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries (a larger file at its hunks, each piece under the file's header lines), and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
             fi
             prompt=${prompt//CHUNK_NOTE/$note}
             prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
@@ -1701,10 +1704,11 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch over the size cap is
-      # split into chunks of at most the cap, at file boundaries and a larger
-      # file's hunks (split-diff.py), and each chunk is reviewed by its own
-      # run; the verdict sums them. A patch that still shows a binary file,
-      # needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
       # returns whole gets no verdict: the step stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
@@ -1758,12 +1762,12 @@ jobs:
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
-          # diff more chunks than MAX_CHUNKS hold, or a hunk over one chunk.
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
           split=0
           python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
           if [ "$split" -eq 3 ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes each read whole"
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
           elif [ "$split" -ne 0 ]; then
             echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
@@ -1906,7 +1910,7 @@ jobs:
             prompt=${prompt//DIFF_PARTS/$parts}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
-              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries (a larger file at its hunks, each piece under the file's header lines), and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
             fi
             prompt=${prompt//CHUNK_NOTE/$note}
             prompt=${prompt//CONTEXT_FILE/$DATA/context.json}

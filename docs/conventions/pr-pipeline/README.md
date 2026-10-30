@@ -1096,13 +1096,13 @@ the rules that only tighten in
   token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
   git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
-  boundaries and a larger file's hunks, each piece under the file's own header lines
-  (`split-diff.py`); each chunk is reviewed by its own run, in order, and the lane's one verdict
-  sums the chunks' findings and CRITICAL ones. A patch that needs more than 4 chunks (the diff
-  step's `MAX_CHUNKS`, at most the leg's review steps), or holds a hunk larger than one chunk,
-  gets no verdict. The diff step logs a `pr-review-main chunks` notice with the chunk count and
-  each chunk's bytes, and the verdict step one `pr-review-main chunk` notice per chunk with its
-  bytes, findings and CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
+  boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
+  order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
+  any one chunk found. A patch that holds a single file over 300000 bytes, or needs more than 4
+  chunks (the diff step's `MAX_CHUNKS`, at most the leg's review steps), gets no verdict. The
+  diff step logs a `pr-review-main chunks` notice with the chunk count and each chunk's bytes,
+  and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
+  CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
   bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next

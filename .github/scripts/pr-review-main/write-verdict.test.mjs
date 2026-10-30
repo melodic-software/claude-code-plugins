@@ -110,16 +110,18 @@ test("the cap is the merge gate's", () => {
   assert.equal(Number(python.stdout.trim()), LONG_LINE_BYTES);
 });
 
-test("a chunked review's verdict sums every chunk's findings and CRITICAL ones", () => {
+test("a chunked review's verdict sums every chunk's findings and takes the most CRITICAL ones in a chunk", () => {
   const { output: _, ...rest } = args(undefined);
+  // The chunk with the most CRITICAL findings comes first: the max wins, not
+  // the last chunk or the sum.
   const verdict = buildChunkedVerdict({
     ...rest,
     outputs: [
-      { findings: [finding("CRITICAL"), finding("IMPORTANT")], summary: "first" },
-      { findings: [finding("CRITICAL"), finding("CRITICAL"), finding("SUGGESTION")], summary: "second" },
+      { findings: [finding("CRITICAL"), finding("CRITICAL"), finding("SUGGESTION")], summary: "first" },
+      { findings: [finding("CRITICAL"), finding("IMPORTANT")], summary: "second" },
     ],
   });
-  assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 5, critical: 3, items: 5 });
+  assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 5, critical: 2, items: 5 });
   assert.equal(verdict.summary, "Chunk 1 of 2: first\n\nChunk 2 of 2: second");
   assert.deepEqual(Object.keys(verdict).sort(), Object.keys(buildVerdict(args({ findings: [], summary: "s" }))).sort());
   // One chunk is the single-pass verdict, unchanged.
@@ -181,7 +183,7 @@ test("main writes verdict.json and the name output", () => {
   }
 });
 
-test("a chunked run writes one verdict summed over its chunks and a notice per chunk", () => {
+test("a chunked run writes one verdict over its chunks, the most CRITICAL in a chunk, and a notice per chunk", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
     // Chunk 1 is 3 + 4 bytes with one CRITICAL; chunk 2 is 5 bytes with two
@@ -192,10 +194,10 @@ test("a chunked run writes one verdict summed over its chunks and a notice per c
     const run = spawnSync(process.execPath, [script], { encoding: "utf8", env: { ...process.env, ...env } });
     assert.equal(run.status, 0, run.stdout + run.stderr);
     const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));
-    assert.deepEqual({ findings: verdict.findings, critical: verdict.critical }, { findings: 4, critical: 3 });
+    assert.deepEqual({ findings: verdict.findings, critical: verdict.critical }, { findings: 4, critical: 2 });
     assert.match(run.stdout, /^::notice title=pr-review-main chunk::lane=claude-review chunk=1\/2 bytes=7 findings=1 critical=1$/m);
     assert.match(run.stdout, /^::notice title=pr-review-main chunk::lane=claude-review chunk=2\/2 bytes=5 findings=3 critical=2$/m);
-    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^findings=4\ncritical=3$/m);
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^findings=4\ncritical=2$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

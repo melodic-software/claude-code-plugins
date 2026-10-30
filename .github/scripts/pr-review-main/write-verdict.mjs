@@ -3,9 +3,10 @@
 // verdict file that
 // pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
 // (babysit_review_evidence.main_review_name). The gate counts only its
-// numbers: `findings`, every finding the model returned, and `critical`, the
-// CRITICAL ones, each summed over the chunks. The pull request, head, base and tree come from the job's
-// own reads, never from the model. A run with any permission denial, output
+// numbers: `findings`, every finding the model returned, summed over the
+// chunks, and `critical`, the CRITICAL ones, the most in any one chunk. The
+// pull request, head, base and tree come from the job's own reads, never from
+// the model. A run with any permission denial, output
 // that is not {findings, summary}, a finding that is not
 // {severity, path, line, title, body}, or model text a credential pattern
 // matches (lib/publish-gate.mjs findSecret) writes nothing and throws, so the
@@ -164,8 +165,9 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
 }
 
 // One verdict over the chunks a diff over one review's size cap was split
-// into, in chunk order: each chunk's output is checked as a whole review's,
-// and the counts are the sums. One chunk is the single-pass verdict.
+// into, in chunk order: each chunk's output is checked as a whole review's;
+// `findings` is the sum and `critical` the most any one chunk found.
+// One chunk is the single-pass verdict.
 export function buildChunkedVerdict({ outputs, ...rest }) {
   if (!Array.isArray(outputs) || outputs.length === 0) {
     throw new Error("there is no chunk output");
@@ -183,7 +185,7 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
   return {
     ...chunks[0],
     findings: chunks.reduce((sum, c) => sum + c.findings, 0),
-    critical: chunks.reduce((sum, c) => sum + c.critical, 0),
+    critical: Math.max(...chunks.map((c) => c.critical)),
     summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
     items: chunks.flatMap((c) => c.items),
   };
