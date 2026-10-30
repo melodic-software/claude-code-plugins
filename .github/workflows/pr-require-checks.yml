@@ -4146,13 +4146,15 @@ jobs:
       # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
       # review-lanes step holds; all are read at the base
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
+      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # module and data file it loads, whose recheckStaleHold the hold-lift
+      # step runs. A sparse checkout of these files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
       # with git; recheck on a checkout bump. It checks out no pull request
-      # code: the ref is the base commit, the only code run from it is that
-      # base module, and no credential is persisted.
+      # code: the ref is the base commit, the only code run from it is those
+      # base modules, and no credential is persisted.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
       # a checkout that succeeded is a file the base commit does not have.
@@ -4170,6 +4172,23 @@ jobs:
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
+            /.github/scripts/pr-merge/clear-escalations.mjs
+            /.github/scripts/pr-merge/enable-auto-merge.mjs
+            /.github/scripts/pr-unblock/address-feedback.mjs
+            /.github/scripts/pr-unblock/gate-source.mjs
+            /.github/scripts/pr-unblock/escalation-routes.mjs
+            /.github/scripts/pr-unblock/escalation-routes.json
+            /.github/scripts/pr-unblock/retry-fetch.mjs
+            /.github/scripts/pr-unblock/thread-scope.mjs
+            /.github/scripts/work-resolve-issue/report-outcome.mjs
+            /.github/scripts/work-resolve-issue/limits.mjs
+            /.github/scripts/work-resolve-issue/retry-fetch.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.json
+            /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -4625,7 +4644,13 @@ jobs:
       # lifts. A bot or another account lifting the hold, or no recorded
       # removal, fails; adding the label back and having a trusted person
       # remove it approves: a trusted person's `labeled` event after the hold
-      # starts a new hold that only that list's removal lifts.
+      # starts a new hold that only that list's removal lifts. The one removal
+      # by another account that lifts it is the lanes App's (LANES_APP_ID, on
+      # the base list) own, after its stale-review-hold comment since the hold
+      # names a head no hold comment names, while none names this head, and
+      # only when the base commit's clear-escalations.mjs recheckStaleHold,
+      # the predicate the App ran, passes again here at this head with this
+      # job's token.
       # It runs only when the step above read the live labels and found the
       # label off. A hold is the newest hold comment or the newest `labeled`
       # event of the label by github-actions[bot] or claude[bot], whichever is
@@ -4641,6 +4666,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
@@ -4703,6 +4729,57 @@ jobs:
           if [ -z "$lifted_at" ]; then
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
             exit 1
+          fi
+          # A stale hold the lanes App cleared (clear-escalations.mjs
+          # stale-review-hold): the App removed the label itself, after its own
+          # comment since the hold opening with that clear's marker; the
+          # newest such marker names a head no review-lane hold comment names,
+          # every hold comment names its head, and none names this head. Hold
+          # comments count from the label's last removal before the label the
+          # App removed went on, as clear-escalations.mjs holdsSince counts
+          # them, so a hold a person already lifted counts for nothing. The
+          # base commit's clear-escalations.mjs recheckStaleHold must then find
+          # the hold no longer standing at the marker's head as it was when the
+          # App removed the label. A later head is judged by its own review
+          # lanes, as after a person's lift, so a clean push after the clear
+          # stays green before they run.
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ && $actor_id == "$LANES_APP_ID" && -z $via_app && ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] &&
+            jq -e --argjson id "$LANES_APP_ID" 'any(.actors[]; .id == $id)' <<<"$actors" >/dev/null 2>&1; then
+            # shellcheck disable=SC2016 # $e and $on are jq variables
+            since=$(jq -rs --arg label "$HUMAN_GATED" --arg lifted_at "$lifted_at" '[add[] | select(.label.name == $label)] as $e
+              | ([$e[] | select(.event == "labeled" and .created_at < $lifted_at) | .created_at] | max) as $on
+              | [$e[] | select(.event == "unlabeled" and $on != null and .created_at <= $on) | .created_at] | max // ""' <<<"$events") || since=
+            # shellcheck disable=SC2016 # $c, $app and the rest are jq variables
+            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --arg since "$since" --arg head "$HEAD_SHA" --argjson app "$LANES_APP_ID" '(add // []) as $c
+              | [$c[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                  and ([.created_at, (.updated_at // .created_at)] | max) >= $since
+                  and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                    and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                      | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                | [.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "")
+                  | capture("^<!-- claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=[a-z,-]+ -->$").sha] | first // null] as $held
+              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)] | sort_by(.created_at)
+                | [last // empty | .body | split("\n")[0] | sub("\r$"; "")
+                  | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
+              | if any($held[]; . == null or . == $head) then ""
+                else [$cleared[] | select(. as $h | $held | index($h) == null)] | first // "" end' <<<"$raw") || stale=
+            # The marker only points here: the base commit's
+            # clear-escalations.mjs recheckStaleHold, the predicate the App
+            # ran, judges the hold again at the marker's head with this job's
+            # token. The module is not the first argument, which would run
+            # its main.
+            module="$BASE_CONFIG/.github/scripts/pr-merge/clear-escalations.mjs"
+            if [ -n "$stale" ] && [ -f "$module" ]; then
+              # shellcheck disable=SC2016 # JavaScript, not shell
+              if PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" CLEARED_SHA="$stale" HUMAN_GATED="$HUMAN_GATED" \
+                TRUSTED_ACTORS_PATH="$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" \
+                node --input-type=module -e 'import { pathToFileURL } from "node:url";
+                  const { recheckStaleHold } = await import(pathToFileURL(process.argv[2]).href);
+                  process.exitCode = await recheckStaleHold();' recheck "$module"; then
+                echo "$actor_login cleared the review-lane hold on #$PR_NUMBER as stale: its marker names $stale, which no hold names, and the hold no longer stands at $HEAD_SHA."
+                exit 0
+              fi
+            fi
           fi
           if [[ " $humans " != *" $actor_id "* ]]; then
             echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."

@@ -90,22 +90,26 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 });
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
-// fails its first `failures` calls, with `.base` pointing at this checkout,
+// fails its first `failures` calls and then answers `prs` (by default one pull
+// request of the lanes App's), with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway") => {
+const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
+const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
+    writeFileSync(join(dir, "prs.json"), JSON.stringify(prs));
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
-        `echo '[{"number":7,"headRefOid":"abc","isDraft":false,"updatedAt":"2026-10-18T00:00:00Z","labels":[],"body":""}]'\n`,
+        `cat "${dir}/prs.json"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
@@ -138,10 +142,12 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         REPO: "o/r",
         DEPENDABOT: "off",
         LANE_PRS: "gate",
+        EVENT_PR: "",
         ...env,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    const numbers = (name) => (read(name).trim() ? JSON.parse(read(name)).map((item) => item.number) : []);
     return {
       status: result.status,
       stdout: result.stdout,
@@ -149,6 +155,8 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
       calls: Number(read("calls") || 0),
       args: read("args"),
       candidates: read("candidates.json"),
+      listed: numbers("candidates.json"),
+      draftsListed: numbers("drafts.json"),
       drafts: read("drafts.json"),
       prefiltered: existsSync(join(dir, "prefilter.json")),
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
@@ -158,18 +166,28 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
   }
 };
 
-const authorsOf = (args) => [...args.matchAll(/^pr list .*--author (\S+) /gm)].map((m) => m[1]);
-
 test("the listing retries a failed gh pr list", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
-  // Three tries for the lane's list, then one for each other author's.
-  assert.equal(run.calls, new Set(authorsOf(run.args)).size + 2);
+  // Three tries of the one list.
+  assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
 });
 
+// GitHub Support's audit item 7: one listing of every open pull request into
+// main, filtered by author, in place of one `gh pr list --author` (a search
+// call) per author.
+const AUTHORED = [
+  listed(1, "app/melodic-automation-lanes"),
+  listed(2, "a-person"),
+  listed(3, "app/some-release"),
+  listed(4, "app/dependabot"),
+  listed(5, "a-stranger"),
+  listed(6, "app/melodic-automation-lanes", true),
+];
+
 // Owner decision 2026-10-22: every trusted actor's PR is a candidate.
-test("the listing adds each trusted actor, a person by login and an App as app/<slug>, once", () => {
+test("the listing keeps each trusted actor's pull requests, a person by login and an App as app/<slug>, from one list", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
     { id: 2, login: "some-release[bot]", kind: "bot" },
@@ -177,37 +195,39 @@ test("the listing adds each trusted actor, a person by login and an App as app/<
     { id: 4, login: "dependabot[bot]", kind: "bot" },
     { id: 5, login: "bad login; rm", kind: "human" },
   ];
-  const run = runListing(0, (config) => config, actors);
+  const run = runListing(0, (config) => config, actors, {}, undefined, AUTHORED);
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes", "a-person", "app/some-release"]);
+  assert.equal(run.calls, 1);
+  assert.doesNotMatch(run.args, /--author/);
+  assert.deepEqual(run.listed, [1, 2, 3]);
+  assert.deepEqual(run.draftsListed, [6]);
   assert.doesNotMatch(run.args, /^api /m);
 });
 
 test("without an adoption section no trusted actor is listed", () => {
-  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""));
+  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""), undefined, {}, undefined, AUTHORED);
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes"]);
+  assert.deepEqual(run.listed, [1]);
   // Nor with a section that sets no idle-hours, which the gate adopts nothing under.
-  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 2\n/m, ""));
+  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 2\n/m, ""), undefined, {}, undefined, AUTHORED);
   assert.equal(noIdle.status, 0, noIdle.stderr);
-  assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
+  assert.deepEqual(noIdle.listed, [1]);
 });
 
 // merge.lane-prs: native leaves the lanes App's pull requests to GitHub's
-// auto-merge: the listing never asks for them, so the gate never reads them.
+// auto-merge: the listing drops them, so the gate never reads them.
 test("under lane-prs native the listing skips the lanes App and keeps every other author", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
     { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
   ];
-  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" });
+  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" }, undefined, AUTHORED);
   assert.equal(native.status, 0, native.stderr);
-  assert.deepEqual(authorsOf(native.args), ["a-person", "app/dependabot"]);
-  assert.match(native.output, /^count=1$/m);
-  // gate lists the lanes App first, as before the setting existed.
-  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" });
+  assert.deepEqual(native.listed, [2, 4]);
+  assert.match(native.output, /^count=2$/m);
+  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" }, undefined, AUTHORED);
   assert.equal(gate.status, 0, gate.stderr);
-  assert.deepEqual(authorsOf(gate.args), ["app/melodic-automation-lanes", "a-person", "app/dependabot"]);
+  assert.deepEqual(gate.listed, [1, 2, 4]);
 });
 
 test("under lane-prs native with no other author the listing calls nothing and lists no candidate", () => {
@@ -217,6 +237,30 @@ test("under lane-prs native with no other author the listing calls nothing and l
   assert.equal(run.candidates.trim(), "[]");
   assert.equal(run.drafts.trim(), "[]");
   assert.match(run.output, /^count=0$/m);
+});
+
+// GitHub Support's audit item 5: a pull_request_target run gates only the
+// pull request its event names, from the listing (never the payload); the
+// scheduled run keeps the whole sweep.
+test("an event run lists only its own pull request", () => {
+  const actors = [{ id: 1, login: "a-person", kind: "human" }];
+  const run = runListing(0, (config) => config, actors, { EVENT_PR: "2" }, undefined, AUTHORED);
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(run.listed, [2]);
+  assert.deepEqual(run.draftsListed, []);
+  assert.match(run.output, /^count=1$/m);
+  // A pull request the listing does not hold lists nothing.
+  const absent = runListing(0, (config) => config, actors, { EVENT_PR: "5" }, undefined, AUTHORED);
+  assert.deepEqual(absent.listed, []);
+  assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
+});
+
+test("a listing that may be cut short stops red", () => {
+  const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
+  const run = runListing(0, undefined, undefined, {}, undefined, many);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests/m);
+  assert.equal(run.prefiltered, false);
 });
 
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
@@ -245,7 +289,7 @@ test("a rate-limited listing stops red after one call, a bare HTTP 429 included"
     const run = runListing(3, undefined, undefined, {}, failure);
     assert.equal(run.status, 1, failure);
     assert.equal(run.calls, 1, failure);
-    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list --author app\/[a-z0-9-]+ was rate limited \(every pool until /m, failure);
+    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list was rate limited \(every pool until /m, failure);
     assert.equal(run.prefiltered, false);
   }
 });
@@ -254,7 +298,7 @@ test("the listing fails with one clear error after three failed tries", () => {
   const run = runListing(3);
   assert.equal(run.status, 1);
   assert.equal(run.calls, 3);
-  assert.match(run.stdout, /^::error::gh pr list --author app\/[a-z0-9-]+ failed 3 times/m);
+  assert.match(run.stdout, /^::error::gh pr list failed 3 times/m);
   assert.equal(run.prefiltered, false);
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });

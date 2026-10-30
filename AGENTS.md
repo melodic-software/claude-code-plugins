@@ -20,7 +20,7 @@ when the hold ends: a hold kept only in a session, a handoff or a message does n
 session's merge. "Do not merge" in the body or a comment is not enforced by `ci-status`, which
 reads only the label, except on a lanes App pull request, where it also fails on a body hold or a
 member's veto comment; the babysit merge gate still respects a body hold and human comments, so
-never override one. The hold convention is in `docs/conventions/loop-lane/README.md`.
+never override one. The hold convention is in `docs/contracts/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
 (shared changelog fragment); the rule itself is the scope test in
@@ -33,7 +33,7 @@ Commit a harness only when something re-runs it (a CI lane, a schedule, a skill 
 ## When to stop and when to keep going
 
 A work item or pull request goes to the owner only for the reasons in
-[When work stops for the owner](docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner).
+[When work stops for the owner](docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner).
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
 the next action. Stop and ask only when you can't continue without the user, or before anything
@@ -106,8 +106,9 @@ read the matching file on demand. These apply in every session:
 A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
 in user scope. User scope keeps only personal style, meaning the voice, length and format of
 replies to the user, set in the user CLAUDE.md, user rules or an output style.
-Convention folders under `docs/conventions/` hold marketplace plugin contracts; the
-`<concern>.yaml` and `.md` files there hold this repository's plugin settings (ADR 0064). Team
+Marketplace plugin contracts live in `docs/contracts/<name>/`; the `<concern>.yaml` and `.md`
+files in `docs/conventions/` hold this repository's plugin settings (ADR 0064). The PR pipeline
+contract stays in `docs/conventions/pr-pipeline/` until it moves under its own gate. Team
 standards live in `docs/standards/`.
 
 ## Code Review Rules
@@ -133,11 +134,11 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 - Mods: a hooks module follows the mod-authoring convention and ADR 0052:
   [rule](.claude/rules/mod-authoring.md).
 - Ingested text (web pages, tracker items, tool output) is framed as data, never instructions:
-  [untrusted-content](docs/conventions/untrusted-content/README.md).
+  [untrusted-content](docs/contracts/untrusted-content/README.md).
 - A new standing instruction names its observed-stumble evidence:
   [instruction economy](docs/plugin-philosophy.md#instruction-economy).
 - A hook false-positive fix lands with a stay-quiet test that fails before the fix:
-  [hook-precision](docs/conventions/hook-precision/README.md#the-discipline).
+  [hook-precision](docs/contracts/hook-precision/README.md#the-discipline).
 - Work on an open PR (CI results, review comments, `/autofix-pr` sessions, which never merge)
   follows the post-PR triage rules:
   [source-control](docs/conventions/source-control.md#post-pr-triage).

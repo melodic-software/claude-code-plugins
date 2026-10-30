@@ -60,14 +60,20 @@ export function trustedRun(run) {
 }
 
 // `gh run download` of the artifact `name`'s file `file` from a run.
+// A run's artifact `name`, downloaded once per run id, as the text of `file`
+// (another file of the same artifact when the caller names one).
 export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json" }) {
-  return (runId) => {
-    const target = mkdtempSync(join(dir, `${name}-`));
-    execFileSync("gh", ["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], {
-      env: { ...process.env, GH_TOKEN: token },
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-    return readFileSync(join(target, file), "utf8");
+  const targets = new Map();
+  return (runId, other = file) => {
+    if (!targets.has(String(runId))) {
+      const target = mkdtempSync(join(dir, `${name}-`));
+      execFileSync("gh", ["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], {
+        env: { ...process.env, GH_TOKEN: token },
+        stdio: ["ignore", "ignore", "inherit"],
+      });
+      targets.set(String(runId), target);
+    }
+    return readFileSync(join(targets.get(String(runId)), other), "utf8");
   };
 }
 
