@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": ["docs/conventions/developer-experience.md"],
+      "why": "the conventions file written at the default path"
+    },
+    {
+      "answer": ["docs/conventions/developer-experience.md", ".tarnquill/outbox/scratch.json"],
+      "why": "another created path beside it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": ["docs/conventions/developer-experience.md.bak"],
+      "why": "near miss: a backup name, not the conventions file"
+    },
+    {
+      "answer": ["docs/developer-experience.md"],
+      "why": "near miss: written outside docs/conventions/"
+    }
+  ]
+}
