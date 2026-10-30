@@ -95,24 +95,28 @@ const SECURITY_WORD =
   /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 // The phrasings that name a secret only as something a run needs ("a host
 // with model credentials", "needs an API key the lane does not hold", "tokens
-// per task"). Fail closed: the phrasing counts only when the secret noun ends
-// the clause or is followed by a word naming a lane or host capability, so
-// "needs the token rotated" still holds.
+// per task"). Fail closed: the phrasing counts only when the secret noun,
+// after at most a model or deploy qualifier, ends the clause or is followed by
+// a lane capability ("the lane", "to run"), so "needs the token to be
+// rotated", "needs the API key, which ..." and "needs the reused token" hold.
 const N = "(?:credentials?|api[\\s_-]?keys?|tokens?|secrets?|passwords?)";
-const END = "(?=\\s*(?:$|[.;:,)]|\\s(?:to|for|on|the\\s+lane|this\\s+lane|it\\s+does|which\\s+only|only)\\b))";
+const END = "(?=\\s*(?:$|[.;)]|\\s(?:to\\s+(?:run|invoke|call|use|reach|spend)|the\\s+lane|this\\s+lane|it\\s+does|which\\s+only|only)\\b))";
 const CAPABILITY = new RegExp(
-  `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model)\\s+)*(?:[a-z]+\\s+)?${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
+  `\\b(?:(?:a|the)\\s+)?host\\s+with\\s+(?:(?:model|an?|the)\\s+)*${N}${END}|\\b(?:needs?|requires?|lacks?)\\s+(?:(?:an?|the|model|deploy)\\s+)*${N}${END}|\\btokens?\\s+(?:per|spent|count|usage|budget)\\b|,\\s*tokens\\s*,`,
   "gi",
 );
-// A word that says where a secret ended up: beside a secret noun it holds,
-// whatever capability phrasing the noun sits in.
+// A word that says where a secret ended up or who else has it: anywhere in a
+// reason that names a secret noun it holds, whatever capability phrasing the
+// noun sits in, since an exposure can sit in a later sentence than the noun.
 const SINK =
-  /\b(?:leak|expos|compromis|commit|checked[\s-]?in|log(?:s|ged)?\b|output|artifact|summary|url\b|public|visible|print(?:s|ed|ing)?\b|echo|dump|paste|fork|plain[\s-]?text|hard[\s-]?cod|stdout|stderr|cache|env\b)/i;
+  /\b(?:leak|expos|compromis|commit|checked[\s-]?in|log(?:s|ged)?\b|output|artifact|summary|url\b|public|visible|print(?:s|ed|ing)?\b|echo|dump|paste|fork|plain[\s-]?text|hard[\s-]?cod|stdout|stderr|cache|env\b|rotat|revok|shar(?:e|ed|es|ing)\b|e-?mail|forward|sent\b|saw\b|seen\b|screenshot|reus|contractor|(?:still|now)\s+ha(?:s|ve)\b)/i;
 // The routes that end the lane's work on the issue rather than bring it back:
 // a security mention after one of their codes still reaches a person (owner
 // decision 2026-10-29), unless the secret is only named in a capability
-// phrasing, since a capability limit routes to host-run or fail, never to a
-// person (owner rule). A wait or retry code comes back to the lane anyway.
+// phrasing: a person is only for a real security risk such as a leaked token
+// (owner direction, docs/contracts/loop-lane/README.md "When work stops for
+// the owner"), and a capability limit is none. A wait or retry code comes back
+// to the lane anyway.
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 const namesEndingRisk = (text) =>
   SECURITY_CONCERN.test(text) || SECURITY_WORD.test(text.replace(CAPABILITY, " ")) || (SECURITY_WORD.test(text) && SINK.test(text));

@@ -237,6 +237,17 @@ test("an ending reason that names an exposed secret without a risk word holds", 
     "requires the old password changed since a contractor saw it",
     "needs the token revoked",
     "the deploy key sits in the repo history",
+    "needs the token to be rotated",
+    "requires the password to be revoked",
+    "needs the API key, which was shared in Slack",
+    "needs the credentials for the account a contractor still has",
+    "needs an API key, which was emailed to an external contractor",
+    "needs the password to be changed since a contractor saw it",
+    "needs the token to be revoked after the contractor left",
+    "needs the reused token.",
+    "needs an API key. It was emailed to a contractor.",
+    "needs an API key. The run then copies it, with the rest of the state, into the job summary",
+    "tokens per task, from a key shared with a contractor",
   ];
   for (const code of ["host-only", "manual-external", "already-done"]) {
     for (const exposure of exposures) {
@@ -244,6 +255,11 @@ test("an ending reason that names an exposed secret without a risk word holds", 
       assert.equal(runCode(reason), "security-risk", reason);
     }
   }
+  // An exposure word anywhere in the reason holds, even in a clause apart
+  // from the secret noun: the last two exposures above leave the noun's own
+  // sentence, so a check scoped near the noun would release them.
+  const apart = "host-only: needs a host with model credentials; the eval writes its summary to an artifact";
+  assert.equal(runCode(apart), "security-risk", apart);
   const pasted = "manual-external: the dashboard holds an api key that was pasted publicly";
   assert.equal(runCode(pasted), "security-risk", pasted);
 });
