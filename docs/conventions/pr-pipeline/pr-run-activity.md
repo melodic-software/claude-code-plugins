@@ -2199,7 +2199,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `CVE` as a whole word; or an ignore-instructions phrase)
   takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route. After
   an ending code, a secret noun (credential, secret, token, password, API or private key) holds
-  unless it is part of a recognised needs-a-credential capability phrasing, such as "a host with
+  unless it is part of a recognized needs-a-credential capability phrasing, such as "a host with
   model credentials", "needs an API key" or "tokens per task", so a capability limit takes its
   code's route.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
