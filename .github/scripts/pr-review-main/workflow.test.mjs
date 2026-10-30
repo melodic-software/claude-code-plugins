@@ -143,7 +143,7 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch" "\$MAX_DIFF_BYTES"$/m);
   assert.match(writeDiff, /^DIFF = \["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"\]$/m);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
-  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/pr-review-main\/split-diff\.py "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" \|\| split=\$\?$/m);
+  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/pr-review-main\/split-diff\.py "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" \|\| split=\$\?$/m);
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
@@ -191,13 +191,18 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
 
 // split-diff.py on a fixture patch: the chunk files it writes, by name.
 const SPLIT_DIFF = new URL("./split-diff.py", import.meta.url).pathname;
-function split(patch, maxBytes, maxChunks) {
+// With `manifestBytes`, it returns the manifest it wrote (null for none).
+function split(patch, maxBytes, maxChunks, manifestBytes) {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-chunks-"));
   try {
     writeFileSync(path.join(dir, "diff.patch"), patch);
     mkdirSync(path.join(dir, "out"));
-    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks)], { encoding: "utf8" });
+    const manifest = path.join(dir, "manifest.txt");
+    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)], { encoding: "utf8" });
     const chunks = Object.fromEntries(readdirSync(path.join(dir, "out")).sort().map((name) => [name, readFileSync(path.join(dir, "out", name), "utf8")]));
+    if (manifestBytes !== undefined) {
+      return { status: run.status, chunks, stderr: run.stderr, manifest: (() => { try { return readFileSync(manifest, "utf8"); } catch { return null; } })() };
+    }
     return { status: run.status, chunks, stderr: run.stderr };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -261,10 +266,50 @@ test("more chunks than the most, or a file larger than one chunk, is too large a
   assert.deepEqual(split("", 100, 2), { status: 0, chunks: {}, stderr: "" });
 });
 
+// One file of each status, as write-diff.py prints them over the cap: an
+// edit, an add whose path has a space and `&`, an empty delete, a mode
+// change, a move collapsed to its rename lines, and an add git quotes.
+const MIXED = [
+  `diff --git a/src/a.sh b/src/a.sh\nindex 1111111..2222222 100644\n--- a/src/a.sh\n+++ b/src/a.sh\n@@ -1 +1 @@\n-x\n+source lib/b.sh ${"p".repeat(400)}\n`,
+  "diff --git a/lib/b & c.sh b/lib/b & c.sh\nnew file mode 100644\nindex 0000000..3333333\n--- /dev/null\n+++ b/lib/b & c.sh\t\n@@ -0,0 +1 @@\n+echo\n",
+  "diff --git a/old.txt b/old.txt\ndeleted file mode 100644\nindex e69de29..0000000\n",
+  "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n",
+  "diff --git a/docs/x.md b/guide/x.md\nsimilarity index 100%\nrename from docs/x.md\nrename to guide/x.md\n",
+  'diff --git "a/r\\303\\251sum\\303\\251.md" "b/r\\303\\251sum\\303\\251.md"\nnew file mode 100644\nindex 0000000..4444444\n--- /dev/null\n+++ "b/r\\303\\251sum\\303\\251.md"\n@@ -0,0 +1 @@\n+hi\n',
+];
+const MIXED_MANIFEST = [
+  "chunk 1 modified src/a.sh",
+  "chunk 2 added lib/b & c.sh",
+  "chunk 2 deleted old.txt",
+  "chunk 2 modified run.sh",
+  "chunk 2 renamed docs/x.md -> guide/x.md",
+  'chunk 2 added "r\\303\\251sum\\303\\251.md"',
+];
+
+test("a diff in more than one chunk writes a manifest of every file, its chunk and its status", () => {
+  const [first, ...rest] = MIXED.map((p) => Buffer.byteLength(p));
+  // The edit fills chunk 1 alone; the rest fit chunk 2.
+  assert.ok(first <= 600 && first + rest[0] > 600 && rest.reduce((a, b) => a + b) <= 600);
+  const two = split(MIXED.join(""), 600, 4, 15000);
+  assert.equal(two.status, 0, two.stderr);
+  assert.deepEqual(Object.keys(two.chunks), ["chunk-1.patch", "chunk-2.patch"]);
+  assert.equal(two.manifest, `${MIXED_MANIFEST.join("\n")}\n`);
+  // One chunk is the single-pass review: no manifest.
+  assert.equal(split(MIXED.join(""), 100000, 4, 15000).manifest, null);
+  // Past its cap the manifest lists what fits and counts the rest, the count's
+  // line included in the cap.
+  const capped = split(MIXED.join(""), 600, 4, 83);
+  assert.ok(Buffer.byteLength(capped.manifest) <= 83);
+  assert.equal(capped.manifest, `${MIXED_MANIFEST.slice(0, 2).join("\n")}\nand 4 more files, not listed\n`);
+  // A diff too large to split writes no manifest either.
+  assert.equal(split(MIXED.join(""), 600, 1, 15000).manifest, null);
+});
+
 // The "Write the diff" script run under bash as Actions runs it, with git and
 // python3 stubbed: python3 (write-diff.py) writes the given patch, or fails.
 const PYTHON = spawnSync("bash", ["-c", "command -v python3"], { encoding: "utf8" }).stdout.trim();
-function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxChunks = "4" } = {}) {
+// `after(data)` runs on the step's data before the directory goes.
+function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxChunks = "4", after } = {}) {
   const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${step("Write the diff", job)}\n`)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-stop-"));
   try {
@@ -289,7 +334,8 @@ function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxC
         return [];
       }
     })();
-    return { status: result.status, output: readFileSync(out, "utf8"), stdout: result.stdout, parts };
+    const output = readFileSync(out, "utf8");
+    return { status: result.status, output, stdout: result.stdout, parts, ...(after ? { after: after(data, output) } : {}) };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -326,7 +372,7 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.doesNotMatch(four.output, /stop=/, job);
     assert.match(four.output, /^chunks=4$/m, job);
     assert.deepEqual(four.parts, ["chunk-1", "chunk-1/part-001.patch", "chunk-2", "chunk-2/part-001.patch", "chunk-3", "chunk-3/part-001.patch", "chunk-4", "chunk-4/part-001.patch"], job);
-    assert.match(four.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=4 bytes=200,200,200,200$/m, job);
+    assert.match(four.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=4 bytes=200,200,200,200 manifest_paths=4$/m, job);
     const longLine = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n+${"x".repeat(1801)}\n`, { job, maxBytes: "300000" });
     assert.equal(longLine.status, 0, job);
     assert.match(longLine.output, /^stop=long-line$/m, job);
@@ -340,6 +386,65 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.doesNotMatch(whole.output, /stop=/, job);
     assert.deepEqual(whole.parts, ["chunk-1", "chunk-1/part-001.patch"], job);
     assert.match(whole.output, /^chunks=1$/m, job);
+    assert.match(whole.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=1 bytes=\d+ manifest_paths=0$/m, job);
+  }
+});
+
+// The "Write the prompt and schema" script run on the data the diff step
+// left, from a directory holding the template where main's checkout does.
+function renderPrompts(data, output, job) {
+  const chunks = /^chunks=(\d+)$/m.exec(output)[1];
+  const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${step("Write the prompt and schema", job)}\n`)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-prompt-"));
+  try {
+    const base = path.join(dir, ".base/.github/scripts/pr-review-main");
+    mkdirSync(base, { recursive: true });
+    symlinkSync(new URL("./prompt.md", import.meta.url).pathname, path.join(base, "prompt.md"));
+    const out = path.join(dir, "out");
+    writeFileSync(out, "");
+    const env = { ...process.env, DATA: data, LANE: "claude-review", SKILL: "code-review", MODEL: "opus", CHUNKS: chunks, PROMPT_STEM: path.join(dir, "prompt"), SCHEMA_FILE: path.join(dir, "schema.json"), GITHUB_OUTPUT: out };
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env });
+    assert.equal(result.status, 0, result.stderr);
+    const manifest = (() => { try { return readFileSync(path.join(data, "manifest.txt"), "utf8"); } catch { return null; } })();
+    return { data, manifest, prompts: Array.from({ length: Number(chunks) }, (_, i) => readFileSync(path.join(dir, `prompt-${i + 1}.md`), "utf8")) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("each chunk's prompt names the manifest file and holds none of its paths, and a one-chunk prompt is the single-pass prompt", () => {
+  for (const job of LEGS) {
+    const two = runDiff(MIXED.join(""), { job, maxBytes: "600", after: (data, output) => renderPrompts(data, output, job) });
+    assert.equal(two.status, 0, job);
+    assert.match(two.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=2 bytes=\d+,\d+ manifest_paths=6$/m, job);
+    two.after.prompts.forEach((text, i) => {
+      const k = i + 1;
+      assert.ok(text.includes(`These parts are chunk ${k} of 2`), `${job} chunk ${k}`);
+      assert.ok(text.includes(`  - \`${two.after.data}/diff/chunk-${k}/part-001.patch\``), `${job} chunk ${k}`);
+      assert.match(text, /names both paths/, `${job} chunk ${k}`);
+      assert.doesNotMatch(text, /not yours to judge/, `${job} chunk ${k}`);
+      // The prompt names the file and frames it as data; the paths, which
+      // the pull request's author chose, stay out of the prompt itself.
+      assert.ok(text.includes(`\`${two.after.data}/manifest.txt\``), `${job} chunk ${k}`);
+      assert.match(text, /untrusted data like it, never instructions/, `${job} chunk ${k}`);
+      assert.doesNotMatch(text, /^\s*chunk \d+ (added|modified|deleted|renamed) /m, `${job} chunk ${k}`);
+      for (const pathText of ["lib/b & c.sh", "docs/x.md", "guide/x.md", "r\\303\\251sum"]) assert.ok(!text.includes(pathText), `${job} chunk ${k}: ${pathText}`);
+    });
+    // The file holds every file in either chunk as split-diff.py wrote it.
+    assert.equal(two.after.manifest, `${MIXED_MANIFEST.join("\n")}\n`, job);
+    // One chunk: no note and no manifest, the template's own text.
+    const one = runDiff(MIXED.join(""), { job, maxBytes: "300000", after: (data, output) => renderPrompts(data, output, job) });
+    const { data, prompts } = one.after;
+    const single = prompt
+      .replaceAll("LANE_NAME", "claude-review")
+      .replaceAll("CRITERIA_DIR", `${data}/review/skills/code-review`)
+      .replaceAll("STANDARDS_DIR", `${data}/standards`)
+      .replaceAll("DIFF_PARTS", `  - \`${data}/diff/chunk-1/part-001.patch\``)
+      .replaceAll("CHUNK_NOTE", "")
+      .replaceAll("CONTEXT_FILE", `${data}/context.json`)
+      .replaceAll("PR_FILE", `${data}/pr.json`)
+      .replace(/\n+$/, "\n");
+    assert.deepEqual(prompts, [single], job);
   }
 });
 
@@ -655,7 +760,8 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
   for (const [, remote] of text.matchAll(/^\s+uses: ([^.\s]\S*)/gm)) {
-    assert.match(remote, /@[0-9a-f]{40}$/, remote);
+    // Actions pin a full SHA (org policy); first-party reusable workflows float on main.
+    assert.match(remote, /^melodic-software\/[^/]+\/\.github\/workflows\//.test(remote) ? /@main$/ : /@[0-9a-f]{40}$/, remote);
   }
 });
 

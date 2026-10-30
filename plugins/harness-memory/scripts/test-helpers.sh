@@ -11,7 +11,7 @@
 # (label, haystack, needle) for the containment assertions.
 #
 # Duplicated across plugins by design, not drift: see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT

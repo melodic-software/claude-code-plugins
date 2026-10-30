@@ -62,7 +62,7 @@ jobs:
       contents: read
       issues: read # list the issue's blocked_by dependencies
     outputs:
-      proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
+      proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
       # Whether the issue is a trusted size-split sub-issue, for resolve-config.
       split-child: ${{ steps.blockers.outputs.split-child }}
@@ -119,6 +119,18 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
+
+      # Skips the run while Actions or npm installs report a degraded
+      # component, with a logged reason; fails open
+      # (.github/actions/check-upstream-status). agent-ready stays, and
+      # work-unblock's sweep re-fires the run as one the blocker gate skipped
+      # (label-unblocked.mjs didNoWork).
+      - name: Check upstream status
+        id: upstream
+        if: steps.blockers.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
       # The mark work-unblock's sweep reads: a run that stopped here is never
       # re-fired.
@@ -482,6 +494,60 @@ jobs:
       patch-resume-tip: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-tip || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-tip || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-tip || '' }}
       reply-attempt: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reply-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reply-attempt || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reply-attempt || '' }}
 
+  # A stopped run's leftover lane branches (owner decision on #7948): the
+  # issue's lane branches whose run posted an outcome marker and whose commits
+  # are all the lanes App's, with no pull request in any state, which the read
+  # runner's earlier-work check named past the branch it reused, resumed or
+  # started fresh past. The run job that named them ran the model, so the list
+  # is a claim, held to the lane-branch shape by issue-fields: prune-branches.mjs,
+  # from the default branch tip, spares this run's own branches and the reuse
+  # and resume branches, reads every named branch in one GraphQL request, and
+  # deletes only one with no pull request, at the tip it read. Nothing here
+  # fails the run. The daily branch cleanup's rule is unchanged.
+  prune-lane-branches:
+    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-prune-branches || '') != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # delete a lane branch ref
+      pull-requests: read # each named branch's pull requests
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Delete the stopped runs' lane branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_ID: ${{ github.run_id }}
+          PRUNE_BRANCHES: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-prune-branches || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-prune-branches || '' }}
+          REUSE_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
+          RESUME_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
+        run: node .base/.github/scripts/work-resolve-issue/prune-branches.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
@@ -529,7 +595,7 @@ jobs:
           RESUME_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
           RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.result || needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.result || needs.resolve-issue.result }}
-          REPORT_RESULT: ${{ needs.report-outcome.result }}
+          REPORT_RESULT: ${{ needs.report-outcome.outputs.skip-reason == 'kill-switch' && 'stopped' || needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
       - name: Log the API budget at the end
@@ -759,9 +825,12 @@ jobs:
     # summary pass described the branch, and this opens the PR from it.
     # Needing resolve-issue waits for every job of that call, the summary job
     # included; !cancelled() runs this whether that job failed or skipped.
+    # A kill switch that stopped apply-issue-patch dropped this run's patch,
+    # so this skips and work-unblock re-fires the issue as a breaker trip.
     if: >-
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
-      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
+      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '')
+      && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch' }}
     permissions:
       contents: read
       pull-requests: read

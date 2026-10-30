@@ -5,6 +5,18 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.9] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [0.22.8] - 2026-10-30
+
+### Changed
+
+- Setup reads `docs/conventions/<plugin>.yaml` with the bundled `yaml-subset.mjs` instead of running `yaml-subset.awk`. It accepts and refuses the same files, and parse errors now use `yaml-subset.mjs` wording, for example `line 2: duplicate key "x"` (#10131).
+
 ## [0.22.7] - 2026-10-30
 
 ### Changed

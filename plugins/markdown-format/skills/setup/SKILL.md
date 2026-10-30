@@ -155,7 +155,7 @@ session-start drift line then stays silent until `verify` runs by hand, and `--u
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
 entry's own key set to `false` in a clone opts that entry back in. The [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
 
 ## `apply` (idempotent)
 
@@ -184,7 +184,7 @@ install command's exit code alone. For everything else `apply` only points:
   this skill never installs system packages.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
   any time, or headless
   `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`

@@ -27,7 +27,7 @@ it for delegation-heavy tasks.
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 | `/session-flow:check` | Do node and jq resolve for the observer hook? Read-only; never installs. |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
-| `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
+| `/session-flow:recommend-skills` | Which skills fit this moment, and what am I forgetting I could run? |
 | `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |
 
 ## Contents
@@ -49,7 +49,7 @@ it for delegation-heavy tasks.
   - [orchestrate](#orchestrate)
   - [reanchor](#reanchor)
   - [reconcile](#reconcile)
-  - [show-options](#show-options)
+  - [recommend-skills](#recommend-skills)
   - [setup](#setup)
 - [Consumer conventions](#consumer-conventions)
 - [Install](#install)
@@ -381,7 +381,7 @@ a spawned subagent's internal task list is not readable. It touches no git state
 /session-flow:reconcile   # inventory → inspect → retire finished + close done → report
 ```
 
-### show-options
+### recommend-skills
 
 Lets the operator consult the installed catalog instead of remembering it. Renders five buckets: **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
 in-domain remainder beyond the near horizon, rendered as bare names only), and a rotating
@@ -400,8 +400,8 @@ Distinct from `workflow`, which routes to exactly one next **stage**: this one l
 lets the human choose. Writes only its small Spotlight rotation ledger; otherwise read-only.
 
 ```shell
-/session-flow:show-options            # menu for the current moment
-/session-flow:show-options my-topic   # scope the artifact-grounded reads to a topic slice
+/session-flow:recommend-skills            # menu for the current moment
+/session-flow:recommend-skills my-topic   # scope the artifact-grounded reads to a topic slice
 ```
 
 ### tidy-work
@@ -630,7 +630,7 @@ Three supported routes:
    {"observer_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

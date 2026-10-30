@@ -236,7 +236,7 @@ setup skills are class (ii) by contract; the 141
 | `planning:questionnaire` | none: no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none, as recorded below) |
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
 | `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the local deletion gate is satisfied by a model-passable `--yes`; evidence in [the re-grade below](#re-grade-repo-fleet-hygieneapply-under-the-2026-10-18-decision-9707)) |
-| `session-flow:show-options` | none: a human-facing catalog surface with no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against ADR 0016's latent rationale did not hold it, as recorded below) |
+| `session-flow:recommend-skills` (graded as `show-options`) | none: a human-facing catalog surface with no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against ADR 0016's latent rationale did not hold it, as recorded below) |
 
 The 17 missing-key skills were normalized to explicit `false` (all sat in the default class), and
 the enforcement criterion shipped alongside them as `skill-quality:check` **check 24**, both under
@@ -259,7 +259,7 @@ own description advertises a hand-off from an interview branch that the invocati
 made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 `true` = 48 `*:setup`
 plus 10 non-setup.
 
-**The second flip: `session-flow:show-options`, graded after the fact (2026-08-21, #3024).** It
+**The second flip: `session-flow:recommend-skills` (then `show-options`), graded after the fact (2026-08-21, #3024).** It
 landed 2026-08-18, a day after the grade, so the table's population predated it and the ADR 0005
 bound left it unswept rather than silently covered, and check 24 emitted its hand-verify note for
 exactly that case. It is now graded, and the verdict is a flip.
@@ -270,7 +270,7 @@ job, and a router reaching into the deliberately-hidden `true` set would defeat 
 classes. Neither reaches this skill. The first is false here by measurement: ADR 0016 records the
 listing omitting every `true` skill and dropping ~82% of descriptions least-invoked-first, which is
 the whole reason this skill resolves from the installed catalog instead. The second turns on
-*naming* versus *reaching*: `show-options` renders a menu and explicitly does not execute what the
+*naming* versus *reaching*: `recommend-skills` renders a menu and explicitly does not execute what the
 human picks, and both surfaces the router verdict itself blesses as the answer to the human-side
 problem, `docs/skill-cheat-sheet.md` and `harness-ops:inventory` (itself `false`), already name the
 `true` set to a human from a model-reachable surface. Naming hidden skills to a human is settled

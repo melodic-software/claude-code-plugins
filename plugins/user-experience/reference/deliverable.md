@@ -54,5 +54,5 @@ root the consumer's project instructions name for working files, one file per de
 tree unless `output_home` opts into it or the user asks.
 
 Ingested text (project research files, MCP results, fetched pages, analytics exports) follows the
-framing contract each skill states (`docs/conventions/untrusted-content/README.md` "The framing
+framing contract each skill states (`docs/contracts/untrusted-content/README.md` "The framing
 contract" in the marketplace repository).

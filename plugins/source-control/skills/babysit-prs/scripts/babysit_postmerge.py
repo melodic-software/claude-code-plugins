@@ -220,6 +220,15 @@ SIGNAL_READ_BACK = "read-back"
 FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispatch"}
 
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
+# A red attempt 1 a newer green full run on the branch descends from: main
+# already recovered, so it is neither re-run nor pending (`_Context.superseded`).
+SETTLED = "settled"
+# The newer passed runs `_Context.superseded` reads ancestry for, per red run;
+# past them the run is not settled and waits for its re-run as before.
+SETTLE_COMPARE_CAP = 5
+# The compare reads `_Context.superseded` may spend in one check, over every
+# red run; once spent, a run is not settled and waits for its re-run.
+SETTLE_COMPARE_BUDGET = 20
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
 # `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
@@ -1161,6 +1170,11 @@ class _Context:
     quarantine_days: int | None = None
     quarantine_days_cache: dict[int, int] = field(default_factory=dict)
     green_cache: dict[int, Run | None] = field(default_factory=dict)
+    # The full runs the check already listed, which `superseded` reads
+    # instead of a listing of its own.
+    held_full_runs: dict[int, tuple[str, Run]] = field(default_factory=dict)
+    settle_compares_left: int = SETTLE_COMPARE_BUDGET
+    compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
     # the branch tip the first time it is needed).
     lane_rerun_window: timedelta | None = None
@@ -1429,6 +1443,78 @@ class _Context:
                 ]
             self.green_cache[run.id] = self._newest_on_branch(greens)
         return self.green_cache[run.id]
+
+    def superseded(self, run: Run) -> Run | None:
+        """A full run already listed (`held_full_runs`), a schedule run or a
+        dispatch the check counts as the identity's (`_own`), whose attempt 1
+        passed after `run`, on a commit that has `run`'s head in its history
+        and is on the branch, or None. It reads the newest SETTLE_COMPARE_CAP
+        such candidates, newest first, and stops at the first that descends
+        (newer-green.bash reads only the newest), spending uncached compares
+        from the check's SETTLE_COMPARE_BUDGET. A failed read, or a spent
+        budget, is None: the run waits for its re-run. It lists nothing, and
+        `contains` caches each answer by commit pair, `on_branch`'s included."""
+        newer = sorted(
+            (
+                (signal, r)
+                for signal, r in self.held_full_runs.values()
+                if r.conclusion == "success"
+                and (
+                    signal == SIGNAL_SCHEDULE
+                    or r.actor in (self.identity, LANE_DISPATCH_ACTOR)
+                )
+                and r.attempt == 1
+                and r.id != run.id
+                and r.created_at > run.created_at
+                and _FULL_SHA.fullmatch(r.head_sha or "")
+            ),
+            key=lambda item: item[1].created_at,
+            reverse=True,
+        )
+        try:
+            for signal, r in newer[:SETTLE_COMPARE_CAP]:
+                if not self._own(signal, r):
+                    continue
+                if not self._settle_read(run.head_sha, r.head_sha):
+                    return None
+                if self.contains(run.head_sha, r.head_sha):
+                    if not self._settle_read(r.head_sha, self._branch_tip()):
+                        return None
+                    if self.on_branch(r):
+                        return r
+        except PostMergeReadError:
+            return None
+        return None
+
+    def _own(self, signal: str, run: Run) -> bool:
+        """Whether `superseded` may count `run` as main's recovery: a schedule
+        run, or a dispatch `_judge` treats as the identity's (its own, or one
+        the lane sent). A person dispatching until a run passes cannot clear
+        a red attempt 1, as their re-run cannot (`_outcome`). An unread lane
+        record is read from the budget, one compare's worth."""
+        if signal == SIGNAL_SCHEDULE or run.actor == self.identity:
+            return True
+        if f"{LANE_DISPATCH_ARTIFACT}{run.id}" not in self.lane_cache:
+            if self.settle_compares_left <= 0:
+                return False
+            self.settle_compares_left -= 1
+        return self.lane_dispatched(run)
+
+    def _settle_read(self, ancestor: str, sha: str) -> bool:
+        """Whether `superseded` may read `contains(ancestor, sha)`: a cached
+        answer is free; otherwise SETTLE_COMPARE_BUDGET must have a compare
+        left, and the compares the read sends are spent from it, never
+        below zero."""
+        if (ancestor, sha) in self.contains_cache:
+            return True
+        if self.settle_compares_left <= 0:
+            return False
+        before = self.compare_reads
+        self.contains(ancestor, sha)
+        self.settle_compares_left = max(
+            0, self.settle_compares_left - (self.compare_reads - before)
+        )
+        return True
 
     def on_branch(self, run: Run) -> bool:
         """Whether `run`'s head commit is on the branch as `refs/heads/`
@@ -1893,6 +1979,7 @@ class _Context:
 
     def _compare(self, ancestor: str, sha: str) -> bool:
         """The compare API's answer to `contains`; a failed read raises."""
+        self.compare_reads += 1
         compare = _read(
             ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
             f"compare {ancestor[:12]}...{sha[:12]}",
@@ -2075,6 +2162,18 @@ class _Context:
             return RED, f"attempt 1 {first.conclusion}"
         second = self._attempt(run, 2) if run.attempt >= 2 else None
         if second is None:
+            if (newer := self.superseded(run)) is not None:
+                if newer.head_sha == run.head_sha:
+                    return (
+                        FLAKE,
+                        f"attempt 1 {first.conclusion}; run {newer.id} passed "
+                        "on the same commit after it",
+                    )
+                return (
+                    SETTLED,
+                    f"attempt 1 {first.conclusion}; run {newer.id} passed on "
+                    f"{newer.head_sha[:12]} after it",
+                )
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
         # A re-run by anyone else (a person re-running until green) cannot
         # clear a red attempt 1. Two github-actions[bot] re-runs can:
@@ -2336,6 +2435,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
         )
+        ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
                 run.id not in tally.reruns
@@ -2475,6 +2575,7 @@ def check(
             ),
             key=lambda item: item[1].created_at,
         )
+        ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
         canary_runs = sorted(
             (
                 r

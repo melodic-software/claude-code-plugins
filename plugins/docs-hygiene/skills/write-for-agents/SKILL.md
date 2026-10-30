@@ -125,7 +125,7 @@ A task-shaped or long-run instruction also names the whole task's finish line an
 When one doc serves two moments in time, split it at the moment boundary, the reader at step
 one should not scroll past material for step nine. Splitting an instruction surface into skills
 with different invocation modes is a different axis with its own decision rubric: follow the
-[invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md)
+[invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md)
 (§ Splitting by invocation) rather than deciding it ad hoc.
 
 ## Prompt the positive

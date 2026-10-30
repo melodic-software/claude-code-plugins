@@ -67,7 +67,7 @@ non-sensitive option; whether that holds for a `sensitive` option such as
 uninstall to rotate: that drops this plugin's entire stored `pluginConfigs` entry,
 resetting every option in the Options reference table below to its manifest default.
 The verified-version record lives in the
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 ## Using vault-exec (opt-in)
 
@@ -144,7 +144,7 @@ client; the request/response and error-shaping logic lives in `server/src/`.
 
 The TypeScript in `server/src/` is what runs: Node strips the types at load, so there is no
 build step and no committed build output. The repo follows the
-[on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md):
+[on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/on-demand-dependencies/README.md):
 no third-party code is committed. `server/src/launch.ts` installs the runtime dependencies on
 first launch and then starts `index.ts`:
 
@@ -219,7 +219,7 @@ Three supported routes:
    {"miro_api_token": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see
@@ -231,7 +231,7 @@ Three supported routes:
 
    For a `sensitive` option, route 1 stays the recommended route. What
    `plugin configure` does with a sensitive value, and on which hosts that was
-   measured, is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   measured, is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

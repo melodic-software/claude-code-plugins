@@ -74,7 +74,7 @@ reports "already configured".
 1. **`library_dir` mismatch. Guidance only.** `library_dir` is a personal `userConfig` scalar;
    never hand-edit `pluginConfigs` or write Claude Code settings. Reconfigure through Claude
    Code's native flow, per the marketplace's plugin-reconfiguration convention
-   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure knowledge@<marketplace>`
    any time, or headless `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`
    (repeatable per key). Against an already-installed plugin it prints `already installed` and

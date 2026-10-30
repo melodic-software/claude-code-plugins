@@ -1,7 +1,7 @@
 # Upstream sources the cutover check reads
 
 Every upstream fact the AGENTS.md cutover turns on, as a pointer record per the
-[upstream-drift convention](../../../../../docs/conventions/upstream-drift/README.md): our decision
+[upstream-drift convention](../../../../../docs/contracts/upstream-drift/README.md): our decision
 or our own probe result, a pointer to where the specific lives, an as-of date, and a recheck
 trigger. The records are here so a reader can judge the check's verdict without re-deriving the
 research, and so a firing trigger has one place to land.

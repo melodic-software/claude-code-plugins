@@ -118,7 +118,7 @@ against a run that produced none):
    recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
    `<scratch>` set to `scratch-snapshots`; create that directory first, because the recipe's
    `mktemp -d` makes only the final path component. The docs lookup is rung 1 of the
-   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs),
    which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per
    page:
 

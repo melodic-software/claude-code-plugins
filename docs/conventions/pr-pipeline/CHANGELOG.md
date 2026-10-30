@@ -1,5 +1,44 @@
 # Changelog for the PR pipeline convention
 
+## [8.10.0] - 2026-10-30
+
+### Added
+
+- A chunked pr-review-main diff writes `manifest.txt` in the review's data directory, every file of the whole diff one line each with its chunk, its status (added, modified, deleted, or renamed with its old and new path) and its path, up to what one Read returns whole with the rest counted. Each chunk's prompt names that file for the reviewer to read as untrusted data, so the paths the pull request's author chose never enter the prompt, and asks for a finding naming both paths when a change references a file another chunk holds, so a dependency across chunks reaches the summed verdict. A one-chunk prompt is unchanged, byte for byte. The `pr-review-main chunks` notice adds `manifest_paths=<n>`, the files the manifest names (0 for one chunk).
+
+### Fixed
+
+- A work-resolve-issue run now deletes the issue's leftover lane branches from earlier stopped runs: a branch whose run posted an outcome marker, whose commits are all the lanes App's, and that has no pull request in any state. `issue-prior` names them from the reads it already makes, sparing the branch the run reuses, resumes or starts fresh past and every branch of the run itself, the issue-fields job publishes only the names its own re-derived check also names, and a new `prune-lane-branches` job, the lane's only `contents: write`, re-checks every named branch (pull requests from it in any state, open ones into it) in one GraphQL read and deletes each with one `updateRefs` at the tip it read. The stale-branch comment now says the next run deletes the branch instead of promising no lane does.
+
+## [8.9.0] - 2026-10-30
+
+### Added
+
+- `security-outside-actor.yml` flags an issue or pull request when someone outside the
+  organization opens or edits it, comments, or reviews on it: it adds `security: outside-actor` and
+  `needs-human` and posts one comment per outside actor naming the login, without a mention, and the
+  event, quoting none of their text. Members, owners and Bot senders start no job, except a Bot on a
+  fork pull request, which is checked on any action; everyone else is trusted only by numeric id on
+  the default branch's trusted-actor list, and an unreadable list flags. The labels are written on
+  every flagged event, whatever the payload shows. No model, secret or kill switch; the job token holds `contents: read`, `issues: write` and
+  `pull-requests: write`.
+- `security: outside-actor` is a hold of its own, defined in `merge-holds.mjs`: the merge queue,
+  auto-merge arming, intake triage, the work-unblock sweep, ci-status on a pull request and
+  every pull request activity (including the write runner) skip it. Only a person on the
+  trusted-actor list removes it: any other removal, a Bot's or a member's not on the list included,
+  puts it and `needs-human` back and posts one comment naming the remover without a mention.
+
+## [8.8.0] - 2026-10-30
+
+### Added
+
+- A target-subset size split: sub-issues hold every trusted line plus a `Scope:` line naming verbatim targets. `admission-rules.json` `size-split` sets `on-decline` (`subset` or `park`) and `max-parts`.
+- `models.issue-dimensions.split-child-size` (`medium`): a trusted size-split sub-issue rated Large runs at that size instead of skipping with `split-required`.
+
+### Changed
+
+- A size split that cannot be made posts its reason on the issue (codes `not-human`, `few-lines`, `no-split`, `bad-split`, `bad-subset`, `no-type`) instead of only a step summary, with no hold label. An issue with fewer than 2 trusted task-list lines gets the thin refinement first.
+
 ## [8.7.1] - 2026-10-30
 
 ### Fixed

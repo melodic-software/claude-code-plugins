@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.4] - 2026-10-30
+
+### Fixed
+
+- `review-venue.sh` takes a workflow run listing page only when its `workflow_runs` holds every run
+  its `total_count` leaves for that page. It reads an incomplete page up to three times. When the
+  page is still incomplete, each lane it leaves undecided reads `local unreadable` and runs its
+  review locally. A short or partial page no longer reads as `absent` or `stale`.
+
+## [4.3.3] - 2026-10-30
+
+### Changed
+
+- The review discipline gains an `INTENTIONAL` outcome ([#7642](https://github.com/melodic-software/claude-code-plugins/issues/7642)): a finding that describes the code correctly where the code is that way on purpose is answered with its reason in the D5 reply and files no tracker item. It is not available for a defect the change introduced, which stays `VALID (fix now)`.
+
+## [4.3.2] - 2026-10-30
+
+### Fixed
+
+- The post-merge check treats a red attempt 1 of a full run as settled, not awaiting a re-run, once a
+  newer full run it already listed passed on a descendant commit on the branch, so such a run holds
+  no merge pending and is never named for the lane re-run.
+
+## [4.3.1] - 2026-10-30
+
+### Changed
+
+- babysit-prs holds a pull request carrying `security: outside-actor`
+  (`babysit_merge_policy.MERGE_HOLD_LABELS`): only a person removes that label.
+
+## [4.3.0] - 2026-10-30
+
+### Changed
+
+- The babysit merge gate trusts a target-subset size-split sub-issue whose last line is one `Scope:` line naming targets that are verbatim text of the parent's trusted task lines, matching intake admission and pr-verify.
+
 ## [4.2.4] - 2026-10-30
 
 ### Changed

@@ -111,7 +111,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same eight required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, dependencies/risks, assumptions, open questions).
+Tier governs section depth, not section presence: all three tiers cover the same nine required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, quality requirements, dependencies/risks, assumptions, open questions).
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
@@ -143,6 +143,7 @@ Question shapes that recur, in priority order:
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
+| Quality requirements | "Which of these does the feature touch, and where would a wrong guess change the design or a check grade it?", over Step 5's prompt list at the tier's depth. Ask for a measurable target only there. |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
 | Assumptions | "What are we taking as true without proof, and what would show it false?" |
@@ -174,21 +175,24 @@ Required sections (every tier; verbosity varies):
 3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
 5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
-6. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
-7. **Assumptions**. What the PRD takes as true without proof, each with what would show it false; `/planning:interview` carries them into the Brief's Captured assumptions
-8. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
+6. **Quality requirements**. Non-functional requirements (NFRs): how well the product must do what it does, one line each in the `Quality requirement:` format of [`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`](../interview/context/nfr-prompts.md), which owns the prompts and when a target is owed
+7. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
+8. **Assumptions**. What the PRD takes as true without proof, each with what would show it false; `/planning:interview` carries them into the Brief's Captured assumptions
+9. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
+Each tier's template in [`context/templates.md`](context/templates.md) sets which quality prompts it covers: one-pager, only where the feature moves the current bar; consumer-feature, every prompt it touches; B2B-internal, all. Under `synthesize` or an unattended run, an unstated target goes under **Assumptions** in the `target assumed` form, never the requirement line.
+
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The eight required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The nine required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
+Test-seam sketching (where, and at how few seams, the feature is tested) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above.
 
 ### Step 6. Hand off
 
@@ -205,7 +209,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down). The first is always on; the second fires only when the consuming team's convention selects it.
+Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down).
 
 ### Coverage prompt. Always on, asked once
 
@@ -236,7 +240,7 @@ Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`
 
 The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and `optional-feature`. A downstream reader matches the literal name, so a variant spelling (`unwanted_behavior`, `unwanted`, `event`) is an untagged criterion that looks tagged and fails silently.
 
-**Scope.** The eight required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
+**Scope.** The nine required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
 
 ### Resolving `acceptance_criteria_format`
 
@@ -247,11 +251,12 @@ Follow [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/auth
 When invoked with `review`:
 
 1. Locate the topic's `PRD.md` (slug derivation above)
-2. Evaluate against the eight required sections. Flag any missing or fuzzy
+2. Evaluate against the nine required sections. Flag any missing or fuzzy
 3. Evaluate against skip-conditions. If engineering-internal, recommend supersession with a `/planning:interview` brief
 4. Check goals are *outcomes*, not implementations (the most common failure mode)
 5. Check success metrics have a *measurement window* and *threshold*, not vague language
-6. Present findings: what's strong, what's missing, what to revise
+6. Check the quality requirements cover the prompts the tier's depth requires (Step 5), with a measurable target where the interview's prompt list says one is owed and no invented target elsewhere
+7. Present findings: what's strong, what's missing, what to revise
 
 Review checks structure and convention; `/planning:devils-advocate` (run later against `/planning:plan`'s plan, not the PRD) checks failure modes.
 

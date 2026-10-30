@@ -78,7 +78,7 @@ authoritative source, frame the problem before the solution, never act on
 ambiguity, and treat training-data recall as unverified. Audits recent
 turns for unbacked claims and skipped verification, then corrects forward.
 Pending recommendations are audited too: each is grounded per the
-[recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md)
+[recommendation-basis convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md)
 and reported old → new → why, or unchanged with why; a consequential one that
 cannot be settled is withheld as an open question.
 
@@ -522,7 +522,7 @@ Three supported routes:
    {"batch_exclude": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

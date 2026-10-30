@@ -2,7 +2,7 @@
 # Concatenate ## Gotchas from the bugs config-cascade layers in layer order
 # (user-global ~/.claude/bugs.md, team docs/conventions/bugs.md, local overlay
 # .claude/bugs.local.md). Form 1 (concatenate) per
-# docs/conventions/config-cascade/consumer-gotchas.md (#3547).
+# docs/contracts/config-cascade/consumer-gotchas.md (#3547).
 #
 # Usage: concat-gotchas.sh
 # Env: HOME (user-global), CLAUDE_PROJECT_DIR (repo root; else git toplevel).

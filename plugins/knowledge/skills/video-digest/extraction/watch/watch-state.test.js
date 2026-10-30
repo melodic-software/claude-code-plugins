@@ -126,7 +126,7 @@ describe("watch state phase map", () => {
     const framing = prompt.slice(prompt.indexOf("## Video metadata"), prompt.indexOf("```text"));
     expect(framing).toContain("`source/transcript.txt`");
     expect(framing).toContain("`run-state/watch.json`");
-    expect(prompt).toContain('`docs/conventions/untrusted-content/README.md` "The framing contract"');
+    expect(prompt).toContain('`docs/contracts/untrusted-content/README.md` "The framing contract"');
     expect(prompt).toContain("source-quality red flag in `recommendations/questions.md`");
     expect(prompt).toContain(
       "```text\ntitle: Talk\nsource: https://youtube.com/watch?v=abc\n```\n",
