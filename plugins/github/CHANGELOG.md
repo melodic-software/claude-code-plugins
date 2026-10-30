@@ -3,6 +3,14 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.38] - 2026-10-30
+
+### Changed
+
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
+- This plugin's copy of the shared recommendation-basis context now cites `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
 ## [0.3.37] - 2026-10-30
 
 ### Changed
