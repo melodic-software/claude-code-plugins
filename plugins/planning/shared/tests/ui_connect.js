@@ -11,7 +11,7 @@
 // owner's Publish, PLAN.md Decisions h2; a watcher key that works only on /api/mine/requests; a random per-prompt
 // marker; the look-alike markers the reviewer listed), the upstream link formats recorded in README.md ("Connect your
 // Claude": claude-cli://open?q=, claude://code/new?q=, claude://claude.ai/new?q=), the untrusted-content spine
-// (docs/conventions/untrusted-content/README.md), the guest URL share.sh prints, the secret the server issued on join,
+// (docs/contracts/untrusted-content/README.md), the guest URL share.sh prints, the secret the server issued on join,
 // and the texts this suite types, never from the page's own prompt builder.
 "use strict";
 const path = require("node:path");

@@ -3,7 +3,7 @@
 #
 # THE CASE THIS SUITE EXISTS FOR is case 8: two repositories writing the same run
 # id into one plugin data root must not collide. That is rule 1 of
-# docs/conventions/plugin-data-report-keying/README.md, and an unkeyed
+# docs/contracts/plugin-data-report-keying/README.md, and an unkeyed
 # implementation would serve one project's approved items and evidence to
 # another. It is demonstrated with two real git fixtures rather than asserted.
 #

@@ -922,7 +922,7 @@ assert_contains "blocked stderr still present with sink" "$out" "drive-root temp
 
 # --- Telemetry on the file-path lane -----------------------------------------
 # The `file-path` form and the Write-shaped `tool` / `subject` are documented in
-# docs/conventions/hook-telemetry/data/block-windows-drive-tmp.schema.json, and
+# docs/contracts/hook-telemetry/data/block-windows-drive-tmp.schema.json, and
 # the case above exercises only the Bash lane — so without this the new envelope
 # is documented and never executed, and a fault in emit_tel's now-locally-scoped
 # SUBJECT would leave every assertion green. `subject` must be the bare tool

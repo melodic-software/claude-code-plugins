@@ -161,7 +161,7 @@ rendered, never a guessed level; the value changes nothing else about the experi
    residue down with the behavioral surface.
 
    **Convention units: the oracle test.** The default for a `convention` unit rests on the
-   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+   [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md)
    and the ground-truth-oracle rule in the plugin-philosophy section linked above. No vendor page
    states a convention exemption, and the register's definition of "highly important areas" is this
    repository's own. Ask per unit what still checks the convention once its text is gone.
@@ -361,7 +361,7 @@ restore and close rules are under Deletion watch, unchanged.
    (Deletion watch defines the tier) the ledger did not defend is not left deleted on this ledger:
    restore it, or restore it and open a Deletion watch, which alone can make its removal permanent.
    A rule matching a protected class in the [instruction exception
-   register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+   register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md)
    is restored regardless of whether the ledger logged a stumble against it. The strip itself
    is fine: it is reversible and branch-local, which is why the experiment may run over a protected
    rail at all. What the register forbids is leaving one deleted on the evidence of silence. A rail

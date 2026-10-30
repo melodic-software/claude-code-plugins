@@ -8,7 +8,7 @@
 #
 # The cases that earn their keep are the ones proving the gate goes RED. A
 # drift check nobody has watched fail is the false-green shape
-# docs/conventions/liveness-assertion/ names. So every failure class gets a case: exact
+# docs/contracts/liveness-assertion/ names. So every failure class gets a case: exact
 # drift, values drift, a consumer that stopped inlining the floor, a
 # registration pointing at nothing, a COPY NOBODY REGISTERED, and the two ways
 # the extractor could go blind and pass everything forever.

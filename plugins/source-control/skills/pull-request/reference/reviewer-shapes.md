@@ -23,7 +23,7 @@ never let it become a reason to wait for something that may not arrive. The stre
 record here is the sample its basis names, so read that before the claim.
 
 Every record carries the four parts the
-[upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md)
+[upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md)
 requires: the claim, the basis it was derived against, the as-of date, and the observable recheck
 trigger. The date is the ceiling on how current a claim can be, never a guarantee. Re-read the
 basis before acting on a record, and when a trigger has fired, re-derive the record from the

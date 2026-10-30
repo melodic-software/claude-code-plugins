@@ -11,7 +11,7 @@
 # so a failed assertion fails the suite rather than only printing.
 #
 # Duplicated per plugin by design, not drift; see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 FAILED=0
 CASE_NUM=0

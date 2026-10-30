@@ -87,6 +87,7 @@ import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -98,7 +99,9 @@ const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
-const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION]);
+const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION, OUTSIDE_ACTOR_LABEL]);
+// Holds only a person lifts: a clean verdict never removes them.
+const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -266,12 +269,12 @@ export function planWrites(
   // verdict only when the App's earlier verdict comment lists no flag
   // (earlierFlags []); a listed flag or no readable comment (null) holds, as
   // does one the triage run (github-actions[bot]), a person, or an unread
-  // setter set, and needs-human always holds.
+  // setter set, and needs-human and the outside-actor flag always hold.
   const holds = labels.filter((label) => HOLDS.has(label));
   const appHolds =
     earlierFlags === null || earlierFlags.length > 0
       ? []
-      : holds.filter((label) => label !== NEEDS_HUMAN && isApp(holdSetters[label], appId));
+      : holds.filter((label) => !PERSON_HOLDS.has(label) && isApp(holdSetters[label], appId));
   for (const label of holds.filter((label) => !appHolds.includes(label))) {
     reasons.push(`held by ${label}`);
   }

@@ -20,7 +20,7 @@
 // change to a default waits for a person.
 // rate-guard.vectors.json pins classify's decisions for every port.
 
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
@@ -154,12 +154,53 @@ export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = proc
   if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
     return;
   }
+  const line = readingLine(status, headers);
   try {
     mkdirSync(join(dir, "api-budget"), { recursive: true });
-    appendFileSync(join(dir, "api-budget", token), readingLine(status, headers));
+    appendFileSync(join(dir, "api-budget", token), line);
+    scriptCalls.count(token, line);
   } catch {
     // A reading is never worth failing the job.
   }
+}
+
+// This process's share of the job-end api-calls notice: the readings it
+// appended, counted as api_budget_emit_calls counts the file (N its non-304
+// lines per token, M its 304s, K its graphql-resource lines). When
+// API_BUDGET_SCRIPT names the step, the process ends with
+// `::notice title=api-calls::script=<name> github-token=N lanes-app=N
+// not-modified=M graphql=K`, so a job's total splits by step. A child
+// process's calls (babysit's Python) are its own, not in this line.
+export function createScriptCalls() {
+  const tokens = { "github-token": 0, "lanes-app": 0 };
+  let notModified = 0;
+  let graphql = 0;
+  return {
+    count(token, line) {
+      const fields = line.trim().split(" ");
+      if (fields[0] === "304") {
+        notModified += 1;
+      } else {
+        tokens[token] = (tokens[token] ?? 0) + 1;
+      }
+      graphql += fields[5] === "graphql" ? 1 : 0;
+    },
+    line: (name) =>
+      `::notice title=api-calls::script=${name} ${Object.entries(tokens)
+        .map(([token, n]) => `${token}=${n}`)
+        .join(" ")} not-modified=${notModified} graphql=${graphql}\n`,
+  };
+}
+export const scriptCalls = createScriptCalls();
+const SCRIPT = process.env.API_BUDGET_SCRIPT ?? "";
+if (/^[a-z][a-z0-9-]{0,39}$/.test(SCRIPT)) {
+  process.on("exit", () => {
+    try {
+      writeSync(1, scriptCalls.line(SCRIPT));
+    } catch {
+      // A count is never worth failing the job.
+    }
+  });
 }
 
 // The bucket a request's reading goes under: token when the client pins one;

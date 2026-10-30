@@ -424,7 +424,7 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       if (refusal) break;
     }
     // A commit's author is text whoever creates it chooses; who pushed it is not.
-    refusal ??= pushRefusal(await api.listActivity(`refs/heads/${pull.head.ref}`), head, commits, appId);
+    refusal ??= pushRefusal(await api.listActivity(pull.head.ref), head, commits, appId);
     if (refusal) {
       log(`#${pr}: a commit is not Dependabot's or a lane fix, or not its pusher's own (${refusal}); a person decides`);
       await record("escalate", { reasons, evidence });

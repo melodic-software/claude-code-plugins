@@ -8,7 +8,7 @@
 #   scripts/check-upstream-drift.sh --help
 #
 # The page forms (the git pin marker, row links, drift inputs, the `## Map`
-# section and page status) are defined in docs/conventions/upstream-drift/
+# section and page status) are defined in docs/contracts/upstream-drift/
 # README.md, "Pinned git upstreams". In short: a page whose marker line reads
 # **Last audited upstream state:** `<owner>/<repo>@<40-hex sha>` [under `<scope>/`]
 # is checked; links to that repository outside `## Map` are drift inputs for any
@@ -350,7 +350,7 @@ for page in ${PAGES[@]+"${PAGES[@]}"}; do
   parse_marker "$file"
   case $? in
   0) GIT_PAGES+=("$page") ;;
-  2) die "$page: marker line names a pin but does not match the git form (see docs/conventions/upstream-drift/README.md, \"Pinned git upstreams\")" ;;
+  2) die "$page: marker line names a pin but does not match the git form (see docs/contracts/upstream-drift/README.md, \"Pinned git upstreams\")" ;;
   *) ((EXPLICIT)) && die "$page: no git pin marker" ;;
   esac
 done
@@ -493,7 +493,7 @@ fi
 
 if ((drifted > 0)); then
   printf '%s\n' "${FINDINGS[@]}" >&2
-  printf '%s: %d of %d page(s) show upstream drift; re-audit the rows named above (docs/conventions/upstream-drift/README.md, "Pinned git upstreams").\n' \
+  printf '%s: %d of %d page(s) show upstream drift; re-audit the rows named above (docs/contracts/upstream-drift/README.md, "Pinned git upstreams").\n' \
     "$SELF" "$drifted" "${#GIT_PAGES[@]}" >&2
   exit 1
 fi

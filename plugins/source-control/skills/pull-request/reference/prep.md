@@ -23,7 +23,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 **Check whether the branch holds more than one change.** While classifying, ask whether the diff breaks into parts that do not need each other: no part reads a file, symbol or behavior another part adds, and each could be reviewed, reverted and released alone. A dependency upgrade, a parser bug fix and a new CLI flag on one branch are three such parts. When the diff breaks apart this way, name the parts and the files in each, propose one pull request per part, and ask before going on; several narrow pull requests are each read and reverted more easily than one that mixes them. This is advice, not a gate: the user may keep one pull request. In a run with no one to ask, put the proposed split in the 1.6 report and continue with one pull request.
 
-**The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/conventions/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pre-pr-ordering/README.md). Read the order there; this file cites it rather than restating it.
+**The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/contracts/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pre-pr-ordering/README.md). Read the order there; this file cites it rather than restating it.
 
 Every skill named below is invoked through the Skill tool when its plugin is enabled, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
 

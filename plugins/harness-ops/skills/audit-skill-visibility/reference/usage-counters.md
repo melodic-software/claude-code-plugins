@@ -10,7 +10,7 @@ ranks these counts when it truncates the skill listing.
 
 ## Verification stamp
 
-Follows `docs/conventions/upstream-drift`.
+Follows `docs/contracts/upstream-drift`.
 
 - **Claim:** the write paths, seeding behavior, and per-region semantics below.
 - **Basis:** string extraction of `claude.exe` at Claude Code 2.1.251, the write

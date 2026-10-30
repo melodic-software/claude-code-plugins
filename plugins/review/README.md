@@ -168,7 +168,7 @@ claude plugin eval plugins/review --case 'recall-*' --scaffold --ablation none -
 - **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
   ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
   files when present (the marketplace-wide ecosystem-commands contract,
-  `docs/conventions/ecosystem-commands/README.md`), falling back to your documented conventions,
+  `docs/contracts/ecosystem-commands/README.md`), falling back to your documented conventions,
   then its own bundled generic defaults as a last resort.
 - **Graceful degrade.** Optional orchestrator plugins. `pr-review-toolkit` and `code-review` from
   the official marketplace, and `codex` from the OpenAI Codex marketplace. They add adversarial breadth

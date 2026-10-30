@@ -10,7 +10,7 @@
 # environment error, never a silent skip).
 #
 # Assertion helpers are deliberately NOT shared across plugins
-# (docs/conventions/shell-test-helpers/README.md); this wrapper needs none,
+# (docs/contracts/shell-test-helpers/README.md); this wrapper needs none,
 # since unittest reports its own results.
 set -uo pipefail
 

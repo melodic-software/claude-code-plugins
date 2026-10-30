@@ -1275,11 +1275,7 @@ const trustedAuthor = (author, { bot, humans }) =>
 // `at`. A marker naming no run, posted before markers named one, covers every
 // branch whose tip is not newer than it.
 export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers, keepBehind = false }) {
-  const shape = laneBranch(issueNumber);
-  const lane = branches
-    .map((branch) => ({ ...branch, match: shape.exec(branch.name) }))
-    .filter(({ match }) => match)
-    .sort((a, b) => Number(b.match[1]) - Number(a.match[1]) || Number(b.match[2]) - Number(a.match[2]));
+  const lane = laneBranches(branches, issueNumber);
   const byBot = (pull) => pull?.user?.login === bot;
   const open = lane.find(({ pulls }) => pulls.some((pull) => pull.state === "open" && byBot(pull)));
   if (open) {
@@ -1289,8 +1285,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   if (trusted) {
     return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
   }
-  const reported = ({ match, tipAt }) =>
-    markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
+  const reported = reportedIn(markers);
   const laneTip = ({ tip }) => laneCommit(tip, bot);
   const usable = (branch) => branch.aheadBy > 0 && laneTip(branch) && !branch.pulls.some(byBot);
   const reuse = lane.find((branch) => usable(branch) && !reported(branch));
@@ -1322,6 +1317,40 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
     return { action: "run", stale: { branch: resume.name, tip: resume.sha, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
+}
+
+// The issue's lane branches, each with its name's match, newest run and
+// attempt first.
+const laneBranches = (branches, issueNumber) => {
+  const shape = laneBranch(issueNumber);
+  return branches
+    .map((branch) => ({ ...branch, match: shape.exec(branch.name) }))
+    .filter(({ match }) => match)
+    .sort((a, b) => Number(b.match[1]) - Number(a.match[1]) || Number(b.match[2]) - Number(a.match[2]));
+};
+// Whether a lanes-App outcome marker reported a lane branch's run.
+const reportedIn = (markers) => ({ match, tipAt }) =>
+  markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
+
+// At most this many branches are named to prune per run; the rest wait for
+// the next run on the issue.
+export const PRUNE_CAP = 20;
+
+// The issue's lane branches a run deletes (owner decision on #7948): a stopped
+// run's branch, one whose run posted an outcome marker and whose every commit
+// ahead of the default branch is the lanes App's, with no pull request in any state, from the facts findPrior
+// decided on, so it costs no read. Spared: the branch the run reuses, resumes
+// or starts fresh past (`prior`), an unreported branch (reuse's), and every
+// attempt of the run itself (`runId`). A branch someone else pushed to is kept
+// for the daily branch cleanup.
+export function pruneBranches({ issueNumber, bot, branches, markers, prior, runId = "" }) {
+  const spared = new Set([prior?.branch, prior?.stale?.branch].filter(Boolean));
+  const reported = reportedIn(markers);
+  return laneBranches(branches, issueNumber)
+    .filter((branch) => branch.pulls.length === 0 && laneCommit(branch.tip, bot) && allLaneCommits(branch.commits, bot) && reported(branch))
+    .filter((branch) => branch.match[1] !== String(runId) && !spared.has(branch.name))
+    .map(({ name }) => name)
+    .slice(0, PRUNE_CAP);
 }
 
 // The listed humans' ids in trusted-actors.json; throws when it cannot be read.
@@ -1527,7 +1556,7 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
 export const staleMarker = (branch) => `<!-- work-resolve-issue stale-branch=${branch} -->`;
 const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] === staleMarker(branch);
 export const staleComment = (branch) =>
-  `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits, and no lane deletes it: a person can delete it once it is no longer needed.`;
+  `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits until the next run on this issue deletes it, when no pull request uses it.`;
 
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. Any failed read, or an answer of the wrong shape, fails the step,
@@ -1598,6 +1627,13 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers, keepBehind });
     const runs = prior.action === "run" || prior.action === "resume";
+    // A stopped run's leftover branches, deleted by work-resolve-issue.yml's
+    // prune job, which re-checks each; a stop names none.
+    const prune =
+      runs || prior.action === "reuse"
+        ? pruneBranches({ issueNumber, bot, branches, markers, prior, runId: env.GITHUB_RUN_ID ?? "" })
+        : [];
+    const pruned = prune.length ? { "prune-branches": prune.join(" ") } : {};
     const outputs = runs
       ? {
           proceed: "true",
@@ -1616,8 +1652,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
                 "stale-noted": String(appComments.some((comment) => staleNoted(comment.body, prior.stale.branch))),
               }
             : {}),
+          ...pruned,
         }
-      : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
+      : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "", ...pruned };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
     console.log(
       prior.stale

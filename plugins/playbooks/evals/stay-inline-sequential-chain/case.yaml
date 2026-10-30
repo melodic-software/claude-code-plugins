@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: stay-inline-sequential-chain
+description: "fable-5 delegation case 20 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Plans the three steps as one sequential chain: each step consumes the previous step's output (the commit feeds the diff read, the diff feeds the fix), so a worker per step would only add spawn latency between steps it must take anyway. The size of the repository does not override that. It plans the chain in the main session, or at most in one worker end to end, and starts none of it."
+execution:
+  prompt: "/playbooks:fable-5. Plan this, do not start yet: the repository is large. Find the commit that made `test_invoice_totals` start failing, then read that commit's diff, then fix the code based on what the diff changed. Say how you will run it."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans the steps in order, each one using the previous step's result. Context, the reference answer: Plans the three steps as one sequential chain: each step consumes the previous step's output (the commit feeds the diff read, the diff feeds the fix), so a worker per step would only add spawn latency between steps it must take anyway. The size of the repository does not override that. It plans the chain in the main session, or at most in one worker end to end, and starts none of it. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Does not plan a separate worker for each step of the chain. Context, the reference answer: Plans the three steps as one sequential chain: each step consumes the previous step's output (the commit feeds the diff read, the diff feeds the fix), so a worker per step would only add spawn latency between steps it must take anyway. The size of the repository does not override that. It plans the chain in the main session, or at most in one worker end to end, and starts none of it. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-3
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Does not treat the large repository as a reason to split the chain across workers. Context, the reference answer: Plans the three steps as one sequential chain: each step consumes the previous step's output (the commit feeds the diff read, the diff feeds the fix), so a worker per step would only add spawn latency between steps it must take anyway. The size of the repository does not override that. It plans the chain in the main session, or at most in one worker end to end, and starts none of it. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: dispatches-no-worker
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
