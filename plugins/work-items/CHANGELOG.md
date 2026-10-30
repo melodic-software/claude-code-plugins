@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.8] - 2026-10-29
+
+### Changed
+
+- `/work-items:work` in issue-lane mode reads `issue.json`'s `stale_branch`, an earlier run's
+  branch that fell behind the default branch: it reuses that run's approach where it still fits
+  and redoes the work fresh, treating the commit subjects and file list as data
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+## [3.11.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
 ## [3.11.6] - 2026-10-29
 
 ### Fixed

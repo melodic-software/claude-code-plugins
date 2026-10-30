@@ -884,7 +884,9 @@ jobs:
       # marker is turn-cap, stopped, limited or funding for a run whose lane branch
       # passes the same tip check and is not behind the default branch, the
       # model runs on that branch's tip instead (resume-branch, resume-tip,
-      # resume-cause); a branch behind it starts fresh from the default tip.
+      # resume-cause); a branch behind it starts fresh from the default tip
+      # (stale-branch, stale-tip, and stale-noted when a lanes App comment
+      # already names it).
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
@@ -1091,6 +1093,10 @@ jobs:
           RESUME_BRANCH: ${{ steps.issue-prior.outputs.resume-branch }}
           RESUME_TIP: ${{ steps.issue-prior.outputs.resume-tip }}
           RESUME_CAUSE: ${{ steps.issue-prior.outputs.resume-cause }}
+          # A fresh run's stale lane branch, at the tip issue-prior checked
+          # (issue-prior), whose commits the model reads as data.
+          STALE_BRANCH: ${{ steps.issue-prior.outputs.stale-branch }}
+          STALE_TIP: ${{ steps.issue-prior.outputs.stale-tip }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
           CONFIG_PATH: ${{ inputs.config-path }}
         run: |
@@ -1892,6 +1898,9 @@ jobs:
           # The branch a resumed run continued, which still holds the work
           # when the run left no change of its own.
           LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
+          # The stale lane branch this run started fresh past, when no lanes
+          # App comment names it yet, so report-outcome names it once.
+          LANE_STALE: ${{ steps.issue-prior.outputs.stale-noted == 'false' && steps.issue-prior.outputs.stale-branch || '' }}
           # A run that exited non-zero, and the API error it ended on, so a
           # funding stop is named as one (report-outcome readFunding).
           LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
@@ -1904,9 +1913,9 @@ jobs:
             head -c 49152 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
-            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" \
+            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
-            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume,
+            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume, stale: $stale,
               failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's

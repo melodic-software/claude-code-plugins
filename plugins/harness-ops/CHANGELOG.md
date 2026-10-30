@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.16.0] - 2026-10-29
+
+### Added
+
+- **The parser reader's sink rule counts the fresh objects Bun's runtime helpers define on as fresh targets.** Bun's verbatim runtime chunk still reads partial: its getters read by a computed key (`this[a]`, `b[c]`), which may spell `require` and so counts as a load the parser cannot name. Under `--reader=parser`, `Object.create(...)`, an object an `Object` definer returns, `new` of a class the module declares, a `?:` of fresh objects, and a parameter assigned one before any read now count as fresh targets. So does `this` in a function only ever bound to a fresh object (`r.bind(b,c)`), and a parameter of a function every caller passes a fresh object. For an exported helper such as `__export`, every importer's call must pass one, no module may re-export the helper, and no module may load the runtime module whole or load a file the parser cannot name. A target cleared through `Object.create` or a definer's return makes `Object` and `create` or the definer's name trusted names, and one cleared through `bind` makes `bind` one; every module is then checked for those names too. Like `Function`, `Object` passed as a string counts only when the callee is a definer. A declarator destructuring definers from `Object` (`var{defineProperty:f}=Object`) is no longer a definer escape when each definer it takes is only ever called and every other key is an inert static such as `getPrototypeOf`; each call is checked like a direct `Object.defineProperty` call. A parameter of a function that reads `arguments` or is declared in a block is never followed, since sloppy code can change or call it unseen.
+
+- `/harness-ops:morning-brief` prints an Owner touches section: per UTC day over the last `--touch-days` (default 2), the operator login's approvals, merges and `do-not-merge` lifts, the hold label (`--hold-label`, default `needs-human`) applied and lifted, and escalation comments; then hold waits from apply to lift, escalations by lane, kind and reason, and the most-touched items. It reads GitHub's own timeline events with one paged GraphQL search per day, so it needs no store and a later run compares against an earlier one. An escalation counts only from the lane identity (`merge.agent-identity` in `pr-pipeline.yaml`, or `--lane-identity`) or the operator (`gh api user`, or `--owner-login`). The operator login's actions include any agent session holding that login, and the section says so.
+
+### Fixed
+
+- Under `--reader=parser`, code a `Function("...")()` call folds to is a sink when it loads a file (`import("...")`, `require("...")`), since the load scan never reads it and such a load could take a module whole.
+
+- The Stuck section's upstream pointers name the GraphQL reference pages that now hold the search query and the labeled event.
+
+## [4.15.5] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
 ## [4.15.4] - 2026-10-29
 
 ### Changed

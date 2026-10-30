@@ -128,6 +128,10 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { ATTENDED_LABEL, HOST_RUN_LABEL, runCode, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
+// The label a held PR carries from its opening. The hold line is body text the
+// lanes App can edit; ci-status fails while this label is on and unless a
+// listed person's own removal took it off (merge-holds.mjs HUMAN_MERGE_HOLD).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
@@ -271,6 +275,20 @@ export function readHoldPaths(path) {
     return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
   } catch {
     return null;
+  }
+}
+
+// The denied paths a PR holds on: readHoldPaths while
+// merge.diff-check.path-holds is on, none while it is absent or false (owner
+// decisions Q15 and Q16; merge-holds.mjs pathHoldsOf reads it alike). An
+// unreadable config still holds.
+export function heldPaths(path) {
+  const paths = readHoldPaths(path);
+  try {
+    const on = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"];
+    return paths !== null && [undefined, null, false, "false"].includes(on) ? [] : paths;
+  } catch {
+    return paths;
   }
 }
 
@@ -710,9 +728,10 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, a runner check that failed, and on a
-// reused branch a leak scan that is missing or not clean. Runner checks that
-// did not report hold nothing: ci-status reruns them on the head. The scan is
+// changed path the merge lane refuses, and on a reused branch a leak scan that
+// is missing or not clean. Runner checks hold nothing, failed or unreported:
+// the PR's Verification section names a failure, and ci-status reruns them on
+// the head, where a red one goes to the fix lanes, not a person. The scan is
 // not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
 // or .gitleaksignore the branch can add, its password rule misses short or
 // symbol-bearing values scanLeak flags, and it reads only the commits' patches.
@@ -724,7 +743,6 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
     (reused && checks?.scan !== "clean")
   );
 }
@@ -834,7 +852,7 @@ export function reusePlan({
     "",
     `#${issueNumber}`,
   ].join("\n");
-  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch };
+  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch, hold };
 }
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
@@ -1062,6 +1080,7 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
+    hold,
   };
 }
 
@@ -1162,7 +1181,7 @@ export const trustedCloser = (closing, { repo, bot, humans }) =>
 //          continues the work instead of starting from the default branch.
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it) and is left as it is. With `keepBehind` it
+//          (`stale` names it and the tip read) and is left as it is. With `keepBehind` it
 //          resumes anyway: the read runner's issue-fields job re-derives a
 //          claim made before the model ran, and the default branch may have
 //          moved since;
@@ -1218,7 +1237,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
   if (resume && resume.behindBy !== 0 && !keepBehind) {
-    return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
+    return { action: "run", stale: { branch: resume.name, tip: resume.sha, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
 }
@@ -1421,6 +1440,13 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
   throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
 }
 
+// The marker of report-outcome's comment naming a stale lane branch a fresh
+// run left behind, once per branch.
+export const staleMarker = (branch) => `<!-- work-resolve-issue stale-branch=${branch} -->`;
+const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] === staleMarker(branch);
+export const staleComment = (branch) =>
+  `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits, and no lane deletes it: a person can delete it once it is no longer needed.`;
+
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. Any failed read, or an answer of the wrong shape, fails the step,
 // so the mint never follows it.
@@ -1438,8 +1464,8 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
-    const markers = (await paginate(github, `${repo}/issues/${issueNumber}/comments`))
-      .filter((comment) => comment.user?.login === bot)
+    const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
+    const markers = appComments
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
       .filter((marker) => marker.outcome !== undefined);
     // A marker naming no run is matched by its time, so that time must read.
@@ -1497,6 +1523,16 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
           "reuse-branch": "",
           ...(prior.action === "resume"
             ? { "resume-branch": prior.branch, "resume-tip": prior.tip, "resume-cause": prior.cause }
+            : {}),
+          // A fresh start past a stale branch: write-issue gives the model its
+          // commits as data, and report-outcome names it on the issue unless
+          // a lanes App comment already does (stale-noted).
+          ...(prior.stale
+            ? {
+                "stale-branch": prior.stale.branch,
+                "stale-tip": prior.stale.tip,
+                "stale-noted": String(appComments.some((comment) => staleNoted(comment.body, prior.stale.branch))),
+              }
             : {}),
         }
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
@@ -1607,6 +1643,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, issueNumber);
+    // The stale lane branch this run started fresh past, which issue-prior
+    // found no comment naming: lane.json's `stale` (rewritable, so only a
+    // name of this issue's lane-branch shape). The comment names it once so a
+    // person can find and delete it; nothing deletes it. A failed post is
+    // logged, and the next fresh start past it posts again.
+    const stale = readBranch(dir, issueNumber, "stale");
+    if (stale) {
+      await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: staleComment(stale) }).then(
+        () => console.log(`report-outcome: named the stale lane branch ${stale} on issue #${issueNumber}`),
+        (error) => console.log(`report-outcome: could not name the stale lane branch ${stale}: ${error.message}`),
+      );
+    }
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
     let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
@@ -1684,7 +1732,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       }
     }
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
-    const holdPaths = readHoldPaths(resolvedPath);
+    const holdPaths = heldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. A
     // failed compare leaves its file list unread, which holds the PR.
@@ -1833,18 +1881,36 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
             pull = (await findOpen()) ?? (await github("POST", `${repo}/pulls`, fields));
           }
         }
+        // A held PR carries the hold label from its opening; one the label
+        // cannot reach is closed rather than left held by body text alone.
+        const labeled =
+          !plan.hold ||
+          (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HUMAN_MERGE_HOLD] }, { safeToResend: true }).then(
+            () => true,
+            (error) => {
+              console.log(`::warning title=report-outcome::could not label PR #${pull.number} ${HUMAN_MERGE_HOLD}: ${String(error?.message ?? error)}`);
+              return false;
+            },
+          ));
         // A plan with a tip opens only at it: a PR whose head moved off the
         // checked tip is closed, and the issue goes to a person. Closing a
         // closed PR changes nothing, so the close is resent.
-        if (!plan.tip || pull.head?.sha === plan.tip) {
+        const moved = Boolean(plan.tip) && pull.head?.sha !== plan.tip;
+        if (labeled && !moved) {
           console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
           return 0;
         }
         await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" }, { safeToResend: true });
-        console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
-        plan = routeStop("pr-head-moved", {
+        console.log(
+          moved
+            ? `report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`
+            : `report-outcome: closed PR #${pull.number}: it holds for a person and could not be labeled ${HUMAN_MERGE_HOLD}`,
+        );
+        plan = routeStop(moved ? "pr-head-moved" : "hold-label-failed", {
           outcome: stopped(
-            `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`,
+            moved
+              ? `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`
+              : `The PR from \`${plan.branch}\` holds for a person, and the \`${HUMAN_MERGE_HOLD}\` label could not be added, so it was closed.`,
           ),
           issueNumber,
           branch: plan.branch,

@@ -2191,6 +2191,9 @@ jobs:
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # At most one whole-review request per run, as the merge job's gate
+          # (babysit_whole_review.py).
+          BABYSIT_WHOLE_REVIEW_SPENT: ${{ runner.temp }}/whole-review-spent
           # The verifier answers read above, and the file this run keeps.
           VERIFY_ANSWERS_IN: ${{ runner.temp }}/verify-answers-in.json
           VERIFY_ANSWERS_OUT: ${{ runner.temp }}/verify-answers/verify-answers.json

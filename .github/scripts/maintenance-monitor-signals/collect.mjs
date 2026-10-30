@@ -388,7 +388,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (cleared && cleared[2] === head) {
           for (const reason of cleared[1].split(",")) {
             const of = escalationActivity(reason);
-            if (escalationRoute(reason) === "fail" && !stops.has(of)) {
+            // feedback-not-landed clears only once its cause is gone (no
+            // unresolved lane thread on a moved head), so no stop stands.
+            if (escalationRoute(reason) === "fail" && reason !== "feedback-not-landed" && !stops.has(of)) {
               stops.set(of, { activity: of, reason, stoppedAt: c.created_at, url: c.html_url });
             }
           }

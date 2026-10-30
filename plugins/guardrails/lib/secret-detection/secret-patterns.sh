@@ -52,6 +52,20 @@ SECRET_PATTERNS=(
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'                           # PEM private key header
 )
 
+# secrets::any_match <content>
+#
+# Exit 0 when any pattern matches <content>, 1 when none does: the one grep
+# secrets::scan_text opens with. A caller that captures scan_text's output may
+# call this first and skip the capture's subshell when it returns 1, since
+# scan_text then prints nothing and returns 0.
+secrets::any_match() {
+  local pattern grep_e_args=()
+  for pattern in "${SECRET_PATTERNS[@]}"; do
+    grep_e_args+=(-e "$pattern")
+  done
+  LC_ALL=C grep -qE "${grep_e_args[@]}" < <(printf '%s' "$1") 2>/dev/null
+}
+
 # secrets::scan_text <content>
 #
 # Scans <content> for high-confidence secret patterns.
@@ -69,13 +83,7 @@ SECRET_PATTERNS=(
 # two-shapes rule.
 secrets::scan_text() {
   local content="$1" lines label pattern i
-  local grep_e_args=()
-  for pattern in "${SECRET_PATTERNS[@]}"; do
-    grep_e_args+=(-e "$pattern")
-  done
-  if ! LC_ALL=C grep -qE "${grep_e_args[@]}" < <(printf '%s' "$content") 2>/dev/null; then
-    return 0
-  fi
+  secrets::any_match "$content" || return 0
   for i in "${!SECRET_PATTERNS[@]}"; do
     label="${SECRET_LABELS[$i]}"
     pattern="${SECRET_PATTERNS[$i]}"

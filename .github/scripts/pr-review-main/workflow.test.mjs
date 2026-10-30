@@ -129,6 +129,117 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
   }
 });
 
+// The "Write the diff" script run under bash as Actions runs it, with git and
+// python3 stubbed: python3 (write-diff.py) writes the given patch, or fails.
+function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300" } = {}) {
+  const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${step("Write the diff", job)}\n`)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-stop-"));
+  try {
+    const bin = path.join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(path.join(bin, "git"), `#!/bin/sh\ncase "$*" in *rev-parse*) echo ${"e".repeat(40)} ;; esac\n`);
+    writeFileSync(path.join(dir, "fixture.patch"), patch);
+    writeFileSync(path.join(bin, "python3"), pythonFails ? "#!/bin/sh\nexit 1\n" : `#!/bin/sh\ncp "${path.join(dir, "fixture.patch")}" "$6"\n`);
+    chmodSync(path.join(bin, "git"), 0o755);
+    chmodSync(path.join(bin, "python3"), 0o755);
+    const out = path.join(dir, "out");
+    writeFileSync(out, "");
+    const data = path.join(dir, "data");
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, LANE: "claude-security-review", HEAD_SHA: SHA_A, BASE_SHA: SHA_B, PR_NUMBER: "7", DATA: data, SRC: path.join(dir, "src"), MAX_DIFF_BYTES: maxBytes, PART_BYTES: "15000", PART_LINES: "1000", LONG_LINE_BYTES: "1800" };
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env });
+    const parts = (() => {
+      try {
+        return readdirSync(path.join(data, "diff"));
+      } catch {
+        return [];
+      }
+    })();
+    return { status: result.status, output: readFileSync(out, "utf8"), stdout: result.stdout, parts };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a diff the review cannot read whole stops green and names its reason for the record job", () => {
+  const small = "diff --git a/x b/x\n@@ -1 +1 @@\n+short\n";
+  for (const job of LEGS) {
+    const tooLarge = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n${"+line\n".repeat(100)}`, { job });
+    assert.equal(tooLarge.status, 0, job);
+    assert.equal(tooLarge.output, `stop=too-large\nclaude-security-review-stop=too-large\nclaude-security-review-head=${SHA_A}\n`, job);
+    assert.deepEqual(tooLarge.parts, [], job);
+    assert.match(tooLarge.stdout, /^::notice title=pr-review-main stop::reason=too-large lane=claude-security-review pr=7; /m, job);
+    const longLine = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n+${"x".repeat(1801)}\n`, { job, maxBytes: "300000" });
+    assert.equal(longLine.status, 0, job);
+    assert.match(longLine.output, /^stop=long-line$/m, job);
+    // A failed write-diff.py is no designed stop: the step fails, unnamed.
+    const failed = runDiff(small, { job, pythonFails: true });
+    assert.notEqual(failed.status, 0, job);
+    assert.doesNotMatch(failed.output, /stop=/, job);
+    // A diff it reads whole writes its parts and no stop.
+    const whole = runDiff(small, { job });
+    assert.equal(whole.status, 0, job);
+    assert.doesNotMatch(whole.output, /stop=/, job);
+    assert.deepEqual(whole.parts, ["part-001.patch"], job);
+  }
+});
+
+test("after a stop no later step of the leg runs, and each lane's stop leaves the leg", () => {
+  for (const job of LEGS) {
+    const gated = STEPS[job].filter((s) => /steps\.diff\.outcome == 'success'/.test(s.block));
+    assert.ok(gated.length >= 5, job);
+    for (const s of gated) assert.match(s.block, /steps\.diff\.outcome == 'success' && steps\.diff\.outputs\.stop == ''/, `${job}: ${s.name}`);
+    for (const lane of ["claude-review", "claude-security-review"]) {
+      for (const kind of ["stop", "head"]) {
+        assert.match(jobText(job), new RegExp(`^ {6}${lane}-${kind}: \\$\\{\\{ steps\\.diff\\.outputs\\.${lane}-${kind} \\}\\}$`, "m"), `${job} ${lane}-${kind}`);
+      }
+    }
+  }
+});
+
+// The record job's "Record the stops" script, with gh stubbed to log its args.
+function recordStops(env) {
+  const block = stepsOf("record").find((s) => s.name === "Record the stops").block;
+  const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${block}\n`)[1].replace(/^ {10}/gm, "");
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-record-"));
+  try {
+    const log = path.join(dir, "gh.log");
+    writeFileSync(path.join(dir, "gh"), `#!/bin/sh\nprintf '%s\\n' "$@" >>"${log}"\n`);
+    chmodSync(path.join(dir, "gh"), 0o755);
+    writeFileSync(log, "");
+    const blank = { CODE_STOP: "", CODE_HEAD: "", SECURITY_STOP: "", SECURITY_HEAD: "" };
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r", ...blank, ...env } });
+    return { status: result.status, calls: readFileSync(log, "utf8") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the record job posts each stop as a neutral verdict=none record, from a closed reason", () => {
+  const block = stepsOf("record").find((s) => s.name === "Record the stops").block;
+  // A stop run uploads no artifact, so the step never waits on the download.
+  assert.doesNotMatch(block, /steps\.download/);
+  assert.match(block, /\^\(too-large\|binary\|long-line\)\$/);
+  for (const [lane, prefix] of [["claude-review", "CODE"], ["claude-security-review", "SECURITY"]]) {
+    for (const kind of ["stop", "head"]) {
+      assert.equal(input(block, `${prefix}_${kind.toUpperCase()}`), `\${{ needs.review.outputs.${lane}-${kind} || needs.review-subscription.outputs.${lane}-${kind} || needs.review-fallback.outputs.${lane}-${kind} }}`);
+    }
+  }
+  const posted = recordStops({ SECURITY_STOP: "too-large", SECURITY_HEAD: SHA_B });
+  assert.equal(posted.status, 0);
+  const args = posted.calls.split("\n");
+  for (const arg of ["repos/o/r/check-runs", "name=pr-review-main: claude-security-review", `head_sha=${SHA_B}`, "conclusion=neutral", "output[title]=verdict=none reason=too-large"]) {
+    assert.ok(args.includes(arg), arg);
+  }
+  assert.doesNotMatch(posted.calls, /claude-review\n/);
+  // No stop, nothing posted; a reason or head outside the closed set fails.
+  assert.deepEqual(recordStops({}), { status: 0, calls: "" });
+  for (const bad of [{ CODE_STOP: "other", CODE_HEAD: SHA_A }, { CODE_STOP: "too-large", CODE_HEAD: "main" }, { CODE_STOP: "too-large\nx", CODE_HEAD: SHA_A }]) {
+    const result = recordStops(bad);
+    assert.notEqual(result.status, 0, JSON.stringify(bad));
+    assert.equal(result.calls, "");
+  }
+});
+
 // write-diff.py run on a fixture repository: each case is a commit on top of
 // a base, and the patch it prints for base...head.
 // A cap of 0 makes every patch over it, so moves may collapse.
@@ -573,7 +684,12 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
   }
   // The fallback leg is the last: it hands nothing on.
   assert.equal(index("Hand the lane on", FB), -1);
-  assert.doesNotMatch(jobText(FB), /^ {4}outputs:$/m);
+  // Its outputs are the designed stops alone, for the record job.
+  const fbOutputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))[1];
+  assert.deepEqual(
+    [...fbOutputs.matchAll(/^ {6}([a-z-]+):/gm)].map(([, name]) => name),
+    ["claude-review-stop", "claude-security-review-stop", "claude-review-head", "claude-security-review-head"],
+  );
   assert.doesNotMatch(step("Review the pull request", KEY), /fallback-ready/);
   assert.equal(input(step("Review the pull request", SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
   assert.doesNotMatch(step("Review the pull request", FB), /fallback-ready/);
