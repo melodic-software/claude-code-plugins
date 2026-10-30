@@ -99,9 +99,11 @@ It changes `~/.docker` outside the repository, so it runs only after the user ag
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
 its target, runs the command, and puts the links back when the command exits, fails, or is
 interrupted. Anything written into the copies is discarded. It refuses and changes nothing on a
-dangling link, or while `~/.docker-link-swap.json` exists: that file means an earlier swap was
-killed before it could restore, so run `docker-links.py restore` first. Never edit, move or
-delete the links any other way, and never repoint `DOCKER_CONFIG`. A plugin in this repository's
+dangling link. Overlapping runs on one machine share one swap, and the last to exit restores. A
+run killed before it could restore (`~/.docker-link-swap.json` names no live run) is put back by
+the next run's start, or by `docker-links.py restore`, which refuses while a live run still
+holds the copies. Never edit, move or delete the links any other way, and never repoint
+`DOCKER_CONFIG`. A plugin in this repository's
 own checkout still meets the linked-worktree refusal after the swap; take that route from the hub
 as well. Why every link and not a list of names: [records.md](records.md#sandbox-and-credential-store).
 

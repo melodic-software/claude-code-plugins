@@ -106,54 +106,87 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(self.links_during_run(), "")
         self.assert_restored()
 
-    def test_interrupted_run_restores_the_links(self):
-        marker = self.home / "child-started"
+    def start(self, name):
+        """Start a wrapped run whose child records the links it sees, writes its
+        pid to started-<name>, and exits once release-<name> exists."""
+        child = (
+            f'find "$HOME/.docker" -mindepth 1 -type l > "$HOME/links-{name}"'
+            f' && echo $$ > "$HOME/started-{name}"'
+            f' && while [ ! -e "$HOME/release-{name}" ]; do sleep 0.05; done'
+        )
         proc = subprocess.Popen(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "run",
-                "--",
-                "sh",
-                "-c",
-                LIST_LINKS + ' && touch "$HOME/child-started" && exec sleep 30',
-            ],
+            [sys.executable, str(SCRIPT), "run", "--", "sh", "-c", child],
             env=self.env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        self.addCleanup(self.stop, proc, name)
+        marker = self.home / f"started-{name}"
         deadline = time.monotonic() + 20
-        while not marker.exists():
-            self.assertIsNone(
-                proc.poll(), "the wrapper exited before its child started"
-            )
-            self.assertLess(time.monotonic(), deadline, "the child never started")
+        while not marker.exists() or not marker.read_text(encoding="utf-8"):
+            self.assertIsNone(proc.poll(), f"run {name} exited before its child")
+            self.assertLess(time.monotonic(), deadline, f"run {name} never started")
             time.sleep(0.05)
+        self.assertEqual((self.home / f"links-{name}").read_text(encoding="utf-8"), "")
+        return proc
+
+    def stop(self, proc, name):
+        (self.home / f"release-{name}").touch()
+        if proc.poll() is None:
+            proc.kill()
+        proc.communicate(timeout=20)
+
+    def release(self, proc, name):
+        (self.home / f"release-{name}").touch()
+        _, stderr = proc.communicate(timeout=20)
+        self.assertEqual(proc.returncode, 0, stderr)
+
+    def kill_run(self, proc, name):
+        child = int((self.home / f"started-{name}").read_text(encoding="utf-8"))
+        proc.kill()
+        os.kill(child, signal.SIGKILL)
+        proc.communicate(timeout=20)
+        self.assertEqual(self.find_links(), [], "the killed run left no copies")
+        self.assertTrue((self.home / ".docker-link-swap.json").is_file())
+
+    def test_interrupted_run_restores_the_links(self):
+        proc = self.start("a")
         proc.send_signal(signal.SIGTERM)
         _, stderr = proc.communicate(timeout=20)
         self.assertEqual(proc.returncode, 128 + signal.SIGTERM, stderr)
+        self.assert_restored()
+
+    def test_next_run_start_restores_what_a_killed_run_left(self):
+        self.kill_run(self.start("a"), "a")
+        result = self.wrapped(LIST_LINKS)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("restored a killed run", result.stderr)
         self.assertEqual(self.links_during_run(), "")
         self.assert_restored()
 
-    def test_swap_then_restore_recovers_a_killed_run(self):
-        swap = self.cli("swap")
-        self.assertEqual(swap.returncode, 0, swap.stderr)
-        self.assertEqual(self.find_links(), [])
-        self.assertTrue((self.store / "contexts").is_dir())
-        self.assertTrue((self.home / ".docker-link-swap.json").is_file())
+    def test_restore_command_recovers_a_killed_run(self):
+        self.kill_run(self.start("a"), "a")
         restore = self.cli("restore")
         self.assertEqual(restore.returncode, 0, restore.stderr)
         self.assert_restored()
 
-    def test_swap_refuses_while_an_earlier_record_is_unrestored(self):
-        self.assertEqual(self.cli("swap").returncode, 0)
-        again = self.wrapped(LIST_LINKS)
-        self.assertEqual(again.returncode, 2)
-        self.assertIn("restore", again.stderr)
-        self.assertFalse((self.home / "links-during-run").exists())
-        self.assertEqual(self.cli("restore").returncode, 0)
+    def test_overlapping_runs_keep_the_copies_until_the_last_exits(self):
+        first = self.start("a")
+        second = self.start("b")
+        self.release(first, "a")
+        self.assertEqual(self.find_links(), [], "copies removed under a live run")
+        self.assertTrue((self.store / "contexts" / "meta" / "meta.json").is_file())
+        self.release(second, "b")
+        self.assert_restored()
+
+    def test_restore_command_refuses_while_a_run_is_live(self):
+        proc = self.start("a")
+        restore = self.cli("restore")
+        self.assertEqual(restore.returncode, 2)
+        self.assertIn(str(proc.pid), restore.stderr)
+        self.assertEqual(self.find_links(), [])
+        self.release(proc, "a")
         self.assert_restored()
 
     def test_dangling_link_refuses_and_changes_nothing(self):
@@ -185,7 +218,7 @@ class DockerLinksTest(unittest.TestCase):
         self.assertFalse((self.home / ".docker-link-swap.json").exists())
 
     def test_restore_leaves_a_link_docker_desktop_recreated(self):
-        self.assertEqual(self.cli("swap").returncode, 0)
+        self.kill_run(self.start("a"), "a")
         copy = self.store / "features.json"
         copy.unlink()
         os.symlink(self.links["features.json"], copy)
