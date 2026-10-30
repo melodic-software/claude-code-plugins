@@ -92,13 +92,16 @@ claim, so a second answer dispatches nothing. It never adds `agent-ready`, and i
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
 [`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
-workflow with no model, secret or kill switch. It runs on an issue or pull request opened or edited
-(`pull_request_target` for a pull request), and on a comment, review or diff comment created,
-submitted or edited. Its job starts only when the content's author is neither `OWNER` nor `MEMBER`
-and the sender is not a Bot (an App installed here). The run then trusts the author only by
-numeric id on the default branch's trusted-actor list, and an unreadable list flags. An outside
-actor's item gets `security: outside-actor` and `needs-human`, and one comment per actor names the
-login, without a mention, and the event, quoting none of their text. It holds the job's own
+workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
+or reopened, a pull request synchronized (`pull_request_target` for a pull request), and on a
+comment, review or diff comment created, submitted or edited. Its job starts only when the sender
+is not a Bot (an App installed here) and either the content's author is neither `OWNER` nor
+`MEMBER` or the event is an edit by someone other than the author, which judges the editor. The
+run then trusts the actor only by numeric id on the default branch's trusted-actor list, and an
+unreadable list flags. An outside actor's item gets `security: outside-actor` and `needs-human`
+(no label write when the payload shows both already on), and one comment per actor names the
+login, without a mention, and the event, quoting none of their text. `clear-escalations.mjs`
+never removes `needs-human` from an item carrying `security: outside-actor`. It holds the job's own
 `GITHUB_TOKEN` (`contents: read`, `issues: write`, `pull-requests: write`). A review or diff
 comment on a fork pull request gets a read-only token and is not flagged; the fork pull request
 itself is flagged when it opens.

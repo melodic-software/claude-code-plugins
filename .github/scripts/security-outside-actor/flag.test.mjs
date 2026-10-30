@@ -119,6 +119,41 @@ for (const [eventName, number, kind] of [
   });
 }
 
+for (const [eventName, action, number, kind] of [
+  ["issues", "reopened", 5, "issue reopened"],
+  ["pull_request_target", "synchronize", 9, "pull request synchronize"],
+  ["pull_request_target", "reopened", 9, "pull request reopened"],
+]) {
+  test(`an outside ${eventName} ${action} labels the item and comments with the action`, async () => {
+    const payload = { ...events[eventName](OUTSIDER, "NONE"), action, sender: OUTSIDER };
+    const { code, calls } = await run(eventName, payload);
+    assert.equal(code, 0);
+    const [label, comment] = posts(calls);
+    assert.equal(label.apiPath, `/repos/${REPO}/issues/${number}/labels`);
+    assert.ok(comment.body.body.includes(`(event: ${kind})`), kind);
+  });
+}
+
+test("an item already carrying both labels gets no label write, but a new actor still gets a comment", async () => {
+  const payload = events.issue_comment(OUTSIDER, "NONE");
+  payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }, { name: "bug" }];
+  const { code, calls } = await run("issue_comment", payload);
+  assert.equal(code, 0);
+  assert.deepEqual(
+    posts(calls).map((call) => call.apiPath),
+    [`/repos/${REPO}/issues/5/comments`],
+  );
+});
+
+test("an item carrying only one of the two labels is labeled again", async () => {
+  for (const name of [LABEL, NEEDS_HUMAN]) {
+    const payload = events.pull_request_target(OUTSIDER, "NONE");
+    payload.pull_request.labels = [{ name }];
+    const { calls } = await run("pull_request_target", payload);
+    assert.ok(posts(calls).some((call) => call.apiPath.endsWith("/labels")), name);
+  }
+});
+
 test("a second event from the same actor re-adds the labels and posts no second comment", async () => {
   const own = { user: ACTIONS_BOT, body: `${markerFor({ id: OUTSIDER.id })}\n**Outside actor.**` };
   const { code, calls } = await run("issue_comment", events.issue_comment(OUTSIDER, "NONE"), { comments: [own] });

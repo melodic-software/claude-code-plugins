@@ -7,7 +7,10 @@ name: security-outside-actor
 #
 # Two skips run in the job's `if`, before a runner starts, so most events
 # cost nothing:
-# - the content's author has `author_association` OWNER or MEMBER;
+# - the content's author has `author_association` OWNER or MEMBER, unless the
+#   event is an edit by someone other than that author: flag.mjs then judges
+#   the editor, so a collaborator who is not a member editing a member's text
+#   is checked;
 # - the event's sender is a Bot. Only a GitHub App installed on this
 #   repository acts as a Bot, which here means one of ours, so lane traffic
 #   starts no job. Machine-user accounts are type User and are still checked.
@@ -34,7 +37,7 @@ on:
   # Runs from the default branch; checks out main only and passes no event
   # text to a shell.
   issues: # zizmor: ignore[dangerous-triggers]
-    types: [opened, edited]
+    types: [opened, edited, reopened]
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created, edited]
   pull_request_review:
@@ -43,7 +46,7 @@ on:
     types: [created, edited]
   # Never checks out the pull request head.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [opened, edited]
+    types: [opened, edited, synchronize, reopened]
 
 permissions: {}
 
@@ -53,11 +56,16 @@ jobs:
     # request's, else the issue's, the order flag.mjs reads them in.
     if: >-
       github.event.sender.type != 'Bot'
-      && !contains(fromJSON('["OWNER", "MEMBER"]'),
-           github.event.comment.author_association
-           || github.event.review.author_association
-           || github.event.pull_request.author_association
-           || github.event.issue.author_association)
+      && ((github.event.action == 'edited'
+           && github.event.sender.id != (github.event.comment.user.id
+             || github.event.review.user.id
+             || github.event.pull_request.user.id
+             || github.event.issue.user.id))
+        || !contains(fromJSON('["OWNER", "MEMBER"]'),
+             github.event.comment.author_association
+             || github.event.review.author_association
+             || github.event.pull_request.author_association
+             || github.event.issue.author_association))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

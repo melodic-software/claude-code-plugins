@@ -195,8 +195,13 @@ import {
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT, laneChange, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
+import { LABEL as OUTSIDE_ACTOR } from "../security-outside-actor/flag.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
+// An outside actor's hold is a person's to lift: an item carrying the
+// security-outside-actor label keeps its needs-human whatever else cleared.
+const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
+const OUTSIDE_ACTOR_KEPT = `it carries ${OUTSIDE_ACTOR}, which a person lifts`;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 // babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
 // escalation and Dependabot-major escalation: the marker on the first or
@@ -1217,6 +1222,9 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
   if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
     return { reason: `${label} is no longer on it` };
   }
+  if (outsideActorHeld(pull.labels)) {
+    return { reason: OUTSIDE_ACTOR_KEPT };
+  }
   const evidence = await staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted });
   if (evidence.reason !== undefined) {
     return evidence;
@@ -1309,6 +1317,9 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   }
   if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
     return { reason: `${label} is no longer on it` };
+  }
+  if (outsideActorHeld(pull.labels)) {
+    return { reason: OUTSIDE_ACTOR_KEPT };
   }
   const why = [];
   if (merged.length > 0) {
@@ -1487,7 +1498,11 @@ export async function main({ env = process.env, github, checks, verify, reader }
     );
     let failed = 0;
     let cleared = 0;
-    for (const { number } of rotated(held, Number(env.GITHUB_RUN_NUMBER))) {
+    for (const { number, labels } of rotated(held, Number(env.GITHUB_RUN_NUMBER))) {
+      if (outsideActorHeld(labels)) {
+        console.log(`clear-escalations: #${number} kept: ${OUTSIDE_ACTOR_KEPT}`);
+        continue;
+      }
       if (cleared >= CLEARS_PER_RUN) {
         console.log(`clear-escalations: #${number} not checked: ${CLEARS_PER_RUN} cleared this run`);
         continue;

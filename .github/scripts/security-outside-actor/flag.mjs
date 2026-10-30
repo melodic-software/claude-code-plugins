@@ -11,7 +11,8 @@
 //
 // An unreadable or malformed trusted-actor list flags the author: the check
 // fails closed. Labels are re-added on every untrusted event, so a person who
-// cleared `needs-human` hears of new outside activity. The comment is written
+// cleared `needs-human` hears of new outside activity; an event whose payload
+// already shows both labels skips that write. The comment is written
 // once per actor, found again by its marker, which counts only on a comment
 // github-actions[bot] wrote.
 //
@@ -54,17 +55,21 @@ export function readEvent(eventName, payload) {
     return null;
   }
   // An edit by someone other than the author (a person retitling an
-  // outsider's issue) is the editor's act: only content one wrote can be
-  // edited by an outsider, so the editor is judged, by id alone.
+  // outsider's issue, or a collaborator who is not a member editing a
+  // member's comment) is the editor's act, so the editor is judged, by id
+  // alone.
   const sender = payload.sender ?? {};
   const byEditor = payload.action === "edited" && Number.isInteger(sender.id) && sender.id !== content.user?.id;
   const user = (byEditor ? sender : content.user) ?? {};
+  const labels = (payload.issue ?? payload.pull_request)?.labels;
+  const names = new Set(Array.isArray(labels) ? labels.map((item) => item?.name) : []);
   return {
     number,
     kind: ACTION.test(payload.action ?? "") ? `${KINDS[eventName]} ${payload.action}` : KINDS[eventName],
     association: byEditor ? undefined : content.author_association,
     id: Number.isInteger(user.id) ? user.id : null,
     login: typeof user.login === "string" && LOGIN.test(user.login) ? user.login : null,
+    labeled: names.has(LABEL) && names.has(NEEDS_HUMAN),
   };
 }
 
@@ -100,7 +105,7 @@ export async function flag({ github, repository, author }) {
   const base = `/repos/${repository}/issues/${author.number}`;
   const marker = markerFor(author);
   const [labeled, commented] = await Promise.allSettled([
-    github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
+    author.labeled ? null : github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
     paginate(github, `${base}/comments`).then(async (comments) => {
       if (comments.some((comment) => isOwnMarker(comment, marker))) {
         return "labeled";

@@ -19,7 +19,7 @@ function runs(event) {
   const js = condition
     .replace(/github\.event\.([a-z_.]+)/g, (_, p) => `get(${JSON.stringify(p)})`)
     .replace(/fromJSON\('([^']*)'\)/g, "JSON.parse('$1')")
-    .replace(/!=/g, "!==");
+    .replace(/ (==|!=) /g, " $1= ");
   return new Function("get", "contains", `return Boolean(${js});`)(get, (list, item) => list.includes(item));
 }
 
@@ -29,11 +29,11 @@ test("the five triggers and their types", () => {
   const on = text.slice(text.indexOf("\non:\n"), text.indexOf("\npermissions: {}\n"));
   const triggers = [...on.matchAll(/\n {2}([a-z_]+):.*\n {4}types: \[([a-z, ]+)\]/g)].map((m) => `${m[1]} ${m[2]}`);
   assert.deepEqual(triggers, [
-    "issues opened, edited",
+    "issues opened, edited, reopened",
     "issue_comment created, edited",
     "pull_request_review submitted, edited",
     "pull_request_review_comment created, edited",
-    "pull_request_target opened, edited",
+    "pull_request_target opened, edited, synchronize, reopened",
   ]);
 });
 
@@ -51,6 +51,20 @@ test("an outsider's comment on a member's issue or review on a member's pull req
   assert.equal(runs({ sender: user, pull_request: { author_association: "MEMBER" }, review: { author_association: "CONTRIBUTOR" } }), true);
   assert.equal(runs({ sender: user, pull_request: { author_association: "FIRST_TIME_CONTRIBUTOR" } }), true);
   assert.equal(runs({ sender: user, issue: { author_association: "COLLABORATOR" } }), true);
+});
+
+test("an edit by someone other than the content's author starts the job, whatever the author's association", () => {
+  const member = { id: 1, ...user };
+  const editor = { id: 2, type: "User" };
+  for (const association of ["OWNER", "MEMBER"]) {
+    assert.equal(runs({ action: "edited", sender: editor, issue: { user: member, author_association: association } }), true);
+    assert.equal(runs({ action: "edited", sender: editor, pull_request: { user: member, author_association: association } }), true);
+    assert.equal(runs({ action: "edited", sender: editor, issue: { user: editor, author_association: "NONE" }, comment: { user: member, author_association: association } }), true);
+    assert.equal(runs({ action: "edited", sender: editor, pull_request: { user: editor, author_association: "NONE" }, review: { user: member, author_association: association } }), true);
+    assert.equal(runs({ action: "edited", sender: member, issue: { user: member, author_association: association } }), false, "a member editing their own item");
+    assert.equal(runs({ action: "created", sender: editor, issue: { user: editor }, comment: { user: member, author_association: association } }), false, "not an edit");
+  }
+  assert.equal(runs({ action: "edited", sender: { id: 2, type: "Bot" }, issue: { user: { id: 1 }, author_association: "MEMBER" } }), false, "a Bot editor");
 });
 
 test("a Bot sender starts no job: only Apps installed here send as Bot, so lane traffic costs nothing", () => {
