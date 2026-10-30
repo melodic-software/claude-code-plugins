@@ -400,23 +400,36 @@ export async function isTrustedClose(github, repo, closedIssue, humans, isApp = 
 
 // Whether the lanes App's close of issue `number` is an already-done close
 // whose evidence still holds (owner Q9, 2026-10-29): the App's last close
-// comment (report-outcome's, read back by closeStop) names already-done, and
-// doneEvidence re-reads that the pull request or commit it cites is on the
-// default branch with a commit message that closes the issue. A
-// report-delivered close, or any read that fails, counts for nothing. The
-// module loads here, not at the top, so a job that checks out this action
-// alone still runs it.
+// comment names already-done, and doneEvidence re-reads that the pull request
+// or commit it cites is on the default branch with a commit message that
+// closes the issue. A report-delivered close, or any read that fails, counts
+// for nothing.
 async function appDoneClose(github, repo, number, isApp) {
   try {
-    const { closeStop, doneEvidence } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
-    const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
-    const close = comments
-      .filter((comment) => isApp(comment?.user))
-      .map((comment) => closeStop(comment.body))
-      .findLast(Boolean);
+    const close = await appCloseKind(github, repo, number, isApp);
+    const { doneEvidence } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
     return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
   } catch {
     return false;
+  }
+}
+
+// The lanes App's last close comment on issue `number` (report-outcome's,
+// read back by closeStop): {stop, reason, url, at}, or null when none parses
+// or a read fails. It says what kind of close the App made, never that the
+// work is done. The module loads here, not at the top, so a job that checks
+// out this action alone still runs it.
+export async function appCloseKind(github, repo, number, isApp) {
+  try {
+    const { closeStop } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
+    const found = comments
+      .filter((comment) => isApp(comment?.user))
+      .map((comment) => ({ comment, close: closeStop(comment.body) }))
+      .findLast(({ close }) => Boolean(close));
+    return found ? { ...found.close, url: found.comment.html_url ?? null, at: found.comment.created_at ?? null } : null;
+  } catch {
+    return null;
   }
 }
 
