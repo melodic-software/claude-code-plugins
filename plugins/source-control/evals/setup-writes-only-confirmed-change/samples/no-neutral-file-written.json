@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": ["docs/conventions/source-control.yaml"], "why": "the confirmed team file only"}
+  ],
+  "fail": [
+    {"answer": ["docs/conventions/source-control/commit-convention.yml"], "why": "the declined neutral file"},
+    {"answer": ["docs/conventions/source-control.yaml", "docs/conventions/source-control/commit-convention.yml"], "why": "the team file plus the declined neutral file"}
+  ]
+}
