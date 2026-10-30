@@ -133,6 +133,49 @@ put edit.txt 'one\ntwo\n'
 run_collect
 check 'undone: state is empty' empty "$(field state)"
 
+echo '# an exact move'
+# A moved file is a rename header with no content, so a large move stays
+# well under the patch cap.
+new_repo
+big=$(head -c 200000 /dev/zero | tr '\0' 'x')
+mkdir -p "$R/skills/old"
+printf '%s\n' "$big" >"$R/skills/old/SKILL.md"
+put skills/old/run.sh '#!/bin/sh\necho run\n'
+chmod +x "$R/skills/old/run.sh"
+tg add -A
+tg commit -q -m 'a skill'
+HEAD_SHA=$(tg rev-parse HEAD)
+mkdir -p "$R/skills/new"
+git -C "$R" mv skills/old/SKILL.md skills/new/SKILL.md
+git -C "$R" mv skills/old/run.sh skills/new/run.sh
+rmdir "$R/skills/old" 2>/dev/null || true
+run_collect
+check 'move: exit 0' 0 "$RC"
+check 'move: state is written' written "$(field state)"
+check 'move: two exact renames' 2 "$(grep -c '^similarity index 100%$' "$PATCH" || true)"
+check 'move: rename headers name both paths' $'rename from skills/old/SKILL.md\nrename to skills/new/SKILL.md\nrename from skills/old/run.sh\nrename to skills/new/run.sh' "$(grep '^rename ' "$PATCH")"
+check 'move: no deleted or new file' 0 "$(grep -cE '^(deleted|new) file mode' "$PATCH" || true)"
+check 'move: no content hunk' 0 "$(grep -c '^@@' "$PATCH" || true)"
+check 'move: the patch is small' yes "$( (($(wc -c <"$PATCH") < 1024)) && echo yes || echo no)"
+apply_to_fresh
+check 'move: the patch applies' 0 "$APPLY_RC"
+check 'move: the applied tree matches' yes "$SAME"
+
+echo '# a move with an edit'
+# Below 100% similarity a move stays a deletion and an addition.
+new_repo
+mkdir -p "$R/docs"
+git -C "$R" mv edit.txt docs/edit.txt
+put docs/edit.txt 'one\ntwo\nthree\n'
+run_collect
+check 'edited move: exit 0' 0 "$RC"
+check 'edited move: no rename header' 0 "$(grep -c '^rename ' "$PATCH" || true)"
+check 'edited move: the old path is deleted' 1 "$(grep -c '^deleted file mode' "$PATCH" || true)"
+check 'edited move: the new path is added' 1 "$(grep -c '^new file mode' "$PATCH" || true)"
+apply_to_fresh
+check 'edited move: the patch applies' 0 "$APPLY_RC"
+check 'edited move: the applied tree matches' yes "$SAME"
+
 echo '# repository config'
 # Config the activity could set does not change the patch's form.
 new_repo
@@ -147,7 +190,8 @@ put edit.txt 'one\nTWO\n'
 run_collect
 check 'config: exit 0' 0 "$RC"
 check 'config: no color codes' 0 "$(grep -c $'\e' "$PATCH" || true)"
-check 'config: no rename headers' 0 "$(grep -c '^rename ' "$PATCH" || true)"
+check 'config: diff.renames finds no copies' 0 "$(grep -c '^copy ' "$PATCH" || true)"
+check 'config: the exact move is one rename' $'rename from keep.txt\nrename to moved.txt' "$(grep '^rename ' "$PATCH")"
 check 'config: a/ and b/ prefixes' 'diff --git a/edit.txt b/edit.txt' "$(grep '^diff --git a/edit.txt' "$PATCH")"
 apply_to_fresh
 check 'config: the patch applies' 0 "$APPLY_RC"
