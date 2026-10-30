@@ -185,6 +185,7 @@
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
         "repo": {"type": "string"},
+        "commit": {"description": "A full 40-character commit SHA in `repo`: the page links a repo-relative path to that file at this commit, and leaves paths as text when it is empty or absent.", "type": "string"},
         "setInRound": {"type": "integer"},
         "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},

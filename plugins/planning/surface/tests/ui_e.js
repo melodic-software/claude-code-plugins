@@ -1,4 +1,4 @@
-async page => { // answer controls: radios by keyboard, a withheld question, paste routing, the focus ring, and the controls while offline or after a restart
+async page => { // answer controls: radios by keyboard, a withheld question, repo paths linked at meta.commit, paste routing, the focus ring, and the controls while offline or after a restart
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const errors = [];
   page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -45,6 +45,32 @@ async page => { // answer controls: radios by keyboard, a withheld question, pas
   await nudgeVisible();
   const matched = await until(() => /^Ledger in sync, rev 8$/.test(document.getElementById("ledgerLine").textContent), 8000);
   ok("a ledger that matches reads Ledger in sync, rev 8", matched, await text("#ledgerLine"));
+  await page.unroute("**/api/state");
+  await nudgeVisible(); await page.waitForTimeout(400);
+
+  // #8089: a repo path in a recommendation, a commitment and an alternative links to the file at meta.commit; with no commit it stays text
+  const SHA = "0123456789abcdef0123456789abcdef01234567", BLOB = p => "https://github.com/o/r/blob/" + SHA + "/" + p;
+  const withPaths = commit => route => route.fetch().then(async res => {
+    const body = await res.json();
+    body.questions.meta = Object.assign({}, body.questions.meta, {repo: "o/r"}, commit ? {commit} : {});
+    body.questions.questions.forEach(q => { if (q.id === "E1") Object.assign(q, {recommendation: "Yes, per plugins/rec.py:12.", commits: ["Keep docs/commit.md current"], alternatives: [{key: "a", text: "No, see lib/alt.js"}, {key: "b", text: "Only on main"}]}); });
+    await route.fulfill({response: res, json: body});
+  });
+  const pathLinks = () => page.evaluate(() => {
+    const hrefs = e => e ? [...e.querySelectorAll("a")].map(a => a.getAttribute("href")) : null;
+    return {rec: hrefs([...document.querySelectorAll("#choices .choice .t")].find(t => /plugins\/rec\.py/.test(t.textContent))), commit: hrefs(document.querySelector(".crow label")), alt: hrefs([...document.querySelectorAll(".alts .alt")].find(a => /lib\/alt\.js/.test(a.textContent)))};
+  });
+  await page.route("**/api/state", withPaths(SHA));
+  await nudgeVisible(); await pick("E1");
+  await until(() => !!document.querySelector('.alts .alt a[href*="/blob/"]'), 8000);
+  const pinned = await pathLinks();
+  ok("with meta.commit, a path in the recommendation, a commitment and an alternative links to the file at that commit", JSON.stringify(pinned) === JSON.stringify({rec: [BLOB("plugins/rec.py") + "#L12"], commit: [BLOB("docs/commit.md")], alt: [BLOB("lib/alt.js")]}), JSON.stringify(pinned));
+  await page.unroute("**/api/state");
+  await page.route("**/api/state", withPaths(""));
+  await nudgeVisible();
+  await until(() => !document.querySelector('a[href*="/blob/"]') && /docs\/commit\.md/.test(document.body.textContent), 8000);
+  const unpinned = await pathLinks();
+  ok("  with no meta.commit, the same paths stay plain text", JSON.stringify(unpinned) === JSON.stringify({rec: [], commit: [], alt: []}), JSON.stringify(unpinned));
   await page.unroute("**/api/state");
   await nudgeVisible(); await page.waitForTimeout(400);
 
