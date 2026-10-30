@@ -225,7 +225,9 @@ layered per the marketplace's
 valid state. That record is also how a consumer declares session posture to `audit`: a baseline
 finding the team has judged (for example a `git push` ask-gate in a repository whose cloud sessions
 must push) is suppressed by its `finding_id` with a reason, and `audit` prints a paste-ready stanza
-for every finding it raises. The skill never infers posture from the environment.
+for every finding it raises. The skill never infers posture from the environment. An entry whose
+`date` is older than `exceptions.max_days` (default 90; set it in the same file) is reported for
+reconfirmation and keeps suppressing.
 
 A hook plugin can ship `hooks/coverage.json`, declaring which baseline permission patterns its
 guards block and the levers that narrow or switch them off. `audit` reads every enabled plugin's
