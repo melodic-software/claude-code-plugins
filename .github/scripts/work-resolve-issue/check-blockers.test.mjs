@@ -330,7 +330,7 @@ const reportClose = (user, at) => ({
   html_url: "https://github.com/o/r/issues/7#issuecomment-1",
   body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
 });
-const reportWorld = ({ comments, readyAt }) => (path) => {
+const reportWorld = ({ comments, readyAt, closer = APP }) => (path) => {
   if (path === "/repos/o/r/issues/42") {
     return { number: 42, state: "open", user: HUMAN, labels: [{ name: "agent-ready" }] };
   }
@@ -338,10 +338,10 @@ const reportWorld = ({ comments, readyAt }) => (path) => {
     return [{ event: "labeled", label: { name: "agent-ready" }, actor: APP, created_at: readyAt }];
   }
   if (path.includes("/dependencies/blocked_by")) {
-    return [issue(7, "closed", { closer: APP })];
+    return [issue(7, "closed", { closer })];
   }
   if (path === "/repos/o/r/issues/7") {
-    return issue(7, "closed", { closer: APP });
+    return issue(7, "closed", { closer });
   }
   if (path.startsWith("/repos/o/r/issues/7/comments")) {
     if (comments instanceof Error) {
@@ -364,4 +364,12 @@ test("a blocker the lanes App closed report-delivered runs once agent-ready post
   assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: [reportClose(STRANGER, "2026-10-28T00:00:00Z")], readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: new Error("502"), readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
+});
+
+// The App's report comment speaks only for a close the App made: once the
+// blocker is reopened and someone else closes it, the older report clears
+// nothing.
+test("a blocker someone other than the lanes App closed blocks even with an older App report-delivered comment", async () => {
+  const comments = [reportClose(APP, "2026-10-28T00:00:00Z")];
+  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-29T00:00:00Z", closer: STRANGER }))).outputs, SKIP);
 });

@@ -238,7 +238,7 @@ import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wi
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { clearedPastReport, retriageText, doneReason, isSplitParent, judgedSince, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
+import { clearedPastReport, retriageNote, doneReason, isSplitParent, judgedSince, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -763,7 +763,7 @@ async function admissionDecision({ github, repo, number, issue, events, humans, 
 // again, and the comment quotes each report as data, as intake's admit() does.
 async function sendToTriage({ github, repo, base, comments, decision, reasons }) {
   await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
-  await sayWhy(github, repo, base, comments, `Not admitted to the issue lane yet: ${reasons}.\n\n${retriageText(decision.retriage)}`);
+  await sayWhy(github, repo, base, comments, retriageNote(reasons, decision.retriage));
 }
 
 // Refuses a deferred issue for `reasons`: the admission comment (`comments`

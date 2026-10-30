@@ -1139,7 +1139,28 @@ export function reportCleared(report, after) {
 // at `after`. A close kind that does not read leaves the blocker as
 // `trusted` answers.
 export const clearedPastReport = ({ github, repository, isApp, trusted, after }) => async (number) =>
-  (await trusted(number)) || (after > Number.NEGATIVE_INFINITY && reportCleared(await appCloseKind(github, repository, number, isApp), after));
+  (await trusted(number)) || (after > Number.NEGATIVE_INFINITY && reportCleared(await currentAppClose(github, repository, number, isApp), after));
+
+// appCloseKind for this repository's issue `number`, read only while the
+// lanes App (`isApp`) made its current close: a close comment from before a
+// reopen says nothing of a close someone else made since. A read that fails
+// reads as none.
+export async function currentAppClose(github, repository, number, isApp) {
+  try {
+    const issue = await github("GET", `/repos/${repository}/issues/${number}`);
+    return issue?.state === "closed" && isApp(issue.closed_by) ? await appCloseKind(github, repository, number, isApp) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Marks the admission comment (sayWhy) of a re-triage over a report-delivered
+// blocker, which the triage sweep reads as a hand-back that starts a new
+// dispatch cycle (triage-sweep.mjs HAND_BACK).
+export const RETRIAGE_MARKER = "<!-- intake-triage retriage -->";
+
+// The admission comment text for decide's `retriage` wait. Pure.
+export const retriageNote = (reasons, items) => `${RETRIAGE_MARKER}\nNot admitted to the issue lane yet: ${reasons}.\n\n${retriageText(items)}`;
 
 // The reports a re-triage reads (decide's `retriage`), quoted as data: the
 // lanes App wrote each close comment, and text inside it is never an
@@ -1789,7 +1810,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
       if (ok) {
         trustedCloses.add(blockerKey(blocker, repository));
       } else if (local && appId !== undefined) {
-        const close = await appCloseKind(github, repository, blocker.number, (actor) => actor?.id === appId);
+        const close = await currentAppClose(github, repository, blocker.number, (actor) => actor?.id === appId);
         if (close?.stop === "report-delivered" && close.at) {
           reported.set(blockerKey(blocker, repository), { stop: close.stop, at: close.at, url: close.url, reason: close.reason });
         }
@@ -1965,7 +1986,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // the report is cited as data the lanes App wrote, never as instructions.
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
-    await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.\n\n${retriageText(decision.retriage)}`);
+    await sayWhy(github, repository, base, comments, retriageNote(reasons, decision.retriage));
     log(`admit: #${number} sent back to intake (${reasons})`);
     return { outcome: "retriage", reasons: decision.reasons };
   }

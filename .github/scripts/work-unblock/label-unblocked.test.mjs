@@ -4332,14 +4332,18 @@ const reportDeliveredClose = (user, at) => ({
 
 test("a status: ready issue whose blocker the App closed report-delivered is admitted only once a verdict postdates the close", async (t) => {
   const closedAt = "2026-10-16T06:30:00Z";
-  for (const [comments, readyAt, expected] of [
+  for (const [comments, readyAt, expected, closer = LANES_BOT] of [
     [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "admit"],
     [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "retriage"],
     [[reportDeliveredClose(OWNER, closedAt)], "2026-10-16T07:00:00Z", "wait"],
     [[], "2026-10-16T07:00:00Z", "wait"],
+    // Reopened and closed again by someone else: the App's older report
+    // speaks for no close the App made.
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "wait", { id: 777, login: "triage-user" }],
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "wait", { id: 777, login: "triage-user" }],
   ]) {
     const item = readyIssue(26);
-    const blocker = issue(30, { state: "closed", closer: LANES_BOT, at: closedAt });
+    const blocker = issue(30, { state: "closed", closer, at: closedAt });
     const { github, calls } = readyWorld({
       items: [item],
       events: { 26: [labelAdd("status: ready", LANES_BOT, readyAt)] },
