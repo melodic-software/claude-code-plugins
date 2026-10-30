@@ -47,22 +47,34 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-// The newest trusted run's answers file and its run id, or undefined when no
-// run has one; an error for a file that is not this repository's.
-export async function readAnswers({ repo, runId, actions: client, download, shared }) {
+// The newest trusted run holding the answers artifact, or undefined.
+export async function answersRun({ repo, runId, actions: client, shared }) {
   const actions = sharedReads(client, shared);
   const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
-  const id = await newestTrustedRun({ repo, runId, actions, name: ANSWERS_ARTIFACT, accept });
-  if (id === undefined) {
+  return newestTrustedRun({ repo, runId, actions, name: ANSWERS_ARTIFACT, accept });
+}
+
+// Run `id`'s answers file, as `{ run, text, count }`; undefined when the
+// artifact holds none (a run whose reader read nothing), an error for a file
+// that is not this repository's.
+export function readAnswers({ repo, id, download }) {
+  let text;
+  try {
+    text = download(id);
+  } catch {
     return undefined;
   }
-  const text = download(id);
   const data = JSON.parse(text);
   if (!isObject(data) || data.repo !== repo || !isObject(data.entries)) {
     throw new Error(`the answers of run ${id} are not this repository's`);
   }
   return { run: id, text, count: Object.keys(data.entries).length };
 }
+
+const keep = (path, text) => {
+  writeFileSync(`${path}.tmp`, text);
+  renameSync(`${path}.tmp`, path);
+};
 
 export async function main({ env = process.env, actions, download } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
@@ -73,22 +85,26 @@ export async function main({ env = process.env, actions, download } = {}) {
     if (env.EAM_SKIP_PATH) rmSync(env.EAM_SKIP_PATH, { force: true });
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: ANSWERS_ARTIFACT, file: ANSWERS_FILE });
-    const found = await readAnswers({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
-    if (found === undefined) {
+    const id = await answersRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, shared: env.PR_MERGE_READS_PATH });
+    if (id === undefined) {
       console.log("no earlier verifier answers; each pull request is read in full");
       return 0;
     }
-    writeFileSync(`${env.VERIFY_ANSWERS_PATH}.tmp`, found.text);
-    renameSync(`${env.VERIFY_ANSWERS_PATH}.tmp`, env.VERIFY_ANSWERS_PATH);
-    console.log(`verifier answers of run ${found.run}: ${found.count} pull requests`);
+    // The skip records first: a malformed answers file stops only the answers.
     if (env.EAM_SKIP_PATH) {
       try {
-        writeFileSync(`${env.EAM_SKIP_PATH}.tmp`, download(found.run, SKIP_FILE));
-        renameSync(`${env.EAM_SKIP_PATH}.tmp`, env.EAM_SKIP_PATH);
+        keep(env.EAM_SKIP_PATH, download(id, SKIP_FILE));
       } catch {
-        console.log(`run ${found.run} kept no skip records; each pull request is read`);
+        console.log(`run ${id} kept no skip records; each pull request is read`);
       }
     }
+    const found = readAnswers({ repo, id, download });
+    if (found === undefined) {
+      console.log(`run ${id} kept no verifier answers; each pull request is read in full`);
+      return 0;
+    }
+    keep(env.VERIFY_ANSWERS_PATH, found.text);
+    console.log(`verifier answers of run ${found.run}: ${found.count} pull requests`);
   } catch (error) {
     console.log(`::warning title=verifier answers::${escapeCommand(error?.message ?? error)}; each pull request is read in full`);
   }

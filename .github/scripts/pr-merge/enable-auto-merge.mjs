@@ -1370,8 +1370,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
 // reader run keeps, for each unarmed lanes App pull request it left on a
 // lane's refusal in SKIPPABLE with nothing written, the key of every input
 // that refusal reads: its head, update time and labels, its head's check and
-// status rollup (which never changes `updatedAt`), main's code and config,
-// and the resolved config. The next reader run leaves a pull request whose
+// status rollup, review decision and count, newest comments and review
+// threads (none of which need move `updatedAt`), main's code and config,
+// the resolved config and the rung the gate scores at. The next reader run leaves a pull request whose
 // key still matches on that refusal with no read, for at most
 // merge.skip-unchanged max-minutes from its judgment and max-skips runs in a
 // row, and never past the time its lane comment turns into a failing status.
@@ -1396,7 +1397,7 @@ export const SKIP_MAIN_PATHS = Object.freeze([
   "plugins/source-control",
 ]);
 const SKIP_STATE_FIELDS =
-  "number headRefOid updatedAt commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100) { totalCount nodes { __typename ... on CheckRun { databaseId name status conclusion } ... on StatusContext { context state } } } } } } }";
+  "number headRefOid updatedAt reviewDecision reviews { totalCount } comments(last: 50) { totalCount nodes { databaseId updatedAt } } reviewThreads(first: 100) { totalCount nodes { isResolved isOutdated } } commits(last: 1) { nodes { commit { oid statusCheckRollup { contexts(first: 100) { totalCount nodes { __typename ... on CheckRun { databaseId name status conclusion } ... on StatusContext { context state } } } } } } }";
 export const SKIP_STATE_PREFIX = "query($o: String!, $r: String!) { repository(owner: $o, name: $r) {";
 export const skipStateQuery = (numbers) => `${SKIP_STATE_PREFIX} ${numbers.map((n) => `p${n}: pullRequest(number: ${n}) { ...s }`).join(" ")} } } fragment s on PullRequest { ${SKIP_STATE_FIELDS} }`;
 const ZONED_TIME = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
@@ -1415,19 +1416,27 @@ export function mainInputsOf(base = ".base") {
   return run.status === 0 && run.stdout.trim() !== "" ? run.stdout : null;
 }
 
-// A state node's rollup as the key reads it, or null when it is cut or not
-// at `head`. A status's time is left out: the same state posted again on the
-// next run is no change.
+// A state node as the key reads it, or null when any part is missing, cut
+// or not at `head`: the head's check and status rollup (a status's time is
+// left out, so the same state posted again on the next run is no change),
+// the review decision and count, the newest comments' ids and edit times,
+// and the review threads' resolved and outdated flags, none of which need
+// move `updatedAt`, as babysit_merge_skip.pr_state keys them.
 export function rollupOf(node, head) {
   const commit = node?.commits?.nodes?.[0]?.commit;
   if (commit?.oid !== head) return null;
-  if (commit.statusCheckRollup == null) return [];
-  const contexts = commit.statusCheckRollup.contexts;
-  if (!Array.isArray(contexts?.nodes) || contexts.totalCount !== contexts.nodes.length || contexts.nodes.length > 100) return null;
-  return contexts.nodes
-    .map((c) => [c?.__typename ?? null, c?.databaseId ?? c?.context ?? null, c?.name ?? null, c?.status ?? c?.state ?? null, c?.conclusion ?? null])
-    .map((row) => JSON.stringify(row))
-    .sort();
+  const whole = (list, cap) => Array.isArray(list?.nodes) && list.totalCount === list.nodes.length && list.nodes.length <= cap;
+  const contexts = commit.statusCheckRollup == null ? { totalCount: 0, nodes: [] } : commit.statusCheckRollup.contexts;
+  if (!whole(contexts, 100) || !whole(node.reviewThreads, 100) || !Array.isArray(node.comments?.nodes) || !Number.isSafeInteger(node.comments.totalCount) || !Number.isSafeInteger(node.reviews?.totalCount)) {
+    return null;
+  }
+  return {
+    checks: contexts.nodes.map((c) => JSON.stringify([c?.__typename ?? null, c?.databaseId ?? c?.context ?? null, c?.name ?? null, c?.status ?? c?.state ?? null, c?.conclusion ?? null])).sort(),
+    reviewDecision: node.reviewDecision ?? null,
+    reviews: node.reviews.totalCount,
+    comments: [node.comments.totalCount, ...node.comments.nodes.map((c) => [c?.databaseId ?? null, c?.updatedAt ?? null])],
+    threads: node.reviewThreads.nodes.map((t) => JSON.stringify([Boolean(t?.isResolved), Boolean(t?.isOutdated)])).sort(),
+  };
 }
 
 export const skipKey = (pull, rollup, main) =>
@@ -1739,7 +1748,8 @@ export async function main({ env = process.env, github, actions, verify, room, w
     if (skips.on && skips.maxMinutes > 0 && skips.maxSkips > 0) {
       skipMain = (mainInputs ?? (() => mainInputsOf()))();
       try {
-        skipMain = skipMain === null ? null : `${skipMain}\n${readFileSync(env.RESOLVED_CONFIG ?? "", "utf8")}\n${minutes}`;
+        // The rung the gate scores the risk at (pythonVerify's `rung`).
+        skipMain = skipMain === null ? null : `${skipMain}\n${readFileSync(env.RESOLVED_CONFIG ?? "", "utf8")}\n${minutes}\n${lane?.rung ?? ""}\n${env.RUNG_CAP ?? ""}`;
       } catch {
         skipMain = null;
       }

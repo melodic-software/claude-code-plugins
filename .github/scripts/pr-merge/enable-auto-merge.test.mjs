@@ -256,7 +256,20 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
         [...body.query.matchAll(/p([0-9]+): pullRequest/g)].map(([, n]) => {
           const found = pulls.find((candidate) => candidate.number === Number(n));
           const rollup = found?.rollup ?? { contexts: { totalCount: 0, nodes: [] } };
-          return [`p${n}`, { number: Number(n), headRefOid: found?.headRefOid, updatedAt: found?.updatedAt, commits: { nodes: [{ commit: { oid: found?.headRefOid, statusCheckRollup: rollup } }] } }];
+          const none = { totalCount: 0, nodes: [] };
+          return [
+            `p${n}`,
+            {
+              number: Number(n),
+              headRefOid: found?.headRefOid,
+              updatedAt: found?.updatedAt,
+              reviewDecision: found?.reviewDecision ?? null,
+              reviews: { totalCount: found?.reviewCount ?? 0 },
+              comments: found?.stateComments ?? none,
+              reviewThreads: found?.stateThreads ?? none,
+              commits: { nodes: [{ commit: { oid: found?.headRefOid, statusCheckRollup: rollup } }] },
+            },
+          ];
         }),
       );
       return { data: { repository } };
@@ -3542,10 +3555,10 @@ const riskHeld = (overrides = {}) =>
   pull(1, { updatedAt: "2026-10-23T09:30:00Z", verdict: LANE_RISK_HELD, discussion: { comments: [lanesSaid(laneNote(LANE_RISK_REASON))] }, rollup: check("SUCCESS"), ...overrides });
 const at = (minutes) => () => Date.parse(NOW) + minutes * 60_000;
 // One reader run that keeps its skip records at `out`, from `from` when given.
-async function skipRun(pulls, { from, minutes = 0, main: inputs = "main-1", env = {} } = {}) {
+async function skipRun(pulls, { from, minutes = 0, main: inputs = "main-1", env = {}, lane = ROOM } = {}) {
   const dir = tempDir("enable-auto-merge-skip-");
   const out = join(dir, "eam-skip.json");
-  const result = await run(pulls, { EAM_SKIP_IN: from ?? join(dir, "none.json"), EAM_SKIP_OUT: out, ...env }, { now: at(minutes), mainInputs: () => inputs });
+  const result = await run(pulls, { EAM_SKIP_IN: from ?? join(dir, "none.json"), EAM_SKIP_OUT: out, ...env }, { now: at(minutes), mainInputs: () => inputs }, lane);
   let kept = null;
   try {
     kept = readFileSync(out, "utf8");
@@ -3578,6 +3591,22 @@ test("a changed check rollup alone, with the same updatedAt, is read again", asy
   assert.ok(second.lines.some((line) => line.startsWith("enable-auto-merge: skip-unchanged skipped=0 ")));
 });
 
+// As babysit_merge_skip.py keys them: a thread resolved, a review or a
+// comment edited need not move `updatedAt`.
+test("a resolved review thread, a review or an edited comment alone, with the same updatedAt, is read again", async () => {
+  const threads = (isResolved) => ({ stateThreads: { totalCount: 1, nodes: [{ isResolved, isOutdated: false }] } });
+  const first = await skipRun([riskHeld(threads(false))]);
+  assert.equal((await skipRun([riskHeld(threads(false))], { from: first.from, minutes: 15 })).details, 0);
+  for (const [name, changed] of Object.entries({
+    thread: threads(true),
+    review: { ...threads(false), reviewCount: 1 },
+    decision: { ...threads(false), reviewDecision: "APPROVED" },
+    comment: { ...threads(false), stateComments: { totalCount: 1, nodes: [{ databaseId: 5, updatedAt: "2026-10-23T10:05:00Z" }] } },
+  })) {
+    assert.equal((await skipRun([riskHeld(changed)], { from: first.from, minutes: 15 })).details, 1, name);
+  }
+});
+
 test("a changed head, update time, label set or main is read again, and an armed one always is", async () => {
   const first = await skipRun([riskHeld()]);
   const cases = {
@@ -3585,6 +3614,8 @@ test("a changed head, update time, label set or main is read again, and an armed
     updatedAt: [riskHeld({ updatedAt: "2026-10-23T10:05:00Z" }), {}],
     labels: [riskHeld({ labels: labels("ci") }), {}],
     main: [riskHeld(), { main: "main-2" }],
+    // The rung the gate scores the risk at (pythonVerify's `rung`).
+    rung: [riskHeld(), { lane: { ...ROOM, rung: "C3" } }],
     armed: [riskHeld({ autoMergeRequest: { enabledAt: "2026-10-23T10:01:00Z" } }), {}],
   };
   for (const [name, [changed, options]] of Object.entries(cases)) {

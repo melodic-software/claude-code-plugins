@@ -38,7 +38,7 @@ async function readRun({ pages = [[]], files = {}, skips = {}, offMain = [], fai
     if (onMain !== undefined) return onMain;
     const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
-    const artifacts = id in files ? [{ name: ANSWERS_ARTIFACT, expired: false }] : [{ name: "pr-merge-head-refs", expired: false }];
+    const artifacts = id in files || id in skips ? [{ name: ANSWERS_ARTIFACT, expired: false }] : [{ name: "pr-merge-head-refs", expired: false }];
     return { total_count: artifacts.length, artifacts };
   };
   // The run's artifact holds the answers file and, in `skips`, its skip records.
@@ -48,6 +48,7 @@ async function readRun({ pages = [[]], files = {}, skips = {}, offMain = [], fai
       if (!(id in skips)) throw new Error(`no ${file}`);
       return skips[id];
     }
+    if (files[id] === null) throw new Error(`no ${file}`);
     return files[id];
   };
   const lines = [];
@@ -70,7 +71,7 @@ test("the newest trusted run on main's answers are written as they were kept", a
   });
   // This run is skipped, a pull_request_target run is never asked, and run 8
   // is not on main. Its skip records are read from the same download.
-  assert.deepEqual(result.downloads, [7, `7:${SKIP_FILE}`]);
+  assert.deepEqual(result.downloads, [`7:${SKIP_FILE}`, 7]);
   assert.equal(result.written, kept);
   assert.ok(result.lines.includes("verifier answers of run 7: 1 pull requests"), result.lines.join("\n"));
 });
@@ -100,10 +101,20 @@ test("the answers run's skip records are written beside its answers, and none is
   const kept = JSON.stringify({ v: 1, repo: REPO, entries: {} });
   const found = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: answersOf({}) }, skips: { 7: kept }, beforeSkips: "planted" });
   assert.equal(found.skipsWritten, kept);
-  assert.deepEqual(found.downloads, [7, `7:${SKIP_FILE}`]);
+  assert.deepEqual(found.downloads, [`7:${SKIP_FILE}`, 7]);
   const none = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: answersOf({}) }, beforeSkips: "planted" });
   assert.equal(none.skipsWritten, undefined);
   assert.ok(none.written !== undefined);
   const noAnswers = await readRun({ pages: [[wf(5, "schedule")]], beforeSkips: "planted" });
   assert.equal(noAnswers.skipsWritten, undefined);
+});
+
+// A run whose reader read nothing (every pull request skipped or held) keeps
+// no answers file; its skip records still reach the next run.
+test("a run that kept only skip records hands them on, with no answers and no warning", async () => {
+  const kept = JSON.stringify({ v: 1, repo: REPO, entries: {} });
+  const found = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: null }, skips: { 7: kept } });
+  assert.equal(found.skipsWritten, kept);
+  assert.equal(found.written, undefined);
+  assert.ok(!found.lines.some((line) => line.startsWith("::warning")), found.lines.join("\n"));
 });
