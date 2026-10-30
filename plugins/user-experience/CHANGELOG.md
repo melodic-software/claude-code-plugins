@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.12] - 2026-10-30
+
+### Changed
+
+- `yaml-subset.mjs` gains a `source` option that keeps each scalar as its source text. Default parsing is unchanged (#10131).
+
 ## [0.2.11] - 2026-10-30
 
 ### Changed
