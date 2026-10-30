@@ -453,6 +453,20 @@ def model_output_path(value: str) -> Path:
     return refuse_engine_owned(path, data_root)
 
 
+def record_run_end(plan: str, outcome: str) -> None:
+    """Tell the clean skill's belt that a preview ended the run.
+
+    Best effort: a write that fails leaves the belt holding until its idle
+    timeout, the fail-closed direction, and never changes the preview's result.
+    """
+    try:
+        write_json(
+            Path(plan + engine_grammar.PREVIEW_RUN_END_SUFFIX), {"outcome": outcome}
+        )
+    except (HygieneError, OSError):
+        pass
+
+
 def load_input_json(value: str) -> dict[str, Any]:
     return load_json(state_input_path(Path(value)))
 
@@ -6447,6 +6461,8 @@ def main(argv: list[str] | None = None) -> int:
         plan = load_input_json(args.plan)
         checked = preview(snapshot, plan)
         if args.command == "preview":
+            if checked["outcome"] != "explicit-approval":
+                record_run_end(args.plan, checked["outcome"])
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
