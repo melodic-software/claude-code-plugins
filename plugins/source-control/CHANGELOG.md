@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.4] - 2026-10-30
+
+### Fixed
+
+- `review-venue.sh` takes a workflow run listing page only when its `workflow_runs` holds every run
+  its `total_count` leaves for that page. It reads an incomplete page up to three times. When the
+  page is still incomplete, each lane it leaves undecided reads `local unreadable` and runs its
+  review locally. A short or partial page no longer reads as `absent` or `stale`.
+
 ## [4.3.3] - 2026-10-30
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.15] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [2.0.14] - 2026-10-30
 
 ### Changed
