@@ -191,7 +191,7 @@ import {
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 import { LANES_APP_LOGIN as DEFAULT_BOT, laneChange, REVIEW_LANES } from "./merge-holds.mjs";
-import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalBody, rotated, verifyHold } from "./enable-auto-merge.mjs";
+import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
@@ -673,9 +673,9 @@ function nativeRefusal(appComments, merged, label, head) {
   if (!(Date.parse(newest.updated_at) <= Date.parse(newest.created_at))) {
     return null;
   }
-  const reason = lines(newest.body).slice(5, -1).join("\n");
-  const kind = Object.keys(READER_HOLDS).find((key) => reason.startsWith(READER_HOLDS[key]));
-  return kind !== undefined && refusalBody(true, reason, head, label) === newest.body ? { kind, reason } : null;
+  const reason = refusalReasons(newest.body, true, head, label)?.join("\n");
+  const kind = reason === undefined ? undefined : Object.keys(READER_HOLDS).find((key) => reason.startsWith(READER_HOLDS[key]));
+  return kind !== undefined ? { kind, reason } : null;
 }
 
 // Whether the reader's `evidence` at `head` lifts the `kind` refusal, whose

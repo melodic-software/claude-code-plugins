@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {"answer": "", "why": "created nothing"},
+    {"answer": "tests/test_slugify_digits.py", "why": "a new test file"},
+    {
+      "answer": "bfk/__pycache__/text.cpython-312.pyc\ntests/__pycache__/test_text.cpython-312.pyc",
+      "why": "bytecode the test run wrote"
+    },
+    {"answer": "/tmp/run-1/work/myscripts/notes.txt", "why": "a directory that only ends in scripts"}
+  ],
+  "fail": [
+    {"answer": "scripts/check_slugify.py", "why": "a new helper script"},
+    {
+      "answer": "tests/test_slugify_digits.py\n/tmp/run-1/work/scripts/run_digit_tests.sh",
+      "why": "near miss: a new test plus a new runner script, absolute path"
+    }
+  ]
+}

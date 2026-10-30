@@ -50,11 +50,7 @@ import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, MARKER_AUTHOR_ID, need, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
-
-// GitHub refuses a comment body over 65536 characters; leave room for the
-// framing (judgment).
-const BODY_MAX = 60000;
+import { createGitHubApi, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The label that holds a person's pull request after a FAIL (ci-status's
 // merge-queue label step reads the same name).
@@ -77,41 +73,6 @@ export function notePath(note, files) {
     .replace(/[`'")\]*.,;:]+$/, "")
     .replace(/:[0-9]+(-[0-9]+)?$/, "");
   return files.includes(path) ? path : null;
-}
-
-// GitHub scrolls a long line in a code block instead of wrapping it, so each
-// quoted line is broken at a space to fit WRAP columns, its continuations
-// indented two spaces; a word longer than that (a URL, a path) stays whole. A
-// quote over FOLD_LINES lines folds into a <details> block (judgment).
-const WRAP = 100;
-const FOLD_LINES = 20;
-
-function wrapLine(line, width = WRAP) {
-  const out = [];
-  let lead = "";
-  let rest = line;
-  while (lead.length + rest.length > width) {
-    const room = width - lead.length;
-    let cut = rest.lastIndexOf(" ", room);
-    if (cut <= 0) cut = rest.indexOf(" ", room);
-    if (cut <= 0) break;
-    out.push(lead + rest.slice(0, cut).trimEnd());
-    rest = rest.slice(cut + 1).trimStart();
-    lead = "  ";
-  }
-  out.push(lead + rest);
-  return out;
-}
-
-// One fenced quote, with no fence inside it and no control character. The
-// fence keeps the model's text inert: no mention, reference, link or HTML
-// renders, and no line of it reads as a lane footer, rating or fix request.
-function quote(lines) {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it removes
-  const text = lines.join("\n").replace(/\r\n/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
-  const wrapped = (text.length > BODY_MAX ? `${text.slice(0, BODY_MAX)} [cut]` : text).split("\n").flatMap((line) => wrapLine(line));
-  const fence = ["```text", ...wrapped, "```"].join("\n");
-  return wrapped.length > FOLD_LINES ? [`<details><summary>What it wrote (${wrapped.length} lines)</summary>`, "", fence, "", "</details>"].join("\n") : fence;
 }
 
 // The comments to post, each { path, body }, in the pull request's file order.

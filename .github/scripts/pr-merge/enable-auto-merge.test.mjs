@@ -35,6 +35,7 @@ import {
   holdPathOnly,
   isPartial,
   refusalBody,
+  refusalReasons,
   refusalWrites,
   main,
   pythonRoom,
@@ -460,7 +461,13 @@ test("an enforcement floor path the gate holds for its security review is a lane
   const verdict = { refusal: null, needsHuman: false, reviewsPerson: false, head: HEAD, ineligible: null, reviews };
   const { writes, notes } = await run([pull(1, { files: [{ filename: ".github/scripts/work-resolve-issue/limits.mjs" }], verdict })]);
   assert.deepEqual(writes, []);
-  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(`pr-merge's gate holds it on its risk score (${reviews})`) } }]);
+  const wrapped = [
+    "pr-merge's gate holds it on its risk score",
+    "  (review-path:.github/scripts/work-resolve-issue/limits.mjs:",
+    "  .github/scripts/work-resolve-issue/limits.mjs; a clean claude-security-review bound to this head",
+    "  clears it)",
+  ];
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(wrapped.join("\n")) } }]);
 });
 
 // #10908: a `review-path:` hold whose security findings the lanes App
@@ -471,6 +478,12 @@ test("an enforcement floor path the gate holds for its security review is a lane
 // comment first, then the draft toggle starts the whole review.
 const PATH_HOLD = "review-path:.github/scripts/pr-unblock/gate-source.mjs: .github/scripts/pr-unblock/gate-source.mjs; a clean claude-security-review bound to this head clears it";
 const PATH_REASON = `pr-merge's gate holds it on its risk score (${PATH_HOLD})`;
+// PATH_REASON as the comment wraps it at 100 columns.
+const PATH_NOTE = [
+  "pr-merge's gate holds it on its risk score (review-path:.github/scripts/pr-unblock/gate-source.mjs:",
+  "  .github/scripts/pr-unblock/gate-source.mjs; a clean claude-security-review bound to this head",
+  "  clears it)",
+].join("\n");
 const PATH_HELD = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: PATH_HOLD, reviewsPerson: false, wholeReviewWanted: true, queue: UNEJECTED };
 // babysit_whole_review.record_line's shape, checked against it below.
 const recordAt = (head, at) => `Whole review requested at head \`${head}\` at ${at}: an incremental review cannot clear the findings below.`;
@@ -480,7 +493,7 @@ const withRecords = (body, records) => body.replace(/\n(<!-- pr-merge-unarmed-si
 test("a lane's risk hold a whole review clears gets the gate's request: the record in its comment, then the toggle", async () => {
   const { code, notes, asked } = await run([pull(1, { verdict: PATH_HELD })], {}, { request: { line: RECORD } });
   assert.equal(code, 0);
-  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: withRecords(laneNote(PATH_REASON), [RECORD]) } }]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: withRecords(laneNote(PATH_NOTE), [RECORD]) } }]);
   // The prior comment (none) goes to `request`; the toggle follows the write.
   assert.deepEqual(asked, [
     ["request", 1, "", 0],
@@ -503,7 +516,7 @@ test("a whole review is requested only for a lane's risk hold the gate says one 
 
 test("a request the gate's caps refuse writes the comment with no record and toggles nothing", async () => {
   const { notes, asked, lines } = await run([pull(1, { verdict: PATH_HELD })], {}, { request: { toggled: false, skipped: "toggle-cap:2" } });
-  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(PATH_REASON) } }]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(PATH_NOTE) } }]);
   assert.deepEqual(asked.map(([kind]) => kind), ["request"]);
   assert.ok(lines.some((line) => line.includes("#1 whole review not requested") && line.includes("toggle-cap:2")));
 });
@@ -512,7 +525,7 @@ test("the lane's comment keeps its record lines on every rewrite, and a head alr
   const older = recordAt("c".repeat(40), "2026-10-20T09:00:00Z");
   const prior = withRecords(laneNote("an earlier reason"), [older, RECORD]);
   const { notes, asked } = await run([pull(1, { verdict: PATH_HELD, discussion: { comments: [lanesSaid(prior)] } })], {}, { request: null });
-  assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: withRecords(laneNote(PATH_REASON), [older, RECORD]) } }]);
+  assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: withRecords(laneNote(PATH_NOTE), [older, RECORD]) } }]);
   assert.deepEqual(asked, [["request", 1, prior, 0]]);
   // Unchanged since, the comment is not written again.
   const again = await run([pull(1, { verdict: PATH_HELD, discussion: { comments: [lanesSaid(withRecords(laneNote(PATH_REASON), [older, RECORD]))] } })], {}, { request: null });
@@ -986,6 +999,11 @@ test("a risk hold is a person's only for a security finding, a high path, a trus
     "cost-review-required: infra/main.tf",
     "high-path:docs/**: docs/a.md",
   ];
+  // A new comment wraps a reason line past 100 columns at a space.
+  const wrapped = {
+    [lane[1]]: "pr-merge's gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)",
+    [person[2]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
+  };
   for (const reviews of lane) {
     // A lane's stays a lane's however long its comment has stood: past
     // merge.risk-escalation-minutes it gets a failing status, never a label.
@@ -994,14 +1012,14 @@ test("a risk hold is a person's only for a security finding, a high path, a trus
     assert.deepEqual(late.notes, [], reviews);
     assert.deepEqual(late.statuses, [{ sha: HEAD, state: "failure", description: holding(reviews).slice(0, 140) }], reviews);
     const fresh = await run([pull(1, { verdict: risk(reviews) })]);
-    assert.deepEqual(fresh.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+    assert.deepEqual(fresh.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(wrapped[reviews] ?? holding(reviews)) } }], reviews);
     assert.deepEqual(fresh.statuses, [], reviews);
   }
   for (const reviews of person) {
     assert.deepEqual(
       (await run([pull(1, { verdict: risk(reviews) })])).notes,
       [
-        { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(holding(reviews)) } },
+        { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(wrapped[reviews] ?? holding(reviews)) } },
         { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
       ],
       reviews,
@@ -1052,6 +1070,76 @@ test("a lane's refusal over a person's comment still edits it, with no label", (
     { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) },
   );
   assert.deepEqual(writes, { body: laneNote(MISSING_REASON), commentId: 77, label: null });
+});
+
+// Wrapped refusal reasons. GitHub scrolls a code-block line wider than the
+// page, so each reason line is broken at a space to 100 columns, its
+// continuations indented two spaces, and more than 20 lines fold into
+// <details>; the head line stays whole for the readers that take the head
+// from it. LONG_RISK's ";" is its 99th column, so the cut falls right after
+// "; " (hand-counted: the risk prefix is 44 columns, then 17 + 37 + 1).
+const LONG_RISK = `pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)}; files-incomplete)`;
+const LONG_RISK_WRAPPED = [`pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)};`, "  files-incomplete)"];
+const LONG_PATH = `docs/${"p".repeat(115)}.md`;
+const LONG_PATH_REASON = `it changes ${LONG_PATH}, a hold path`;
+const MANY_PATHS = personReason(Array.from({ length: 21 }, (_, i) => `it changes docs/held-${String(i).padStart(2, "0")}.md, a hold path`));
+// A fence line past 100 columns is one unbreakable token after its indent.
+const fenceLines = (body) => {
+  const lines = body.split("\n");
+  const open = lines.indexOf("```text");
+  return lines.slice(open + 1, lines.indexOf("```", open + 1));
+};
+const fits = (body) => fenceLines(body).every((line) => line.length <= 100 || !line.trimStart().includes(" "));
+
+test("a refusal's reasons wrap to 100 columns and come back whole, in each reason shape", () => {
+  for (const [person, reason, partial, since] of [
+    [false, LONG_RISK, false, NOW],
+    [true, LONG_RISK, false, null],
+    [true, LONG_RISK, true, null],
+    [true, personReason([LONG_PATH_REASON, HOLD_PATH_REASON]), false, null],
+    [true, MANY_PATHS, false, null],
+  ]) {
+    const body = refusalBody(person, reason, HEAD, "needs-human", since, partial);
+    assert.ok(fits(body), body);
+    assert.equal(body.split("\n")[person ? 2 : 1], `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${HEAD}\`. ${person ? "A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again." : "The lanes clear this reason on their own; the next scheduled run judges it again."}`);
+    assert.deepEqual(refusalReasons(body, person, HEAD, "needs-human", { since, partial }), reason.split("\n"));
+  }
+  assert.deepEqual(fenceLines(refusalBody(false, LONG_RISK, HEAD, "needs-human", NOW)), LONG_RISK_WRAPPED);
+  assert.deepEqual(fenceLines(refusalBody(true, LONG_PATH_REASON, HEAD, "needs-human")), ["it changes", `  ${LONG_PATH},`, "  a hold path"]);
+  const folded = refusalBody(true, MANY_PATHS, HEAD, "needs-human").split("\n");
+  assert.equal(folded[4], "<details><summary>Its reasons (21 lines)</summary>");
+  assert.equal(folded.at(-1), "</details>");
+  assert.ok(holdPathOnly(folded.join("\n"), HEAD, "needs-human"));
+  assert.ok(holdPathOnly(refusalBody(true, personReason([LONG_PATH_REASON, HOLD_PATH_REASON]), HEAD, "needs-human"), HEAD, "needs-human"));
+});
+
+// A refusal comment posted before reasons wrapped: one fence line per reason,
+// however long, and a person's still parses at its head.
+test("a person's refusal posted before reasons wrapped still parses, at its head only", () => {
+  const old = personNote(personReason([LONG_PATH_REASON, HOLD_PATH_REASON]));
+  assert.deepEqual(refusalReasons(old, true, HEAD, "needs-human"), [HOLD_PATH_REASON, LONG_PATH_REASON]);
+  assert.ok(holdPathOnly(old, HEAD, "needs-human"));
+  assert.ok(!holdPathOnly(old.replaceAll(HEAD, "c".repeat(40)), HEAD, "needs-human"));
+  assert.equal(refusalReasons(personNote(LONG_RISK).replace("A person must", "Someone must"), true, HEAD, "needs-human"), null);
+  assert.deepEqual(refusalReasons(laneNote(LONG_RISK), false, HEAD, "needs-human", { since: NOW }), [LONG_RISK]);
+});
+
+test("an unchanged long refusal writes nothing new, in the old format and the wrapped one", () => {
+  const wrappedPerson = [...personNote("x").split("\n").slice(0, 4), "```text", ...LONG_RISK_WRAPPED, "```"].join("\n");
+  const wrappedLane = [...laneNote("x").split("\n").slice(0, 3), "```text", ...LONG_RISK_WRAPPED, "```", `<!-- pr-merge-unarmed-since head=${HEAD} at=${NOW} -->`].join("\n");
+  for (const prior of [personNote(LONG_RISK), wrappedPerson]) {
+    // A person took the label off: it goes back only if they removed it
+    // before the comment last changed, never with a second comment.
+    const writes = refusalWrites({ headRefOid: HEAD }, [lanesSaid(prior)], { clears: "person", reason: LONG_RISK }, { bot: LANES.login, label: "needs-human" });
+    assert.deepEqual(writes, { body: null, commentId: 77, label: "needs-human", liftedSince: "2026-10-23T10:00:00Z" });
+  }
+  for (const prior of [laneNote(LONG_RISK), wrappedLane]) {
+    assert.equal(refusalWrites({ headRefOid: HEAD }, [lanesSaid(prior)], { clears: "lane", reason: LONG_RISK }, { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) }), null);
+  }
+  // A changed reason over an old comment is written in the wrapped format.
+  const moved = refusalWrites({ headRefOid: HEAD }, [lanesSaid(laneNote(LONG_RISK))], { clears: "lane", reason: MISSING_REASON + LONG_RISK }, { bot: LANES.login, label: "needs-human", now: Date.parse(NOW) });
+  assert.ok(fits(moved.body));
+  assert.equal(moved.commentId, 77);
 });
 
 test("an armed pull request, an event run and report-only write no refusal note", async () => {
@@ -1974,6 +2062,8 @@ test("a human-merge-hold label holds a lanes App PR whose body lost its hold lin
 // label, as for a configured denied path; it puts the label back unless a
 // person removed it. A person's own hold text gets neither: they set it.
 const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
+// LANE_HOLD_REASON as a new comment wraps it at 100 columns.
+const LANE_HOLD_NOTE = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or\n  removes that line";
 const APP_ONLY = { totalCount: 0, nodes: [] };
 const laneHeld = (number, overrides = {}) => pull(number, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: APP_ONLY, ...overrides });
 test("the lane's own hold line is commented on once and labeled human-gated", async () => {
@@ -1981,7 +2071,7 @@ test("the lane's own hold line is commented on once and labeled human-gated", as
   assert.equal(first.code, 0);
   assert.deepEqual(first.writes, []);
   assert.deepEqual(first.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_NOTE) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
   // The next run: labeled, it reads the discussion for a partial refusal to
@@ -2003,10 +2093,10 @@ test("the lane's hold line over a lane's comment posts once, then reads the post
   const laneComment = lanesSaid(laneNote(MISSING_REASON));
   const first = await run([laneHeld(1, { discussion: { comments: [laneComment] } })]);
   assert.deepEqual(first.notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(LANE_HOLD_NOTE) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
   ]);
-  const posted = { ...lanesSaid(personNote(LANE_HOLD_REASON), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
+  const posted = { ...lanesSaid(personNote(LANE_HOLD_NOTE), "2026-10-23T10:05:00Z"), databaseId: 78, createdAt: "2026-10-23T10:05:00Z" };
   const both = [laneComment, posted];
   const lifted = await run([laneHeld(1, { discussion: { comments: both }, unlabeled: [unlabeled("2026-10-23T10:30:00Z")] })]);
   assert.deepEqual(lifted.notes, []);
