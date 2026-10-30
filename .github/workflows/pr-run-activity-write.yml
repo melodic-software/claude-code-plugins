@@ -523,8 +523,8 @@ jobs:
       pull-requests: read
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
-    # one but act-outcome and escalation-reason is a step outcome or an
-    # output of a step that ran before any PR head code. act-outcome reads
+    # one but act-outcome, escalation-reason and api-failures is a step
+    # outcome or an output of a step that ran before any PR head code. act-outcome reads
     # steps that run after the skill: for a gate skill the verdict step, so a
     # gate skill must not execute head code; its promote and turn terms only
     # turn a success into a failure. The act-result step turns a failed skill
@@ -572,6 +572,8 @@ jobs:
       lane-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
       lane-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
       lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
+      # Set after the model ran, so forgeable: post.mjs checks every row.
+      api-failures: ${{ steps.api-failures.outputs.api-failures }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
       # the PR branch fails. A skill step that failed only on the turn cap
@@ -2235,6 +2237,38 @@ jobs:
               core.info('the lane token is confirmed revoked (DELETE 204, GET 401)');
             }
 
+      # The failed GitHub API calls this job's scripts recorded (recordFailure
+      # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
+      # report comment. The model shares RUNNER_TEMP and could plant or change
+      # the file, and PATH with it, so only rows of the recorded shape pass,
+      # each distinct row once, with the rest counted as dropped. post.mjs checks
+      # them again, folds each path into its template and only then caps the
+      # rows at 50, so many failures on distinct ids cannot crowd out a later,
+      # different one. The 64 KiB read bounds the output.
+      - name: Carry the failed API calls to the report job
+        id: api-failures
+        if: always()
+        continue-on-error: true
+        env:
+          FAILURES: ${{ runner.temp }}/lane-run-report/api-failures.jsonl
+        run: |
+          none='{"rows":[],"dropped":0}'
+          rows=$none
+          if [ -f "$FAILURES" ] && [ ! -L "$FAILURES" ]; then
+            rows=$(head -c 65536 "$FAILURES" | jq -cRn '
+              [inputs | select(length > 0)] as $lines
+              | ([$lines[] | (try fromjson catch null)
+                | select(type == "object"
+                  and (.method | type) == "string" and (.method | test("\\A(GET|POST|PATCH|PUT|DELETE)\\z"))
+                  and (.path | type) == "string" and (.path | test("\\A/[A-Za-z0-9/_.-]{1,200}\\z"))
+                  and (.status | type) == "number" and .status == (.status | floor)
+                  and .status >= 0 and .status <= 599)
+                | {method, path, status}]
+                | reduce .[] as $r ([]; if index([$r]) then . else . + [$r] end)) as $rows
+              | {rows: $rows, dropped: (($lines | length) - ($rows | length))}') || rows=$none
+          fi
+          echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
+
   report:
     needs: run
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
@@ -2383,3 +2417,32 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
+
+      # One comment per lane run on the PR (lane-run-report/post.mjs), found
+      # by a marker naming the activity, run id, model rung and leg, so a
+      # re-run edits it. A checked-out base without the script, or a failed
+      # post, warns and leaves the job green.
+      - name: Post the lane run report comment
+        if: always()
+        continue-on-error: true
+        env:
+          LANE: ${{ inputs.lane }}
+          ACTIVITY: ${{ inputs.activity }}
+          RUN_ID: ${{ github.run_id }}
+          MODEL_RUNG: ${{ inputs.patch-model-rung }}
+          LEG: ''
+          PULL: ${{ needs.run.outputs.pr-number || github.event.pull_request.number || inputs.pr-number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_RESULT: ${{ needs.run.result }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          PUSHED_COMMIT: ${{ needs.run.outputs.pushed-commit }}
+          READ_LANE: 'false'
+          API_FAILURES: ${{ needs.run.outputs.api-failures }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          script=.base/.github/scripts/lane-run-report/post.mjs
+          if [ ! -f "$script" ]; then
+            echo "::warning::the checked-out base has no lane run report script; no comment is posted"
+            exit 0
+          fi
+          node "$script"
