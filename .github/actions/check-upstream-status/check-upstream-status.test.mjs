@@ -164,3 +164,30 @@ test("every gate step fails open: continue-on-error, and no condition requires d
     assert.doesNotMatch(text, /degraded == 'false'|degraded != 'false'/, name);
   }
 });
+
+// A hosted review caller's gate skip fails its kill-switch job with this
+// lane's error, so the run is a failed first attempt the lost-run reconciler
+// re-runs (reconcile.mjs `upstream`), the merge gate binds the re-run
+// (babysit_review_evidence UPSTREAM_STOP_RE) and ci-status names the stop.
+const HOSTED = [
+  ["pr-review-hosted.yml", "review", "CLAUDE_REVIEW_DISABLED"],
+  ["pr-review-security-hosted.yml", "security review", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+];
+
+test("a hosted review caller fails its kill-switch job when the gate skips the review", () => {
+  for (const [name, what, lane] of HOSTED) {
+    const text = workflow(name);
+    const step = text.slice(text.indexOf("      - name: Stop on upstream status\n"));
+    assert.ok(text.includes("      - name: Stop on upstream status\n"), `${name} has the stop step`);
+    const body = step.slice(0, step.indexOf("\n      - name: ", 1));
+    assert.match(
+      body,
+      new RegExp(`if: steps\\.kill\\.outputs\\.proceed == 'true' && steps\\.upstream\\.outputs\\.degraded == 'true' && vars\\.${lane} != 'true'\\n`),
+      name,
+    );
+    assert.match(body, /REASON: \$\{\{ steps\.upstream\.outputs\.reason \}\}/, name);
+    assert.match(body, new RegExp(`echo "::error::an upstream outage stops this ${what} \\(\\$\\{REASON:-unknown\\}\\); `), name);
+    assert.match(body, /\n\s+exit 1\n/, name);
+    assert.ok(text.indexOf("- name: Report the kill switch") < text.indexOf("- name: Stop on upstream status"), `${name}: the stop follows the kill-switch report`);
+  }
+});
