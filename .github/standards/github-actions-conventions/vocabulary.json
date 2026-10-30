@@ -59,6 +59,11 @@
       { "name": "run-activity", "status": "in-use" },
       { "name": "run-checks", "status": "in-use" },
       { "name": "scan-dependencies", "status": "in-use" },
+      {
+        "name": "test-platforms",
+        "status": "reserved",
+        "purpose": "Select and run the tests that need a Windows or macOS runner."
+      },
       { "name": "test-windows", "status": "in-use" },
       { "name": "unblock", "status": "in-use" },
       { "name": "validate-onboard-catalog", "status": "in-use" },
