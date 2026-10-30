@@ -1,5 +1,5 @@
 ---
-description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
+description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:recommend-skills; a whole-process speed sweep is /performance:go-faster."
 argument-hint: "[sweep|now|ticket|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
@@ -72,8 +72,9 @@ Exits 0, 1 and 2 mean what Step 2 says.
 - **The collector parses transcript files directly**, although Claude Code does not document their
   entry format. That is a deliberate decision: no interface reports per-session Stop-hook wait or
   active time. The two metrics that read undocumented records (`hooks.stop_ms`, `time.active_s`)
-  are labeled heuristic, report-only until re-derived, and watched by invariant canaries in
-  `reference/canaries.json`; see the rules' `basis` in `reference/sweep-rules.json`.
+  are labeled heuristic and watched by invariant canaries in `reference/canaries.json`; see the
+  rules' `basis` in `reference/sweep-rules.json`, and the measurements behind the thresholds in
+  `reference/threshold-derivation.md`.
   - **Pointer**: <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>
   - **As of**: 2026-10-18
   - **Recheck trigger**: that section names a supported interface for per-session hook or active

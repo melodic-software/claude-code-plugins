@@ -317,3 +317,9 @@ Code version the engine read from `claude --version`. The form a row records it 
 | Check | Severity | How to verify |
 | --- | --- | --- |
 | An issue whose row records `Fixed in vX.Y.Z` is not kept as a workaround the installed version already outgrew | info | The engine's `known-issue-fixed` rows: `finding` when the installed version is at or past the fix version, `ok` when it predates it, `skip` when the installed version was unreadable. Confirm the issue's live state in Phase 3.2 before recommending the workaround's retirement |
+
+## K. Suppression age
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| No suppression entry, at any layer, is older than `exceptions.max_days` | warning | The engine's `suppression-age` rows, one per well-formed entry: `finding` when its `date` is more than `exceptions.max_days` days old (default 90, per ADR 0080; the team YAML's `exceptions.max_days` when set), `ok` within it, `skip` when the date is not a past `YYYY-MM-DD` date. The finding names the entry, its reason and its age; the entry keeps suppressing and nothing is removed. Reconfirm and re-date it, or remove it. A `max-days-invalid` finding means the team value is not a whole number from 1 and the default applied |

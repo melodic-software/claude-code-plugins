@@ -74,11 +74,13 @@ def test_rules_are_well_formed():
         assert rule["lens"] in LENSES and rule["unit"] in UNITS, metric
         assert rule["confidence"] in {"measured", "heuristic"} and rule["basis"], metric
         if rule["threshold"] is None:
-            # A report-only rule may keep its intended route (hooks.stop_ms), but names both or neither.
+            # A report-only rule may keep its intended route, but names both or neither.
             assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
     assert {rule["route"] for rule in RULE.values()} - {None} == ROUTES
+    assert RULES["basis"].count("threshold-derivation.md") == 1
+    assert (SCRIPTS.parent / "reference" / "threshold-derivation.md").is_file()
 
 
 def test_subagent_count_routes_to_observability():
@@ -308,13 +310,18 @@ def test_impact_sums_excess_over_threshold_in_its_unit(data_dir):
     assert findings_by_metric(envelope(sweep(data_dir)))["tools.denials"]["impact"] is None
 
 
-def test_stop_wait_and_active_time_read_the_new_keys_and_report_only(data_dir):
-    assert RULE["hooks.stop_ms"]["threshold"] is None and RULE["time.active_s"]["threshold"] is None
+def test_stop_wait_and_active_time_read_the_new_keys_against_the_derived_thresholds(data_dir):
+    stop, active = RULE["hooks.stop_ms"]["threshold"], RULE["time.active_s"]["threshold"]
+    assert (stop, active) == (152, 19372)
     write_store(data_dir, record("s1", **{"hooks.stop_ms": 100, "time.active_s": 900}))
     env = envelope(sweep(data_dir))
     metrics = env["data"]["metrics"]
     assert metrics["hooks.stop_ms"]["value"] == 100 and metrics["time.active_s"]["value"] == 900
     assert not {"hooks.stop_ms", "time.active_s"} & set(findings_by_metric(env))
+    write_store(data_dir, record("s2", **{"hooks.stop_ms": stop + 1, "time.active_s": active + 60}))
+    found = findings_by_metric(envelope(sweep(data_dir)))
+    assert found["hooks.stop_ms"]["evidence"] == [{"session_id": "s2"}]
+    assert found["time.active_s"]["impact"] == {"amount": 1.0, "unit": "min"}
 
 
 def test_report_only_metric_never_finds_and_is_listed_unchecked(data_dir):
