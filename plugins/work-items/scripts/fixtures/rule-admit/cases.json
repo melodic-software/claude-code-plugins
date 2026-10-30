@@ -312,6 +312,12 @@
       "expect": { "verdict": "admit", "rule": "R2" }
     },
     {
+      "name": "subscription usage another vendor bills refuses",
+      "source": "owner standing direction 2026-10-27: only model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until the lane raises Copilot subscription usage." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
       "name": "a plan or seat change refuses",
       "source": "owner standing direction 2026-10-27: plan or seat changes are cost",
       "issue": { "body": "Two rows in the install table read awkwardly until a plan or seat change lands." },

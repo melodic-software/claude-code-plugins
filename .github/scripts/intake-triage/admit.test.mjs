@@ -695,6 +695,8 @@ describe("decide", () => {
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
         ["Create a new Azure subscription for the lane.", "subscription"],
+        ["Reduce the Azure subscription usage.", "subscription"],
+        ["The lane raises Copilot subscription usage-based pricing.", "subscription"],
       ]) {
         const result = decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }) }));
         assert.equal(result.hold, true);
