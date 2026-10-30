@@ -2346,6 +2346,21 @@ robocopy src / -MIR
 echo "$(robocopy src / /MIR)"
 EOF
 
+# From the Bash tool MSYS rewrites a single-slash one-letter word to that
+# drive's root, so `/e` is an operand there and never the /E option; from the
+# PowerShell tool it is the option, and the robocopy names no destination.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+robocopy src /e /MIR
+robocopy src /S /PURGE
+robocopy src /x /e /MIR
+robocopy /e build/rdt-out /MOVE
+EOF
+expect_both 'robocopy: PS robocopy src /e /MIR allowed' 0 --tool PowerShell "${RDT_CWD[@]}" \
+  --command 'robocopy src /e /MIR'
+
 # From the PowerShell tool an array, an unset variable or a grouping can
 # change which word is the destination, and `--%` is dropped before robocopy
 # sees its arguments.

@@ -105,9 +105,11 @@
 # every arm below, from the Bash tool and the PowerShell tool (`cmd /c
 # robocopy` included). An option is a documented robocopy option name in any
 # case, `/NAME` or `/NAME:value`, and `//NAME` and `-NAME` are read as
-# `/NAME` too; the words after /XF, /XD or /IF up to the next option are its
-# list. Of the other words the first is the source and the second the
-# destination. A word that can become several words or none changes which
+# `/NAME` too, except that from the Bash tool a one-letter word with a single
+# slash (`/e`) is the drive root MSYS rewrites it to, as the root arm reads it
+# elsewhere, and never an option (`robocopy src /e /MIR` mirrors onto `E:\`);
+# the words after /XF, /XD or /IF up to the next option are its list. Of the
+# other words the first is the source and the second the destination. A word that can become several words or none changes which
 # word comes first or second, so with one every operand is judged instead:
 # from the Bash tool an unquoted brace, glob, `$` or backtick, or a quoted
 # "$@" or "${a[@]}"; from the PowerShell tool an expanding `$` or a grouping.
@@ -353,12 +355,9 @@
 #     which is not read.
 #   * In a robocopy: the options and paths a /JOB file supplies; a deleting
 #     option that an expansion or a brace builds (`robocopy src / {/MIR,}`),
-#     which is not seen, so nothing is judged; an option robocopy's page
+#     which is not seen, so nothing is judged; and an option robocopy's page
 #     does not list, written between the source and the destination, which
-#     is read as the destination, so the real one is not judged; and, from
-#     the Bash tool, a one-letter word such as `/e` that names a robocopy
-#     option, which is read as that option and never as the MSYS drive root
-#     the root arm reads it as elsewhere (`robocopy src /e /MIR`).
+#     is read as the destination, so the real one is not judged.
 #   * In a pipeline-fed delete: a `;`, `&&` or `||` between a listing and
 #     xargs, read as a pipe (`find build; xargs rm -rf` reads the shell's own
 #     stdin); xargs splitting a listed path at a blank or a quote, so a
@@ -3422,18 +3421,26 @@ rdt_rsync_check() {
   return 0
 }
 
-# rdt_robocopy_scan <word> ...: read the words after a robocopy command word
-# into RDT_RC_DEST (it purges its destination: /MIR or /PURGE), RDT_RC_SRC (it
-# deletes from its source: /MOVE or /MOV) and RDT_RC_OP (the 0-based index of
-# each word that is neither an option nor in a /XF, /XD or /IF list), the
-# first of which is the source and the second the destination (ROBOCOPY
-# DELETES in the header). Shared by the Bash and PowerShell lanes.
+# rdt_robocopy_scan <msys> <word> ...: read the words after a robocopy command
+# word into RDT_RC_DEST (it purges its destination: /MIR or /PURGE),
+# RDT_RC_SRC (it deletes from its source: /MOVE or /MOV) and RDT_RC_OP (the
+# 0-based index among the words of each word that is neither an option nor in
+# a /XF, /XD or /IF list), the first of which is the source and the second the
+# destination (ROBOCOPY DELETES in the header). Shared by the Bash and
+# PowerShell lanes. <msys> is 1 for the Bash lane, where MSYS rewrites a
+# single-slash one-letter word (`/e`) to that drive's root before robocopy
+# sees it, so that word is an operand and never an option.
 rdt_robocopy_scan() {
-  local k w list=0
+  local k w msys="$1" list=0
+  shift
   RDT_RC_DEST=0 RDT_RC_SRC=0
   RDT_RC_OP=()
   for ((k = 1; k <= $#; k++)); do
     w="${!k}"
+    if ((msys)) && [[ "$w" =~ ^/[A-Za-z]$ ]]; then
+      ((list)) || RDT_RC_OP+=("$((k - 1))")
+      continue
+    fi
     w="${w,,}"
     [[ "$w" == //* ]] && w="${w#/}"
     [[ "$w" == -?* ]] && w="/${w#-}"
@@ -3465,7 +3472,7 @@ rdt_robocopy_scan() {
 rdt_robocopy_check() {
   local k
   local -a op=() tg=()
-  rdt_robocopy_scan ${words[@]+"${words[@]:$1+1}"}
+  rdt_robocopy_scan 1 ${words[@]+"${words[@]:$1+1}"}
   ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
   rdt_deleter=1
   for k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
@@ -4634,7 +4641,7 @@ rdt_ps_robocopy_check() {
   for __p in "$@"; do
     [[ "$__p" == "--%" ]] || __w+=("$__p")
   done
-  rdt_robocopy_scan ${__w[@]+"${__w[@]}"}
+  rdt_robocopy_scan 0 ${__w[@]+"${__w[@]}"}
   ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
   for __k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
     case "${__w[__k]}" in
