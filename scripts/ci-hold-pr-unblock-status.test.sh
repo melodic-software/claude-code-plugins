@@ -147,13 +147,13 @@ expect "an unreadable status list fails closed" 1 "[]" "::error::could not read 
 unset STUB_STATUS_FAILS
 expect "a description's tab and newline become spaces" 1 "[$(status pr-unblock/fix-ci failure "$LANE" $'one\ttwo\nthree')]" "on $HEAD: one two three. The lane"
 export BASE_CONFIG=
-expect "no base config fails closed" 1 "[]" "::error::cannot read merge-holds.mjs at the base commit; re-run this run."
+expect "no base config fails closed" 1 "[]" "::error::cannot read merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
 if [[ -s "$TMP_ROOT/log" ]]; then fail "no base config still read: '$(cat "$TMP_ROOT/log")'"; else ok "no base config makes no call"; fi
 mkdir -p "$TMP_ROOT/old/.github/scripts/pr-merge"
 echo 'export const refsIssue = () => null;' >"$TMP_ROOT/old/.github/scripts/pr-merge/merge-holds.mjs"
 export BASE_CONFIG="$TMP_ROOT/old"
 expect "a base module without unblockStops fails closed" 1 "[$(status pr-unblock/fix-ci success)]" \
-  "::error::merge-holds.mjs at the base commit could not judge the statuses of $HEAD; re-run this run."
+  "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the statuses of $HEAD; re-run this run."
 echo 'export const unblockStops = () => ({});' >"$TMP_ROOT/old/.github/scripts/pr-merge/merge-holds.mjs"
 expect "a base module that answers no list fails closed" 1 "[]" "could not judge the statuses of $HEAD"
 unset BASE_CONFIG

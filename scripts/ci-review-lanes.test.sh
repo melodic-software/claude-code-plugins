@@ -572,7 +572,7 @@ for dir in yq-fails yq-missing; do
   STUB_PATH="$TMP_ROOT/$dir" STUB_CHANGED=3000 SHARED_FILES="$(jq -cn '[range(3000) | {filename: "docs/f\(.).md"}]')" \
     expect "a 3000-file list with $dir is held" 1 "::error::could not read merge.trust-path-hold-apps"
 done
-BASE_CONFIG='' expect "an unreadable base config is held" 1 "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml"
+BASE_CONFIG='' expect "an unreadable base config is held" 1 "::error::could not read merge.trust-path-hold-apps from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base)"
 printf 'merge:\n  trust-path-hold-apps: melodic-agent[bot]\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
 BASE_CONFIG="$TMP_ROOT/bare-config" expect "a malformed App list is held" 1 "could not read merge.trust-path-hold-apps"
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
