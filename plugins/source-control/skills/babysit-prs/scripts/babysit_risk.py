@@ -68,24 +68,50 @@ line (a schedule runs billed minutes), a raised timeout (below) or an artifact
 `DEFAULT_ARTIFACT_RETENTION_DAYS` when it removes none (storage past the free
 quota); or that gains a runner value (head text against base text, and added
 inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository,
-or any on another. Only `RiskInput.cost_decision`, an owner decision the
-caller verified, clears it.
+or any on another, counting the matrix values and input defaults and options
+a `runs-on` expression names. Only `RiskInput.cost_decision`, an owner
+decision the caller verified, clears it.
 
-A workflow patch that gains a `_SECRET_REF` rates HIGH as
-`secret-exposure-review`, and one that gains a `_MODEL_ACTION` or a
-`_MODEL_PACKAGE` run rates HIGH as `agent-surface-review`, each counted
-against the lines it removes so a move or repin is not new. They widen what a
-credential or an agent can reach, so both are a person's (`PERSON_CODES`)
-and no cost decision clears them.
+Off a public repository, a raised timeout is a `timeout-minutes` or
+`leg-timeout-minutes`: on a workflow whose head text (`contents`) names a model leg or could not be
+read, one the patch adds above every one it removes once equal values cancel
+or an added expression; and on one that names a model leg or a local `uses:
+./` workflow or action, head text against base text at each key path (list
+indices dropped), one raised, set to an expression, added above the highest
+number already at its path (a `timeout-minutes` path with none above
+`DEFAULT_TIMEOUT_MINUTES`; a `leg-timeout-minutes` set where none was is a
+cap, not a raise), or removed from a job or step the head keeps.
 
-Spend that draws only on a subscription or prepaid credit is the MED
-`cost-finding`, reported and never held: a workflow patch that adds a
-`_COST_WORKFLOW_LINE` (`--model`, `--max-turns`, or on a public repository a
-`cron` key in any spelling); that, on a public repository, adds a
-`timeout-minutes` or `leg-timeout-minutes` above every one it removes, when
-its head text (`contents`) names a model leg or could not be read, or a raised
-`retention-days`; and a `pr-pipeline.yaml` change with any added or removed
-line off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments.
+A workflow patch that gains a `_SECRET_REF` (or a bare `secrets` inside a
+`${{ }}` expression or an `if:` value, outside a string) rates HIGH as `secret-exposure-review`, and one that
+gains a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, in a workflow or a
+composite action's `action.yml`, rates HIGH as `agent-surface-review`, each
+counted against the lines it removes, an expression split across lines read
+whole, so a move or repin is not new; so does a composite action file with
+no patch, unless it is deleted, re-moded, or renamed from another composite
+action, with no line added. The secrets
+reference is also read from the head text against the base text, so a
+workflow with no patch is not skipped. A workflow whose token gains a write
+scope rates HIGH as `permission-widening-review`: its base and head text are
+parsed and each job's write scopes compared (a job left with no
+`permissions:` of its own or at the top level runs on the repository default
+and counts as a gain; an added file compares against none; unread text, a
+repeated key or an alias holds), with net-added `write` lines as a raw-text
+backstop. Where PyYAML is not installed the text alone decides: a `write`
+grant the head adds, a `permissions:` key it drops, or an added file with
+jobs and no `permissions:` key. One that gains a `PRIVILEGED_TRIGGERS` trigger (`pull_request_target`, `workflow_run`, or one
+on text an outsider writes: issues, comments, reviews, discussions, `repository_dispatch`)
+rates HIGH as `privileged-trigger-review`, read the same two ways. They widen
+what a credential, an agent or a write token can reach, so all four are a
+person's (`PERSON_CODES`) and no cost decision clears them.
+
+Cost means only what can bill. Model usage under a subscription or prepaid
+credit does not, so a model or turn flag reports nothing; nor do hosted
+minutes or artifact storage on a public repository, so a schedule, a raised
+timeout or a raised `retention-days` there reports nothing. A
+`pr-pipeline.yaml` change with any added or removed line off
+`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments, is the MED
+`cost-finding`, reported and never held.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -108,9 +134,10 @@ from __future__ import annotations
 
 import enum
 import json
+import math
 import re
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -174,6 +201,10 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # `merge.diff-check.path-holds`: False moves every path hold (the
+    # `high-path:` floor and configured globs, `review-path:`) to
+    # `RiskResult.skipped`; anything else keeps them (owner decision Q15).
+    path_holds: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # The repository is public, where standard hosted runners are free; any
@@ -197,6 +228,10 @@ class RiskInput:
     # The listing reached the files API's cap, so no read ever completes it
     # and its paths can never all be judged.
     files_capped: bool = False
+    # The pull request's base commit, `bind()`'s `base_sha`: with it a
+    # read-only workflow's head text (`ChangedFile.contents`) shows the
+    # main-run review does not bind it. None holds as if it did.
+    base_sha: str | None = None
 
 
 @dataclass(frozen=True)
@@ -210,6 +245,8 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
+    # The path holds `RiskInput.path_holds` False left out of `reasons`.
+    skipped: tuple[Reason, ...] = ()
 
 
 # What a lane pull request must not change unattended (owner decisions
@@ -228,9 +265,24 @@ class RiskResult:
 #   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
 #   gate-check.mjs and head-ref-map.mjs.
 # - `gate`: the rest of the merge gate's own code: the rate guard and the
-#   other pr-merge scripts.
-# - `enforcement`: the pr-merge and ci-status workflows, the rest of the
-#   modules the floored scripts import and
+#   other pr-merge scripts; the main-run review's scripts, whose verdict
+#   writer sets the counts; every workflow `gated_workflow` names (owner
+#   decision Q11 (A), 2026-10-28): the review workflows, ci-status
+#   (pr-require-checks.yml, which posts the required status and runs the
+#   hold step), each that holds a credential beyond its job's GITHUB_TOKEN,
+#   a job token dying with its job while an App key or PAT outlives the run,
+#   and each whose token has `actions: write`, which dispatches those
+#   credentialed workflows. The generator derives
+#   those rows from the workflow files (`GATE_WORKFLOWS` below), so a
+#   workflow that gains a secret joins the gate. A workflow outside it that
+#   gains a write scope, a privileged trigger or a secret holds by its patch
+#   instead (`_workflow_privilege_gains`, `secret-exposure-review`). And
+#   what changes what agents may do unattended or what later reviews judge
+#   against: Claude Code settings (hooks, permission allows) and the hook
+#   scripts under `.claude/hooks/`, `.mcp.json`,
+#   `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and the synced standards. Those
+#   review-surface rows (`_NO_AUTHOR_LIFT`) never take the author lift.
+# - `enforcement`: the rest of the modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
 #   closures and requires them here), and the scripts that act on a
 #   pr-unblock stop's route (report-escalation.sh, adjudicate-feedback.mjs,
@@ -294,8 +346,6 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-    (".github/workflows/pr-require-checks.yml", "enforcement"),
-    (".github/workflows/pr-merge.yml", "enforcement"),
     ("docs/conventions/pr-pipeline.yaml", "trust"),
     (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
     (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
@@ -321,25 +371,133 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
     (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
-    (".github/workflows/pr-unblock.yml", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
+    (".github/scripts/pr-review-main/**", "gate"),
+    # Agent settings and instruction files, whatever their name or depth:
+    # settings, hooks and the scripts settings registers, skills, agents,
+    # commands, rules, output styles and memory (owner decision Q11: agent
+    # settings and instruction files stay gated).
+    ("**/.claude/**", "gate"),
+    ("**/.claude-lane/**", "gate"),
+    # The security review applies both as its criteria.
+    ("docs/conventions/instruction-exception-register/**", "gate"),
+    ("docs/conventions/untrusted-content/**", "gate"),
+    ("**/.mcp.json", "gate"),
+    ("**/CLAUDE.md", "gate"),
+    ("**/CLAUDE.local.md", "gate"),
+    ("**/AGENTS.md", "gate"),
+    ("REVIEW.md", "gate"),
+    ("docs/standards/**", "gate"),
+    # BEGIN hold-floor GATE_WORKFLOWS: generated by scripts/sync-hold-floor.py
+    (".github/workflows/dependabot-fragments.yml", "gate"),
+    (".github/workflows/eval-browser-dispatch.yml", "gate"),
+    (".github/workflows/intake-reenter.yml", "gate"),
+    (".github/workflows/intake-triage.yml", "gate"),
+    (".github/workflows/maintenance-audit-lane-runs.yml", "gate"),
+    (".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"),
+    (".github/workflows/post-merge-demotion-alert.yml", "gate"),
+    (".github/workflows/post-merge-test-mutation.yml", "gate"),
+    (".github/workflows/pr-feedback-dispatch.yml", "gate"),
+    (".github/workflows/pr-merge.yml", "gate"),
+    (".github/workflows/pr-refine.yml", "gate"),
+    (".github/workflows/pr-require-checks.yml", "gate"),
+    (".github/workflows/pr-review-hosted.yml", "gate"),
+    (".github/workflows/pr-review-main.yml", "gate"),
+    (".github/workflows/pr-review-security-hosted.yml", "gate"),
+    (".github/workflows/pr-run-activity-read.yml", "gate"),
+    (".github/workflows/pr-run-activity-write.yml", "gate"),
+    (".github/workflows/pr-unblock-dispatch.yml", "gate"),
+    (".github/workflows/pr-unblock.yml", "gate"),
+    (".github/workflows/pr-verify.yml", "gate"),
+    (".github/workflows/release-publish-plugins.yml", "gate"),
+    (".github/workflows/work-resolve-issue.yml", "gate"),
+    (".github/workflows/work-unblock.yml", "gate"),
+    # END hold-floor GATE_WORKFLOWS
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
+
+# A secret the job token is not: any `secrets` reference but GITHUB_TOKEN
+# itself. The union of the reference forms (`secrets.X`, `secrets.*`,
+# `secrets['X']`, `toJSON(secrets)`, `secrets: inherit`) and any `secrets`
+# context in a `${{ }}` expression, whose span may hold a lone `}` (a string
+# or a `format` placeholder); a word inside a string or a name is neither.
+_NOT_JOB_TOKEN = r"(?!\s*\.\s*github_token\b)(?!\s*\[\s*['\"]github_token['\"]\s*\])"
+_EXPRESSION_SECRET = r"\$\{\{(?:[^}]|\}(?!\}))*?(?<![\w.'\"-])secrets(?![\w-])"
+_NON_JOB_SECRET = re.compile(
+    r"\bsecrets\s*(?:\.\s*(?!github_token\b)(?:[A-Za-z0-9_]+|\*)"
+    r"|\[(?!\s*['\"]github_token['\"]\s*\])[^\]]*\])"
+    r"|\bsecrets\b(?=\s*\))|\bsecrets\s*:\s*inherit\b"
+    rf"|{_EXPRESSION_SECRET}{_NOT_JOB_TOKEN}",
+    re.IGNORECASE,
+)
+# A lane token minted in the run, or an OIDC token a cloud trusts:
+# `id-token: write`, or `write-all`, which sets "access for all of the
+# available permissions" (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions),
+# id-token among them.
+_MINTED_CREDENTIAL = re.compile(
+    r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token\s*:\s*['\"]?write\b"
+    r"|\bwrite-all\b",
+    re.IGNORECASE,
+)
+# `actions: write`, any key or value quoting, block or flow form: the token
+# can dispatch the gated credentialed workflows. `write-all` is matched above.
+_DISPATCH_SCOPE = re.compile(
+    r"(?<![\w-])['\"]?actions['\"]?\s*:\s*['\"]?write\b", re.IGNORECASE
+)
+# The review workflows, and ci-status, which posts the required status and
+# holds the floor's hold step, named by file so no permission trim drops it.
+_NAMED_GATE_WORKFLOW = re.compile(r"pr-review-[a-z0-9-]+|pr-require-checks")
+
+
+def gated_workflow(stem: str, text: str) -> bool:
+    """Whether a top-level workflow is a `gate` floor path (owner decision Q11
+    (A)): a review workflow (`pr-review-*`), ci-status (`pr-require-checks`),
+    or one whose comment-stripped text reaches a credential beyond its job's
+    GITHUB_TOKEN (a secret other than GITHUB_TOKEN, a lane token, an OIDC
+    token) or grants `actions: write`, which dispatches those."""
+    if _NAMED_GATE_WORKFLOW.fullmatch(stem):
+        return True
+    code = "\n".join(_code_lines(text.split("\n")))
+    return bool(
+        _NON_JOB_SECRET.search(code)
+        or _MINTED_CREDENTIAL.search(code)
+        or _DISPATCH_SCOPE.search(code)
+    )
+
+
 HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
 REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enforcement")
 AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
+# The review's own surface, which owner decision Q11 (A) keeps with a person:
+# a review cannot judge the workflows holding its or other credentials, the
+# scripts that set its counts, or the files that set what agents may do and
+# what reviews judge against, so these `gate` rows never take the author lift.
+_NO_AUTHOR_LIFT = frozenset(
+    {
+        ".github/scripts/pr-review-main/**",
+        "**/.claude/**",
+        "**/.claude-lane/**",
+        "docs/conventions/instruction-exception-register/**",
+        "docs/conventions/untrusted-content/**",
+        "**/.mcp.json",
+        "**/CLAUDE.md",
+        "**/CLAUDE.local.md",
+        "**/AGENTS.md",
+        "REVIEW.md",
+        "docs/standards/**",
+    }
+)
 AUTHOR_REVIEW_FLOOR: tuple[str, ...] = tuple(
-    g for g, c in FLOOR_CLASSES if c in AUTHOR_REVIEW_CLASSES
+    g
+    for g, c in FLOOR_CLASSES
+    if c in AUTHOR_REVIEW_CLASSES
+    and g not in _NO_AUTHOR_LIFT
+    and not g.startswith(".github/workflows/")
 )
 # Every floor glob, whichever clears it.
 FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
 REVIEW_PATH_PREFIX = "review-path:"
-# An enforcement path whose security review can never bind at this head: the
-# pull request also changes a lane source (babysit_review_evidence
-# `lane-source-changed`), so no lane can clear it and a person does.
-UNBINDABLE_PATH_PREFIX = "review-path-unbindable:"
-_UNBINDABLE_REASON = "lane-source-changed"
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
@@ -700,16 +858,13 @@ def _high_path_reasons(
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if not security_review_clean(inp.lanes):
-        unbindable = _security_review_unbindable(inp.lanes)
+        # A pull request that also changes a lane source binds the security
+        # review only from main (babysit_review_evidence `_main_bound`), so
+        # a clean main-run review clears these too.
         for pattern in (*REVIEW_FLOOR, *AUTHOR_REVIEW_FLOOR):
             candidates = paths if pattern in REVIEW_FLOOR else reviewed
             hits = [path for path in candidates if glob_match(pattern, path)]
-            if hits and unbindable:
-                detail = f"{', '.join(hits)}; it also changes a lane source, so no security review binds to this head"
-                reasons.append(
-                    Reason(f"{UNBINDABLE_PATH_PREFIX}{pattern}", Risk.HIGH, detail)
-                )
-            elif hits:
+            if hits:
                 detail = f"{', '.join(hits)}; a clean claude-security-review bound to this head clears it"
                 reasons.append(
                     Reason(f"{REVIEW_PATH_PREFIX}{pattern}", Risk.HIGH, detail)
@@ -808,11 +963,6 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that spend model usage: a schedule in any YAML or JSON
-# spelling and a model or turn flag.
-_COST_WORKFLOW_LINE = re.compile(
-    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
-)
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on line, a Windows or macOS label (a matrix value) or a
 # schedule (recurring runs) charges.
@@ -843,8 +993,9 @@ def _labels(value: str) -> list[str]:
 
 
 def _runner_values(text: str) -> list[str]:
-    """Each runs-on value in workflow text: an inline label or list, and a
-    block's list items and `group:`/`labels:` entries (as `group:<name>`)."""
+    """Each runs-on value in workflow text: an inline label or list (a list
+    wrapped onto continuation lines too), and a block's list items and
+    `group:`/`labels:` entries (as `group:<name>`)."""
     values: list[str] = []
     lines = text.split("\n")
     for i, line in enumerate(lines):
@@ -852,7 +1003,8 @@ def _runner_values(text: str) -> list[str]:
         if not m:
             continue
         if _scalar(m[2]):
-            values.append(_scalar(m[2]))
+            value, _ = _join_flow(m[2].split(" #", 1)[0], lines, i + 1)
+            values.append(_scalar(value))
             continue
         indent = len(m[1])
         for inner in lines[i + 1 :]:
@@ -868,6 +1020,136 @@ def _runner_values(text: str) -> list[str]:
     return values
 
 
+_ENTRY = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:(?:\s+(.*))?$""")
+_FLOW_PAIR = re.compile(r"""(['"]?)([^\s'":#{}\[\],]+)\1\s*:\s*([^,{}]*)""")
+_BLOCK_SCALAR = re.compile(r"[|>][0-9+-]*")
+# A line whose value (a list item's too) starts a flow list or mapping.
+_FLOW_START = re.compile(r"""(?:-\s+)*(?:(['"]?)[^\s'":#{}\[\],]+\1\s*:\s+)?[\[{]""")
+
+
+def _join_flow(content: str, lines: list[str], i: int) -> tuple[str, int]:
+    """`content`, a line that starts a flow list or mapping, with the lines
+    from `lines[i]` on joined to it while that collection stays open, so a
+    list wrapped onto continuation lines reads whole; and the index after the
+    lines it took."""
+    if not _FLOW_START.match(content.lstrip()):
+        return content, i
+    depth = sum(map(content.count, "[{")) - sum(map(content.count, "]}"))
+    while depth > 0 and i < len(lines):
+        more = lines[i].split(" #", 1)[0].strip()
+        depth += sum(map(more.count, "[{")) - sum(map(more.count, "]}"))
+        content += " " + more
+        i += 1
+    return content, i
+
+
+def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
+    """(key path, value) for each mapping entry and list scalar in YAML text,
+    read from indentation: a list item's segment is its index (`[0]`), a
+    block entry's value is empty, a block scalar's lines are skipped, a flow
+    list or mapping wrapped onto continuation lines reads as one line, and a
+    flow mapping adds its pairs. Enough to place a timeout or a runner label,
+    not a YAML parser."""
+    entries: list[tuple[tuple[str, ...], str]] = []
+    stack: list[tuple[int, str]] = []
+    items: Counter[tuple[str, ...]] = Counter()
+    scalar_at = -1  # the indent of the key whose block scalar is open
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        content = lines[i].split(" #", 1)[0].rstrip()
+        i += 1
+        stripped = content.lstrip()
+        indent = len(content) - len(stripped)
+        if not stripped or stripped.startswith("#"):
+            continue
+        if scalar_at >= 0 and indent > scalar_at:
+            continue
+        scalar_at = -1
+        content, i = _join_flow(content, lines, i)
+        stripped = content.lstrip()
+        dash = stripped == "-" or stripped.startswith("- ")
+        # A list may sit at its key's own indent; a sibling item closes the
+        # one before it.
+        while stack and (
+            stack[-1][0] > indent
+            or (stack[-1][0] == indent and (not dash or stack[-1][1].startswith("[")))
+        ):
+            stack.pop()
+        while stripped == "-" or stripped.startswith("- "):
+            parent = tuple(s for _, s in stack)
+            stack.append((indent, f"[{items[parent]}]"))
+            items[parent] += 1
+            rest = stripped[1:].lstrip()
+            indent += len(stripped) - len(rest)
+            stripped = rest
+        if not stripped:
+            continue
+        path = tuple(s for _, s in stack)
+        m = _ENTRY.match(stripped)
+        if not m and stripped.startswith("{"):
+            entries += [
+                (path + (k,), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(stripped)
+            ]
+            continue
+        if not m:
+            entries.append((path, _scalar(stripped)))
+            continue
+        key, value = m[2], _scalar(m[3] or "")
+        entries.append((path + (key,), value))
+        if not value or _BLOCK_SCALAR.fullmatch(value):
+            stack.append((indent, key))
+            if value:
+                scalar_at = indent
+        elif value.startswith("{"):
+            entries += [
+                (path + (key, k), _scalar(v)) for _, k, v in _FLOW_PAIR.findall(value)
+            ]
+    return entries
+
+
+# A runs-on value that is one matrix key or input, as is or through fromJSON.
+_RUNNER_REF = re.compile(
+    r"\$\{\{\s*(?:fromJSON\(\s*)?(matrix|inputs)\.([\w-]+)\s*\)?\s*\}\}",
+    re.IGNORECASE,
+)
+
+
+def _referenced_runners(text: str) -> list[str]:
+    """The labels a `runs-on` value of `${{ matrix.<key> }}` or
+    `${{ inputs.<name> }}` can take from the text itself: each scalar value
+    of that matrix key (include entries too), and that input's default and
+    options."""
+    refs = {
+        (m[1].casefold(), m[2].casefold())
+        for value in _runner_values(text)
+        if (m := _RUNNER_REF.fullmatch(value))
+    }
+    values: list[str] = []
+    if not refs:
+        return values
+    for path, value in _yaml_entries(text):
+        names = [p.casefold() for p in path]
+        if not value or not names or "{" in value:
+            continue
+        item = names[-1].startswith("[")
+        for kind, name in refs:
+            if kind not in names[:-1]:
+                continue
+            if kind == "matrix" and names[-1] == name:
+                values += _labels(value)
+            elif kind == "matrix" and item and names[-2:-1] == [name]:
+                values.append(value)
+            elif kind == "inputs" and names[-2:] in (
+                [name, "default"],
+                [name, "options"],
+            ):
+                values += _labels(value)
+            elif kind == "inputs" and item and names[-3:-1] == [name, "options"]:
+                values.append(value)
+    return values
+
+
 def _free(value: str) -> bool:
     labels = _labels(value)
     if "self-hosted" in (label.casefold() for label in labels):
@@ -877,15 +1159,17 @@ def _free(value: str) -> bool:
 
 def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
     """Runner values the change adds that are not free: from the head text
-    against the base text when both were read, and from added inline runs-on
+    against the base text when both were read, with the matrix values and
+    input defaults a runs-on expression names, and from added inline runs-on
     lines. Unread text and an added block holds."""
     contents = getattr(raw, "contents", None)
     pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
     base, head = pair if pair else (None, None)
     gained: Counter[str] = Counter()
     if isinstance(head, str):
-        gained.update(_runner_values(head))
-        gained.subtract(_runner_values(base if isinstance(base, str) else ""))
+        before = base if isinstance(base, str) else ""
+        gained.update(_runner_values(head) + _referenced_runners(head))
+        gained.subtract(_runner_values(before) + _referenced_runners(before))
     found = [v for v, n in gained.items() if n > 0]
     for line in added:
         m = _RUNS_ON.match(line)
@@ -903,12 +1187,26 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
 _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
-# Any secrets reference: `secrets.NAME`, `secrets['NAME']`, the whole
-# `secrets` context, and `secrets: inherit`.
+# Any secrets reference: `secrets.NAME`, `secrets.*`, `secrets['NAME']`, the
+# whole `secrets` context as an argument, and `secrets: inherit`.
 _SECRET_REF = re.compile(
-    r"\bsecrets\s*(?:\.\s*[A-Za-z0-9_]+|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b",
+    r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
+    r"|\bsecrets\s*:\s*inherit\b"
+    rf"|{_EXPRESSION_SECRET}(?:[^}}]|\}}(?!\}}))*\}}\}}",
     re.IGNORECASE,
+)
+# Inside a `${{ }}` expression, the bare `secrets` context anywhere outside a
+# string literal (`${{ secrets }}`, `contains(secrets, 'X')`) is a reference
+# too; `has-secrets` or `steps.secrets-check` is another name.
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
+_BARE_SECRETS = re.compile(r"(?<![\w.-])secrets(?![\w-])(?!\s*[.\[])", re.IGNORECASE)
+# An `if:` value is an expression without `${{ }}`, so its bare `secrets`
+# counts too; a block scalar's lines are joined to it first.
+_IF_VALUE = re.compile(
+    r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?if['\"]?\s*:\s*(.*)", re.IGNORECASE
+)
+_IF_BLOCK = re.compile(
+    r"(\s*(?:-\s+)?['\"]?if['\"]?\s*:)\s*[|>][-+0-9]*\s*(?:#.*)?", re.IGNORECASE
 )
 # A model leg: a claude-code-* action or image, run-claude-cli, or the
 # Claude Code npm package on a run line.
@@ -920,7 +1218,24 @@ _MODEL_ACTION = re.compile(
     re.IGNORECASE,
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
-_TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
+# A call to a local reusable workflow or composite action, which may start a
+# model leg of its own.
+_LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?(\./[^\s'\"#]+)", re.IGNORECASE)
+# A composite action's metadata, which can start a model leg outside
+# `.github/workflows/`.
+_ACTIONS = (".github/actions/**/action.yml", ".github/actions/**/action.yaml")
+# A timeout key at a line's start (a list item's too) or in a flow mapping,
+# its value a number or an expression.
+_TIMEOUT_VALUE = re.compile(
+    r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?(?:leg-)?timeout-minutes['\"]?\s*:\s*"
+    r"((?:\$\{\{.*?\}\}|[^,{}\[\]#])*)",
+    re.IGNORECASE,
+)
+_TIMEOUT_KEYS = frozenset({"timeout-minutes", "leg-timeout-minutes"})
+_NUMBER = re.compile(r"[0-9]+")
+# GitHub cancels a job after 360 minutes unless timeout-minutes says otherwise:
+# https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
+DEFAULT_TIMEOUT_MINUTES = 360
 _RETENTION = re.compile(r"^\s*-?\s*retention-days\s*:\s*['\"]?([0-9]+)")
 # GitHub keeps artifacts and logs 90 days unless retention-days says otherwise:
 # https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization
@@ -981,38 +1296,319 @@ def _unsafe_pipeline_lines(patch: str) -> list[str]:
     return found
 
 
+def _expressions(
+    text: str, inside: bool = False, quoted: bool = False
+) -> tuple[list[str], bool, bool]:
+    """(bodies, inside, quoted): the body of each `${{ }}` expression in
+    `text`, read as GitHub reads one, so a `}}` inside a single-quoted
+    literal does not close it, and whether an expression and a literal in it
+    are still open at the end. An open expression's body runs to the end;
+    `inside` and `quoted` carry that state in from a line before. Every `${{`
+    starts a fresh body with no literal open, even inside another one, so a
+    quote opened in a YAML comment cannot carry over a real expression; the
+    body it cuts short is kept, its literal still open."""
+    bodies: list[str] = []
+    start = i = 0
+    while i < len(text):
+        if not inside or text.startswith("${{", i):
+            j = text.find("${{", i)
+            if j < 0:
+                break
+            if inside:
+                bodies.append(text[start:j])
+            inside, quoted = True, False
+            start = i = j + 3
+        elif quoted:
+            # A doubled `''` closes and reopens: the same literal.
+            quoted = text[i] != "'"
+            i += 1
+        elif text[i] == "'":
+            quoted = True
+            i += 1
+        elif text.startswith("}}", i):
+            bodies.append(text[start:i])
+            inside = False
+            i += 2
+        else:
+            i += 1
+    if inside:
+        bodies.append(text[start:])
+    return bodies, inside, quoted
+
+
+def _logical_lines(lines: list[str]) -> list[str]:
+    """`lines` with each line that leaves a `${{` expression open joined to
+    the next until it closes, so a reference split across a folded scalar
+    reads whole however many lines pad it. One still open at the end joins
+    every line after it."""
+    joined: list[str] = []
+    held: list[str] = []
+    inside = quoted = False
+    for line in lines:
+        held.append(line)
+        _, inside, quoted = _expressions(line, inside, quoted)
+        if not inside:
+            joined.append(" ".join(held))
+            held = []
+    if held:
+        joined.append(" ".join(held))
+    return joined
+
+
+def _secret_refs(line: str) -> list[str]:
+    """Each `${{` body's bare `secrets`, and a body whose literal is still
+    open where its read ends (the line ends, or a `${{` cuts it short), which
+    this read cannot follow, so it holds under its own text: only the same
+    body removed elsewhere offsets it. An `if:` value with no `${{` is read
+    as one body, its YAML quotes removed and a trailing comment cut."""
+    found = _SECRET_REF.findall(line)
+    for body in _expressions(line)[0]:
+        blanked = _STRING_LITERAL.sub("''", body)
+        if "'" in blanked.replace("''", ""):
+            found.append(f"unclosed literal in ${{{{{body}")
+        found += _BARE_SECRETS.findall(blanked)
+    for value in _IF_VALUE.findall(line):
+        if "${{" in value:
+            continue
+        value = value.strip()
+        if m := re.match(r'"((?:[^"\\]|\\.)*)"', value):
+            value = m[1]
+        elif m := re.match(r"'((?:[^']|'')*)'", value):
+            value = m[1].replace("''", "'")
+        blanked = _STRING_LITERAL.sub("''", value).split(" #", 1)[0]
+        found += _BARE_SECRETS.findall(blanked)
+    return found
+
+
+def _if_blocks(lines: list[str]) -> list[str]:
+    """`lines` with each `if:` block scalar joined to its more-indented lines,
+    so `_secret_refs` reads its value whole."""
+    joined: list[str] = []
+    indent: int | None = None
+    for line in lines:
+        if indent is not None and (
+            not line.strip() or len(line) - len(line.lstrip()) > indent
+        ):
+            joined[-1] += " " + line.strip()
+            continue
+        indent = None
+        if m := _IF_BLOCK.fullmatch(line):
+            indent = len(line) - len(line.lstrip())
+            line = m[1] + " "
+        joined.append(line)
+    return joined
+
+
 def _net_added(
-    pattern: re.Pattern[str], added: list[str], removed: list[str]
+    find: Callable[[str], list[str]], added: list[str], removed: list[str]
 ) -> list[str]:
     """Each match `added` gains over `removed`, so a moved or repinned line
     is not new."""
     gained = Counter(
         re.sub(r"\s+", "", m).casefold()
-        for line in added
-        for m in pattern.findall(line)
+        for line in _logical_lines(added)
+        for m in find(line)
     )
     gained.subtract(
         re.sub(r"\s+", "", m).casefold()
-        for line in removed
-        for m in pattern.findall(line)
+        for line in _logical_lines(removed)
+        for m in find(line)
     )
     return sorted(m for m, n in gained.items() if n > 0)
 
 
-def _raised_timeouts(
-    f: _File, raw: Any, added: list[str], removed: list[str]
+def _new_model_legs(added: list[str], removed: list[str]) -> list[str]:
+    return [
+        f"new model leg {n}" for n in _net_added(_MODEL_ACTION.findall, added, removed)
+    ] + [
+        f"new model package run {n}"
+        for n in _net_added(_MODEL_PACKAGE.findall, added, removed)
+    ]
+
+
+def _timeout_values(lines: list[str]) -> list[str]:
+    return [
+        v for line in lines for m in _TIMEOUT_VALUE.findall(line) if (v := _scalar(m))
+    ]
+
+
+def _raises(
+    new: list[str], old: list[str], where: str = "", ceiling: float | None = None
 ) -> list[str]:
-    """Timeouts on a workflow that starts a model leg (or whose head text could
-    not be read) that the patch adds above every value it removes."""
-    new = [int(m[1]) for line in added if (m := _TIMEOUT.match(line))]
-    if not new:
-        return []
+    """The values in `new` that raise a timeout over `old` once equal values
+    cancel: an expression, or a number above every number left in `old`, or
+    above `ceiling` when none is left."""
+    gained = Counter(new) - Counter(old)
+    lost = Counter(old) - Counter(new)
+    top = max((int(v) for v in lost if _NUMBER.fullmatch(v)), default=ceiling)
+    at = f" at {where}" if where else ""
+    return [
+        f"timeout{at} raised to {v}"
+        if _NUMBER.fullmatch(v)
+        else f"timeout{at} set to {v}"
+        for v in sorted(gained)
+        if not _NUMBER.fullmatch(v) or top is None or int(v) > top
+    ]
+
+
+def _unindexed(path: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple("[]" if s.startswith("[") else s for s in path)
+
+
+def _is_timeout(path: tuple[str, ...], value: str) -> bool:
+    return bool(path and value and path[-1].casefold() in _TIMEOUT_KEYS)
+
+
+def _timeouts(
+    entries: list[tuple[tuple[str, ...], str]],
+) -> dict[tuple[str, ...], list[str]]:
+    """Each timeout value by key path, list indices dropped so a step added
+    before another does not move its timeout."""
+    found: dict[tuple[str, ...], list[str]] = {}
+    for path, value in entries:
+        if _is_timeout(path, value):
+            found.setdefault(_unindexed(path), []).append(value)
+    return found
+
+
+_ITEM_KEYS = frozenset({"id", "name", "uses", "run"})
+
+
+def _items(
+    entries: list[tuple[tuple[str, ...], str]],
+) -> dict[tuple[str, ...], tuple[tuple[tuple[str, str], ...], set[tuple[str, ...]]]]:
+    """Each innermost list item by its indexed path: its identity (its own
+    `id`, `name`, `uses` with its ref dropped, and `run` values) and the
+    timeout keys below it, by unindexed path."""
+    ids: dict[tuple[str, ...], dict[str, str]] = {}
+    keys: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
+    for path, value in entries:
+        at = [i for i, s in enumerate(path) if s.startswith("[")]
+        if not at:
+            continue
+        item = path[: at[-1] + 1]
+        ids.setdefault(item, {})
+        key = path[-1]
+        if len(path) == len(item) + 1 and key in _ITEM_KEYS:
+            ids[item][key] = value.split("@", 1)[0] if key == "uses" else value
+        if _is_timeout(path, value):
+            keys.setdefault(item, set()).add(_unindexed(path[len(item) :]))
+    return {p: (tuple(sorted(d.items())), keys.get(p, set())) for p, d in ids.items()}
+
+
+def _item_drops(base: list, head: list) -> Counter[tuple[str, ...]]:
+    """Timeout keys the head drops from list items it keeps, by unindexed
+    path. Items match by identity count, not index, and one counts as deleted
+    only as far as its list shrinks and its identity is gone, taken first
+    from items without the key: a step renamed, edited or moved while it
+    loses its timeout still counts, and a step shifting into a deleted one's
+    index does not."""
+    lists: dict[tuple[str, ...], tuple[list, list]] = {}
+    for side, entries in ((0, base), (1, head)):
+        for item, found in _items(entries).items():
+            lists.setdefault(_unindexed(item[:-1]), ([], []))[side].append(found)
+    drops: Counter[tuple[str, ...]] = Counter()
+    for where, (olds, news) in lists.items():
+        deleted = max(0, len(olds) - len(news))
+        surplus = Counter(i for i, _ in olds) - Counter(i for i, _ in news)
+        for key in set().union(*(k for _, k in olds)):
+            spare = sum(
+                min(n, sum(i == ident and key not in k for i, k in olds))
+                for ident, n in surplus.items()
+            )
+            lost = (
+                sum(key in k for _, k in olds)
+                - sum(key in k for _, k in news)
+                - max(0, deleted - spare)
+            )
+            if lost > 0:
+                drops[where + ("[]",) + key] += lost
+    return drops
+
+
+def _path_timeouts(base: str, head: str) -> list[str]:
+    """Timeouts the head text raises over the base text at the same key path:
+    with none lost there, a number above the highest the base had. Where the
+    base had no `timeout-minutes`, a job ran to GitHub's default; where it had
+    no `leg-timeout-minutes`, a number set is a cap; one removed from
+    a job or step the head still has lets GitHub's default, or the action's
+    own, apply."""
+    base_entries, head_entries = _yaml_entries(base), _yaml_entries(head)
+    old, new = _timeouts(base_entries), _timeouts(head_entries)
+    keys = {p for p, _ in head_entries}
+    parents = {p[:i] for p in keys for i in range(len(p))}
+    # A timeout key the head drops from a job it keeps, or from a list item
+    # it keeps.
+    dropped = _item_drops(base_entries, head_entries) + Counter(
+        p
+        for p, v in base_entries
+        if _is_timeout(p, v)
+        and p not in keys
+        and p[:-1] in parents
+        and not any(s.startswith("[") for s in p)
+    )
+    found = []
+    for path in sorted(set(old) | set(new)):
+        before, after = old.get(path, []), new.get(path, [])
+        job_limit = path[-1].casefold() == "timeout-minutes"
+        default = str(DEFAULT_TIMEOUT_MINUTES) if job_limit else "its default"
+        if not before and job_limit:
+            before = [default]
+        missing = min(dropped[path], len(before) - len(after))
+        if missing > 0:
+            after = after + [default] * missing
+        # With none lost, a number counts above the highest already there; a
+        # key with no default set where none was is a cap, not a raise.
+        numbers = [int(v) for v in before if _NUMBER.fullmatch(v)]
+        ceiling = max(numbers) if numbers else None if before else math.inf
+        found += _raises(after, before, ".".join(path[:-1]), ceiling)
+    return found
+
+
+def _billed_timeouts(raw: Any, added: list[str], removed: list[str]) -> list[str]:
+    """Timeouts raised, off a public repository, on a workflow that starts a
+    model leg, or whose head text could not be read: a value the patch adds
+    above every one it removes once equal values cancel, so one job's value
+    moved does not hide another's raise, and an added expression. On a
+    workflow that starts a model leg or calls a local workflow or action that
+    may, the head text against the base text too: each timeout raised, set to
+    an expression or removed at its own key path."""
     contents = getattr(raw, "contents", None)
-    head = contents[1] if isinstance(contents, tuple) and len(contents) == 2 else None
-    if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
+    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
+    base, head = pair if pair else (None, None)
+    if not isinstance(head, str):
+        return _raises(_timeout_values(added), _timeout_values(removed))
+    found: list[str] = []
+    if _MODEL_ACTION_NAME.search(head):
+        # With base text to compare, the path pass below judges each number at
+        # its key path, so the line pass keeps only added expressions.
+        values = _timeout_values(added)
+        if isinstance(base, str) and base:
+            values = [v for v in values if not _NUMBER.fullmatch(v)]
+        found += _raises(values, _timeout_values(removed))
+    elif not _LOCAL_USES.search(head):
+        return found
+    return found + _path_timeouts(base if isinstance(base, str) else "", head)
+
+
+def _composite_model_legs(f: _File, raw: Any) -> list[str]:
+    """New model legs in a composite action's metadata, outside
+    `.github/workflows/`; with no patch to read, one may hide there, unless
+    the file is deleted, re-moded with no line added, or renamed from another
+    composite action with no line added."""
+    action = [any(glob_match(g, p) for g in _ACTIONS) for p in f.paths]
+    if not any(action):
         return []
-    old = [int(m[1]) for line in removed if (m := _TIMEOUT.match(line))]
-    return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
+    lines = _patch_lines(getattr(raw, "patch", None))
+    if lines is not None:
+        return _new_model_legs(*lines)
+    additions = getattr(raw, "additions", None)
+    unchanged = type(additions) is int and additions == 0
+    if f.status == "removed" or (
+        f.status in ("renamed", "modified") and unchanged and all(action)
+    ):
+        return []
+    return ["no patch to read"]
 
 
 def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
@@ -1023,6 +1619,342 @@ def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
     old = [int(m[1]) for line in removed if (m := _RETENTION.match(line))]
     top = max(old, default=DEFAULT_ARTIFACT_RETENTION_DAYS)
     return [f"retention raised to {n}" for n in new if n > top]
+
+
+PERMISSION_WIDENING_CODE = "permission-widening-review"
+PRIVILEGED_TRIGGER_CODE = "privileged-trigger-review"
+# Triggers that run the default branch's copy with a write token on another
+# event's behalf, or on text anyone who can comment or open an issue writes.
+PRIVILEGED_TRIGGERS = frozenset(
+    {
+        "pull_request_target",
+        "workflow_run",
+        "issue_comment",
+        "issues",
+        "pull_request_review",
+        "pull_request_review_comment",
+        "discussion",
+        "discussion_comment",
+        "repository_dispatch",
+    }
+)
+# A job with no `permissions:` of its own or at the top level runs on the
+# repository default, which this module cannot see, so it may write.
+_DEFAULT_TOKEN = "repository-default"
+# Raw-text backstops on comment-stripped lines, so a parser difference
+# between PyYAML and GitHub's cannot hide a gain: a write grant, and a
+# privileged trigger in a trigger's shape (a key, a list item, or a name on
+# an `on:` line), never a `github.event.workflow_run` expression.
+_WRITE_TEXT = re.compile(
+    r"\b(?:id-token|[a-z-]+)\s*:\s*['\"]?write\b|\bwrite-all\b", re.IGNORECASE
+)
+_TRIGGER_NAMES = "|".join(sorted(PRIVILEGED_TRIGGERS, key=len, reverse=True))
+# A key form never takes `issues`, which is also a permissions scope.
+_TRIGGER_KEY = re.compile(
+    r"^\s*['\"]?("
+    + "|".join(sorted(PRIVILEGED_TRIGGERS - {"issues"}, key=len, reverse=True))
+    + r")['\"]?\s*(?::|,|$)"
+)
+_TRIGGER_ITEM = re.compile(r"^\s*-\s*['\"]?(" + _TRIGGER_NAMES + r")['\"]?\s*$")
+_ON_LINE = re.compile(r"^\s*['\"]?on['\"]?\s*:(.*)$")
+_TRIGGER_NAME = re.compile(r"(?<![.\w-])(" + _TRIGGER_NAMES + r")(?![.\w-])")
+
+
+def _trigger_tokens(line: str) -> list[str]:
+    key = _TRIGGER_KEY.match(line) or _TRIGGER_ITEM.match(line)
+    if key:
+        return [key[1]]
+    on = _ON_LINE.match(line)
+    return _TRIGGER_NAME.findall(on[1]) if on else []
+
+
+_ON_BLOCK = re.compile(r"^(\s*)['\"]?on['\"]?\s*:\s*$")
+_BLOCK_KEY = re.compile(r"^(\s*)['\"]?([\w-]+)['\"]?\s*:")
+
+
+def _on_block_keys(lines: list[str]) -> list[str]:
+    """The keys directly under a block `on:`, so a mapping-form trigger is
+    read even when its name (`issues`) is also a permissions scope."""
+    keys: list[str] = []
+    on: int | None = None
+    child: int | None = None
+    for line in lines:
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if on is not None and indent <= on:
+            on = child = None
+        if on is None:
+            block = _ON_BLOCK.match(line)
+            if block:
+                on = len(block[1])
+            continue
+        child = indent if child is None else child
+        key = _BLOCK_KEY.match(line)
+        if key and indent == child:
+            keys.append(key[2])
+    return keys
+
+
+# A line whose value opens a block scalar: `key: |`, `- >-`, `key: &a |`.
+_BLOCK_SCALAR_START = re.compile(r"(?:^|[:-])\s+(?:[&!]\S*\s+)*[|>][0-9+-]*\s*$")
+# An anchor or tag a value may carry before its scalar.
+_NODE_PROPERTIES = re.compile(r"(?:(?<=\s)[&!]\S*\s*)+$")
+
+
+def _uncommented(line: str, quote: str) -> tuple[str, str]:
+    """`line` up to a YAML comment, a `#` after whitespace outside quotes,
+    and the quote of a quoted scalar still open at its end; `quote` carries
+    one in from the line before. A quote opens a scalar only where one can
+    start: the line's start, after `: `, `- ` or `? `, after the `:` of a
+    quoted or bracketed key (a flow mapping's `{"K":"v"}`), or after `[`,
+    `{` or `,`. A quote inside a plain scalar is text to YAML, but the line
+    is read as if it opened one, to the line's end at most, so a ` #` after
+    it never hides the rest."""
+    carry = bool(quote)
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if quote == '"' and c == "\\":
+            i += 1
+        elif c == quote:
+            # A doubled `''` is a quote inside the single-quoted scalar.
+            if quote == "'" and line.startswith("''", i):
+                i += 1
+            else:
+                quote = ""
+        elif quote:
+            pass
+        elif c == "#" and i and line[i - 1] in " \t":
+            return line[: i - 1], ""
+        elif c in "'\"":
+            head = _NODE_PROPERTIES.sub("", line[:i])
+            before = head.rstrip()
+            carry = (
+                not before
+                or before[-1] in "[{,"
+                or (before[-1] in ":-?" and len(before) < len(head))
+                or (
+                    before[-1] == ":"
+                    and before[:-1].rstrip()[-1:] in ("'", '"', "]", "}")
+                )
+            )
+            quote = c
+        i += 1
+    return line, quote if carry else ""
+
+
+def _scalar_parent(line: str) -> int:
+    """The indent a block scalar opened on `line` must exceed: its key's
+    column, or a bare list item's dash."""
+    rest = line.lstrip()
+    dash = len(line) - len(rest)
+    while rest == "-" or rest.startswith("- "):
+        dash = len(line) - len(rest)
+        rest = rest[1:].lstrip()
+    return dash if rest[:1] in ("|", ">", "&", "!") else len(line) - len(rest)
+
+
+def _code_lines(lines: list[str]) -> list[str]:
+    """Lines with YAML comments dropped: a whole-line comment, or the text
+    from a ` #` outside a quoted scalar. A block scalar's body, and a quoted
+    scalar's lines after its first, are text, kept whole."""
+    code: list[str] = []
+    scalar_at: int | None = None
+    quote = ""
+    for line in lines:
+        stripped = line.lstrip()
+        if scalar_at is not None and (
+            not stripped or len(line) - len(stripped) > scalar_at
+        ):
+            code.append(line)
+            continue
+        scalar_at = None
+        if not quote and stripped.startswith("#"):
+            continue
+        cut, quote = _uncommented(line, quote)
+        code.append(cut)
+        if not quote and _BLOCK_SCALAR_START.search(cut):
+            scalar_at = _scalar_parent(cut)
+    return code
+
+
+def _yaml() -> Any:
+    """PyYAML, or None where it is not installed."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    return yaml
+
+
+_PERMISSIONS_KEY = re.compile(r"^\s*['\"]?permissions['\"]?\s*:")
+
+
+def _text_privileges(text: str | None) -> tuple[Counter[str], int, set[str]]:
+    """Without PyYAML: (write grants, `permissions:` keys, triggers) read
+    from the comment-stripped lines of workflow text."""
+    lines = _code_lines(text.split("\n")) if isinstance(text, str) else []
+    grants = Counter(
+        re.sub(r"\s+", "", m).casefold()
+        for line in lines
+        for m in _WRITE_TEXT.findall(line)
+    )
+    keys = sum(1 for line in lines if _PERMISSIONS_KEY.match(line))
+    triggers = {t for line in lines for t in _trigger_tokens(line)}
+    triggers |= set(_on_block_keys(lines)) & PRIVILEGED_TRIGGERS
+    return grants, keys, triggers
+
+
+def _text_gains(base: str | None, head: str) -> tuple[list[str], list[str]]:
+    """`_workflow_privilege_gains` without PyYAML: a write grant the head
+    text adds, a `permissions:` key it drops (a job may fall back to the
+    repository default), or a file with jobs and no `permissions:` key at
+    all that the base did not already have; and the privileged triggers it
+    adds."""
+    b_grants, b_keys, b_triggers = _text_privileges(base)
+    h_grants, h_keys, h_triggers = _text_privileges(head)
+    gained = h_grants.copy()
+    gained.subtract(b_grants)
+    widened = [f"grants {g}" for g, n in sorted(gained.items()) if n > 0]
+    if h_keys < b_keys:
+        widened.append("a permissions block removed")
+    elif (
+        h_keys == 0
+        and (base is None or b_keys > 0)
+        and re.search(r"^jobs\s*:", head, re.MULTILINE)
+    ):
+        widened.append(f"jobs on the {_DEFAULT_TOKEN} token")
+    return widened, sorted((h_triggers - b_triggers) & PRIVILEGED_TRIGGERS)
+
+
+def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
+    """(job:scope write grants, triggers) of workflow text, None when it
+    does not read as one mapping with a `jobs` mapping and a readable `on`.
+    An absent side (None) and an empty document are the empty workflow. A
+    repeated key, an anchor or an alias is unreadable, since GitHub's parser
+    could read it otherwise."""
+    if text is None:
+        return set(), set()
+    yaml = _yaml()
+    if yaml is None:
+        return None
+
+    class _Strict(yaml.SafeLoader):
+        pass
+
+    def mapping(loader: Any, node: Any) -> dict[Any, Any]:
+        seen: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=True)
+            if str(key).casefold() in (str(k).casefold() for k in seen):
+                raise ValueError("repeated key")
+            seen[key] = loader.construct_object(value_node, deep=True)
+        return seen
+
+    _Strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+    try:
+        for event in yaml.parse(text, Loader=_Strict):
+            if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
+                return None
+        data = yaml.load(text, Loader=_Strict)  # noqa: S506 - SafeLoader subclass
+    except Exception:  # noqa: BLE001 - unreadable holds
+        return None
+    if data is None:
+        # An empty document runs nothing.
+        return set(), set()
+    if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
+        return None
+    # PyYAML reads a plain `on` key as the YAML 1.1 bool; GitHub reads "on".
+    on = data.get("on", data.get(True))
+    if on is None:
+        triggers: set[str] = set()
+    elif isinstance(on, str):
+        triggers = {on}
+    elif isinstance(on, list):
+        triggers = {str(t) for t in on}
+    elif isinstance(on, dict):
+        triggers = {str(t) for t in on}
+    else:
+        return None
+
+    def writes(perm: Any) -> set[str] | None:
+        if perm is None:
+            return None
+        if perm == "read-all" or perm == {}:
+            return set()
+        if perm == "write-all":
+            return {"*"}
+        if not isinstance(perm, dict):
+            return {"?"}
+        return {
+            str(scope).casefold()
+            for scope, level in perm.items()
+            if level not in ("read", "none")
+        }
+
+    top = writes(data.get("permissions"))
+    grants: set[str] = set()
+    for name, job in data["jobs"].items():
+        own = writes(job.get("permissions")) if isinstance(job, dict) else {"?"}
+        scopes = own if own is not None else top
+        for scope in scopes if scopes is not None else {_DEFAULT_TOKEN}:
+            grants.add(f"{name}:{scope}")
+    return grants, {t.casefold() for t in triggers}
+
+
+def _workflow_privilege_gains(
+    f: _File, raw: Any, patch: Any
+) -> tuple[list[str], list[str]]:
+    """(permission widenings, privileged triggers gained) of one changed
+    workflow: its base text against its head text (an added file against
+    none), and its patch's net-added lines as a backstop. Unreadable text
+    holds as a widening."""
+    contents = getattr(raw, "contents", None)
+    if getattr(raw, "contents_error", None) is not None or not (
+        isinstance(contents, tuple) and len(contents) == 2
+    ):
+        return ["contents unreadable"], []
+    if not isinstance(contents[1], str) or not (
+        contents[0] is None or isinstance(contents[0], str)
+    ):
+        return ["contents unreadable"], []
+    if _yaml() is None:
+        widened, triggers = _text_gains(contents[0], contents[1])
+    else:
+        base = _workflow_privileges(contents[0])
+        head = _workflow_privileges(contents[1])
+        if base is None or head is None:
+            return ["unreadable, malformed, a repeated key or an alias"], []
+        widened = sorted(head[0] - base[0])
+        triggers = sorted((head[1] - base[1]) & PRIVILEGED_TRIGGERS)
+    lines = _patch_lines(patch)
+    if lines is not None:
+        added, removed = (_code_lines(side) for side in lines)
+        widened += [
+            f"added line {m}" for m in _net_added(_WRITE_TEXT.findall, added, removed)
+        ]
+        gained = Counter(t for line in added for t in _trigger_tokens(line))
+        gained.subtract(t for line in removed for t in _trigger_tokens(line))
+        triggers += sorted(t for t, n in gained.items() if n > 0 and t not in triggers)
+    return widened, triggers
+
+
+def _text_secret_gains(raw: Any) -> list[str]:
+    """Secrets references a workflow's head text gains over its base text
+    (comment-stripped), so a change with no patch, or one a cost branch
+    skips, is still read. Unread text gains nothing here: the patch check
+    and `_workflow_privilege_gains` hold it."""
+    contents = getattr(raw, "contents", None)
+    if not (isinstance(contents, tuple) and len(contents) == 2):
+        return []
+    base, head = contents
+    if not isinstance(head, str):
+        return []
+    before = _code_lines(base.split("\n")) if isinstance(base, str) else []
+    return _net_added(
+        _secret_refs, _if_blocks(_code_lines(head.split("\n"))), _if_blocks(before)
+    )
 
 
 def _cost_reasons(
@@ -1037,7 +1969,24 @@ def _cost_reasons(
     (`agent-surface-review`) is a security change, HIGH and a person's, which
     the cost decision does not clear."""
     charges, spends, secrets, agents = [], [], [], []
+    widenings: list[str] = []
+    privileged: list[str] = []
+    secret_files: set[str] = set()
     for f, raw in zip(files, raw_files):
+        # Before any branch below can skip the file: no cost decision clears
+        # a widening.
+        if f.status != "removed" and any(is_workflow_path(p) for p in f.paths):
+            widened, triggers = _workflow_privilege_gains(
+                f, raw, getattr(raw, "patch", None)
+            )
+            if widened:
+                widenings.append(f"{f.path}: {'; '.join(widened)}")
+            if triggers:
+                privileged.append(f"{f.path}: adds {', '.join(triggers)}")
+            gained = _text_secret_gains(raw)
+            if gained:
+                secrets.append(f"{f.path}: new secrets reference {', '.join(gained)}")
+                secret_files.add(f.path)
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
             charges.append(f"{f.path}: infrastructure as code")
             continue
@@ -1056,6 +2005,9 @@ def _cost_reasons(
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
+            model_legs = _composite_model_legs(f, raw)
+            if model_legs:
+                agents.append(f"{f.path}: {'; '.join(model_legs)}")
             continue
         new, old = f.paths[0], f.paths[-1]
         if new != old and not (
@@ -1075,25 +2027,17 @@ def _cost_reasons(
             for s in added:
                 if not public and _COST_PRIVATE_LINE.search(s):
                     charge.append(s.strip())
-                elif _COST_WORKFLOW_LINE.search(s):
-                    spend.append(s.strip())
-            secret = _net_added(_SECRET_REF, added, removed)
-            if secret:
+            secret = _net_added(_secret_refs, _if_blocks(added), _if_blocks(removed))
+            if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
-            agent = [
-                f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
-            ] + [
-                f"new model package run {n}"
-                for n in _net_added(_MODEL_PACKAGE, added, removed)
-            ]
+            agent = _new_model_legs(added, removed)
             if agent:
                 agents.append(f"{f.path}: {'; '.join(agent)}")
             # Hosted minutes and artifact storage are free only on a public
             # repository.
-            (spend if public else charge).extend(
-                _raised_timeouts(f, raw, added, removed)
-                + _raised_retention(added, removed)
-            )
+            if not public:
+                charge += _billed_timeouts(raw, added, removed)
+                charge += _raised_retention(added, removed)
             charge += [f"runner {v}" for v in _new_runners(raw, added, public)]
         else:
             spend = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
@@ -1115,6 +2059,70 @@ def _cost_reasons(
         reasons.append(Reason(SECRET_EXPOSURE_CODE, Risk.HIGH, "; ".join(secrets)))
     if agents:
         reasons.append(Reason(AGENT_SURFACE_CODE, Risk.HIGH, "; ".join(agents)))
+    if widenings:
+        reasons.append(
+            Reason(PERMISSION_WIDENING_CODE, Risk.HIGH, "; ".join(widenings))
+        )
+    if privileged:
+        reasons.append(
+            Reason(PRIVILEGED_TRIGGER_CODE, Risk.HIGH, "; ".join(privileged))
+        )
+    return reasons
+
+
+# The longest diff line, in bytes, the main-run review reads whole. Read may
+# cut a long line short, so a pull request that review binds
+# (`needs_main_review`, as `bind()` decides) with a longer line in its patch
+# holds for a person (`long-line-review:`), pr-review-main.yml writes
+# no verdict for it, and the binder counts no verdict past it
+# (babysit_review_evidence `_main_review_counted`). Bytes are at least
+# characters, so the cap is never looser than a character count.
+LONG_LINE_BYTES = 1800
+LONG_LINE_PREFIX = "long-line-review:"
+
+
+def _long_line_reasons(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[Reason]:
+    """`long-line-review:<path>` (HIGH, a person's) per changed file of a pull
+    request only the main-run review binds (`needs_main_review` over the
+    changed paths, the head text `with_contents` read and `inp.base_sha`),
+    whose patch holds a line, added, removed or context, longer than
+    `LONG_LINE_BYTES`. The pull_request lanes that bind any other read the
+    whole diff."""
+    from babysit_review_evidence import needs_main_review
+
+    heads = {
+        getattr(raw, "path", None): getattr(raw, "contents", None)
+        for raw in raw_files
+        if getattr(raw, "contents_error", None) is None
+    }
+
+    def head_file(path: str, _base: str) -> str | None:
+        contents = heads.get(path)
+        if isinstance(contents, tuple) and len(contents) == 2:
+            return contents[1] if isinstance(contents[1], str) else None
+        return None
+
+    paths = [p for f in files for p in f.paths] if inp.files_complete is True else None
+    if not needs_main_review(paths, head_file, inp.base_sha):
+        return []
+    reasons = []
+    for f, raw in zip(files, raw_files):
+        patch = getattr(raw, "patch", None)
+        if not isinstance(patch, str):
+            continue
+        long = [
+            line
+            for line in patch.split("\n")
+            if len(line[1:].encode("utf-8")) > LONG_LINE_BYTES
+        ]
+        if long:
+            detail = (
+                f"{len(long)} diff line(s) over {LONG_LINE_BYTES} bytes, more than the"
+                " main-run review reads whole; a person reads them"
+            )
+            reasons.append(Reason(f"{LONG_LINE_PREFIX}{f.path}", Risk.HIGH, detail))
     return reasons
 
 
@@ -1152,9 +2160,18 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     elif cap is not None and len(files) > cap:
         reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
     for path in dict.fromkeys(f.path for f in files if f.has_patch is False):
-        reasons.append(
-            Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
-        )
+        if path.casefold().endswith(MEDIA_SUFFIXES):
+            reasons.append(
+                Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
+            )
+        else:
+            detail = (
+                "no patch, so no review read it (git calls a file with a NUL byte"
+                " binary, and an over-size patch is not sent); a person reads it"
+            )
+            reasons.append(
+                Reason(f"{UNREVIEWED_PATCH_PREFIX}{path}", Risk.HIGH, detail)
+            )
     return reasons
 
 
@@ -1163,18 +2180,6 @@ def blocking(lane: Any) -> Any:
     every open finding when that is None."""
     count = getattr(lane, "blocking_findings", None)
     return getattr(lane, "open_findings", None) if count is None else count
-
-
-def _security_review_unbindable(raw_lanes: Any) -> bool:
-    """Whether the security lane's evidence is unbound for good at this head:
-    its one entry says `lane-source-changed`. Any other unbind (no run yet, a
-    read that failed) a later review or read can clear."""
-    lanes = _sequence(raw_lanes) or ()
-    entries = [lane for lane in lanes if getattr(lane, "lane", None) == _HOLDING_LANE]
-    return (
-        len(entries) == 1
-        and getattr(entries[0], "unbound_reason", None) == _UNBINDABLE_REASON
-    )
 
 
 def security_review_clean(raw_lanes: Any) -> bool:
@@ -1257,16 +2262,31 @@ def _score(inp: RiskInput) -> RiskResult:
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
     # Each producer emits a code at most once, and the only code two of them
     # could share (high-path:**) is refused as a configured glob.
+    paths = _high_path_reasons(inp, files or [], list(raw_files or ()))
+    skipped = (
+        [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
+    )
     reasons = [
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or [], list(raw_files or ())),
+        *(r for r in paths if r not in skipped),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
         *_trust_gate_reasons(files or [], list(raw_files or ())),
+        *_long_line_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
-    return RiskResult(Risk(worst), tuple(reasons))
+    return RiskResult(Risk(worst), tuple(reasons), tuple(skipped))
+
+
+def is_path_hold(reason: Reason) -> bool:
+    """Whether `reason` holds for a changed path alone (`high-path:<glob>`,
+    `review-path:<glob>`), which `merge.diff-check.path-holds` turns off. An
+    unsafe or aliasing path (`high-path:**`) and the manifest review read
+    more than the path, and stay."""
+    return reason.code != UNSAFE_PATH_CODE and reason.code.startswith(
+        ("high-path:", REVIEW_PATH_PREFIX)
+    )
 
 
 # MED reasons an unattended merge passes: the diff's size and the review and
@@ -1281,6 +2301,14 @@ MERGEABLE_MED = frozenset(
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
+# A file with no patch passes unread only as an image, font or PDF, which
+# nothing runs. Any other file (a script whose NUL byte makes git call it
+# binary, an over-size patch) no review read, so a person does.
+MEDIA_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
+    ".woff", ".woff2", ".ttf", ".otf", ".pdf",
+)  # fmt: skip
+UNREVIEWED_PATCH_PREFIX = "unreviewed-patch:"
 
 
 def holding(result: RiskResult) -> list[Reason]:
@@ -1312,10 +2340,17 @@ PERSON_CODES = frozenset(
         COST_CODE,
         SECRET_EXPOSURE_CODE,
         AGENT_SURFACE_CODE,
+        PERMISSION_WIDENING_CODE,
+        PRIVILEGED_TRIGGER_CODE,
         FILES_CAPPED_CODE,
     }
 )
-PERSON_PREFIXES = (TRUST_GATE_PREFIX, "high-path:", UNBINDABLE_PATH_PREFIX)
+PERSON_PREFIXES = (
+    TRUST_GATE_PREFIX,
+    "high-path:",
+    UNREVIEWED_PATCH_PREFIX,
+    LONG_LINE_PREFIX,
+)
 
 
 def person_reasons(reasons: Iterable[Reason]) -> list[Reason]:

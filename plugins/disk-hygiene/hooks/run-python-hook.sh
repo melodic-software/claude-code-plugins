@@ -185,9 +185,21 @@ sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 #     session. The file that failed is the only channel between the launch row
 #     and the Stop row, so the Stop row cannot tell that case apart from a
 #     session whose guard rows never fired.
+#
+# A fourth flag serves the PreToolUse `Skill` row, which exists only to record
+# that the model loaded /disk-hygiene:clean:
+#
+#   --only-skill <name>            write the launch marker only when the
+#                                  payload's `tool_input.skill` is <name>, with
+#                                  or without a leading `/`.
+#
+# With no target script after the flags, the launcher writes its marker and
+# exits 0 with no output, before resolving any interpreter: such a row makes no
+# permission decision, on a host with no Python as on any other.
 MARKER_ROOT=""
 LAUNCH_MARKER_SUBDIR=""
 SKIP_MARKER_SUBDIR=""
+ONLY_SKILL=""
 while (($#)); do
   case "$1" in
   --marker-root)
@@ -200,6 +212,10 @@ while (($#)); do
     ;;
   --skip-unless-marker)
     SKIP_MARKER_SUBDIR="${2:-}"
+    shift 2 || break
+    ;;
+  --only-skill)
+    ONLY_SKILL="${2:-}"
     shift 2 || break
     ;;
   *) break ;;
@@ -302,9 +318,20 @@ if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
   fi
 fi
 
+# True unless `--only-skill` names a skill the payload does not. The closing
+# quote anchors the name, so `disk-hygiene:clean-x` and `repo-hygiene:clean` do
+# not match; a `"skill"` inside a string field arrives as `\"skill\"`, which the
+# unescaped quotes here cannot match.
+_skill_selected() {
+  [[ -n "$ONLY_SKILL" ]] || return 0
+  local key='"skill"[[:space:]]*:[[:space:]]*"/?'
+  [[ "$_PAYLOAD" =~ $key"$ONLY_SKILL"\" ]]
+}
+
 if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
   ((_BUFFERED_STDIN)) || _read_payload
-  if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$LAUNCH_MARKER_SUBDIR" "$_SESSION_ID"; then
+  if [[ -n "$_SESSION_ID" ]] && _skill_selected &&
+    _marker_candidates "$LAUNCH_MARKER_SUBDIR" "$_SESSION_ID"; then
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _marker_dir="${_marker_path%/*}"
       # `mkdir` is the one spawn on this path and `[[ -e ]]` is a builtin, so it
@@ -318,6 +345,9 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
     done
   fi
 fi
+
+# A marker-only row: nothing to launch, so no interpreter to resolve.
+[[ -n "$SCRIPT" ]] || exit 0
 
 # Portable WindowsApps path-component check (case-insensitive).
 _under_windowsapps() {

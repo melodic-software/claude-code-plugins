@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -83,6 +83,7 @@ permissions, and passes no App key.
 | `fallback-ready` | `''` | Read file only: the second call's `true` or `false`, from its handoff job, which run-claude-cli's `fallback-ready` takes; `true` lets the subscription leg hand off to the third call |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
+| `patch-weaken-retry` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), `fix-ci-context`'s `weaken-retry`; `true` turns a `weaken-required` escalation into `ci-fix-weaken-retry` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
@@ -171,8 +172,8 @@ times out after 10 minutes. In order:
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
 posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
-red, not neutral, for the same reason as the write file's `kill-switch` denial: step 3 already
-stopped the common case. Off `pull_request`, a failed broker-check job posts no check, since no
+red, not neutral, `kill-switch` included: step 3 already stopped the common case. Off
+`pull_request`, a failed broker-check job posts no check, since no
 head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
 
 The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
@@ -936,13 +937,17 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    a write-access human's fix request created after the newest counted round (its latest marker,
    or the completion of a model check run that ended `success`, `failure`, `cancelled` or
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
-   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
-   finding ending in the `claude-lane: claude-review` footer nor a pr-verify note (a security lane
-   finding, or a `claude[bot]` or listed review bot's finding, whose footer would be model text), or a pr-verify note a
-   trusted person directed, escalates `feedback-round-cap`, which skips `awaiting-human`; otherwise one more round runs on every kept
-   thread (the fresh fixer), and once it has run the select job escalates
-   `feedback-verifier-open` when every kept thread is a pr-verify note, else
-   `feedback-not-converging`; both route to a failing status and skip `lane-stopped`. No escalation or skip runs a
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept
+   thread a person decides (`needsPerson`) escalates `feedback-round-cap`, which skips
+   `awaiting-human`: a security lane finding rated `CRITICAL` or unrated, a `claude[bot]` finding
+   (its footer would be model text), a pr-verify note or listed review bot's finding a trusted
+   person directed, or a listed review bot's finding the security lane's `security` state marks
+   `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
+   carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
+   Once it has run, the select job escalates `feedback-round-cap` when a security lane `IMPORTANT`
+   finding opened by that round's end is still open, else `feedback-verifier-open` when every kept
+   thread is a pr-verify note, else `feedback-not-converging`; those two route to a failing status
+   and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
@@ -959,8 +964,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    over it under `feedback/` with an empty `feedback/state/`; after the head checkout the run job
    copies them to `.lane/feedback/` and makes the files, the wrapper and the directory read-only,
    all but `state/`. Edit, Write and NotebookEdit are denied on each staged file. The skill gets
-   the tool set of a read skill that hands on a patch and one Bash rule, the wrapper's absolute
-   path, bare and double-quoted, and the preamble names that path and its three subcommands. The
+   the tool set of a read skill that hands on a patch and two Bash rules, the wrapper's absolute
+   path, bare and double-quoted, and `chmod -x`, and the preamble names that path and its three
+   subcommands and says `chmod -x` reverts an executable bit the pull request added. The patch
+   carries the mode, and the `review-threads` row pushes no new executable bit (`new-exec-bit`) and
+   a mode change only back to the merge base's (`pr-mode-revert`). The
    tool lists the kept threads, checks paths, and records a reply in `state/replies.jsonl`: it
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
@@ -1155,7 +1163,32 @@ the comment's first non-blank line or the last one above the footer. Any other s
 so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`
 reply escalates
 `feedback-disputed`, an `UNCERTAIN` or `VALID-defer` one `feedback-uncertain`; it takes no slot,
-and any verdict for it is ignored. A pr-verify verifier note is never adjudicated because
+and any verdict for it is ignored. One security-review finding is settled without a person or a
+model (`hardRequire`): a flag whose first line is `manifest dependencies: flag` (the lane's
+pinned marker, security-review SKILL.md "Reporting"), on a `plugins/<p>/.claude-plugin/plugin.json`
+thread, rated below `CRITICAL`, with an `INCORRECT` reply; it takes no adjudicator slot. The reply
+job reads the manifest and `.claude-plugin/marketplace.json` at the PR head it checks before
+posting, through the contents API. It resolves the thread with a fixed reply naming the lane's
+cited call sites only when all of these hold: the flagged plugin is a marketplace entry; each
+`dependencies` entry is a bare name (no `@marketplace`, no object form, so no version) of another
+entry whose `source` is a `./` path in this repository; the dependency adds nothing Claude Code
+runs, at the base and the head: its `plugin.json` sets only metadata and `userConfig` (no `hooks`,
+`mcpServers`, `lspServers`, `experimental`, `settings`, `workflows`, `types`, `dependencies` or any
+other key), its marketplace entry only listing fields, and its directory holds no `hooks/`,
+`.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`, since enabling it
+enables those for every user of the flagged plugin; and the lane cited, for each entry, a line of a
+`.md` file under `plugins/<p>/skills/`, `agents/` or `commands/` (not an eval case), outside a
+`## Next` section, where `/<entry>:` starts a token (not inside a path or URL) with no gate,
+condition, fallback or negation word (`installed`, `enabled`, `if`, `when`, `unless`, `once`,
+`exists`, `loaded`, `missing`, `fallback`, `otherwise`, `optional`, `not`, `never`, a `n't`
+contraction and the like) within two lines of it: a hard require
+([plugin philosophy](../../plugin-philosophy.md)). The word list fails closed: a hard require
+worded with one of them escalates. The call-site evidence is read at both
+the base and the head: the cited line holds up at the head, and the cited file already exists at
+the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
+its own call site. Anything else, a failed read included,
+escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
+A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
 head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
 person. Each thread gets one fresh
@@ -1353,18 +1386,24 @@ its fallback call on the role's OAuth token after the key call hands off
 [`apply-patch`](#prepare-apply-patch) script job.
 
 1. `pr-unblock.yml`'s `fix-ci-context` job runs the default branch tip's
-   `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks
-   and Actions, and checks out no PR head. After the kill switch it hands the pull request to a
-   person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds` commits with
-   the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads every check run on the head
-   (`filter=all`, as the fix-ci dispatcher does), takes per name the latest that is not a skip, so a
-   contract-only run's later skip does not hide a lane's failure, and keeps those that ended `failure`, `timed_out` or `startup_failure`, except
-   `ci-status` and any GitHub Actions check run that is no workflow job (a lane's own check),
-   at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
-   at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
-   characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
-   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks,
+   commit statuses and Actions, and checks out no PR head. After the kill switch it hands the pull
+   request to a person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds`
+   commits with the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads every check run
+   on the head (`filter=all`, as the fix-ci dispatcher does), takes per name the latest that is not
+   a skip, so a contract-only run's later skip does not hide a lane's failure, and keeps those that
+   ended `failure`, `timed_out` or `startup_failure`, except `ci-status` and any GitHub Actions
+   check run that is no workflow job (a lane's own check), at most 10. For each it writes the name,
+   the workflow file that defines the job (or `null`), at most 20 annotations of at most 500
+   characters, and the last 80 lines, at most 3,000 characters, of the job log, as `context.json`,
+   uploaded as `ci-context-<run attempt>` with its SHA-256 as a job output. On the head's first
+   fix-ci attempt (no finished `pr-unblock / fix-ci` check and no lane-stopped `pr-unblock /
+   apply-patch` check on it) its `weaken-retry` output is `true`. On a same-head retry whose head
+   carries the `pr-unblock/fix-ci` status `Lane stopped: ci-fix-weaken-retry; ...` by
+   `github-actions[bot]` (a status, so a later clear does not remove it), `context.json` also holds
+   `retry` (`after: ci-fix-weaken-retry` and a fixed `brief`: fix the code under test and keep
+   every test's assertions and expected values). A closed pull request or a head with no such check skips the rest, and a
+   scripted job posts the fix-ci check neutral `not-applicable` on that head with
    `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
@@ -1378,7 +1417,8 @@ its fallback call on the role's OAuth token after the key call hands off
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
    leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses
-   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, symlinks and gitlinks; a
+   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, the central lane grant
+   file and the trusted-actor list, symlinks and gitlinks; a
    change elsewhere, such as `.gitattributes`, an agent instruction file or a check's own script,
    reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
@@ -1409,7 +1449,12 @@ refusal posts nothing.
    (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
    report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
    escalation (output `rung-up` `true`), so the caller runs the producer once more at
-   `model-rung` 1. A `patch-state` other than `written`
+   `model-rung` 1. A report that escalated `protected-path` escalates `ci-fix-protected-path`
+   and, failing that, one that escalated `weaken-required` escalates `ci-fix-weaken-required`,
+   held for a person, or with `patch-weaken-retry` `true` `ci-fix-weaken-retry`, routed to a
+   failing status: the fix-ci dispatcher retries the head once at `model-rung` 1, and that
+   fresh fixer round reads the `retry` brief ([`prepare: ci-context`](#prepare-ci-context)).
+   A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A `written` patch proceeds with no escalation, whatever the report
@@ -1421,7 +1466,8 @@ refusal posts nothing.
    head's index (escalating `ci-fix-not-applied` on failure) and refuses the whole patch,
    whatever the report escalated, on any change the row refuses: the universal set
    (`.github/workflows/**`, `CODEOWNERS` at the root, in `.github/` or in `docs/`, `.gitmodules`,
-   `**/settings*.json`, a symbolic link or gitlink, a rename into a refused path, a backslash),
+   `**/settings*.json`, the central lane grant file and the trusted-actor list, a symbolic link or
+   gitlink, a rename into a refused path, a backslash),
    escalating `ci-fix-protected-path`; more than the row's `max-files`
    (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
    `empty-at-push`) escalates `ci-fix-invalid`. It then
@@ -1891,8 +1937,17 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
 | 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
-A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
-means the job's read and the broker's read of the switch disagreed.
+A `kill-switch` denial means the switch was turned on after the run job's own kill-switch step
+read it (the broker reads the switches live). On a pull request run the write file passes
+`kill-switch-ok`, so the denial is a designed stop: the token step ends green with no token, every
+later step skips, and the check is neutral `kill-switch`. A caller job's dependents read the skip
+from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` check as a stop that
+did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
+head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
+a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
+dispatched again once the switch lifts. An issue run's denial stays red, since work-unblock re-fires
+its issue from the failed mint step, and so does a `report-escalation` run's, since no dispatcher
+re-fires it and a skip would drop the escalation's comment and label.
 
 ### A workflow file the PR changes
 
@@ -1978,7 +2033,11 @@ listing and re-fires the issue on main's files, once per version of the two file
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+step under the escalation marker and an `outcome=<reason>` marker. When the admit job stops the
+run because the issue's author is neither a listed human nor the lanes App, `report-skip` runs
+with `dimension-skip: outside-author`: it removes `agent-ready` and comments, under an
+`outcome=outside-author` marker and with no label, that a listed human re-files the work as a new
+issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -2030,7 +2089,12 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   branch, the run resumes it; when that run's branch is gone, fails a check or is behind the
   default branch (its stale base would fail the runner's whole-branch checks), the run starts from
   the default branch under a new lane branch, never from an older run's branch, and leaves the old
-  branch as it is: `issue-prior`
+  branch as it is. A branch left behind that way, when every commit on it passes the same checks,
+  comes out as `stale-branch` and `stale-tip` (the tip it read), with `stale-noted` true when a
+  lanes App comment already opens with `<!-- work-resolve-issue stale-branch=<branch> -->`; the
+  runner's `lane.json` carries it as `stale` only while unnoted, and report-outcome then posts that
+  comment naming it, once per branch, so a person can find and delete it (no lane deletes it):
+  `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
   out that tip, so its patch is made there instead of on the default branch tip. Any failed
   read, or an answer of the wrong shape, fails the step, so no model runs.
@@ -2046,7 +2110,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   comment created or edited after that is left out, and a title or body changed since fails the
   step, so text edited after admission does not steer the run. On a resume, `issue.json` also
   carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
-  base and each changed file with its line counts, from `GET /compare`. The skill leaves its
+  base and each changed file with its line counts, from `GET /compare`. On a fresh start past a
+  stale branch it carries `stale_branch` instead: that branch, the tip `issue-prior` checked, and
+  the same commit subjects and file list, as data whose approach the run may reuse. The skill leaves its
   change uncommitted; the read file collects it as a patch against the commit it checked out
   ([Patch output mode](#patch-output-mode)), also after a failed skill step (a turn cap or a usage
   limit) whose permission mode checked out, so partial work reaches a branch a resumed run
@@ -2094,12 +2160,15 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
   when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
   `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
-  decides nothing), puts no label on it (the work class stays on the issue), and adds
+  decides nothing), and adds
   `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  A PR with that line also gets the `human-merge-hold` label right after it opens, or when the run
+  reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
+  and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
@@ -2156,9 +2225,9 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. A runner check that failed holds it too. Runner checks
-  that did not report (missing or another tip) add no hold line of their own: `ci-status` reruns
-  them on the head. The summary never decides the hold or reaches a status:
+  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  reported (missing or another tip): the Verification section lists each result, and `ci-status`
+  reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - Just before it opens a PR (a `done` run's or a reuse's), and only when the lanes App has none

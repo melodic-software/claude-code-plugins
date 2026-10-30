@@ -185,6 +185,10 @@ from babysit_gh import (
     GraphQLUnavailableError,
     gh_json_graphql,
     collect_lane_runs,
+    collect_main_review_counts,
+    main_review_critical,
+    main_review_stop,
+    collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
     fetch_issue_comments,
@@ -475,7 +479,9 @@ def rerun_rate_limited_review(
         return report
     if lost:
         if number is None:
-            report["reason"] = "no pull request number, so what the lane posted is unread"
+            report["reason"] = (
+                "no pull request number, so what the lane posted is unread"
+            )
             return report
         try:
             comments = fetch_paginated_api(
@@ -3169,11 +3175,20 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
+    head_sha = str(head.get("sha"))
+    head_file = _head_file(repo, head_sha)
+    base_sha = json_object(pr.get("base")).get("sha")
+    # A lane-source pull request binds the code lane on a main-run review
+    # alone (`bind()`), so only the security lane's runs, which its carried
+    # blocking count reads, are listed.
+    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
     runs = collect_lane_runs(
         repo,
         number,
         str(head.get("ref")),
-        review_evidence.LANES.values(),
+        [review_evidence.LANES[review_evidence.SEVERITY_LANE]]
+        if main
+        else review_evidence.LANES.values(),
         str(pr.get("created_at") or ""),
         read_env,
     )
@@ -3187,25 +3202,171 @@ def _lane_evidence(
             permission=permission,
         )
 
+    main_reviews, main_context = _main_reviews(
+        repo,
+        number,
+        head_sha,
+        changed_paths,
+        head_file,
+        base_sha,
+        read_env,
+        [str(item.get("sha")) for item in commits],
+        main=main,
+    )
     lanes = review_evidence.bind(
-        str(head.get("sha")),
+        head_sha,
         runs,
         comments,
         threads,
         is_human=human,
         changed_paths=changed_paths,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
-        head_file=_head_file(repo, str(head.get("sha"))),
-        base_sha=json_object(pr.get("base")).get("sha"),
+        head_file=head_file,
+        base_sha=base_sha,
+        main_reviews=main_reviews,
+        main_context=main_context,
     )
     return lanes, comments
+
+
+def _main_reviews(
+    repo: str,
+    number: int,
+    head_sha: str,
+    changed_paths: Sequence[str] | None,
+    head_file: Any,
+    base_sha: Any,
+    read_env: Mapping[str, str] | None,
+    pull_request_heads: Sequence[str] = (),
+    *,
+    main: bool | None = None,
+) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    """The main-run reviews `bind()` reads for a pull request that changes a
+    lane source, with the context it checks them against (the head's tree,
+    read from the commit, the default branch, and per lane the most CRITICAL
+    findings the record job's check runs carry on any head of the pull
+    request: its commits and the heads force pushes replaced), or
+    (None, None) when the pull request changes none, so no read is spent.
+    `main` is the caller's `needs_main_review` answer, computed when None."""
+    if main is None:
+        main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+    if not main:
+        return None, None
+    branch = repository_default_branch(repo)
+    if not branch:
+        return None, None
+    commit = json_object(
+        gh_json(["api", f"repos/{repo}/git/commits/{head_sha}"], read_env)
+        if read_env
+        else gh_json(["api", f"repos/{repo}/git/commits/{head_sha}"])
+    )
+    tree = json_object(commit.get("tree")).get("sha")
+    if not isinstance(tree, str):
+        return None, None
+    names = {
+        lane: review_evidence.main_review_name(lane, number, tree)
+        for lane in review_evidence.LANES
+    }
+    reviews = collect_main_reviews(
+        repo, names, review_evidence.MAIN_REVIEW_WORKFLOW, branch, read_env
+    )
+    checks = {
+        lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES
+    }
+    # The security lane's CRITICAL carries from every head of the pull
+    # request. The code lane binds only beside its record on the head, and
+    # `_main_lane` never reads its carried count but for None, so its other
+    # heads cost no read.
+    every = [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)]
+    counts = collect_main_review_counts(
+        repo,
+        {
+            lane: every if lane == review_evidence.SEVERITY_LANE else [head_sha]
+            for lane in checks
+        },
+        checks,
+        read_env,
+    )
+    on_head = counts.get(head_sha, {})
+    return reviews, {
+        "repo": repo,
+        "pr": number,
+        "tree": tree,
+        "branch": branch,
+        "carried_critical": main_review_critical(counts, checks),
+        # The record job's counts on this head: a verdict binds only beside
+        # one that matches it, so a run cancelled before `record` binds none.
+        "head_records": {
+            lane: [
+                list(c)
+                for c in on_head.get(lane, ())
+                if c is not None and main_review_stop(c) is None
+            ]
+            for lane in checks
+        },
+        # The designed stops the record job posted on this head (a diff the
+        # review cannot read whole): they name why no verdict binds.
+        "head_stops": {
+            lane: sorted(
+                {s for c in on_head.get(lane, ()) if (s := main_review_stop(c))}
+            )
+            for lane in checks
+        },
+    }
+
+
+_FORCE_PUSHES_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){timelineItems(first:100,itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{totalCount nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
+)
+
+
+def _force_pushed_heads(repo: str, number: int) -> list[str]:
+    """The heads force pushes replaced, which the commits list no longer
+    names but whose recorded counts still hold. Any doubt raises, so the
+    evidence is unbound rather than missing a count."""
+    owner, name = repo.split("/", 1)
+    data = gh_json_graphql(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={_FORCE_PUSHES_QUERY}",
+            "-f",
+            f"o={owner}",
+            "-f",
+            f"r={name}",
+            "-F",
+            f"n={number}",
+        ],
+        label=f"#{number} force pushes",
+    )
+    items = json_object(
+        json_object(
+            json_object(
+                json_object(json_object(data).get("data")).get("repository")
+            ).get("pullRequest")
+        ).get("timelineItems")
+    )
+    nodes = items.get("nodes")
+    if not is_json_array(nodes) or items.get("totalCount") != len(nodes):
+        raise RuntimeError(f"#{number} force pushes: unread or past one page")
+    heads = []
+    for node in nodes:
+        oid = json_object(json_object(node).get("beforeCommit")).get("oid")
+        # GitHub leaves beforeCommit null when the old commit is gone.
+        if oid is not None:
+            heads.append(str(oid))
+    return heads
 
 
 # The review lanes' comment authors: `review_evidence.bind()` reads only theirs.
 _LANE_AUTHORS = review_evidence.LANE_AUTHORS
 _EDITS_QUERY = (
     "query($ids:[ID!]!){nodes(ids:$ids){... on IssueComment"
-    "{id lastEditedAt editor{__typename login}}}}"
+    "{id lastEditedAt editor{__typename login} userContentEdits(first:100)"
+    "{totalCount nodes{editedAt deletedAt editor{__typename login} diff}}}}}"
 )
 
 
@@ -3213,8 +3374,10 @@ def _attach_edits(comments: Any, label: str) -> None:
     """Give each lane-author comment the `edit` record `bind()` reads
     (babysit_review_evidence._edited_by_another): unedited when REST's
     `updated_at` equals `created_at`, else GraphQL's `lastEditedAt` and
-    `editor`, read 100 node ids at a time. A comment whose record cannot be
-    read gets none, so `bind()` holds it unproven."""
+    `editor`, with its `userContentEdits` as `history`
+    (babysit_review_evidence._marker_revisions), read 100 node ids at a time.
+    A comment whose record cannot be read gets none, so `bind()` holds it
+    unproven."""
     if not is_json_array(comments):
         return
     pending: dict[str, dict[str, Any]] = {}
@@ -3250,6 +3413,7 @@ def _attach_edits(comments: Any, label: str) -> None:
                 pending[node["id"]]["edit"] = {
                     "lastEditedAt": node["lastEditedAt"],
                     "editor": node.get("editor"),
+                    "history": node.get("userContentEdits"),
                 }
 
 
@@ -3429,11 +3593,12 @@ def score_unattended(
     # The manifest review compares base and head text; the cost hold reads a
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
-    # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
+    # The pr-merge lane's switches (owner decisions Q624 and Q15); the local
+    # lane keeps the manifest review, both caps and every path hold.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
+            "path_holds": config.path_holds,
             "max_changed_files": config.max_changed_files,
             "lines_optional": True,
         }
@@ -3452,6 +3617,7 @@ def score_unattended(
         author_reviewed=reviewed,
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+        base_sha=json_object(pr.get("base")).get("sha"),
         **lane_switches,
     )
     risk = babysit_risk.score(risk_input)
@@ -3474,6 +3640,11 @@ def score_unattended(
             "reasons": [
                 {"code": r.code, "severity": r.severity.name, "detail": r.detail}
                 for r in risk.reasons
+            ],
+            # The path holds merge.diff-check.path-holds turned off, counted
+            # by the rollup.
+            "pathHoldsSkipped": [
+                {"code": r.code, "detail": r.detail} for r in risk.skipped
             ],
         },
         "evidence": [
@@ -4169,7 +4340,9 @@ def unattended_writes(
             # Recorded first, so a failed write never toggles twice at a head.
             if report["wholeReview"] == {"toggle": True}:
                 node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
-                report["wholeReview"] = whole_review.toggle(node_id)
+                report["wholeReview"] = whole_review.toggle(
+                    node_id, human_gated=human_gated_label(repo)
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
         if report.get("wholeReview") is None:
@@ -4248,10 +4421,7 @@ def _whole_review_record(
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
     text = _normalized((prior or {}).get("body"))
-    lines = whole_review.record_lines(text)
-    kept = whole_review.with_records(body, lines)
-    if whole_review.recorded(text, head):
-        return kept, None
+    kept = whole_review.with_records(body, whole_review.record_lines(text))
     inputs = policy.inputs or {}
     pr = json_object(inputs.get("pr"))
     user = json_object(pr.get("user"))
@@ -4265,21 +4435,15 @@ def _whole_review_record(
         or text.endswith(RISK_ESCALATION_LINE)
     ):
         return kept, None
-    if len(lines) >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
-    # The timeline, not the comment the lane token can edit, holds the count.
-    toggled = whole_review.lane_toggles(
-        str(pr.get("node_id") or ""), str(inputs.get("identity") or "")
+    lines, answer = whole_review.request(
+        repo,
+        text,
+        head,
+        str(pr.get("node_id") or ""),
+        str(inputs.get("identity") or ""),
+        _now(),
     )
-    if toggled is None:
-        return kept, {"toggled": False, "skipped": "toggle-cap:unread"}
-    if toggled >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
-    refusal = whole_review.limits(repo)
-    if refusal is not None:
-        return kept, {"toggled": False, "skipped": refusal}
-    line = whole_review.record_line(head, _now())
-    return whole_review.with_records(body, [*lines, line]), {"toggle": True}
+    return whole_review.with_records(body, lines), answer
 
 
 def _identity_queue_entries(

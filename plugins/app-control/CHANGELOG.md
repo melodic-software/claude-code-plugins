@@ -3,6 +3,30 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.7] - 2026-10-30
+
+### Fixed
+
+- **A command-file control skill keeps its feature files outside its commands folder** ([#10085](https://github.com/melodic-software/claude-code-plugins/issues/10085)). The control-skill contract's Hub now says where `features/` sits for a control skill shipped as a `control-<app>` command file: in `control-<app>/` beside the top-level commands folder it loads from, `<base>/control-<app>/features/<id>/README.md`, where `<base>` is, for example, `.claude`, a skills-folder plugin's folder or a plugin root. That folder is the command file's base directory, holding its `shared/`, `cli/` and `config/` too. `/app-control:drive` takes that folder as the command file's base directory and resolves features there, never in the commands folder, where every Markdown file loads as a command and several commands would share one `features/` tree.
+
+## [0.17.6] - 2026-10-29
+
+### Fixed
+
+- **An elevated capture runs the script text the person saw, never the file the builder wrote** ([#10518](https://github.com/melodic-software/claude-code-plugins/issues/10518)). After the yes, `/app-control:drive` feeds the builder's printed output to `sh -s` in a quoted heredoc. A process running as the person's uid could rewrite the written file between the display and the run. `build_capture_script.py` now prints its process lines as shell comments, so its whole output is the script. With `--elevate` it writes the file as a mode 0600 record that nothing runs. The script body is one group with stdin from `/dev/null`, so the shell reads all of it before it runs any of it, and a recorder that reads stdin cannot read the rest of the script. A script built without `--elevate` still runs from its 0700 file. The builder now refuses an unprintable character, such as a bidi override, in `--write`, `--capture` or a recorder argument, where it would make the shown text read differently from what runs. `pid-binding.md` states the residual limit: a process with the person's uid can still act as that person in other ways.
+
+## [0.17.5] - 2026-10-29
+
+### Fixed
+
+- A control skill's Ready command must now fail when the instance is unfit. The contract's new "The Ready command" section and `/app-control:map`'s Generate step require each check in Ready to exit non-zero when it fails, so a listing such as `docker ps` ends in `grep -q` on the expected row instead of passing with no rows. Map's proof runs Ready once more with the app stopped and records that it exits non-zero, read from the new `ready.exit` field of `/app-control:drive`'s report. `/app-control:map check` reports a `ready-listing` finding for a Ready command whose last stage is a bare listing, and create fixes each one before its proof.
+
+## [0.17.4] - 2026-10-29
+
+### Fixed
+
+- `/app-control:map refresh`: a pass now switches to the upkeep branch, creating it from the default branch or merging the default branch into it, before the source wave and the live pass, so its corrections describe the tree the upkeep pull request ships. The dirty-tree checks and their blocked outcomes, and a legacy conversion's dirty-map check and attended ask, run before that switch, a refused merge is aborted, and a ticket-branch pass still stays on its branch. Every pass, blocked early or not, switches back to where it started, and a clean pass records its skip state only after that return.
+
 ## [0.17.3] - 2026-10-29
 
 ### Fixed

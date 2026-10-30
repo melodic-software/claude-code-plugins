@@ -235,6 +235,23 @@ test("a head whose last round had no model turn dispatches again, and is not rec
   }
 });
 
+// A kill switch turned on after the model call ran stops the verdict job at
+// the broker (request-lane-token kill-switch-ok): its check skips
+// kill-switch and acts on nothing, so the head is released like a
+// no-model-turn round, and so is a kill-switch stop of the review itself.
+test("a head the kill switch stopped dispatches again, and is not recorded as handled", async () => {
+  for (const [label, checks] of [
+    ["the verdict job's mint was refused", [roundRun("review-dependency", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("apply-dependency-verdict", "neutral", "Skipped: kill-switch", "2026-10-17T10:05:00Z")]],
+    ["the review run's own kill step stopped it", [roundRun("review-dependency", "neutral", "Skipped: kill-switch", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const node = pr(60);
+    const record = emptyRecord();
+    const { dispatched } = await run(fakeApi({ nodes: [node], checks: headOf(node, checks) }), { record });
+    assert.deepEqual(dispatched, [{ number: 60, workflowRunId: "7060" }], label);
+    assert.equal(record.handled.get(CHECK), undefined, label);
+  }
+});
+
 // A review-dependency run the usage limit stopped at `started`, its lane record
 // naming a reset an hour later.
 const limitStop = (started) => {

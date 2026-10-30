@@ -157,6 +157,24 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
 
 
 PER_TICKET = {"edits.churn_per_pr": _churn}
+
+
+def _denial_kinds(records: list[dict], sessions: set[str]) -> dict:
+    """Denials per kind over the named sessions, most first with ties by kind, and the kind with the most."""
+    counts: Counter = Counter()
+    for r in records:
+        tools = r.get("tools") if r.get("session_id") in sessions else None
+        kinds = tools.get("denials") if isinstance(tools, dict) else None
+        for kind, n in kinds.items() if isinstance(kinds, dict) else ():
+            if isinstance(n, int):
+                counts[kind] += n
+    counts = +counts
+    by_kind = dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+    return {"by_kind": by_kind, "dominant_kind": next(iter(by_kind), None)}
+
+
+# Fields a metric's finding adds, read from the records of the sessions over its threshold.
+FINDING_DETAIL = {"tools.denials": _denial_kinds}
 NOT_APPLICABLE = "not applicable with --session: this metric describes the machine or a linked PR, not one session"
 
 
@@ -267,6 +285,7 @@ def build_data(records, rules, drift, fed, scope, window, catalog, factor, popul
                 "suggested_skill": skill_label(rule["suggested_skill"], catalog),
                 "basis": f"sweep-rules.json:{metric}",
                 "degraded": False,
+                **(FINDING_DETAIL[metric](records, {e["session_id"] for _, e in over}) if metric in FINDING_DETAIL else {}),
             }
         )
     why: dict[str, list[str]] = {}
@@ -436,6 +455,10 @@ def render_md(data: dict) -> str:
             )
         lines += ["", f"Sessions, or linked PRs, over each threshold, worst {MAX_LISTED} first:", ""]
         lines += [f"- `{f['metric']}`: " + evidence_list_md(f["evidence"]) for f in data["findings"]]
+        for f in data["findings"]:
+            if f.get("by_kind"):
+                kinds = ", ".join(f"{markdown_code(kind)} {n:,}" for kind, n in f["by_kind"].items())
+                lines += ["", f"`{f['metric']}` by kind over those sessions: {kinds}; dominant: {markdown_code(f['dominant_kind'])}."]
     else:
         lines.append("No session is over a threshold.")
     if "judged" in data:

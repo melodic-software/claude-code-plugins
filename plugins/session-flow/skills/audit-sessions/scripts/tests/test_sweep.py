@@ -18,7 +18,7 @@ from conftest import SCRIPTS, envelope, run_cli
 RULES = json.loads((SCRIPTS.parent / "reference" / "sweep-rules.json").read_text(encoding="utf-8"))
 RULE = {rule["metric"]: rule for rule in RULES["rules"]}
 LENSES = {"cost", "cache", "context", "interruption", "permission", "delegation", "hooks", "churn"}
-ROUTES = {"retro-codify", "work-item", "unhobble-experiment", "config-change"}
+ROUTES = {"retro-codify", "config-change"}
 UNITS = {"tokens", "s", "ms", "count", "ratio", "usd"}
 
 
@@ -78,6 +78,39 @@ def test_rules_are_well_formed():
             assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
+    assert {rule["route"] for rule in RULE.values()} - {None} == ROUTES
+
+
+def test_subagent_count_routes_to_observability():
+    rule = RULE["subagents.count"]
+    assert (rule["route"], rule["suggested_skill"]) == ("retro-codify", "/harness-ops:observability")
+    assert "2026-10-11" in rule["basis"]
+
+
+def test_denials_finding_counts_each_kind_and_names_the_dominant_one(data_dir):
+    def denied(session_id: str, kinds: dict) -> dict:
+        rec = record(session_id)
+        rec["tools"]["denials"] = kinds
+        return rec
+
+    write_store(
+        data_dir,
+        denied("over-a", {"automode-blocked": 20, "permission-rule": 10}),
+        denied("over-b", {"permission-rule": 15, "user-rejected": 15}),
+        denied("under", {"user-rejected": 27}),
+    )
+    finding = findings_by_metric(envelope(sweep(data_dir)))["tools.denials"]
+    assert finding["evidence"] == [{"session_id": "over-a"}, {"session_id": "over-b"}]
+    assert finding["by_kind"] == {"permission-rule": 25, "automode-blocked": 20, "user-rejected": 15}
+    assert list(finding["by_kind"]) == ["permission-rule", "automode-blocked", "user-rejected"]
+    assert finding["dominant_kind"] == "permission-rule"
+    assert "As of" in RULE["tools.denials"]["basis"] and "Recheck trigger" in RULE["tools.denials"]["basis"]
+    md = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+    assert (
+        "`tools.denials` by kind over those sessions: `permission-rule` 25, `automode-blocked` 20, `user-rejected` 15;"
+        " dominant: `permission-rule`."
+    ) in md
+    assert md.count("by kind over those sessions") == 1
 
 
 def test_store_round_trip_yields_per_session_medians(data_dir):
@@ -304,8 +337,8 @@ def test_report_only_reasons_attribute_basis_numbers_to_the_reference_machine(da
 def test_metrics_without_a_canary_are_listed_unchecked(data_dir):
     write_store(data_dir, record("s1"))
     unchecked = {row["what"]: row["reason"] for row in envelope(sweep(data_dir))["data"]["unchecked"]}
-    assert "canary" in unchecked["tools.denials"] and "canary" in unchecked["subagents.count"]
-    assert "tokens.main" not in unchecked
+    assert "canary" in unchecked["tools.denials"]
+    assert "tokens.main" not in unchecked and "subagents.count" not in unchecked
 
 
 def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):

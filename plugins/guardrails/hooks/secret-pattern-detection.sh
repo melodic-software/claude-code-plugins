@@ -162,6 +162,10 @@ secret_path_allowlisted() {
 # shellcheck disable=SC2154  # scan_out and labels are the caller's frame, per the call contract
 secret_scan() {
   local line
+  # Clean content, the common case, is decided in this shell: the capture's
+  # subshell is paid only when a pattern matched.
+  scan_out=""
+  secrets::any_match "$1" || return 0
   scan_out=$(
     secrets::scan_text "$1"
     printf x

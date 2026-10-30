@@ -3,6 +3,88 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+### Fixed
+
+- A Brief exported from the interview page lists the note typed on an Accept, an alternative or a Hedged choice under `### Intent`, beside the user's asks, notes and own answers. Before, that text reached the Brief only inside the row's Constraints line. A Reconfirm that posts the same choice and note again adds no second bullet.
+
+## [0.126.4] - 2026-10-29
+
+### Changed
+
+- The shared interview page shows a recommendation's basis as written, through the page's markdown renderer and folded behind "Why" as the 1:1 page folds it. The page no longer adds a `Basis:` label in front of the field, which already opens with `Checked against:` and carries its own `Basis:` label.
+
+## [0.126.3] - 2026-10-29
+
+### Changed
+
+- The interview's `question-shape.md` now points to SKILL.md's Stance for the basis, withheld and wording rules instead of restating them, and `surface.md`, `lane-page.md` and `lane-shared.md` point to it for the rules every lane shares, keeping only their own lane's rules.
+- The surface README's "Differences from the shared page" table adds the page-only decision vocabulary and the two `answerLine` texts, each with its reason.
+
+### Fixed
+
+- **The `--brief` gate fails a page-export Brief that lost its Intent, Decisions or the user's own words** ([#11029](https://github.com/melodic-software/claude-code-plugins/issues/11029)). `scripts/check-open-questions.sh --brief --procedure` used to pass a Brief with `### Intent`, `### Decisions` or every Ask and own-answer line removed. Under `--procedure`, a Brief with a `- Restatement:` stamp now needs `### Intent`. A new `--surface <data_dir>` option exports the Brief from the interview page again and fails (`procedure=fail`) when the Brief lacks a section that export writes, or a line of its Intent. The page lane's wrap-up runs the gate with it.
+
+## [0.126.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- On an unanswered question, the interview page shows "Details: what we know, alternatives" open,
+  whatever `moreOpen` value the browser stored. The facts and alternatives a decision rests on are
+  in view on first load. If you close Details on a question, it stays closed there until the page
+  reloads. An answered question still follows the stored `moreOpen` value.
+
+## [0.126.1] - 2026-10-29
+
+### Changed
+
+- Split the shared page's browser suites into three parts, `tests/ui-a.test.sh`, `tests/ui-b.test.sh` and `tests/ui-c.test.sh`, in place of `tests/ui.test.sh`, so the test planner can put them on separate CI legs. `tests/ui-parts.txt` names each `ui_*.js` suite's part, and `tests/ui-run.sh` runs one part the way `ui.test.sh` ran them all: `UI_JOBS` at a time, slowest first, with `ui_snappy.js` and `ui_telemetry.js` alone at the end of part c. In CI, part c also runs alone on its leg, so other suites' browsers do not slow those two past their timing windows. A suite in no part or in two, or a part with no wrapper, fails every part before it runs anything. `bash tests/ui-run.sh --check` runs only that check.
+
+## [0.126.0] - 2026-10-29
+
+### Added
+
+- A shared interview's named tunnel can run from any machine. Before a machine starts it, `ensure-running` asks `https://<tunnel_hostname>` itself; only Cloudflare's no-connector page (HTTP 530 with error 1033, as an HTML page or the plain text Cloudflare sends a non-browser client) counts as free, and any other answer or a failure to ask runs a quick tunnel and says why on stderr and in the output's `tunnelFallback`, so a second machine does not start a replica that would split the link's guests ([#8607](https://github.com/melodic-software/claude-code-plugins/issues/8607)).
+- New `tunnel_api_token_file` option: the path of a Cloudflare API token with "Cloudflare One Connector: cloudflared Write", which cannot touch DNS but can change every tunnel in the account. When it is set, a session refuses the tunnel while another machine's connector is connected, points the tunnel's own hostname rule at its guest port while keeping the rest of the tunnel's configuration, and after starting checks again for a second connector or a rewritten route, so a named session can use any free port instead of 8765. The server's restart of an exited named tunnel goes through the same checks. Both token file options accept a path starting with `~/`.
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- The interview page's header eyebrow line, rail group headings, Activity headings, section headings in the detail and summary views, Why and Details tabs, and Source text toggle now use 13px sans in place of the small uppercase mono style. Legends, panel titles and table headers already use 13px sans (#10211).
+
+- A named tunnel whose token file is missing, empty or readable by others now falls back to a quick tunnel and says why, instead of refusing to start, so the options can be set on every machine before each one holds its files. A hostname that is not a DNS name still refuses, and a session whose named tunnel already runs keeps it and warns.
+- The shared README's setup names the account API token permission "Cloudflare One Connector: cloudflared", which replaces "Cloudflare Tunnel" there.
+
+- The interview surface's browser suites (`surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh`) now print each graded phase's wall seconds on its result line, as in `ui_journey.3: 12 checks in 14s`, so a CI log shows which page scripts cost a suite its time ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [0.125.0] - 2026-10-29
+
+### Changed
+
+- Both interview pages now render markdown through one renderer in `question-shape.js`, which builds elements and text nodes only. It reads the union of the two pages' dialects. Blocks are paragraphs, `#` headings, bullet and numbered lists, and `>` quotes. Inline it renders code, bold, emphasis, `[text](url)` and bare http(s) links, and `owner/repo#N`. When the session names a repository it also links `#N`, and with a commit, repository paths. Each page adds its own plain-text runs to that: the shared page its @mention chips, the 1:1 page its question-id chips and glossary terms. The shared page now renders headings, quotes, emphasis, markdown links and `owner/repo#N`, and the 1:1 page now renders bare links and keeps a paragraph's line breaks. The page-local `md`/`inline` (1:1 page) and `rich`/`inline`/`links` (shared page) builders are gone (#10210).
+
+## [0.124.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+- The 1:1 interview page's README lists where its question screen, answer note, keys and phone pin still differ from the shared page, each with its reason. Its deferred list gains two open items: the shared page's question screen on the 1:1 page, and the visual-viewport pin above 820 px for a phone held landscape.
+
+### Fixed
+
+- On a phone, the 1:1 interview page's text fields use 16 px text, as the shared page's do, so iOS Safari no longer zooms in when the note box or another field gets focus.
+
 ## [0.124.0] - 2026-10-29
 
 ### Added

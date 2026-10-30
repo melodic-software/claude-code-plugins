@@ -1999,7 +1999,7 @@ fi
 progress F "environment variables"
 
 if [[ $PROJECT_OK -eq 1 ]]; then
-  if tr -d '\r' <"$SETTINGS" | LC_ALL=C grep -Eq "$SECRET_RE"; then
+  if LC_ALL=C grep -Eq "$SECRET_RE" < <(tr -d '\r' <"$SETTINGS"); then
     row F secrets finding error "$SURF_SETTINGS" "secret-shaped-value" "a token-shaped value is present in the tracked settings file; move it to settings.local.json or a credential store" /env
   else
     row F secrets ok none "$SURF_SETTINGS" "no-secret-shaped-value" "no token-shaped value in settings.json" -

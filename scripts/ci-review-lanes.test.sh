@@ -114,7 +114,7 @@ fi
 # An exempt author's pull request, which no review lane reads, still fails on
 # the trust-gate paths in bash form: `**/X` is X or */X, a trailing `**` is
 # `*`. The security review's own files in hold-paths are scrutiny only.
-want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
   ok "the exempt-author hold patterns are the trust-gate paths"
@@ -160,8 +160,31 @@ case "$*" in
   printf '%s\n' "${STUB_COMMITS:-[]}"
   ;;
 */activity*)
+  # Page N (after=pN, page 1 without it) prints STUB_PUSHES_N (page 1:
+  # STUB_PUSHES); with -i, a Link to page N+1 while STUB_PUSHES_<N+1> is set (empty too)
+  # or STUB_PUSHES_ENDLESS is. STUB_LINK=prev gives a Link with rel="prev"
+  # only; unread, a next link the step's parse misses; any other value, a
+  # next link to that path.
   [[ -z "${STUB_PUSHES_FAIL:-}" ]] || exit 1
-  printf '%s\n' "${STUB_PUSHES:-[]}"
+  n=1 args="$*"
+  [[ "$args" != *after=p* ]] || { n="${args#*after=p}"; n="${n%%[!0-9]*}"; }
+  var="STUB_PUSHES_$n"
+  [[ $n -ne 1 ]] || var=STUB_PUSHES
+  if [[ " $* " == *" -i "* ]]; then
+    printf 'HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n'
+    next="STUB_PUSHES_$((n + 1))"
+    if [[ "${STUB_LINK:-}" == prev ]]; then
+      printf 'Link: <https://api.github.com/repositories/1/activity?per_page=100&before=p0>; rel="prev"\r\n'
+    elif [[ "${STUB_LINK:-}" == unread ]]; then
+      printf 'Link: <https://api.github.com/repositories/1/activity?after=p2>;rel=next\r\n'
+    elif [[ -n "${STUB_LINK:-}" ]]; then
+      printf 'Link: <https://api.github.com/%s>; rel="next"\r\n' "$STUB_LINK"
+    elif [[ -n "${!next+set}${STUB_PUSHES_ENDLESS:-}" ]]; then
+      printf 'Link: <https://api.github.com/repositories/1/activity?ref=refs%%2Fheads%%2Ffeature%%2Fx&direction=desc&per_page=100&after=p%s>; rel="next", <https://api.github.com/repositories/1/activity?per_page=100>; rel="first"\r\n' "$((n + 1))"
+    fi
+    printf '\r\n'
+  fi
+  printf '%s\n' "${!var-[]}"
   ;;
 */pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" --argjson c "${STUB_COMMIT_COUNT:-0}" --arg u "${STUB_AUTHOR:-kyle-sexton}" \
   '{changed_files: $n, commits: $c, user: {login: $u}}' ;;
@@ -204,7 +227,7 @@ expect() {
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
-  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
     BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -423,7 +446,7 @@ STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
 expect "a person's trust-gate change with no App on it goes to the review lanes" 0 \
   "No agent App opened, wrote or pushed to #77; the review lanes decide its trust-gate paths." "::error::"
 if grep -qxF 'api repos/o/r/pulls/77/commits?per_page=100 --paginate' "$TMP_ROOT/log" &&
-  grep -qxF 'api repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&direction=desc&per_page=100' "$TMP_ROOT/log" &&
+  grep -qxF 'api repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&direction=desc&per_page=100 -i' "$TMP_ROOT/log" &&
   grep -q '/actions/workflows/' "$TMP_ROOT/log"; then
   ok "the commits, the head branch's push history and then the review runs are read"
 else
@@ -443,8 +466,53 @@ STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com"
 STUB_COMMITS_FAIL=1 expect "an unreadable commit list is held" 1 "::error::could not read the commits of #77; re-run this run."
 STUB_COMMIT_COUNT=2 expect "a commit list shorter than the pull request is held" 1 "::error::GitHub listed fewer commits than #77 has"
 STUB_PUSHES_FAIL=1 expect "an unreadable push history is held" 1 "::error::could not read the push history of feature/x; re-run this run."
-STUB_PUSHES="$(jq -cn --argjson p "$(push kyle-sexton $SHA_A)" '[range(100) | $p]')" \
-  expect "a full page of push history is held" 1 "::error::the push history of feature/x is unreadable or fills a page"
+# The activity API keeps a branch name's history across deletions, so a
+# reused name passes a page of 100; every page is read, up to 20.
+export STUB_PUSHES_2 STUB_PUSHES_3 STUB_PUSHES_ENDLESS
+page() { jq -cn --argjson p "$(push "$1" $SHA_A)" --argjson n "$2" '[range($n) | $p]'; }
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 50)" \
+  expect "a push history past one page with no App on it goes to the review lanes" 0 "No agent App opened, wrote or pushed to #77" "::error::"
+if grep -qxF 'api repositories/1/activity?ref=refs%2Fheads%2Ffeature%2Fx&direction=desc&per_page=100&after=p2 -i' "$TMP_ROOT/log"; then
+  ok "the second page is read from the first page's Link rel=next"
+else
+  fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(jq -c --argjson a "$(push "$APP" $SHA_B)" '.[30] = $a' <<<"$(page kyle-sexton 50)")" \
+  expect "an App push on the second page is held" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+STUB_PUSHES="$(list "$(push "$APP" $SHA_B)")" STUB_PUSHES_2="$(page kyle-sexton 50)" \
+  expect "an App push on the first page is held" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+if grep -q 'after=p2' "$TMP_ROOT/log"; then fail "a held first page read the next page"; else ok "an App push stops the read at its page"; fi
+STUB_PUSHES="$(page kyle-sexton 100)" \
+  expect "a full page with no Link header is held" 1 "::error::the push history of feature/x fills page 1 with no next link"
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_LINK=prev \
+  expect "a full page whose Link has only rel=prev is held" 1 "::error::the push history of feature/x fills page 1 with no next link"
+STUB_PUSHES="$(page kyle-sexton 99)" \
+  expect "a short page with no Link header ends the history" 0 "No agent App opened, wrote or pushed to #77" "::error::"
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 100)" \
+  expect "a full last page with no Link header is held" 1 "fills page 2 with no next link"
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_ENDLESS=1 \
+  expect "a push history past 20 pages is held" 1 "::error::the push history of feature/x runs past 20 pages"
+if [[ "$(grep -c '/activity' "$TMP_ROOT/log")" -eq 20 ]]; then ok "the read stops at 20 pages"; else fail "read $(grep -c '/activity' "$TMP_ROOT/log") activity pages"; fi
+STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
+  expect "a non-list body on page 2 is held" 1 "::error::the push history of feature/x is unreadable"
+for body in '' 'null'; do
+  STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$body" \
+    expect "a second page of '$body' is held" 1 "::error::the push history of feature/x is unreadable"
+done
+STUB_PUSHES="$(page kyle-sexton 50)" STUB_PUSHES_2="$(list "$(push "$APP" $SHA_B)")" \
+  expect "a short first page with a next link reads on to an App push on page 2" 1 "melodic-agent[bot] pushed bbbbbbbbbbbb to it"
+STUB_PUSHES="$(page kyle-sexton 50)" STUB_LINK=unread \
+  expect "a next link the step cannot parse is held" 1 "::error::the push history of feature/x has a next link this step cannot read"
+for link in 'repositories/1/activity?ref=refs%2Fheads%2Ffeature%2Fx&after={owner}' \
+  'repositories/2/activity?ref=refs%2Fheads%2Ffeature%2Fx&after=p2' \
+  'repositories/1/activity?ref=refs%2Fheads%2Fmain&after=p2' \
+  'repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&after=p2'; do
+  STUB_PUSHES="$(page kyle-sexton 50)" STUB_LINK="$link" \
+    expect "a next link to $link is held" 1 "::error::the push history of feature/x has a next link outside this repository's activity of the branch"
+  if grep -q 'after=' "$TMP_ROOT/log"; then fail "the next link $link was followed"; else ok "the next link $link is not followed"; fi
+done
+STUB_PUSHES_3="$(page kyle-sexton 1)" STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
+  expect "a non-array page before a readable one is held" 1 "is unreadable"
 # yq failing or missing leaves no list: held, also on a file list at GitHub's
 # 3000-file cap that names no trust-gate path, where held is empty.
 # yq-fails prints a list and then fails, so only pipefail catches it, whatever

@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [1.7.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.7.3] - 2026-10-29
+
+### Changed
+
+- `/review:security-review` opens each inline comment for a `manifest <field>: flag` with that flag's summary line, `manifest <field>: flag, <reason>`, and puts its severity line last above the footer. The pr-unblock lane matches that first line to find a `dependencies` flag it may settle without a person.
+
+## [1.7.2] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- `/review:fanout` and `/review:quality-gate` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
+## [1.7.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line and prints no PASS line, and apply refuses the file.
+
 ## [1.7.0] - 2026-10-29
 
 ### Added

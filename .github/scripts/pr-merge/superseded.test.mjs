@@ -115,9 +115,11 @@ test("a pending run a listed human started by hand supersedes a pull_request_tar
   assert.equal(run.superseded, true);
 });
 
-test("a pending pull_request_target run by a listed human supersedes another pull_request_target run", async () => {
+// An event run gates only its own pull request (pr-merge.yml EVENT_PR), so
+// another event's run does not do this one's work.
+test("a pending pull_request_target run supersedes no other pull_request_target run", async () => {
   const run = await check({ event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
-  assert.equal(run.superseded, true);
+  assert.equal(run.superseded, false);
 });
 
 test("a pending run a bot started stops before its sweep, so it supersedes nothing", async () => {
@@ -244,9 +246,9 @@ test("a failed jobs read does the work, with a warning", async () => {
   assert.match(run.stdout, /^::warning title=superseded::.*status 502/m);
 });
 
-test("enable-auto-merge: a pending edit run a listed human started supersedes another", async () => {
+test("enable-auto-merge: a pending edit run, which reads only its own pull request, supersedes no other", async () => {
   const run = await check({ job: "enable-auto-merge", event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
-  assert.equal(run.superseded, true);
+  assert.equal(run.superseded, false);
 });
 
 test("enable-auto-merge: a scheduled and a hand-started run, which both arm, supersede each other and every event run", async () => {

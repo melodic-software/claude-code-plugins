@@ -5,12 +5,13 @@
       "id": 1,
       "name": "bare-sweep-collects-then-sweeps",
       "prompt": "Audit my Claude Code sessions. Where is my time going?",
-      "expected_output": "The skill runs collect.py collect against the plugin data directory with the three userConfig values passed as flags, then sweep.py with the drift flags and the installed-skill catalog, and presents the markdown report with each finding's route and suggested skill.",
+      "expected_output": "The skill runs collect.py collect against the plugin data directory with the three userConfig values passed as flags, then sweep.py with the drift flags and a catalog of only the installed skills that reference/sweep-rules.json suggests, and presents the markdown report with each finding's route and suggested skill.",
       "files": [],
       "expectations": [
         "Runs collect.py collect before sweep.py",
         "Passes --retention-days, --excerpt-chars and --excerpt-words to collect explicitly",
         "Passes --min-count, --versions and --catalog to sweep",
+        "Passes --catalog only the skills reference/sweep-rules.json or the correction lens suggests that the session's skill listing holds, not every listed skill",
         "Passes the plugin data directory as a literal --data-dir value",
         "Presents the report's findings with their routes as suggestions"
       ]

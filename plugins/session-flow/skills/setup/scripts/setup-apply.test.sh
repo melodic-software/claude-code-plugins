@@ -131,7 +131,7 @@ done
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\nworker_continuation: respawn\n'
 run "$repo" --check
-assert_true 'a duplicate key is named as appearing twice' out_has 'appears 2 times'
+assert_true 'a duplicate key is named as a parse error' out_has "duplicate key \`worker_continuation\` (first at line 1)"
 
 # A key outside the schema, empty or with a value, is named in one line and
 # ignored: --check still prints the valid key and exits 1, and apply writes

@@ -3810,6 +3810,16 @@ class LaneConfig(unittest.TestCase):
         self.assertFalse(hasattr(config, "c2_contradictions"))
         self.assertEqual(self.diff_check(["c2-contradictions: false"]).notes, ())
 
+    def test_path_holds_are_off_unless_set_true(self) -> None:
+        # Owner decision Q15: absent or false, no path holds; any other
+        # value keeps them, as every switch here reads.
+        self.assertIs(self.diff_check([]).path_holds, False)
+        self.assertIs(self.diff_check(["path-holds: false"]).path_holds, False)
+        self.assertIs(self.diff_check(["path-holds: true"]).path_holds, True)
+        config = self.diff_check(["path-holds: maybe"])
+        self.assertIs(config.path_holds, True)
+        self.assertEqual(len(config.notes), 1)
+
     def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
         config = self.diff_check(["high-path-floor: maybe"])
         self.assertIs(config.high_path_floor, True)
@@ -5808,6 +5818,11 @@ class ForeignPaths(unittest.TestCase):
         )
         own = changed - {
             ".github/workflows/pr-merge.yml",
+            # A workflow holding a secret is a gate path, and so are Claude
+            # Code settings and the agent instructions.
+            ".github/workflows/release-publish-plugins.yml",
+            ".claude/settings.json",
+            "AGENTS.md",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/resolve.mjs",
             "CODEOWNERS",
@@ -6346,6 +6361,7 @@ merge:
   diff-check:
     denied-paths: [".github/**"]
     high-path-floor: false
+    path-holds: false
     max-changed-lines: 500
 """
 STRICT_PIPELINE = """\
@@ -6365,6 +6381,7 @@ merge:
   diff-check:
     denied-paths: [".github/**", "docs/**"]
     high-path-floor: true
+    path-holds: true
     max-changed-lines: 100
     max-changed-files: 0
 """
@@ -6428,6 +6445,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "report_only": True,
             "require_verifier_verdict": True,
             "high_path_floor": True,
+            "path_holds": True,
             "max_changed_lines": 100,
             "max_changed_files": 0,
             "dependabot_mode": "report",
@@ -9208,6 +9226,47 @@ class FileContents(unittest.TestCase):
         self.assertIsNone(out[0].contents)
         self.assertIn("502", out[0].contents_error)
 
+
+class LaneIdentity(unittest.TestCase):
+    """`lane_identity` names the lane only when the base and the default branch
+    head agree, and never reads the pull request's head (#10763)."""
+
+    def _run(self, base_id, main_id, *, base_error=None, main_raises=False):
+        base = policy.PipelineConfig(
+            SHA, "C2", None, base_id, None, (), None, base_error
+        )
+        main = policy.PipelineConfig(MAIN_SHA, "C2", None, main_id, None, (), None)
+        with (
+            mock.patch.object(policy, "config_at", return_value=base) as at,
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                side_effect=policy.PolicyReadError("head unreadable")
+                if main_raises
+                else None,
+                return_value=main,
+            ),
+        ):
+            result = policy.lane_identity("owner/repo", SHA)
+        at.assert_called_once_with("owner/repo", SHA)
+        return result
+
+    def test_agreeing_base_and_default_branch_name_the_lane(self) -> None:
+        identity, source = self._run(IDENTITY, IDENTITY.upper())
+        self.assertEqual(identity, IDENTITY)
+        self.assertIn(SHA, source)
+
+    def test_unset_on_either_side_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, None)[0])
+        self.assertIsNone(self._run(None, IDENTITY)[0])
+        self.assertIsNone(self._run(None, None)[0])
+
+    def test_differing_identities_name_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, "other-lane[bot]")[0])
+
+    def test_a_failed_read_names_none(self) -> None:
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, base_error="bad yaml")[0])
+        self.assertIsNone(self._run(IDENTITY, IDENTITY, main_raises=True)[0])
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,12 +41,16 @@
 # for the local affected-only run (scripts/check-affected.sh --tests). A run
 # over it reports the overrun and its three slowest suites, and does not fail.
 # Each suite gets a share, and a suite that takes longer than its share fails
-# by name: the share is its scripts/suite-seconds.txt median times
+# by name, unless PLUGIN_TEST_SHARE_WARN_ONLY=1 (below): the share is its scripts/suite-seconds.txt median times
 # $PLUGIN_TEST_SHARE_MARGIN (default 3), and never less than
 # $PLUGIN_TEST_SHARE_DEFAULT seconds (default 30), the share of a suite the file
 # does not list. The medians are CI runner measurements, so the margin covers a
-# slower host and a loaded job pool. Without --budget no suite is timed against
-# a share, which is how CI runs.
+# slower host and a loaded job pool. Each selected suite the file does not list
+# is named on stderr with the default share it gets. With
+# PLUGIN_TEST_SHARE_WARN_ONLY=1, which scripts/check-affected.sh sets for the
+# local gate, a suite over its share is a warning instead, so a suite that
+# passes on a loaded host does not fail the run; a suite that fails still does.
+# Without --budget no suite is timed against a share, which is how CI runs.
 #
 # SUITE BUDGET. On GitHub Actions (GITHUB_ACTIONS=true) every suite is timed
 # against a per-suite threshold and ceiling: over the threshold it prints
@@ -66,9 +70,11 @@
 #
 # Output stays readable under parallelism. Every suite's output is captured to
 # a file and replayed as one block under a lock (`=== path ===`, the suite's own
-# lines, then `PASS:` or `FAIL:`), so blocks from concurrent suites never
-# interleave and the per-suite markers that CI log tooling reads survive. The
-# block is printed the moment its suite finishes, so progress stays visible.
+# lines, `PASS:` or `FAIL:`, then `TIME: path <seconds>s`), so blocks from
+# concurrent suites never interleave and the per-suite markers that CI log
+# tooling reads survive. The block is printed the moment its suite finishes, so
+# progress stays visible. The TIME line prints on every run, with or without
+# --budget, so a CI log shows each suite's wall seconds.
 #
 # ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
 # scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
@@ -166,7 +172,8 @@ if [[ "${1:-}" == "--worker" ]]; then
   test_git_env::isolate "$log.gitconfig" || exit 2
   start=$SECONDS
   bash "$suite" >"$log.out" 2>&1 || rc=$?
-  printf '%s\n' "$((SECONDS - start))" >"$log.secs"
+  secs=$((SECONDS - start))
+  printf '%s\n' "$secs" >"$log.secs"
   printf '%s\n' "$rc" >"$log.rc"
   # noclobber opens the lock with O_EXCL inside bash itself. `mkdir` is not a
   # safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both
@@ -179,6 +186,7 @@ if [[ "${1:-}" == "--worker" ]]; then
   else
     echo "FAIL: $suite" >&2
   fi
+  echo "TIME: $suite ${secs}s"
   rm -f "$log_dir/.print-lock"
   exit 0
 fi
@@ -235,7 +243,12 @@ if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
 fi
 share_margin="${PLUGIN_TEST_SHARE_MARGIN:-3}"
 share_default="${PLUGIN_TEST_SHARE_DEFAULT:-30}"
+share_warn_only="${PLUGIN_TEST_SHARE_WARN_ONLY:-0}"
 if ((budget_given)); then
+  if [[ "$share_warn_only" != [01] ]]; then
+    echo "error: PLUGIN_TEST_SHARE_WARN_ONLY must be 0 or 1 (got '$share_warn_only')" >&2
+    exit 2
+  fi
   for v in "--budget:$budget" "PLUGIN_TEST_SHARE_MARGIN:$share_margin" "PLUGIN_TEST_SHARE_DEFAULT:$share_default"; do
     if [[ ! "${v#*:}" =~ ^[1-9][0-9]*$ ]]; then
       echo "error: ${v%%:*} must be a positive integer (got '${v#*:}')" >&2
@@ -409,6 +422,12 @@ suite_share() {
   ((share > share_default)) || share="$share_default"
   printf '%s' "$share"
 }
+if [[ -n "$budget" ]]; then
+  for t in "${tests[@]}"; do
+    [[ -n "${median[$t]+x}" ]] ||
+      echo "note: $t has no median in $SECONDS_LIST, so it gets the default ${share_default}s share" >&2
+  done
+fi
 
 log_dir="$(mktemp -d)"
 trap 'rm -rf "$log_dir"' EXIT
@@ -484,7 +503,10 @@ for i in "${!tests[@]}"; do
     secs="$(<"$log.secs")"
     timings+=("$secs"$'\t'"$t")
     share="$(suite_share "$t")"
-    if ((secs > share)); then
+    if ((secs > share && share_warn_only)); then
+      echo "OVER SHARE: $t took ${secs}s, over its ${share}s share of the budget (a warning: PLUGIN_TEST_SHARE_WARN_ONLY=1)" >&2
+      suite_annotate warning "$t" "$t took ${secs}s, over its ${share}s share of the budget"
+    elif ((secs > share)); then
       echo "FAIL: $t took ${secs}s, over its ${share}s share of the budget" >&2
       suite_annotate error "$t" "$t took ${secs}s, over its ${share}s share of the budget"
       failed=1

@@ -1,5 +1,29 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.13] - 2026-10-29
+
+### Fixed
+
+- **`audit-progressive-disclosure`'s detector no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `detect.sh` checks a rule file's frontmatter for `paths:` with a here-string, so under `set -o pipefail` a path-scoped rule can no longer be graded always-loaded when grep exits before printf finishes writing.
+
+## [2.0.12] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [2.0.11] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+## [2.0.10] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
 ## [2.0.9] - 2026-10-29
 
 ### Changed

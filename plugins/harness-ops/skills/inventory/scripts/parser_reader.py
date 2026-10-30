@@ -348,24 +348,59 @@ class ParserReader:
         hi: int,
         names: list[str],
         loaders: tuple[str, ...] = (),
-    ) -> list[tuple[str, str | None, int]]:
+    ) -> dict[str, Any]:
         """Where the module `src[lo:hi]` may write one of `names` on an object
-        that could be a built-in prototype (the helper's `sinks` op), each
-        (kind, name, offset in `src`), with `loaders` as `loads` takes them.
-        A module that does not parse, calls `eval` directly, or holds a
-        character outside the BMP is one hit. Answers are memoized per
-        reader, since every spread asks again."""
+        that could be a built-in prototype (the helper's `sinks` op), with
+        `loaders` as `loads` takes them: `hits`, each (kind, name, offset in
+        `src`); `pending`, each (kind, name, offset, needs), a hit on a
+        target fresh only if every importer of each export in `needs`
+        passes a fresh object as that argument (`fresh_args`); and
+        `trusted`, the names the cleared targets relied on. A module that
+        does not parse, calls `eval` directly, or holds a character outside
+        the BMP is one hit. Answers are memoized per reader, since every
+        spread asks again."""
         key = ("sinks", id(src), lo, tuple(names), loaders)
         cached = self._answers.get(key)
         if cached is not None:
-            return cached["hits"]
+            return cached
         res = self._send("sinks", src, lo, hi, names=names, loaders=list(loaders))
         if res.get("unreadable"):
-            hits = [("unreadable", None, lo)]
+            answer: dict[str, Any] = {
+                "hits": [("unreadable", None, lo)],
+                "pending": [],
+                "trusted": [],
+            }
         else:
-            hits = [(kind, name, at + lo) for kind, name, at in res["hits"]]
-        self._answers[key] = {"hits": hits}
-        return hits
+            answer = {
+                "hits": [(kind, name, at + lo) for kind, name, at in res["hits"]],
+                "pending": [
+                    (kind, name, at + lo, [(n, i) for n, i in needs])
+                    for kind, name, at, needs in res["pending"]
+                ],
+                "trusted": res["trusted"],
+            }
+        self._answers[key] = answer
+        return answer
+
+    def fresh_args(
+        self, src: str, lo: int, hi: int, name: str, source: str, index: int
+    ) -> dict[str, Any] | None:
+        """Whether every use of the export `name` the module `src[lo:hi]`
+        imports from `source` is a direct call passing a fresh object as
+        argument `index` (the helper's `fresh_args` op): {"needs": [(export,
+        index)], "trusted": [...]}, the needs those arguments carry on the
+        module's own exports, or None when one may not be fresh."""
+        key = ("fresh_args", id(src), lo, name, source, index)
+        if key not in self._answers:
+            res = self._send(
+                "fresh_args", src, lo, hi, name=name, index=index, **{"from": source}
+            )
+            self._answers[key] = (
+                {"needs": [(n, i) for n, i in res["needs"]], "trusted": res["trusted"]}
+                if res.get("fresh")
+                else None
+            )
+        return self._answers[key]
 
     def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
         """File `src`'s module paths by module start (`read_bundle`)."""

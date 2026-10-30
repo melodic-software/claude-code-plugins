@@ -74,7 +74,7 @@ check)
     echo "[lock-updates] absent (n/a)"
     exit 0
   }
-  if powershell.exe -NoProfile -Command "icacls '${UPDATES_DIR_WIN}'" 2>/dev/null | grep -q '(DENY)(W)'; then
+  if grep -q '(DENY)(W)' < <(powershell.exe -NoProfile -Command "icacls '${UPDATES_DIR_WIN}'" 2>/dev/null); then
     echo "[lock-updates] DENY active"
     exit 0
   else

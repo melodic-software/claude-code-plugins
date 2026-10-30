@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
@@ -53,8 +54,10 @@ from babysit_classify import (
 )
 from babysit_gh import (
     flatten_paginated_items,
+    gh_api_with_headers,
     gh_capture,
     gh_http_status,
+    gh_timeout_seconds,
     is_owner_repo_pair,
     pull_request_commits_once,
     record_pull_request_total,
@@ -116,7 +119,8 @@ BODY_MERGE_HOLD_RE = re.compile(
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 # `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
 # ci-status enforces only in the merge queue: held here, it is never queued.
-MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed")
+# `human-merge-hold` is the lanes App's label on a pull request a person merges.
+MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed", "human-merge-hold")
 # An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
 # none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
@@ -390,8 +394,59 @@ def _split_repo(repo: str) -> tuple[str, str]:
 def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | None, Any]:
     """(status, payload): 200 and the JSON on success; on failure the status gh
     reported, or None when it named none. `env` overrides gh's environment."""
+    return _gh_api(["api", endpoint], env)
+
+
+def _get_pages(
+    endpoint: str, env: Mapping[str, str] | None = None
+) -> tuple[int | None, Any]:
+    """`_get` of the activity `endpoint` page by page, one payload entry per
+    page (merge-holds.mjs `branchActivity`): the API ignores `page`, so each
+    next page is `endpoint` plus the `after` cursor of the answer's Link
+    rel="next", as the link spells it; a short page, or one that is no list,
+    ends the read. A failed read on any page gives its status and None. A full
+    page with no next link, a next link with no new cursor, or a full
+    ACTIVITY_PAGES-th page raises with no further read. The pages share the
+    one timeout a single call gets."""
+    deadline = time.monotonic() + gh_timeout_seconds()
+    pages: list[Any] = []
+    cursors: set[str] = set()
+    path = endpoint
+    while len(cursors) < ACTIVITY_PAGES:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return None, None
+        try:
+            proc, headers = gh_api_with_headers(
+                ["api", path], timeout_seconds=left, env_overrides=env
+            )
+        except (RuntimeError, ValueError, OSError):
+            return None, None
+        if proc.returncode != 0:
+            return gh_http_status(proc.stderr or ""), None
+        try:
+            page = json.loads(proc.stdout) if proc.stdout.strip() else None
+        except ValueError:
+            return None, None
+        pages.append(page)
+        if not is_json_array(page) or len(page) < 100:
+            return 200, pages
+        following = re.search(r'<([^>]*)>;\s*rel="next"', headers.get("link", ""))
+        if following is None:
+            raise PolicyReadError(
+                "the branch's push history has a full page with no next link"
+            )
+        after = re.search(r"[?&]after=([^&#]+)", following[1])
+        if after is None or after[1] in cursors:
+            raise PolicyReadError("the branch's push history names no new page")
+        cursors.add(after[1])
+        path = f"{endpoint}&after={after[1]}"
+    raise PolicyReadError(f"the branch's push history runs past {ACTIVITY_PAGES} pages")
+
+
+def _gh_api(args: list[str], env: Mapping[str, str] | None) -> tuple[int | None, Any]:
     try:
-        proc = gh_capture(["api", endpoint], **({"env_overrides": env} if env else {}))
+        proc = gh_capture(args, **({"env_overrides": env} if env else {}))
     except (RuntimeError, ValueError, OSError):
         return None, None
     if proc.returncode != 0:
@@ -580,6 +635,10 @@ class PipelineConfig:
     # cap (`max_changed_lines` None: no line cap); a value other than true or
     # false turns a switch on. The local babysit lane ignores them.
     high_path_floor: bool = False
+    # `merge.diff-check.path-holds`: absent or false, no changed path holds
+    # a pull request for its path alone (owner decision Q15); true restores
+    # the path floor, the configured denied paths and `review-path:`.
+    path_holds: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
@@ -824,6 +883,7 @@ def read_config_at(
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.max-changed-files", False),
             ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.path-holds", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
@@ -872,6 +932,7 @@ def read_config_at(
         return value not in (None, "false")
 
     high_path_floor = switch("merge.diff-check.high-path-floor")
+    path_holds = switch("merge.diff-check.path-holds")
     if scalar("merge.diff-check.c2-contradictions") not in (None, "false"):
         notes.append(
             "merge.diff-check.c2-contradictions is retired and has no effect:"
@@ -986,6 +1047,7 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        path_holds=path_holds,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
@@ -1061,6 +1123,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
+        path_holds=base.path_holds or main.path_holds,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
@@ -1131,6 +1194,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.report_only,
                     c.require_verifier_verdict,
                     c.high_path_floor,
+                    c.path_holds,
                 )
             )
             and c.dependabot_mode in DEPENDABOT_MODES
@@ -1203,6 +1267,32 @@ def with_default_branch(
     when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
+def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
+    """`merge.agent-identity` when the pull request's base commit and the
+    default branch head both declare the same one, with where it was read.
+    Never the head branch: a person merges `CONFIG_PATH`, so a value that
+    widens what the worker may resolve comes only from reviewed config.
+    None, with the reason, when either side is unset, they differ, or a read
+    fails, so the caller keeps its refusal."""
+    try:
+        base = config_at(repo, base_sha)
+        if base.error:
+            return None, f"{CONFIG_PATH} at the base {base_sha}: {base.error}"
+        main = _default_branch_config(repo)
+    except PolicyReadError as exc:
+        return None, str(exc)
+    keys = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
+    if "" in keys or len(keys) != 1:
+        return None, (
+            f"merge.agent-identity is {base.agent_identity!r} at the base {base_sha} "
+            f"and {main.agent_identity!r} at the default branch head {main.base_sha}"
+        )
+    return base.agent_identity, (
+        f"merge.agent-identity in {CONFIG_PATH} at the base {base_sha} and the "
+        f"default branch head {main.base_sha}"
+    )
+
+
 
 
 # --- Effective rung ---------------------------------------------------------------
@@ -2397,17 +2487,15 @@ def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
 def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     """Why the head branch's push history shows a lane run missing before a
     decision made at `at`, else None (merge-holds.mjs `unranHead`, and
-    ci-status's cost-hold step). `activity` is one page of the repository
-    activity API for the branch, newest first, which deleting a run leaves;
-    `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-    `at`. Every head the branch moved to after its last push of `decided`
-    before `at` needs a run of every lane: with one deleted, an older notice
-    would become the decided head (#10437). No push of `decided` before `at`
-    or a full page, which may not reach it, keeps the hold too."""
+    ci-status's cost-hold step). `activity` is the repository activity API for
+    the branch read to its end (`branch_activity`), newest first, which
+    deleting a run leaves; `ran` lists, per REVIEW_LANES entry, the heads of
+    its runs started before `at`. Every head the branch moved to after its
+    last push of `decided` before `at` needs a run of every lane: with one
+    deleted, an older notice would become the decided head (#10437). No push
+    of `decided` before `at` keeps the hold too."""
     if not is_json_array(activity):
         return "the branch's push history is unreadable"
-    if len(activity) >= 100:
-        return "the branch's push history fills a page"
     if (
         not is_json_array(ran)
         or len(ran) != len(REVIEW_LANES)
@@ -2512,12 +2600,41 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     if decided is None:
         return None
     ref = quote(f"refs/heads/{branch}", safe="")
-    status, activity = _get(
+    status, pages = _get_pages(
         f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100", env
     )
     if status != 200:
         raise PolicyReadError("the head branch's push history is unreadable")
+    activity = branch_activity(pages)
     return decided if unran_head(activity, ran, decided, at) is None else None
+
+
+ACTIVITY_PAGES = 20
+
+
+def branch_activity(pages: Any) -> list[Any] | None:
+    """The head branch's activity from `_get_pages`' one entry per page, newest
+    first, read to its end (merge-holds.mjs `branchActivity`): the API keeps a
+    branch name's history across deletions, so a name recreated for each sync
+    fills any one page. Only a short page ends the history, so a full last
+    page raises, as does more than ACTIVITY_PAGES pages; `_get_pages` raises
+    both before reading on. No page, or a page that is no list, gives
+    None (`unran_head`'s unreadable)."""
+    if (
+        not is_json_array(pages)
+        or not pages
+        or not all(is_json_array(page) for page in pages)
+    ):
+        return None
+    if len(pages) > ACTIVITY_PAGES:
+        raise PolicyReadError(
+            f"the branch's push history runs past {ACTIVITY_PAGES} pages"
+        )
+    if len(pages[-1]) >= 100:
+        raise PolicyReadError(
+            "the branch's push history has a full page with no next link"
+        )
+    return [move for page in pages for move in page]
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2720,6 +2837,10 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/skill-quality/scripts/**",
     "plugins/source-control/scripts/**",
     "plugins/testing/skills/check-visual-parity/scripts/**",
+    ".github/recurring-schedule.json",
+    "plugins/evals/skills/validate/scripts/**",
+    "plugins/testing/evals/browser-probe/**",
+    "plugins/work-items/scripts/**",
 )
 
 

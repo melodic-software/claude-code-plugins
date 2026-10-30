@@ -3,6 +3,34 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-10-29
+
+### Added
+
+- **`handoff-apply` removes one approved tier per call, and on Windows it sends each path to the Recycle Bin** ([#9764](https://github.com/melodic-software/claude-code-plugins/issues/9764)). The Windows manual lane cost about one prompt and two or three tool calls per deleted path. Now one `handoff-apply` per tier takes a repeatable `--path` and a required `--tier`, and its hook `ask` lists the tier, the count and every path, so that prompt is the tier's approval. Inside that one process each path is re-verified just before its removal, and a path whose verdict is not `clear` is skipped and reported. On Windows the engine recycles through the shell's `IFileOperation` and refuses a path the shell reports it cannot recycle, leaving it in place. If the shell deletes one outright anyway, the batch stops there. A batch whose volume reports no Recycle Bin removes nothing, and an error partway stops the batch without losing the report of what was removed. The report's `permanent_delete_used` says whether any removal was permanent.
+
+### Changed
+
+- **`handoff-apply` refuses a whole batch when `--tier` ranks above a path's lowest hint `confidence_ceiling`, or when a path has no hint.** Nothing is removed and the call exits 2. That includes a throwaway Git checkout with no hint: add a hint for it in a policy overlay and rescan before removing it. `--vcs-evidence` is now optional, as it is for `handoff-verify`. The report lists a `verdicts` entry per path in place of the single `path` and `verdict` fields.
+
+## [0.47.1] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.47.0] - 2026-10-29
+
+### Changed
+
+- **Claude can now load `/disk-hygiene:clean` through the Skill tool.** The skill sets `disable-model-invocation: false`, so a request such as "clean up my /tmp" reaches it without a typed slash command. Loading it removes nothing. The confirmation gate, preview token, kill switch and guard are unchanged, and every removal still needs the user's own answer naming one tier and its paths. When Claude loads the skill, an `--execute` it passes counts as an execution request only when a user message asked for removal. A new eval checks that a model-invoked run stops at the gate. A new `PreToolUse` hook on the Skill tool writes the same per-session marker the typed command writes, so a session resumed after Claude loaded `clean` still gets the resume notice. That hook makes no permission decision and launches no Python.
+
+## [0.46.1] - 2026-10-29
+
+### Fixed
+
+- The plugin-level engine gate no longer denies a Bash command that only reads the engine script ([#9779](https://github.com/melodic-software/claude-code-plugins/issues/9779)). A list or pipeline whose every command is a reader (`cat`, `head`, `tail`, `wc`, `grep`, `rg` without `--pre`, `git show`/`log`/`diff`/`grep`, `gh issue`/`pr`, or `sed` printing line ranges such as `sed -n '1,40p'`) defers, even when it names the engine by its own path, and the body of a here-document with a quoted delimiter (`<<'EOF'`) is read as data. A command outside that set, an unquoted here-document delimiter, a here-string, a backslash or a lone `&` keeps the command gated as before. The PowerShell lane is unchanged.
+
 ## [0.46.0] - 2026-10-27
 
 ### Added

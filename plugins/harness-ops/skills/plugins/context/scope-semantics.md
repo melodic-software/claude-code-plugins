@@ -21,8 +21,7 @@
 
 Every record below is our decision, resting on a pointer to an official-docs section or on our own
 probe on a real machine, never on training data, and stores no upstream text. Last re-verified
-2026-09-05 against
-plugins-reference and discover-plugins (both since split: the
+2026-09-05 against the plugin reference and plugin discovery pages (both since split: the
 [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference), [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference),
 [plugin loading reference](https://code.claude.com/docs/en/plugins/loading) and [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) now hold their content),
 plugin-marketplaces (since split into the

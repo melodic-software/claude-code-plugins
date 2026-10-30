@@ -112,8 +112,22 @@ case "$*" in
 */issues/[0-9]*) failing issue; from "$STUB_ISSUES" "$(key issues "$@")" ;;
 */activity\?ref=*)
   failing activity
-  [[ "$*" == *'/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100' ]] || exit 1
-  jq -c 'sort_by(.timestamp) | reverse' <<<"$STUB_ACTIVITY"
+  # Pages of 100, the first by ref and each next by the `after` cursor its
+  # Link header names, as `gh api -i` prints them: headers, a blank line, body.
+  page=1
+  [[ "$*" =~ ^api\ repositories/1/activity\?ref=refs%2Fheads%2Ffix%2Fcost\&direction=desc\&per_page=100\&after=p([0-9]+)\ -i$ ]] && page=${BASH_REMATCH[1]}
+  [[ $page -gt 1 || "$*" == 'api repos/o/r/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100 -i' ]] || exit 1
+  [[ " ${STUB_FAIL:-} " != *" activity-$page "* ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
+  printf 'HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n'
+  # STUB_ACTIVITY_ENDLESS answers a full page naming a next one every time;
+  # STUB_ACTIVITY_NOLINK names no next page.
+  if [[ -z "${STUB_ACTIVITY_NOLINK:-}" ]] && [[ -n "${STUB_ACTIVITY_ENDLESS:-}" || $(jq length <<<"$STUB_ACTIVITY") -gt $((page * 100)) ]]; then
+    printf 'Link: <https://api.github.com/repositories/1/activity?ref=refs%%2Fheads%%2Ffix%%2Fcost&direction=desc&per_page=100&after=p%s>; rel="next"\r\n' $((page + 1))
+  fi
+  printf '\r\n'
+  if [[ -n "${STUB_ACTIVITY_PAGE:-}" ]]; then printf '%s\n' "$STUB_ACTIVITY_PAGE"; exit 0; fi
+  if [[ -n "${STUB_ACTIVITY_ENDLESS:-}" ]]; then jq -c '[.[0] as $m | range(100) | $m]' <<<"$STUB_ACTIVITY"; exit 0; fi
+  jq -c --argjson p "$page" 'sort_by(.timestamp) | reverse | .[($p - 1) * 100:$p * 100]' <<<"$STUB_ACTIVITY"
   ;;
 */actions/workflows/*/runs*)
   failing runs
@@ -487,8 +501,8 @@ decided "$OLD"
 nets "[$TF]" "[$TF]"
 pushed "$NEW"
 expect "a head pushed after the decided head whose lane runs were deleted keeps the hold" no no no "$NEW was pushed after the decided head"
-if grep -q 'activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100$' "$TMP_ROOT/log"; then
-  ok "the push history is read as one page, as merge-holds.mjs reads it"
+if grep -q 'activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100 -i$' "$TMP_ROOT/log"; then
+  ok "the push history is read to its end, as merge-holds.mjs reads it"
 else
   fail "the push history read: '$(grep activity "$TMP_ROOT/log")'"
 fi
@@ -497,6 +511,30 @@ expect "a head pushed since with the security lane's run deleted keeps the hold"
 ran "$NEW" pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a head pushed since with a run of every lane and no cost notice carries the decision" yes yes yes
 STUB_FAIL=activity expect "an unreadable push history carries nothing" no no no "push history is unreadable"
+# A branch name recreated for each sync keeps its whole history, so the
+# decided head's push can sit past the first page (#10990).
+# later <n>: <n> pushes of NEW after the decision, from 15:00.
+later() {
+  STUB_ACTIVITY="$(jq -c --arg n "$NEW" --argjson c "$1" '. + [range($c) | {after: $n, timestamp: (("2026-10-23T15:00:00Z" | fromdateiso8601) + . | todateiso8601), activity_type: "push"}]' <<<"$STUB_ACTIVITY")"
+  export STUB_ACTIVITY
+}
+nodecided
+decided "$OLD"
+nets "[$TF]" "[$TF]"
+later 150
+expect "a push history past its first page with no head unran carries the decision" yes yes yes
+pushed "$NEW"
+expect "a head pushed since on the second page of push history keeps the hold" no no no "$NEW was pushed after the decided head"
+if grep -q 'repositories/1/activity?.*&after=p2 -i$' "$TMP_ROOT/log"; then
+  ok "the second page is read by the Link header's cursor"
+else
+  fail "the push history pages read: '$(grep activity "$TMP_ROOT/log")'"
+fi
+pushed "$NEW" 2026-10-23T13:16:00Z
+STUB_FAIL=activity-2 expect "a push history whose second page fails carries nothing" no no no "push history is unreadable"
+STUB_FAIL='' STUB_ACTIVITY_PAGE=null expect "a push history page that is no list carries nothing" no no no "push history is unreadable"
+STUB_ACTIVITY_ENDLESS=1 expect "a push history past 20 pages carries nothing" no no no "runs past 20 pages"
+STUB_ACTIVITY_NOLINK=1 expect "a full page of push history with no next link carries nothing" no no no "a full page with no next link"
 nodecided
 decided "$OLD"
 nets "[$TF]" "[$TF]"

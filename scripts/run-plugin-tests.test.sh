@@ -11,6 +11,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
 # The test-bash lane exports this on main; each case below sets it itself.
 unset PLUGIN_TEST_ADVISORY
+# scripts/check-affected.sh exports this to the suites it runs; the share cases
+# below set it themselves.
+unset PLUGIN_TEST_SHARE_WARN_ONLY
 # CI's GITHUB_ACTIONS would turn the suite budget on for every case; the
 # suite-budget cases below turn it on themselves.
 export PLUGIN_TEST_SUITE_BUDGET=0
@@ -480,17 +483,17 @@ assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 # PLUGIN_TEST_ADVISORY=1, which CI sets for runs on main alone. A pull request
 # run leaves it unset, so the same failure fails the leg there.
 r="$(make_root advisory)"
-write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
+write_suite "$r" plugins/planning/shared/tests/ui-a.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
 # shellcheck disable=SC2016 # the suite expands it, not this script
 write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"; echo "suite sees nonce: [${advisory_nonce:-}]"'
 advisory_list="$scratch/advisory.txt"
-printf '# fixture\nplugins/planning/shared/tests/ui.test.sh\n' >"$advisory_list"
+printf '# fixture\nplugins/planning/shared/tests/ui-a.test.sh\n' >"$advisory_list"
 
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 0 "on main, a failing advisory suite does not fail the run" --root "$r"
 assert_output_has "on main, the advisory failure is a warning titled by its suite" \
-  "::warning title=plugins/planning/shared/tests/ui.test.sh::plugins/planning/shared/tests/ui.test.sh failed (exit 1) but is advisory on this run"
-assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui.test.sh"
+  "::warning title=plugins/planning/shared/tests/ui-a.test.sh::plugins/planning/shared/tests/ui-a.test.sh failed (exit 1) but is advisory on this run"
+assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui-a.test.sh"
 assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
 assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
 assert_output_lacks "on main, the advisory failure gets no error annotation" "::error"
@@ -513,7 +516,7 @@ assert_output_lacks "on a pull request, no nonce is printed" "Advisory nonce:"
 assert_output_has "on a pull request, the failure summary line" "One or more plugin tests failed."
 
 r="$(make_root advisory-other)"
-write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "ok: ui"'
+write_suite "$r" plugins/planning/shared/tests/ui-a.test.sh 'echo "ok: ui"'
 write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
 PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
   run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
@@ -570,6 +573,12 @@ PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 PLUGIN_TEST_SECONDS_LIST=
   PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --budget no suite is timed against a share" --root "$r" --jobs 2
 assert_output_lacks "without --budget no suite is failed for its time" "share of the budget"
 assert_output_lacks "without --budget no overrun is reported" "OVER BUDGET"
+if grep -qE '^TIME: plugins/slow/slow\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT" &&
+  grep -qE '^TIME: plugins/quick/quick\.test\.sh [0-9]+s$' <<<"$RUN_OUTPUT"; then
+  ok "without --budget each suite's wall seconds still print"
+else
+  fail "without --budget a suite's TIME line is missing; output: $RUN_OUTPUT"
+fi
 
 budget_seconds="$scratch/budget-seconds.txt"
 printf '%s\n' "# seconds" "plugins/slow/slow.test.sh 5" >"$budget_seconds"
@@ -589,6 +598,45 @@ done
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --budget= is rejected, not a run with no budget" --root "$r" --budget=
 PLUGIN_TEST_SHARE_MARGIN=0 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a zero share margin is rejected" --root "$r" --budget 60
 assert_output_has "the bad margin is named" "PLUGIN_TEST_SHARE_MARGIN must be a positive integer (got '0')"
+
+# A suite with no median is named with the default share it gets.
+PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=7 PLUGIN_TEST_SECONDS_LIST="$budget_seconds" \
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a run with an unlisted suite still passes" --root "$r" --budget 600
+assert_output_has "the unlisted suite is named with its default share" \
+  "note: plugins/quick/quick.test.sh has no median in $budget_seconds, so it gets the default 7s share"
+assert_output_lacks "a listed suite is not named as unlisted" "note: plugins/slow/slow.test.sh"
+
+# --- the local gate: a passing suite over its share warns, a failing one fails --
+#
+# The slow suite passes but runs past its fixed 1 s share, as a passing suite
+# does on a loaded host.
+PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 \
+  PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "in the local gate a passing suite over its share does not fail the run" --root "$r" --jobs 2 --budget 1
+assert_output_has "the over-share suite is named as a warning" "OVER SHARE: plugins/slow/slow.test.sh took "
+assert_output_has "the warning annotation names the suite" \
+  "::warning title=plugins/slow/slow.test.sh::plugins/slow/slow.test.sh took "
+assert_output_lacks "the passing over-share suite is not failed" "FAIL: plugins/slow/slow.test.sh"
+assert_error_count "the passing over-share suite gets no error annotation" 0
+
+# The per-suite budget cases below reuse the budget root, so this one has its own.
+fail_root="$(make_root warn-only-fail)"
+write_suite "$fail_root" plugins/slowfail/slowfail.test.sh 'sleep 2.1; echo "FAIL: slow and broken" >&2; exit 1'
+PLUGIN_TEST_SHARE_WARN_ONLY=1 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 \
+  PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "in the local gate a failing suite over its share still fails the run" --root "$fail_root" --budget 1
+assert_output_has "the failing suite is failed by its exit" "plugins/slowfail/slowfail.test.sh failed (exit 1)"
+assert_output_has "its overrun is still only a warning" "OVER SHARE: plugins/slowfail/slowfail.test.sh took "
+assert_error_count "only the exit gets an error annotation" 1
+
+PLUGIN_TEST_SHARE_WARN_ONLY=0 PLUGIN_TEST_SHARE_MARGIN=1 PLUGIN_TEST_SHARE_DEFAULT=1 \
+  PLUGIN_TEST_SECONDS_LIST="$no_seconds" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "with the switch at 0 a passing suite over its share fails the run" --root "$r" --jobs 2 --budget 1
+assert_output_has "the over-share suite is failed by name" "FAIL: plugins/slow/slow.test.sh took "
+
+PLUGIN_TEST_SHARE_WARN_ONLY=yes PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 2 "a share warn-only switch other than 0 or 1 is rejected" --root "$fail_root" --budget 60
+assert_output_has "the bad switch is named" "PLUGIN_TEST_SHARE_WARN_ONLY must be 0 or 1 (got 'yes')"
 
 # --- the per-suite budget: warn over the threshold, fail over the ceiling --------
 #

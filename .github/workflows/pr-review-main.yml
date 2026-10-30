@@ -1,0 +1,1549 @@
+name: pr-review-main
+
+# Both AI review lanes, again, from the default branch, for a pull request
+# that changes a lane source (babysit_review_evidence.lane_source): a
+# workflow, Claude Code configuration or the review criteria. The
+# pull_request review lanes run the head's copy of their callers and post as
+# github-actions[bot], so a head can rewrite or forge their result; the merge
+# gate binds such a pull request's review only on this run's verdict
+# (babysit_review_evidence `_main_bound`), never on a comment.
+#
+# workflow_run runs this file from main, never a head's copy. No pull request
+# code runs here: the diff, the trusted pull request text and the lane's
+# criteria (copied from main) are data files in pr-review-main-data, and the
+# model reads them with the Read tool alone. Each lane uploads its verdict as
+# the artifact pr-review-main-<lane>-<pr>-<tree> (write-verdict.mjs); only a
+# run's own steps can upload its artifacts, so the gate authenticates the
+# name through this run's record (path, workflow_run event, main, completed
+# success). The review job's token can only read; the record job, which runs
+# no model, posts only each verdict's counts as a check run.
+#
+# Each lane runs one leg on the reviews role's credentials, in the review
+# lanes' order (pr-review-hosted.yml's secrets): the review job on the API
+# key; review-subscription on the role's subscription token for a lane whose
+# key leg handed off (run-claude-cli's handoff: a credit stop, a 401 or 402)
+# or whose key is empty; review-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+# for a lane the subscription leg handed off (a limit stop, a credit stop, a
+# 401 or 402, or an empty token, with the fallback token set). Each leg is
+# its own job on a new VM holding one credential, and repeats every step from
+# a fresh checkout of the main commit the lane's key leg recorded, the tip
+# when that leg started (workflow.test.mjs holds them equal). A matrix job's
+# outputs merge, so each lane's handoff reason is its own output, set after
+# run-claude-cli restored the step files; review-handoffs and
+# subscription-handoffs, which hold no secret and run no model, check each
+# reason against a closed set and give the next leg fixed lane rows. Every
+# leg writes the same verdict, so the record job and the gate never see
+# which leg ran; the lane record names the credential and why it ran. A
+# lane no leg leaves a verdict for (a kill switch, a failure, the last leg
+# stopping) stays unbound, as it was before this workflow. A run that failed
+# before any lane's verdict write started is re-run once, recorded, by the
+# lost-run reconciler (maintenance-reconcile-lost-runs.yml); otherwise the
+# next push reviews again.
+#
+# Every local action runs from the main checkout at ./.base. zizmor's
+# self-repository advice (`$/...`) is ignored on those lines, as in
+# pr-verify.yml.
+
+on:
+  # workflow_run runs this file from the default branch, never a PR's copy.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [pr-require-checks]
+    types: [completed]
+    # Only a pull_request run is reviewed, so a merge-queue or main run would
+    # only start a run that skips.
+    branches-ignore: [main, 'gh-readonly-queue/**']
+
+permissions: {}
+
+# One review per PR and head at a time, never cancelled once running: a
+# later run for the same head queues behind it.
+concurrency:
+  group: pr-review-main-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  review:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: claude-review
+            skill: code-review
+            route: review-code
+            switch: CLAUDE_REVIEW_DISABLED
+          - lane: claude-security-review
+            skill: security-review
+            route: review-security
+            switch: CLAUDE_SECURITY_REVIEW_DISABLED
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main; read the PR's commits for the diff
+      pull-requests: read # the PR, its files, comments and reviews
+      actions: read # the upstream run the trigger gate reads
+    # One output per lane, since a matrix job's outputs merge: why the lane
+    # was handed to the next leg, empty when it was not.
+    outputs:
+      claude-review: ${{ steps.handoff.outputs.claude-review }}
+      claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
+      claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
+      claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tip when the run starts, never an older commit a re-run of an
+          # old run would bring back; later legs check out the commit this
+          # leg recorded.
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        id: switch
+        env:
+          PROCEED: ${{ steps.kill.outputs.proceed }}
+          REASON: ${{ steps.kill.outputs.reason }}
+          LANE_SWITCH: ${{ vars[matrix.switch] }}
+        run: |
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+          fi
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list.
+      - name: Check the trigger
+        id: gate
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
+      # Only a pull request that changes a lane source is reviewed here; the
+      # predicate is the merge gate's own, read from main.
+      - name: Select a lane-source pull request
+        id: select
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          FILES: ${{ runner.temp }}/pr-review-main-files.txt
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          review=$(python3 -I -c '
+          import sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
+          # The files API lists at most 3000; a longer list may hide one.
+          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          ' "$FILES")
+          echo "review=$review" >>"$GITHUB_OUTPUT"
+          echo "lane source changed: $review"
+
+      # A blobless fetch of the two commits into its own repository outside
+      # the workspace. git diff reads no attributes or diff drivers from it,
+      # so nothing in the PR runs; the patch is a data file (write-diff.py).
+      # `--text` shows a file git would call binary (a NUL byte early in a
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # a move that may run or load (an executable, a skills, agents,
+      # commands or hooks path, a file a tool reads by name), and a move an
+      # added line names still print whole. A patch that still
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
+      - name: Write the diff
+        id: diff
+        if: steps.select.outputs.review == 'true'
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          SRC: ${{ runner.temp }}/pr-review-main-src
+          # About 75k tokens of patch: room in the lane's turn budget to read
+          # it whole beside the criteria (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size with its line
+          # numbers comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
+          # Read may cut a long line short, so a diff with a longer line gets
+          # no verdict, and the merge gate holds it for a person
+          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          LONG_LINE_BYTES: "1800"
+        run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir -p "$DATA"
+          git init -q "$SRC"
+          git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
+          if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
+            stop binary "the diff holds a binary file the review cannot read"
+          fi
+          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
+          fi
+          # A diff line's text, past its +, - or space, longer than the cap.
+          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
+          fi
+          # Parts the reviewer reads whole, each named in the prompt; the
+          # verdict counts only when every part was read whole
+          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
+          # no verdict.
+          mkdir "$DATA/diff"
+          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+            { len = length($0) + 1
+              if (len > maxb) exit 3
+              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+              print > f; b += len; l++ }' "$DATA/diff.patch"; then
+            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          rm "$DATA/diff.patch"
+          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+            echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
+          jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
+            '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
+          echo "tree=$tree" >>"$GITHUB_OUTPUT"
+          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ github.workspace }}/pr-review-main-data/context.json
+          github-token: ${{ github.token }}
+
+      # The lane's criteria and the repository's standards, from main. The
+      # skill keeps its place under the plugin's layout, so a relative pointer
+      # in it (`../../reference/...`) resolves inside the data directory; the
+      # rules the code lane names go beside the standards.
+      - name: Copy the review criteria
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          SKILL: ${{ matrix.skill }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+        run: |
+          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          rm -rf "$DATA/review/skills/$SKILL/evals"
+          cp -R .base/plugins/review/reference "$DATA/review/reference"
+          cp .base/REVIEW.md "$DATA/standards/"
+          cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
+
+      - name: Resolve the review's model
+        id: models
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: ${{ matrix.route }}
+          output-path: ${{ runner.temp }}/pr-review-main-models.json
+
+      # Only whether the secrets are set leaves this step, never a value. An
+      # empty credential with a later leg's set hands the lane on; with none
+      # set, nothing reviews and the lane stays unbound.
+      - name: Check the credential
+        id: credential
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          PRESENT: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
+          SECRET_NAME: REVIEWS_CLAUDE_API_KEY
+          # Whether a later leg can review, never its token. The key leg
+          # always hands an empty key on: a step reads no key beside a token,
+          # and the subscription leg checks its own and the fallback's.
+          LATER_PRESENT: "true"
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          elif [ "$LATER_PRESENT" = true ]; then
+            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
+          fi
+          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.credential.outputs.present == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+
+      - name: Isolate the runner
+        if: steps.credential.outputs.present == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # Files, not step outputs: run-claude-cli reads both.
+      - name: Write the prompt and schema
+        id: prompt
+        if: steps.credential.outputs.present == 'true'
+        env:
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          LANE: ${{ matrix.lane }}
+          SKILL: ${{ matrix.skill }}
+          MODEL: ${{ steps.models.outputs.model }}
+          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+        run: |
+          if [ -z "$MODEL" ]; then
+            echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          prompt=${prompt//LANE_NAME/$LANE}
+          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
+          prompt=${prompt//DIFF_PARTS/$parts}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
+
+      # Under dontAsk only the allow rule's directory is readable; the deny
+      # rules hold if the tools or the working directory change. The model
+      # may share its job with the upload: it has Read alone and the job
+      # token can only read.
+      # continue-on-error keeps a launcher failure from ending the job before
+      # the outcome report; "Fail without a verdict" carries the red. A
+      # handoff skips the verdict and the outcome report: the next leg
+      # reviews the lane and records it.
+      - name: Review the pull request
+        id: review
+        if: steps.prompt.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      # The lane's handoff reason, from run-claude-cli's closed handoff-reason
+      # (or an empty credential), under the lane's own output name.
+      - name: Hand the lane on
+        id: handoff
+        if: steps.review.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        env:
+          LANE: ${{ matrix.lane }}
+          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review.outputs.handoff-reason }}
+        run: |
+          case "$REASON" in
+            credit-stop | auth | limit-stop | no-key) ;;
+            *) echo "::error::the handoff reason is not one run-claude-cli sets"; exit 1 ;;
+          esac
+          echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
+          echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
+
+      # One lane record per lane and run, as pr-verify.yml keeps one, so this
+      # lane's model legs show in lane telemetry and spend: the leg that
+      # handed nothing on records it.
+      - name: Report the review's outcome
+        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review.outcome }}
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          log-file: ${{ steps.review.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.review.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      # The structured output is untrusted model text: read from the file and
+      # checked by the script, never interpolated into a command.
+      - name: Write the verdict
+        id: verdict
+        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          LANE: ${{ matrix.lane }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          TREE_SHA: ${{ steps.diff.outputs.tree }}
+          VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
+          DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
+        run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      - name: Upload the verdict
+        if: steps.verdict.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.verdict.outputs.name }}
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          # The longest: an expired verdict with findings would lower the count.
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summarize the verdict
+        if: steps.verdict.outcome == 'success'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          LANE: ${{ matrix.lane }}
+        run: |
+          {
+            echo "### $LANE, reviewed from main"
+            echo
+            echo '```json'
+            jq '{findings, critical, summary: (.summary | gsub("`"; "'"'"'")), items: (.items | map(.title |= gsub("`"; "'"'"'") | .body |= gsub("`"; "'"'"'")))}' "$VERDICT_FILE"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+      # A reviewed pull request that left no verdict and handed nothing on
+      # fails here, so the run shows it; the lane stays unbound either way.
+      - name: Fail without a verdict
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
+        run: |
+          echo "::error::the review left no verdict for this head"
+          exit 1
+
+  # The lanes the key leg handed on, as review-subscription's matrix: fixed
+  # lane rows, each reason checked against the closed set the key leg hands
+  # on with. It holds no secret, runs no model and checks nothing out.
+  review-handoffs:
+    needs: review
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      matrix: ${{ steps.route.outputs.matrix }}
+    steps:
+      - name: Route the handed-off lanes
+        id: route
+        env:
+          CODE: ${{ needs.review.outputs.claude-review }}
+          SECURITY: ${{ needs.review.outputs.claude-security-review }}
+          CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha }}
+          SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha }}
+          REASONS: credit-stop auth no-key
+        run: |
+          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
+            ($reasons | split(" ")) as $ok
+            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code, base: $code_base},
+               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security, base: $security_base}]
+            | map(select(.reason != ""))
+            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then . else error("a handoff reason is not one this leg hands on with") end
+            | if all(.[]; .base | test("\\A[0-9a-f]{40}\\z")) then {include: .} else error("a handed-on lane has no main commit to check out") end')
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+          echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
+
+  # The subscription leg, one per lane the key leg handed on, on a new VM:
+  # the key leg's processes, files and environment do not reach it. Its steps
+  # repeat the review job's from a fresh main checkout but for the
+  # credential, fallback-ready and the fallback reason (workflow.test.mjs
+  # holds them equal), so the gates, the kill switch and the hardening run
+  # again. Only this job's launcher step gets the subscription token.
+  review-subscription:
+    needs: review-handoffs
+    # !cancelled(): the implicit success() also needs every ancestor, so one
+    # lane's failed leg would skip the other lane's next leg.
+    if: >-
+      !cancelled()
+      && needs.review-handoffs.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.review-handoffs.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main; read the PR's commits for the diff
+      pull-requests: read # the PR, its files, comments and reviews
+      actions: read # the upstream run the trigger gate reads
+    # One output per lane, since a matrix job's outputs merge: why the lane
+    # was handed to the next leg, empty when it was not.
+    outputs:
+      claude-review: ${{ steps.handoff.outputs.claude-review }}
+      claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
+      claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
+      claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The main commit this lane's key leg checked out, passed on by the
+          # route job only as 40 hex characters.
+          ref: ${{ matrix.base }}
+          path: .base
+          persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        id: switch
+        env:
+          PROCEED: ${{ steps.kill.outputs.proceed }}
+          REASON: ${{ steps.kill.outputs.reason }}
+          LANE_SWITCH: ${{ vars[matrix.switch] }}
+        run: |
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+          fi
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list.
+      - name: Check the trigger
+        id: gate
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
+      # Only a pull request that changes a lane source is reviewed here; the
+      # predicate is the merge gate's own, read from main.
+      - name: Select a lane-source pull request
+        id: select
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          FILES: ${{ runner.temp }}/pr-review-main-files.txt
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          review=$(python3 -I -c '
+          import sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
+          # The files API lists at most 3000; a longer list may hide one.
+          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          ' "$FILES")
+          echo "review=$review" >>"$GITHUB_OUTPUT"
+          echo "lane source changed: $review"
+
+      # A blobless fetch of the two commits into its own repository outside
+      # the workspace. git diff reads no attributes or diff drivers from it,
+      # so nothing in the PR runs; the patch is a data file (write-diff.py).
+      # `--text` shows a file git would call binary (a NUL byte early in a
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # a move that may run or load (an executable, a skills, agents,
+      # commands or hooks path, a file a tool reads by name), and a move an
+      # added line names still print whole. A patch that still
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
+      - name: Write the diff
+        id: diff
+        if: steps.select.outputs.review == 'true'
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          SRC: ${{ runner.temp }}/pr-review-main-src
+          # About 75k tokens of patch: room in the lane's turn budget to read
+          # it whole beside the criteria (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size with its line
+          # numbers comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
+          # Read may cut a long line short, so a diff with a longer line gets
+          # no verdict, and the merge gate holds it for a person
+          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          LONG_LINE_BYTES: "1800"
+        run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir -p "$DATA"
+          git init -q "$SRC"
+          git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
+          if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
+            stop binary "the diff holds a binary file the review cannot read"
+          fi
+          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
+          fi
+          # A diff line's text, past its +, - or space, longer than the cap.
+          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
+          fi
+          # Parts the reviewer reads whole, each named in the prompt; the
+          # verdict counts only when every part was read whole
+          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
+          # no verdict.
+          mkdir "$DATA/diff"
+          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+            { len = length($0) + 1
+              if (len > maxb) exit 3
+              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+              print > f; b += len; l++ }' "$DATA/diff.patch"; then
+            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          rm "$DATA/diff.patch"
+          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+            echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
+          jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
+            '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
+          echo "tree=$tree" >>"$GITHUB_OUTPUT"
+          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ github.workspace }}/pr-review-main-data/context.json
+          github-token: ${{ github.token }}
+
+      # The lane's criteria and the repository's standards, from main. The
+      # skill keeps its place under the plugin's layout, so a relative pointer
+      # in it (`../../reference/...`) resolves inside the data directory; the
+      # rules the code lane names go beside the standards.
+      - name: Copy the review criteria
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          SKILL: ${{ matrix.skill }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+        run: |
+          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          rm -rf "$DATA/review/skills/$SKILL/evals"
+          cp -R .base/plugins/review/reference "$DATA/review/reference"
+          cp .base/REVIEW.md "$DATA/standards/"
+          cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
+
+      - name: Resolve the review's model
+        id: models
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: ${{ matrix.route }}
+          output-path: ${{ runner.temp }}/pr-review-main-models.json
+
+      # Only whether the secrets are set leaves this step, never a value. An
+      # empty credential with a later leg's set hands the lane on; with none
+      # set, nothing reviews and the lane stays unbound.
+      - name: Check the credential
+        id: credential
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          PRESENT: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          SECRET_NAME: REVIEWS_CLAUDE_CODE_OAUTH_TOKEN
+          # Whether a later leg can review, never its token. The key leg
+          # always hands an empty key on: a step reads no key beside a token,
+          # and the subscription leg checks its own and the fallback's.
+          LATER_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          elif [ "$LATER_PRESENT" = true ]; then
+            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
+          fi
+          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.credential.outputs.present == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+
+      - name: Isolate the runner
+        if: steps.credential.outputs.present == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # Files, not step outputs: run-claude-cli reads both.
+      - name: Write the prompt and schema
+        id: prompt
+        if: steps.credential.outputs.present == 'true'
+        env:
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          LANE: ${{ matrix.lane }}
+          SKILL: ${{ matrix.skill }}
+          MODEL: ${{ steps.models.outputs.model }}
+          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+        run: |
+          if [ -z "$MODEL" ]; then
+            echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          prompt=${prompt//LANE_NAME/$LANE}
+          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
+          prompt=${prompt//DIFF_PARTS/$parts}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
+
+      # Under dontAsk only the allow rule's directory is readable; the deny
+      # rules hold if the tools or the working directory change. The model
+      # may share its job with the upload: it has Read alone and the job
+      # token can only read.
+      # continue-on-error keeps a launcher failure from ending the job before
+      # the outcome report; "Fail without a verdict" carries the red. A
+      # handoff skips the verdict and the outcome report: the next leg
+      # reviews the lane and records it.
+      - name: Review the pull request
+        id: review
+        if: steps.prompt.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      # The lane's handoff reason, from run-claude-cli's closed handoff-reason
+      # (or an empty credential), under the lane's own output name.
+      - name: Hand the lane on
+        id: handoff
+        if: steps.review.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        env:
+          LANE: ${{ matrix.lane }}
+          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review.outputs.handoff-reason }}
+        run: |
+          case "$REASON" in
+            credit-stop | auth | limit-stop | no-key) ;;
+            *) echo "::error::the handoff reason is not one run-claude-cli sets"; exit 1 ;;
+          esac
+          echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
+          echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
+
+      # One lane record per lane and run, as pr-verify.yml keeps one, so this
+      # lane's model legs show in lane telemetry and spend: the leg that
+      # handed nothing on records it.
+      - name: Report the review's outcome
+        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review.outcome }}
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          log-file: ${{ steps.review.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.review.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      # The structured output is untrusted model text: read from the file and
+      # checked by the script, never interpolated into a command.
+      - name: Write the verdict
+        id: verdict
+        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          LANE: ${{ matrix.lane }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          TREE_SHA: ${{ steps.diff.outputs.tree }}
+          VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
+          DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
+        run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      - name: Upload the verdict
+        if: steps.verdict.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.verdict.outputs.name }}
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          # The longest: an expired verdict with findings would lower the count.
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summarize the verdict
+        if: steps.verdict.outcome == 'success'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          LANE: ${{ matrix.lane }}
+        run: |
+          {
+            echo "### $LANE, reviewed from main"
+            echo
+            echo '```json'
+            jq '{findings, critical, summary: (.summary | gsub("`"; "'"'"'")), items: (.items | map(.title |= gsub("`"; "'"'"'") | .body |= gsub("`"; "'"'"'")))}' "$VERDICT_FILE"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+      # A reviewed pull request that left no verdict and handed nothing on
+      # fails here, so the run shows it; the lane stays unbound either way.
+      - name: Fail without a verdict
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
+        run: |
+          echo "::error::the review left no verdict for this head"
+          exit 1
+
+  # The lanes the subscription leg handed on, as review-fallback's matrix.
+  subscription-handoffs:
+    needs: review-subscription
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && (needs.review-subscription.outputs.claude-review != '' || needs.review-subscription.outputs.claude-security-review != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      matrix: ${{ steps.route.outputs.matrix }}
+    steps:
+      - name: Route the handed-off lanes
+        id: route
+        env:
+          CODE: ${{ needs.review-subscription.outputs.claude-review }}
+          SECURITY: ${{ needs.review-subscription.outputs.claude-security-review }}
+          CODE_BASE: ${{ needs.review-subscription.outputs.claude-review-base-sha }}
+          SECURITY_BASE: ${{ needs.review-subscription.outputs.claude-security-review-base-sha }}
+          REASONS: limit-stop credit-stop auth no-key
+        run: |
+          matrix=$(jq -cn --arg code "$CODE" --arg security "$SECURITY" --arg code_base "$CODE_BASE" --arg security_base "$SECURITY_BASE" --arg reasons "$REASONS" '
+            ($reasons | split(" ")) as $ok
+            | [{lane: "claude-review", skill: "code-review", route: "review-code", switch: "CLAUDE_REVIEW_DISABLED", reason: $code, base: $code_base},
+               {lane: "claude-security-review", skill: "security-review", route: "review-security", switch: "CLAUDE_SECURITY_REVIEW_DISABLED", reason: $security, base: $security_base}]
+            | map(select(.reason != ""))
+            | if all(.[]; .reason as $r | any($ok[]; . == $r)) then . else error("a handoff reason is not one this leg hands on with") end
+            | if all(.[]; .base | test("\\A[0-9a-f]{40}\\z")) then {include: .} else error("a handed-on lane has no main commit to check out") end')
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+          echo "handed on: $(jq -r '[.include[].lane] | join(", ")' <<<"$matrix")"
+
+  # The fallback leg, on the central fallback token, one per lane the
+  # subscription leg handed on. Its steps repeat the review job's but for the
+  # credential and the fallback reason, and it hands nothing on: it is the
+  # last leg, so a stop here leaves the lane unbound and fails the job.
+  review-fallback:
+    needs: subscription-handoffs
+    # !cancelled(): the implicit success() also needs every ancestor, so one
+    # lane's failed leg would skip the other lane's next leg.
+    if: >-
+      !cancelled()
+      && needs.subscription-handoffs.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.subscription-handoffs.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main; read the PR's commits for the diff
+      pull-requests: read # the PR, its files, comments and reviews
+      actions: read # the upstream run the trigger gate reads
+    # One output per lane, since a matrix job's outputs merge: the designed
+    # stop that left the lane without a verdict, and the head it names.
+    outputs:
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The main commit this lane's key leg checked out, passed on by the
+          # route job only as 40 hex characters.
+          ref: ${{ matrix.base }}
+          path: .base
+          persist-credentials: false
+
+      # The main commit this leg checked out, under the lane's own output
+      # name: a later leg for the lane checks out the same commit.
+      - name: Record the main commit
+        id: base
+        env:
+          LANE: ${{ matrix.lane }}
+        run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        id: switch
+        env:
+          PROCEED: ${{ steps.kill.outputs.proceed }}
+          REASON: ${{ steps.kill.outputs.reason }}
+          LANE_SWITCH: ${{ vars[matrix.switch] }}
+        run: |
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
+          fi
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list.
+      - name: Check the trigger
+        id: gate
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
+      # Only a pull request that changes a lane source is reviewed here; the
+      # predicate is the merge gate's own, read from main.
+      - name: Select a lane-source pull request
+        id: select
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          FILES: ${{ runner.temp }}/pr-review-main-files.txt
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          review=$(python3 -I -c '
+          import sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
+          # The files API lists at most 3000; a longer list may hide one.
+          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          ' "$FILES")
+          echo "review=$review" >>"$GITHUB_OUTPUT"
+          echo "lane source changed: $review"
+
+      # A blobless fetch of the two commits into its own repository outside
+      # the workspace. git diff reads no attributes or diff drivers from it,
+      # so nothing in the PR runs; the patch is a data file (write-diff.py).
+      # `--text` shows a file git would call binary (a NUL byte early in a
+      # script) as text, so the reviewer sees what node or bash would run.
+      # Every file prints whole (`--no-renames`), so a partial rename into a
+      # lane source is reviewed as the new file. Only a patch over the size
+      # cap shows a file moved unchanged as its rename lines alone; a move
+      # into or out of a lane source, a mode change, a symlink or submodule,
+      # a move that may run or load (an executable, a skills, agents,
+      # commands or hooks path, a file a tool reads by name), and a move an
+      # added line names still print whole. A patch that still
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
+      - name: Write the diff
+        id: diff
+        if: steps.select.outputs.review == 'true'
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          SRC: ${{ runner.temp }}/pr-review-main-src
+          # About 75k tokens of patch: room in the lane's turn budget to read
+          # it whole beside the criteria (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size with its line
+          # numbers comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
+          # Read may cut a long line short, so a diff with a longer line gets
+          # no verdict, and the merge gate holds it for a person
+          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          LONG_LINE_BYTES: "1800"
+        run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir -p "$DATA"
+          git init -q "$SRC"
+          git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
+          if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
+            stop binary "the diff holds a binary file the review cannot read"
+          fi
+          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
+          fi
+          # A diff line's text, past its +, - or space, longer than the cap.
+          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
+          fi
+          # Parts the reviewer reads whole, each named in the prompt; the
+          # verdict counts only when every part was read whole
+          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
+          # no verdict.
+          mkdir "$DATA/diff"
+          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+            { len = length($0) + 1
+              if (len > maxb) exit 3
+              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+              print > f; b += len; l++ }' "$DATA/diff.patch"; then
+            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          rm "$DATA/diff.patch"
+          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+            echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
+            exit 1
+          fi
+          tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
+          jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
+            '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
+          echo "tree=$tree" >>"$GITHUB_OUTPUT"
+          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ github.workspace }}/pr-review-main-data/context.json
+          github-token: ${{ github.token }}
+
+      # The lane's criteria and the repository's standards, from main. The
+      # skill keeps its place under the plugin's layout, so a relative pointer
+      # in it (`../../reference/...`) resolves inside the data directory; the
+      # rules the code lane names go beside the standards.
+      - name: Copy the review criteria
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          SKILL: ${{ matrix.skill }}
+          DATA: ${{ github.workspace }}/pr-review-main-data
+        run: |
+          mkdir -p "$DATA/review/skills" "$DATA/standards"
+          cp -R .base/plugins/review/skills/"$SKILL" "$DATA/review/skills/"
+          rm -rf "$DATA/review/skills/$SKILL/evals"
+          cp -R .base/plugins/review/reference "$DATA/review/reference"
+          cp .base/REVIEW.md "$DATA/standards/"
+          cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
+
+      - name: Resolve the review's model
+        id: models
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: ${{ matrix.route }}
+          output-path: ${{ runner.temp }}/pr-review-main-models.json
+
+      # Only whether the secrets are set leaves this step, never a value. An
+      # empty credential with a later leg's set hands the lane on; with none
+      # set, nothing reviews and the lane stays unbound.
+      - name: Check the credential
+        id: credential
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          SECRET_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
+          # Whether a later leg can review, never its token. The key leg
+          # always hands an empty key on: a step reads no key beside a token,
+          # and the subscription leg checks its own and the fallback's.
+          LATER_PRESENT: "false"
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          elif [ "$LATER_PRESENT" = true ]; then
+            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
+          fi
+          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.credential.outputs.present == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+
+      - name: Isolate the runner
+        if: steps.credential.outputs.present == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # Files, not step outputs: run-claude-cli reads both.
+      - name: Write the prompt and schema
+        id: prompt
+        if: steps.credential.outputs.present == 'true'
+        env:
+          DATA: ${{ github.workspace }}/pr-review-main-data
+          LANE: ${{ matrix.lane }}
+          SKILL: ${{ matrix.skill }}
+          MODEL: ${{ steps.models.outputs.model }}
+          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+        run: |
+          if [ -z "$MODEL" ]; then
+            echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          prompt=${prompt//LANE_NAME/$LANE}
+          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
+          prompt=${prompt//DIFF_PARTS/$parts}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
+
+      # Under dontAsk only the allow rule's directory is readable; the deny
+      # rules hold if the tools or the working directory change. The model
+      # may share its job with the upload: it has Read alone and the job
+      # token can only read.
+      # continue-on-error keeps a launcher failure from ending the job before
+      # the outcome report; "Fail without a verdict" carries the red. A
+      # handoff skips the verdict and the outcome report: the next leg
+      # reviews the lane and records it.
+      - name: Review the pull request
+        id: review
+        if: steps.prompt.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      # One lane record per lane and run, as pr-verify.yml keeps one, so this
+      # lane's model legs show in lane telemetry and spend: the leg that
+      # handed nothing on records it.
+      - name: Report the review's outcome
+        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review.outcome }}
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          log-file: ${{ steps.review.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.review.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      # The structured output is untrusted model text: read from the file and
+      # checked by the script, never interpolated into a command.
+      - name: Write the verdict
+        id: verdict
+        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          LANE: ${{ matrix.lane }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          TREE_SHA: ${{ steps.diff.outputs.tree }}
+          VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
+          DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
+        run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      - name: Upload the verdict
+        if: steps.verdict.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.verdict.outputs.name }}
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          # The longest: an expired verdict with findings would lower the count.
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summarize the verdict
+        if: steps.verdict.outcome == 'success'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+          LANE: ${{ matrix.lane }}
+        run: |
+          {
+            echo "### $LANE, reviewed from main"
+            echo
+            echo '```json'
+            jq '{findings, critical, summary: (.summary | gsub("`"; "'"'"'")), items: (.items | map(.title |= gsub("`"; "'"'"'") | .body |= gsub("`"; "'"'"'")))}' "$VERDICT_FILE"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+      # A reviewed pull request that left no verdict fails here, so the run shows it; the lane stays unbound either way.
+      - name: Fail without a verdict
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
+        run: |
+          echo "::error::the review left no verdict for this head"
+          exit 1
+
+  # Each verdict's counts as a check run on the reviewed head, which no token
+  # can delete (the checks API has no delete), so a later tree's clean review
+  # cannot hide an earlier CRITICAL finding once its artifact is gone: the
+  # merge gate takes the most CRITICAL findings any of this PR's commits
+  # carries (babysit_review_evidence `_main_lane`). A forged one can only add
+  # a hold. No model runs in this job; it reads only the counts that
+  # write-verdict.mjs checked, from this run's own artifacts.
+  record:
+    needs: [review, review-subscription, review-fallback]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      checks: write # the per-lane count check run on the reviewed head
+    steps:
+      # A designed stop (a diff the review cannot read whole) leaves no
+      # verdict and no artifact; its record names the reason on the head,
+      # neutral like the counts. Only the leg that stopped sets a lane's pair.
+      - name: Record the stops
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_STOP: ${{ needs.review.outputs.claude-review-stop || needs.review-subscription.outputs.claude-review-stop || needs.review-fallback.outputs.claude-review-stop }}
+          CODE_HEAD: ${{ needs.review.outputs.claude-review-head || needs.review-subscription.outputs.claude-review-head || needs.review-fallback.outputs.claude-review-head }}
+          SECURITY_STOP: ${{ needs.review.outputs.claude-security-review-stop || needs.review-subscription.outputs.claude-security-review-stop || needs.review-fallback.outputs.claude-security-review-stop }}
+          SECURITY_HEAD: ${{ needs.review.outputs.claude-security-review-head || needs.review-subscription.outputs.claude-security-review-head || needs.review-fallback.outputs.claude-security-review-head }}
+        run: |
+          for lane in claude-review claude-security-review; do
+            if [ "$lane" = claude-review ]; then reason=$CODE_STOP head=$CODE_HEAD; else reason=$SECURITY_STOP head=$SECURITY_HEAD; fi
+            [ -z "$reason" ] && continue
+            [[ $reason =~ ^(too-large|binary|long-line)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
+              echo "::error::a stop output is malformed for $lane"; exit 1; }
+            gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
+              -f conclusion=neutral \
+              -f "output[title]=verdict=none reason=$reason" \
+              -f "output[summary]=pr-review-main did not review $head from main: the diff stopped the review ($reason), so it left no verdict." >/dev/null
+            echo "recorded $lane $head stop=$reason"
+          done
+
+      - name: Download this run's verdicts
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pr-review-main-*
+          path: ${{ runner.temp }}/pr-review-main-verdicts
+
+      - name: Record the counts
+        if: steps.download.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICTS: ${{ runner.temp }}/pr-review-main-verdicts
+        run: |
+          shopt -s nullglob
+          for file in "$VERDICTS"/*/verdict.json; do
+            lane=$(jq -r '.lane' "$file"); head=$(jq -r '.head_sha' "$file")
+            critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
+            [[ $lane =~ ^claude(-security)?-review$ && $head =~ ^[0-9a-f]{40}$ && $critical =~ ^[0-9]{1,6}$ && $findings =~ ^[0-9]{1,6}$ ]] || {
+              echo "::error::a verdict file is malformed: $file"; exit 1; }
+            # Neutral either way: the gate reads the title, and a red check would
+            # send the fix-ci lane after a review finding.
+            conclusion=neutral
+            gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
+              -f conclusion="$conclusion" \
+              -f "output[title]=findings=$findings critical=$critical" \
+              -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
+            echo "recorded $lane $head findings=$findings critical=$critical"
+          done

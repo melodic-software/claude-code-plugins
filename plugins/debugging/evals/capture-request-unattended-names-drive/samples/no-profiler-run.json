@@ -471,6 +471,186 @@
         }
       ],
       "why": "a shell-level backslash-n, not a JSON newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"node workers/export.js\" README.md",
+            "description": "Find the run command in the README"
+          }
+        }
+      ],
+      "why": "a node run inside a quoted search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"node --inspect\" docs",
+            "description": "Search the docs for inspector use"
+          }
+        }
+      ],
+      "why": "a node flag inside a quoted search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ps aux | grep -E \"node|gdb\"",
+            "description": "List node and gdb processes"
+          }
+        }
+      ],
+      "why": "a | inside a quoted pattern is not a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pgrep -fa \"gdb|lldb\"",
+            "description": "List debugger processes"
+          }
+        }
+      ],
+      "why": "a | inside a quoted pattern is not a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd node && grep -rn \"require('./workers/export')\" .",
+            "description": "Find imports of the worker"
+          }
+        }
+      ],
+      "why": "node as a directory name before require text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version && grep -rn \"require('./workers/export')\" src",
+            "description": "Show the node version and find imports"
+          }
+        }
+      ],
+      "why": "require text in a search after an earlier node call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx sudo-prompt",
+            "description": "Run the sudo-prompt package"
+          }
+        }
+      ],
+      "why": "a package name starting with sudo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx gdb-js --help",
+            "description": "Show the gdb-js help"
+          }
+        }
+      ],
+      "why": "a package name starting with gdb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn add -D 0x",
+            "description": "Install 0x"
+          }
+        }
+      ],
+      "why": "installs 0x, does not run it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "kubectl get pods",
+            "description": "List pods"
+          }
+        }
+      ],
+      "why": "kubectl without exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "FOO=1 node --version",
+            "description": "Show the node version"
+          }
+        }
+      ],
+      "why": "an assignment before a harmless node call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh prod ls",
+            "description": "List the remote directory"
+          }
+        }
+      ],
+      "why": "unquoted remote command that is not a debugger"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -p \"require('fs').readFileSync('workers/export.js','utf8').length\"",
+            "description": "Count the worker's characters"
+          }
+        }
+      ],
+      "why": "reads the worker file without running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"scripts/summarize.js\"",
+            "description": "Run the summary script"
+          }
+        }
+      ],
+      "why": "a quoted script path after node, not a program on stdin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > notes.txt <<'EOF'\nworkers/export.js is hot\nEOF\nnode tools/check.js",
+            "description": "Write notes and run a check"
+          }
+        }
+      ],
+      "why": "a heredoc that names the worker but loads nothing"
     }
   ],
   "fail": [
@@ -1172,6 +1352,474 @@
         }
       ],
       "why": "require late in a long one-liner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env FOO=1 gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "an assignment after env"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "FOO=1 gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "an assignment first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "NODE_ENV=production npx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "an assignment before npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nice -n 10 gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger under nice"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "doas gdb -p 1",
+            "description": "Attach a debugger as root"
+          }
+        }
+      ],
+      "why": "debugger under doas"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger under command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\\gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "a backslash before the tool name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm exec 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npm exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm exec 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through pnpm exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bunx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through bunx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through yarn"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout -s KILL 5 gdb -p 1",
+            "description": "Attach a debugger briefly"
+          }
+        }
+      ],
+      "why": "timeout with a signal option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pgrep -f workers/export | xargs -I{} gdb -p {}",
+            "description": "Attach a debugger to the worker"
+          }
+        }
+      ],
+      "why": "xargs with a replace option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "kubectl exec pod -- gdb -p 1",
+            "description": "Attach a debugger in the pod"
+          }
+        }
+      ],
+      "why": "debugger through kubectl exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh prod gdb -p 1",
+            "description": "Attach a debugger on the host"
+          }
+        }
+      ],
+      "why": "unquoted remote command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "eval gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "unquoted eval"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "watch -n 1 strace -c -p 1",
+            "description": "Trace system calls"
+          }
+        }
+      ],
+      "why": "unquoted watch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/bin/gdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "path-qualified tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./node_modules/.bin/0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x by its bin path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo `gdb -p 1`",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "command substitution in backticks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "kill -10 1234",
+            "description": "Turn on the inspector in the running worker"
+          }
+        }
+      ],
+      "why": "attach by signal number"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh h \"bash -c \\\"gdb -p 1\\\"\"",
+            "description": "Attach a debugger on the host"
+          }
+        }
+      ],
+      "why": "nested quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/bin/bash -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "path-qualified shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for p in $(pgrep -f workers/export); do gdb -p $p; done",
+            "description": "Attach a debugger to each worker"
+          }
+        }
+      ],
+      "why": "debugger after do"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node workers/export",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "worker path without .js"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --require ./workers/export",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "worker as a preload"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --title \"x y\" workers/export.js",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "a quoted flag value with a space"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nodemon workers/export.js",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "worker under nodemon"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat x.js | node",
+            "description": "Run a script"
+          }
+        }
+      ],
+      "why": "a script piped into node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"const p='./workers/export'; require(p)\"",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "require of a variable holding the worker path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > /tmp/run.js <<'EOF'\nrequire('./workers/export')\nEOF\nnode /tmp/run.js",
+            "description": "Write a script and run it"
+          }
+        }
+      ],
+      "why": "a heredoc writes a script, then node runs it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node <<'EOF'\nrequire('./workers/export')\nEOF",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "a heredoc fed to node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gdb-multiarch -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "the named gdb variant"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"cd /w && gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "a separator inside a quoted shell script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"cd /w && timeout 5 gdb -p 1\"",
+            "description": "Attach a debugger briefly"
+          }
+        }
+      ],
+      "why": "a wrapper after a separator inside a quoted shell script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "lldb-15 -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "a versioned lldb binary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "time -p node workers/export.js orders.json",
+            "description": "Time the worker"
+          }
+        }
+      ],
+      "why": "the worker after a wrapper with an option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "out=\"$(py-spy dump --pid 1)\"",
+            "description": "Dump stacks"
+          }
+        }
+      ],
+      "why": "command substitution inside double quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "hyperfine 'node workers/export.js orders.json'",
+            "description": "Benchmark the worker"
+          }
+        }
+      ],
+      "why": "the worker inside a benchmark command string"
     }
   ]
 }
