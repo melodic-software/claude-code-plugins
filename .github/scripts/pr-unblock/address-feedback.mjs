@@ -577,9 +577,10 @@ export function humanGatedLabelFrom(path) {
 // `reviewerIds`, pr-pipeline.yaml review-threads.reviewer-ids, matched on the
 // account id GitHub records; its comments count as the reviewer bot's
 // throughout), a lane comment (isLaneComment, which counts as the reviewer
-// bot's throughout), or a verifier note
-// (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
-// holds:
+// bot's throughout), a verifier note
+// (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), or a trusted
+// person's (a thread they opened, worked only under the fix-request or
+// escalation rule below), and one of these holds:
 // - every comment is the reviewer bot's, but a verifier note's own;
 // - the lanes App never commented, every later comment is the reviewer bot's
 //   or a trusted person's, and one is a fix request (isFixRequest) by one of
@@ -601,15 +602,15 @@ export function humanGatedLabelFrom(path) {
 export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
   const reviewer = (comment) => comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
-  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier)) {
+  const isHuman = (comment) =>
+    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier && !isHuman(comments[0]))) {
     return null;
   }
   const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : reviewer(comment) ? { author: "reviewer" } : null);
   if (comments.every((comment, i) => finder(comment, i) !== null)) {
     return requesters ? null : comments.map(finder);
   }
-  const isHuman = (comment) =>
-    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
   const asks = (ids, comment) => ids.has(comment.authorId) && isFixRequest(comment.body);
   const last = comments.findLastIndex((comment) => comment.authorId === appId);
   if (last === -1) {
