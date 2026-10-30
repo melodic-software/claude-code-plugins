@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.10] - 2026-10-30
+
+### Changed
+
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [0.13.9] - 2026-10-30
 
 ### Changed

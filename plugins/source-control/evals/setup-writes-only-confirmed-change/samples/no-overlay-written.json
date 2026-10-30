@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": ["docs/conventions/source-control.yaml"], "why": "the confirmed team file only"},
+    {"answer": [".claude/source-control.md"], "why": "a different, non-local path"}
+  ],
+  "fail": [
+    {"answer": [".claude/source-control.local.md"], "why": "the declined personal overlay"},
+    {"answer": ["docs/conventions/source-control.yaml", ".claude/source-control.local.md"], "why": "the team file plus the declined overlay"}
+  ]
+}
