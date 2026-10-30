@@ -31,8 +31,9 @@
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. One exception: a needs-human or
 // status: needs-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
-// verdict that did not escalate, with a readable `Flags: none` and no
-// outside-actor or untrusted-provenance hold, is refused and taken off when
+// verdict that did not escalate, absent when the run started, with a readable
+// `Flags: none`, no `Cost: ` line and no outside-actor or untrusted-provenance
+// hold (read again right before the label writes), is refused and taken off when
 // the rest of the plan is ready, so a capability limit (a host run, a paid
 // eval) reaches admission, which routes it to `host-run` or holds it with a
 // split, and a choice of means stays the issue lane's. The
@@ -106,10 +107,14 @@ const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
 const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION, OUTSIDE_ACTOR_LABEL]);
-// Holds only a person lifts: a clean verdict never removes them.
+// Holds a lanes App hold-lift never takes off; needs-human comes off only as
+// a refused triage label (planWrites).
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
 // Holds this run's triage may apply only beside a flag (planWrites refuses one without).
 const TRIAGE_REFUSABLE = [NEEDS_HUMAN, NEEDS_DECISION];
+// Labels that stop admission for a person; a refusal is dropped when one
+// lands after the first read.
+const LATE_HOLDS = [OUTSIDE_ACTOR_LABEL, UNTRUSTED];
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -201,7 +206,9 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
-  return { escalated, workClass, untrusted, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  // The COST rule's line names a charge an owner decides, whatever Flags reads.
+  const cost = lines.some((line) => line.startsWith("Cost: "));
+  return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -277,7 +284,8 @@ export function planWrites(
   // verdict only when the App's earlier verdict comment lists no flag
   // (earlierFlags []); a listed flag or no readable comment (null) holds, as
   // does one the triage run (github-actions[bot]), a person, or an unread
-  // setter set, and needs-human and the outside-actor flag always hold.
+  // setter set. needs-human and the outside-actor flag never give way here;
+  // needs-human comes off only as a refused triage label, below.
   const holdReasons = (holds) => {
     const appHolds =
       earlierFlags === null || earlierFlags.length > 0
@@ -300,18 +308,18 @@ export function planWrites(
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
-  // an earlier verdict's flag, an outside-actor or untrusted-provenance hold
-  // (flag.mjs adds needs-human as the same github-actions[bot]), or any other
-  // reason keeps both.
+  // a Cost line, an earlier verdict's flag, an outside-actor or
+  // untrusted-provenance hold (flag.mjs adds needs-human as the same
+  // github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
   const candidates =
     !verdict.escalated &&
     !verdict.untrusted &&
+    !verdict.cost &&
     Array.isArray(verdict.flags) &&
     verdict.flags.length === 0 &&
     !(Array.isArray(earlierFlags) && earlierFlags.length > 0) &&
-    !labels.includes(OUTSIDE_ACTOR_LABEL) &&
-    !labels.includes(UNTRUSTED)
+    !LATE_HOLDS.some((label) => labels.includes(label))
       ? TRIAGE_REFUSABLE.filter((label) => labels.includes(label) && triageLabels.includes(label))
       : [];
   let held = holdReasons(holds);
@@ -357,27 +365,40 @@ export function rewordComment(body) {
 
 // {setters, triage}: setters maps each work-class and hold label on the issue
 // to who added it last, from the issue's events (none when no event names it);
-// triage lists the ones github-actions[bot] added last at or after `since`,
-// this run's triage.
+// triage lists the ones this run's triage applied: absent at `since`, replaying
+// labeled and unlabeled events in order (one with an unreadable time counts
+// as before it), and added at or after it only by github-actions[bot].
 async function labelSetters(github, base, labels, since) {
   const held = new Set(labels.filter((label) => label.startsWith("work-class:") || HOLDS.has(label)));
   const setters = {};
-  const triage = new Set();
   if (held.size === 0) {
     return { setters, triage: [] };
   }
+  const before = new Set();
+  const bot = new Set();
+  const other = new Set();
   for (const event of await paginate(github, `${base}/events`)) {
-    if (event?.event === "labeled" && held.has(event.label?.name)) {
-      const name = event.label.name;
-      setters[name] = event.actor?.id ?? null;
-      if (setters[name] === ACTIONS_BOT_ID && Date.parse(event.created_at) >= since) {
-        triage.add(name);
-      } else {
-        triage.delete(name);
+    const name = event?.label?.name;
+    if (!held.has(name) || (event.event !== "labeled" && event.event !== "unlabeled")) {
+      continue;
+    }
+    const after = Date.parse(event.created_at) >= since;
+    if (event.event === "unlabeled") {
+      if (!after) {
+        before.delete(name);
       }
+      continue;
+    }
+    setters[name] = event.actor?.id ?? null;
+    if (!after) {
+      before.add(name);
+    } else if (setters[name] === ACTIONS_BOT_ID) {
+      bot.add(name);
+    } else {
+      other.add(name);
     }
   }
-  return { setters, triage: [...triage] };
+  return { setters, triage: [...bot].filter((name) => !before.has(name) && !other.has(name)) };
 }
 
 // {fieldId: {option, setter}} from the REST values and the GraphQL setters.
@@ -447,17 +468,19 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
   const fields = await readFields(github, repository, number, fieldSetters);
   const { setters, triage } = await labelSetters(github, base, labels, startedAt);
-  const plan = planWrites(verdict, {
-    labels,
-    fields,
-    dimensionsConfig,
-    appId,
-    humans,
-    classSetters: setters,
-    holdSetters: setters,
-    earlierFlags: earlierFlags(comments, appId),
-    triageLabels: triage,
-  });
+  const planFor = (current) =>
+    planWrites(verdict, {
+      labels: current,
+      fields,
+      dimensionsConfig,
+      appId,
+      humans,
+      classSetters: setters,
+      holdSetters: setters,
+      earlierFlags: earlierFlags(comments, appId),
+      triageLabels: triage,
+    });
+  let plan = planFor(labels);
 
   if (plan.fieldWrites.length > 0) {
     const written = await github(
@@ -497,6 +520,18 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   if (named.dropped > 0) {
     log(`::warning title=apply-verdict::#${number}'s body names ${named.dropped} blocker(s) past the first ${MAX_TEXT_BLOCKERS}; no edge is written for them`);
   }
+  // The outside-actor check (flag.mjs) can add its label and needs-human after
+  // the first read, and admission never reads outside-actor, so a refusal
+  // reads the labels once more, right before the label writes, and is
+  // dropped when a late hold landed.
+  if (plan.refused.length > 0) {
+    const now = ((await github("GET", base)).labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+    const late = LATE_HOLDS.filter((label) => now.includes(label) && !labels.includes(label));
+    if (late.length > 0) {
+      log(`apply-verdict: ${late.join(", ")} landed after the first read; nothing triage applied is refused`);
+      plan = planFor([...new Set([...labels, ...late])]);
+    }
+  }
   const waits = plan.ready && (edges?.missed.length ?? 0) > 0;
   const add = waits ? plan.add.filter((name) => name !== READY) : plan.add;
   const remove = waits ? [...plan.remove, READY] : plan.remove;
@@ -508,10 +543,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // A ready verdict's comment names admission's outcome, so it goes after; a
   // failed one stops neither the reword nor the summary.
   let reasonsError = null;
-  const refused = forbidden(edges?.missed, edges?.undeleted);
+  const edgeForbidden = forbidden(edges?.missed, edges?.undeleted);
   const say = async (admission) => {
     try {
-      await sayReasons(github, repository, base, comments, appId, plan, admission, refused);
+      await sayReasons(github, repository, base, comments, appId, plan, admission, edgeForbidden);
     } catch (error) {
       reasonsError = String(error?.message ?? error);
     }
