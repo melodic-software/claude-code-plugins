@@ -17,10 +17,12 @@
 // each nullable but the number), which the pr-merge
 // lane's reader checks. Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
-// reaches a shell.
+// reaches a shell. The file's evidence block (buildEvidence) is the one
+// exception: it records the capture and the author's evidence-loop count, and
+// a capture that is missing, blocked or malformed never fails the verdict.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -69,7 +71,59 @@ function checkIssues(issues) {
   return issues;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [] }) {
+// The capture outcomes a capture summary may record (merge.verify-capture).
+export const CAPTURES = Object.freeze(["ran", "skipped", "blocked", "not-applicable", "no-app"]);
+const CAPTURE_KEYS = "capture,capture_count,features,reason";
+const REASON_MAX = 1000;
+const FEATURE_MAX = 200;
+const FEATURES_MAX = 30;
+const noApp = () => ({ capture: "no-app", reason: "no app check ran", capture_count: 0, features: [] });
+const unreadable = () => ({
+  capture: "blocked",
+  reason: "the capture summary is unreadable or outside its schema",
+  capture_count: 0,
+  features: [],
+});
+
+// The capture summary as recorded: undefined (no summary) is no-app, and
+// anything outside the schema, credential-shaped text included, is blocked.
+function captureEvidence(summary) {
+  if (summary === undefined) {
+    return noApp();
+  }
+  if (
+    !isObject(summary) ||
+    Object.keys(summary).sort().join() !== CAPTURE_KEYS ||
+    !CAPTURES.includes(summary.capture) ||
+    !stringOrNull(summary.reason) ||
+    !Number.isSafeInteger(summary.capture_count) ||
+    summary.capture_count < 0 ||
+    !Array.isArray(summary.features) ||
+    !summary.features.every((feature) => typeof feature === "string") ||
+    [summary.reason ?? "", ...summary.features].some((text) => findSecret(text))
+  ) {
+    return unreadable();
+  }
+  return {
+    capture: summary.capture,
+    reason: summary.reason === null ? null : summary.reason.slice(0, REASON_MAX),
+    capture_count: summary.capture_count,
+    features: summary.features.slice(0, FEATURES_MAX).map((feature) => feature.slice(0, FEATURE_MAX)),
+  };
+}
+
+// The author's own count from the trusted PR body's `Evidence loop: k/3`
+// line, read as data: null when the body is withheld or holds no such line.
+export function localLoop(body) {
+  const match = typeof body === "string" ? /^Evidence loop: ([0-3])\/3[ \t\r]*$/m.exec(body) : null;
+  return match ? Number(match[1]) : null;
+}
+
+export function buildEvidence({ capture, prBody } = {}) {
+  return { ...captureEvidence(capture), local_loop: localLoop(prBody) };
+}
+
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
@@ -125,6 +179,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
+    evidence: buildEvidence({ capture, prBody }),
     run_id: Number(runId),
   };
 }
@@ -293,6 +348,27 @@ export function main(env = process.env) {
       throw new Error("the spec text file is unreadable");
     }
   }
+  // The evidence inputs are optional: no capture summary file is no-app, and
+  // an unreadable one is blocked (null); a trusted PR text file
+  // (select-trusted-text's context) that is unreadable or for another pull
+  // request leaves local_loop null.
+  let capture;
+  if (env.CAPTURE_FILE && existsSync(env.CAPTURE_FILE)) {
+    try {
+      capture = JSON.parse(readFileSync(env.CAPTURE_FILE, "utf8"));
+    } catch {
+      capture = null;
+    }
+  }
+  let prBody = null;
+  if (env.CONTEXT_FILE) {
+    try {
+      const pull = JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8"))?.pr;
+      prBody = String(pull?.number) === env.PR_NUMBER ? (pull.body ?? null) : null;
+    } catch {
+      prBody = null;
+    }
+  }
   const verdict = buildVerdict({
     output,
     pr: env.PR_NUMBER,
@@ -302,6 +378,8 @@ export function main(env = process.env) {
     headRef: env.HEAD_REF,
     linkedIssues,
     specText,
+    capture,
+    prBody,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
