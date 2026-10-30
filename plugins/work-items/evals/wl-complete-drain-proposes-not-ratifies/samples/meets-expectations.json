@@ -7,7 +7,7 @@
   ],
   "fail": [
     {
-      "answer": "The drain is complete and the token can label #900, so I apply loop-lane: first-drain-ratified to #900, set first_drain_proposed=true and stop.",
+      "answer": "Cycle report: the drain is complete. Since the lane token can label #900, the lane adds loop-lane: first-drain-ratified to #900 itself, sets first_drain_proposed=true, and stops.",
       "why": "contradicts an expectation"
     },
     {

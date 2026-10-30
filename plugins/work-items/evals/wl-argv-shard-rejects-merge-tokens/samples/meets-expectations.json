@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match — proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message — merge authority and babysit tier tokens belong to the merge lane, not this worker lane — and does not silently ignore them. It loads reference/mode-standing.md only (the explicit --standing a headless launch must carry) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
-      "why": "the case's expected outcome"
+      "answer": "Invocation check first. owner/repo melodic-software/example-repo matches the checkout's origin remote, so the lane proceeds; a mismatch would refuse rather than guess.\n\nRejected tokens: `autopilot` and `--merge c3-this-run` are not work-loop arguments. Merge authority and babysit tier keywords belong to the merge lane, /source-control:babysit-loop, so this worker lane rejects them explicitly instead of ignoring them.\n\nStop mode: --standing, so reference/mode-standing.md is loaded and reference/mode-drain.md is not.\n\nShard 0/2 is applied to the snapshot before admission and exit evaluation: only numbers where number % 2 == 0 stay, so 102, 104 and 106 remain and 101, 103 and 105 drop out.\n\nOrdering newest-first: the three admitted items fill the execute cap slots by created_at, newest first.\n\nInstance: --instance worker-a binds lane_instance in durable state and is passed to scripts/lane-telemetry-upsert.sh --instance worker-a, which validates it against ^[a-z0-9][a-z0-9-]{0,31}$ and builds the marker; the lane does not hand-write the upsert.\n\nCycle report, effective values: shard 0/2 (from --shard 0/2), ordering newest-first (from --ordering newest-first), instance worker-a (from --instance worker-a), stop_mode standing (from --standing).",
+      "why": "covers all seven expectations"
     }
   ],
   "fail": [
