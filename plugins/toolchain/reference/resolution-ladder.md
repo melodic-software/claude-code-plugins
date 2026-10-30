@@ -4,7 +4,7 @@ How `/toolchain:check` and `/toolchain:lint` resolve the per-ecosystem build/tes
 command surface. Both skills read this one document; neither bakes its own table.
 
 Implements the ecosystem-commands contract "Resolution ladder (plugin behavior)":
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md>.
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/README.md>.
 
 ## The command surface
 
