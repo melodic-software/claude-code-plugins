@@ -118,7 +118,7 @@ const FOLD_SUBJECT_MAX = 256;
 // {text, trusts}: a string literal, a template with no expressions, or
 // `.replace` on one with a regex literal and a string literal (protobufjs's
 // `eval("quire".replace(/^/,"re"))`), which trusts REPLACE_TRUSTS; else null.
-// A regex past the FOLD_ limits, or with a quantifier, is null too.
+// An argument past the FOLD_ limits, or a regex with a quantifier, is null too.
 function evalText(arg) {
   const text = literalString(arg);
   if (text !== null) return { text, trusts: [] };
@@ -130,7 +130,7 @@ function evalText(arg) {
   const source = pattern.regex.pattern;
   if (source.length > FOLD_PATTERN_MAX || subject.length > FOLD_SUBJECT_MAX || /[*+?{]/.test(source)) return null;
   try {
-    return { text: subject.replace(new RegExp(pattern.regex.pattern, pattern.regex.flags), by), trusts: REPLACE_TRUSTS };
+    return { text: subject.replace(new RegExp(source, pattern.regex.flags), by), trusts: REPLACE_TRUSTS };
   } catch {
     return null;
   }
