@@ -158,7 +158,7 @@ The options live in Claude Code's native config surface, which setup must not ha
   the README's per-session hook event log section carries the measured cost and where it does not run.
 - **Reconfiguring a personal option:** through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure harness-ops@<marketplace>`
   any time, or headless `claude plugin install harness-ops@<marketplace> -s <scope> --config
   registry_dir=<path>` (repeatable per key, `session_event_log_enabled=true` included). Against an
