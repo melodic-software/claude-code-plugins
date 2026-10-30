@@ -14,10 +14,11 @@ name: security-outside-actor
 #   request is checked;
 # - the event's sender is a Bot. Only a GitHub App installed on this
 #   repository acts as a Bot here, which means one of ours, so lane traffic
-#   starts no job. A push to a fork pull request is the exception: an App
-#   installed on the fork can push there, so a Bot's `synchronize` on a pull
-#   request whose head repository is not this one still runs (the job reads
-#   that repository's name from the payload and never checks the head out).
+#   starts no job. A fork pull request is the exception: an App installed on
+#   the fork can act there, so a Bot's `pull_request_target` event of any
+#   action on a pull request whose head repository is not this one still
+#   runs (the job reads that repository's name from the payload and never
+#   checks the head out).
 #   Machine-user accounts are type User and are still checked.
 # Everything that runs is judged by the default branch's trusted-actor list,
 # matched by numeric id: a listed id is trusted, any other author is flagged,
@@ -64,7 +65,7 @@ jobs:
     # request's, else the issue's, the order flag.mjs reads them in.
     if: >-
       (github.event.sender.type != 'Bot'
-        || (github.event.action == 'synchronize'
+        || (github.event_name == 'pull_request_target'
           && github.event.pull_request.head.repo.full_name != github.repository))
       && ((contains(fromJSON('["edited", "synchronize", "reopened"]'), github.event.action)
            && github.event.sender.id != (github.event.comment.user.id

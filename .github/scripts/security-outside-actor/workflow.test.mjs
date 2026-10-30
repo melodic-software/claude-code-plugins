@@ -14,11 +14,12 @@ const steps = text.split(/\n {6}- name: /).slice(1);
 
 // Evaluates the job's `if` against a payload: it uses only `github.event`
 // paths, `!=`, `&&`, `||`, `!`, contains() and fromJSON() over literals.
-function runs(event, repository = "melodic-software/claude-code-plugins") {
+function runs(event, repository = "melodic-software/claude-code-plugins", eventName = event.pull_request ? "pull_request_target" : "issues") {
   const get = (pathText) => pathText.split(".").reduce((value, key) => value?.[key], event) ?? null;
   const js = condition
     .replace(/github\.event\.([a-z_.]+)/g, (_, p) => `get(${JSON.stringify(p)})`)
     .replace(/github\.repository\b/g, JSON.stringify(repository))
+    .replace(/github\.event_name\b/g, JSON.stringify(eventName))
     .replace(/fromJSON\('([^']*)'\)/g, "JSON.parse('$1')")
     .replace(/ (==|!=) /g, " $1= ");
   return new Function("get", "contains", `return Boolean(${js});`)(get, (list, item) => list.includes(item));
@@ -85,9 +86,10 @@ test("a Bot sender starts no job: only Apps installed here send as Bot, so lane 
   assert.equal(runs({ sender: { type: "User" }, issue: { author_association: "NONE" } }), true, "a machine user is still checked");
 });
 
-// An App installed on a fork, not here, can push to the fork's branch, so a
-// Bot sender of a synchronize on a fork pull request is still judged.
-test("a Bot's push to a fork pull request starts the job; to this repository's own branch, or any other Bot event, it does not", () => {
+// An App installed on a fork, not here, can act on the fork's pull request,
+// so a Bot sender of any pull_request_target action on a fork pull request is
+// still judged.
+test("a Bot on a fork pull request starts the job on any action; on this repository's own branch, or on an issue, it does not", () => {
   const app = { id: 9, type: "Bot" };
   const author = { id: 1, type: "User" };
   const pull = (fullName, association = "MEMBER") => ({ user: author, author_association: association, head: { repo: { full_name: fullName } } });
@@ -95,12 +97,15 @@ test("a Bot's push to a fork pull request starts the job; to this repository's o
   const fork = "stranger/claude-code-plugins";
   const event = (action, fullName, association) => ({ action, sender: app, repository, pull_request: pull(fullName, association) });
   const runsIn = (e) => runs({ ...e, repository: undefined }, e.repository);
-  assert.equal(runsIn(event("synchronize", fork)), true, "a fork push by a Bot");
-  assert.equal(runsIn(event("synchronize", fork, "NONE")), true, "a fork push by a Bot on an outsider's pull request");
-  assert.equal(runsIn(event("synchronize", repository)), false, "a push to our own branch by a Bot");
-  assert.equal(runsIn(event("synchronize", repository, "NONE")), false, "our own branch, outsider author, Bot push");
-  for (const action of ["opened", "edited", "reopened"]) {
-    assert.equal(runsIn(event(action, fork, "NONE")), false, `a Bot ${action} on a fork pull request`);
+  for (const action of ["opened", "edited", "synchronize", "reopened"]) {
+    assert.equal(runsIn(event(action, fork)), action !== "opened", `a Bot ${action} on a member's fork pull request (opened is the member's own act)`);
+    assert.equal(runsIn(event(action, fork, "NONE")), true, `a Bot ${action} on an outsider's fork pull request`);
+    assert.equal(runsIn(event(action, repository)), false, `a Bot ${action} on our own branch`);
+    assert.equal(runsIn(event(action, repository, "NONE")), false, `a Bot ${action} on our own branch, outsider author`);
+  }
+  assert.equal(runsIn({ ...event("synchronize", null, "NONE"), pull_request: { user: author, author_association: "NONE", head: { repo: null } } }), true, "a deleted fork fails closed");
+  for (const eventName of ["issues", "issue_comment"]) {
+    assert.equal(runs({ action: "opened", sender: app, issue: { user: author, author_association: "NONE" } }, repository, eventName), false, `a Bot on ${eventName}`);
   }
 });
 
