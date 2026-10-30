@@ -162,7 +162,7 @@
       "id": "rendered-views-security-baseline",
       "title": "Everything interpolated into a rendered view is untrusted data",
       "$comment": "Registered by #3609. Three copies: the convention README owns the clause; adhd:clarify and architecture:improve repeat it inline because a skill runs where docs/conventions/ is not on disk. Before that retrofit the adhd copy named no escape characters at all, so one qualifier per character is what turns that drift into a gate failure instead of a review catch.",
-      "canonical": "docs/conventions/rendered-views/README.md",
+      "canonical": "docs/contracts/rendered-views/README.md",
       "detect": "rendered[- ]views|security baseline|escape `&`, `<`",
       "restates": "escape `&`, `<`|never build (an )?event-handler attributes? from input",
       "qualifiers": [
