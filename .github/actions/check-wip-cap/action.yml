@@ -76,6 +76,7 @@ runs:
 
     # The cap comes through resolve-config, which needs its dependencies; an
     # install that fails leaves the default run caps and closes admissions.
+    # A composite step takes no timeout-minutes, so `timeout` bounds the install.
     - name: Count the open lane PRs
       id: check
       shell: bash
@@ -85,7 +86,7 @@ runs:
         WIP_STATE: ${{ runner.temp }}/check-wip-cap-state.json
         WIP_READS: ${{ inputs.reads }}
       run: |
-        npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
+        timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$BASE_PATH/.github/actions/resolve-config" ||
           echo "::warning title=check-wip-cap::resolve-config's dependencies did not install; the default run caps apply and admissions close"
         node "$GITHUB_ACTION_PATH/check-wip-cap.mjs"
 

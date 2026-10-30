@@ -1406,7 +1406,7 @@ test('pull tool: unknown before the first response, and the degraded dumb zone a
   void w
 })
 
-// ---- Hook telemetry (docs/conventions/hook-telemetry) -----------------------------------------
+// ---- Hook telemetry (docs/contracts/hook-telemetry) -----------------------------------------
 
 const SINK = '/opt/sink.sh'
 // The sink receives one envelope per dispatch on stdin; these are the dispatches the world recorded.

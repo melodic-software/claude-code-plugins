@@ -149,7 +149,7 @@ function privateDir(dir, { create = true } = {}) {
   return dir;
 }
 
-// ---- install (docs/conventions/on-demand-dependencies rules 2 and 3) ----
+// ---- install (docs/contracts/on-demand-dependencies rules 2 and 3) ----
 
 function checkoutRoot() {
   const root = resolve(HERE, '..', '..', '..', '..', '..');

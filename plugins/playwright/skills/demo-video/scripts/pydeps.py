@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""On-demand Python packages for the playwright demo-video skill, per docs/conventions/on-demand-dependencies
+"""On-demand Python packages for the playwright demo-video skill, per docs/contracts/on-demand-dependencies
 (Python). Standard library only: it installs and launches the packages the other scripts import.
 
 usage: pydeps.py install [--data-dir DIR]             install requirements.txt unless already ready; the

@@ -20,7 +20,6 @@ run({
   plugin: "discipline",
   schema: join(HERE, "..", "..", "..", "schemas", "discipline.schema.json"),
   reader: join(HERE, "parse-concern-value.sh"),
-  parser: join(HERE, "yaml-subset.awk"),
   exactKeyNames: true,
   report: wholeFileReport,
   schemaKey: true,

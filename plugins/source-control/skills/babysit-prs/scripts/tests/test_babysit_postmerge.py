@@ -2656,10 +2656,101 @@ class ReplacedRuns(CheckCase):
     def test_a_run_cancelled_after_its_jobs_started_still_waits_for_its_rerun(
         self,
     ) -> None:
+        # Run 11 off the branch: no newer green run settles run 10.
+        self.gh.on_main.discard(LATER_SHA)
         verdict = self.check()
         self.assertFalse(verdict.merges[0].verified)
         self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
         self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+
+    def test_a_red_run_a_newer_green_run_descends_from_is_settled(self) -> None:
+        # Run 41005510323: red on ad7cbfa1 after 41030741557 passed on its
+        # descendant 3a01401f. It is not re-run and holds nothing, and the
+        # check reads no listing for it: run 11 is already held.
+        verdict = self.check()
+        self.assertEqual(verdict.reruns, ())
+        self.assertNotIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            sum("/actions/workflows/pr-require-checks.yml/runs?" in " ".join(c) for c in self.gh.calls),
+            2,
+        )
+
+    def test_a_red_run_past_the_compare_cap_is_not_settled(self) -> None:
+        # Six newer green runs on the branch, none a descendant of run 10,
+        # ahead of run 11, which is: the cap stops at five compares and run
+        # 10 still waits for its re-run.
+        shas = [f"{n:040x}" for n in range(1, 7)]
+        self.gh.on_main.update(shas)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            *(
+                dispatch_run(30 + n, head_sha=sha, created_at=f"2026-10-12T10:{6 + n:02d}:00Z")
+                for n, sha in enumerate(shas)
+            ),
+        )
+        compared: list[str] = []
+        inside = [False]
+        superseded, compare = pm._Context.superseded, pm._Context._compare
+
+        def counting_superseded(ctx: Any, run: Any) -> Any:
+            inside[0] = True
+            try:
+                return superseded(ctx, run)
+            finally:
+                inside[0] = False
+
+        def counting_compare(ctx: Any, ancestor: str, sha: str) -> bool:
+            if inside[0]:
+                compared.append(sha)
+            return compare(ctx, ancestor, sha)
+
+        with (
+            mock.patch.object(pm._Context, "superseded", counting_superseded),
+            mock.patch.object(pm._Context, "_compare", counting_compare),
+        ):
+            verdict = self.check()
+        self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertLessEqual(len(compared), pm.SETTLE_COMPARE_CAP)
+        self.assertEqual(pm.SETTLE_COMPARE_CAP, 5)
+
+    def test_a_newer_run_green_only_on_its_rerun_does_not_settle(self) -> None:
+        # A listed run shows its latest attempt; attempt 1 of run 11 failed.
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")][1] = dispatch_run(11, run_attempt=2)
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        verdict = self.check()
+        self.assertIn(self.REPLACED, [r.run_id for r in verdict.reruns])
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+
+    def test_a_newer_green_run_on_the_same_commit_settles_as_a_flake(self) -> None:
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")][1] = dispatch_run(11, head_sha=MERGE_SHA)
+        verdict = self.check()
+        self.assertEqual(verdict.reruns, ())
+        self.assertIn(f"{RUN_URL}/{self.REPLACED}", verdict.flakes)
+
+    def test_a_persons_newer_green_dispatch_does_not_settle(self) -> None:
+        # A person dispatching full runs until one passes cannot clear a red
+        # attempt 1, as their re-run cannot (`_outcome`).
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")][1] = dispatch_run(
+            11, actor=by("octocat"), triggering_actor=by("octocat")
+        )
+        verdict = self.check()
+        self.assertIn(self.REPLACED, [r.run_id for r in verdict.reruns])
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+
+    def test_a_newer_green_schedule_run_settles_whoever_started_it(self) -> None:
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")].pop(1)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(12, "success", actor=by("octocat"), triggering_actor=by("octocat"),
+                         created_at="2026-10-12T10:05:00Z"),
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.reruns, ())
+        self.assertNotIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
 
     def test_a_replaced_run_is_no_baseline(self) -> None:
         # Before the merge: a red run, then a replaced one. The red run is the
@@ -2686,6 +2777,57 @@ class ReplacedRuns(CheckCase):
             ),
             frozenset({"test-bash"}),
         )
+
+
+class SettleBudget(CheckCase):
+    """`_Context.superseded` spends at most SETTLE_COMPARE_BUDGET compare
+    reads per check; a red run it cannot afford to read stays RERUN."""
+
+    def test_a_failed_compare_leaves_the_run_awaiting_its_rerun(self) -> None:
+        red, green = f"{0xAA00:040x}", f"{0xBB00:040x}"
+        self.gh.descendants.add(red)
+        self.gh.on_main.update((red, green))
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(40, "failure", head_sha=red, created_at="2026-10-12T10:01:00Z"),
+            dispatch_run(60, head_sha=green, created_at="2026-10-12T10:20:00Z"),
+        )
+        self.gh.fail_reads.add(f"/compare/{red}...{green}")
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([r.run_id for r in verdict.reruns], [40])
+
+    def test_ten_red_runs_spend_at_most_the_budget(self) -> None:
+        reds = [f"{0xAA00 + n:040x}" for n in range(10)]
+        greens = [f"{0xBB00 + n:040x}" for n in range(10)]
+        self.gh.descendants.update(reds)
+        self.gh.on_main.update(reds + greens)
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            *(
+                dispatch_run(40 + n, "failure", head_sha=sha, created_at=f"2026-10-12T10:{1 + n:02d}:00Z")
+                for n, sha in enumerate(reds)
+            ),
+            *(
+                dispatch_run(60 + n, head_sha=sha, created_at=f"2026-10-12T10:{20 + n:02d}:00Z")
+                for n, sha in enumerate(greens)
+            ),
+        )
+        verdict = self.check()
+        compares = [
+            c
+            for c in self.gh.calls
+            if any(f"/compare/{r}...{g}" in " ".join(c) for r in reds for g in greens)
+        ]
+        self.assertEqual(pm.SETTLE_COMPARE_BUDGET, 20)
+        self.assertLessEqual(len(compares), pm.SETTLE_COMPARE_BUDGET)
+        self.assertEqual(sorted(r.run_id for r in verdict.reruns), list(range(40, 50)))
+        for n in range(40, 50):
+            self.assertIn(f"attribution-pending:{n}", verdict.merges[0].pending)
 
 
 class DispatchCoverage(CheckCase):

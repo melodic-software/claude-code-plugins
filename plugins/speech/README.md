@@ -76,7 +76,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 one. `/speech:check` reads it.
 
 The Python packages follow the
-[on-demand dependencies convention](../../docs/conventions/on-demand-dependencies/README.md#python).
+[on-demand dependencies convention](../../docs/contracts/on-demand-dependencies/README.md#python).
 `requirements.in` pins them, `requirements.txt` hash-locks every wheel, and the SessionStart hook
 installs them into `${CLAUDE_PLUGIN_DATA}/python/<lock hash>-<interpreter>/` with
 `pip install --require-hashes --only-binary :all:`. Nothing else installs a package. A failed
@@ -148,7 +148,7 @@ Three supported routes:
    {"elevenlabs_model": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

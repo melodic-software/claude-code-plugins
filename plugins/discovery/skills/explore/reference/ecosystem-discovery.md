@@ -9,7 +9,7 @@ When the `toolchain` plugin is installed, compose `/toolchain:check`'s ecosystem
 detection and command-resolution seam for the shared signal vocabulary it owns.
 Do not bake a second inventory of those signals. `/toolchain:check` is the
 reference skill other plugins compose for that concern instead of baking their
-own tables. Gate and fallback follow `docs/conventions/seam-phrasing/README.md`.
+own tables. Gate and fallback follow `docs/contracts/seam-phrasing/README.md`.
 
 Resolve each ecosystem through the ladder `/toolchain:check` documents (consumer
 `.claude/ecosystems/<ecosystem>.yaml` authoritative when present; bundled

@@ -29,7 +29,7 @@
 # judgment verdict. Its Confidence cell is empty, because a judgment selected the row.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/conventions/detector-findings/README.md. That
+# docs/contracts/detector-findings/README.md. That
 # table is the source of truth — a tier change lands there first and is copied
 # here, never the reverse.
 #

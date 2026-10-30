@@ -68,7 +68,7 @@
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops scoping the key to background sessions.
 #
-# ── Verification stamp (docs/conventions/upstream-drift) ────────────────────────
+# ── Verification stamp (docs/contracts/upstream-drift) ────────────────────────
 # Claim: the four harness behaviors above — last-non-empty-line path read, hook
 #   must create the directory, both failure shapes fail creation, and the
 #   exit-0-stderr/non-zero-stderr channel split.

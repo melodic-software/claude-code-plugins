@@ -1,0 +1,314 @@
+// GENERATED from lib/yaml-subset.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
+// A parser for the YAML subset the team file is written in: a port of
+// plugins/code-metrics/scripts/yaml_subset.py, kept to the same grammar.
+//
+//   parse(text) -> the document (null when empty), or throws YamlSubsetError {line, message}
+//   parse(text, { source: true }) -> the same grammar, but every scalar is its source text as
+//     lib/yaml-subset.awk prints it (plain text as written, quotes removed, `\n` kept as written),
+//     mappings are Maps in document order, an empty value is null, and a key may not be empty or
+//     hold `.` or a tab; as in that reader, a plain key is `[A-Za-z0-9_-]`, a quoted key may have
+//     blanks before its `:`, only a comment may follow a quoted value, and a root sequence or a
+//     sequence nested on one line is an error
+//
+// The subset: block mappings (nested by indentation of two or more spaces); block sequences
+// (scalar or mapping items, a mapping item may start on the dash line); flow sequences of scalars
+// (`[a, "b", 3]`, `[]`); scalars: quoted and plain strings, integers, floats, true/false,
+// null/~, and an empty value meaning null; `#` comments outside quotes; blank lines.
+// Everything else is reported with its line rather than parsed partially: flow mappings (`{`),
+// anchors and aliases, tags, block scalars, document markers, tab indentation, duplicate keys,
+// nesting deeper than MAX_DEPTH.
+// Narrower than the Python grammar, as lib/yaml-subset.awk is: a plain value may not hold `: `
+// and a plain key may not hold whitespace, `$` or `.`; quoting either lifts the limit.
+// Keys become own data properties, so a `__proto__` key never reaches an object's prototype.
+// Error messages quote file text as JSON strings cut to 60 characters: they describe data.
+
+export class YamlSubsetError extends Error {
+  constructor(line, message) {
+    super(`line ${line}: ${message}`);
+    this.name = "YamlSubsetError";
+    this.line = line;
+  }
+}
+
+// Every descent below the top level passes through nested(), so this bounds the recursion.
+const MAX_DEPTH = 64;
+const INT = /^[-+]?\d+$/;
+const FLOAT = /^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$/;
+const quote = (text) => JSON.stringify(text.length > 60 ? `${text.slice(0, 60)}...` : text);
+const isItem = (content) => content === "-" || content.startsWith("- ");
+const put = (object, key, value) => Object.defineProperty(object, key, { value, enumerable: true, writable: true, configurable: true });
+
+/** The text before `#` as a comment ends it. A quote opens only where a value starts (line start,
+ * after `: `, `- `, `[` or `,`), so an apostrophe inside a plain value is just a character. */
+function stripComment(text) {
+  let q = null;
+  let last = -1; // index of the last non-whitespace character before i, so each test is O(1)
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (q === '"' && ch === "\\") i++;
+      else if (q === "'" && ch === "'" && text[i + 1] === "'") i++;
+      else if (ch === q) q = null;
+    } else if ((ch === "'" || ch === '"') && valueStarts(text, last, i)) {
+      q = ch;
+    } else if (ch === "#" && (i === 0 || text[i - 1] === " " || text[i - 1] === "\t")) {
+      return text.slice(0, i).trimEnd();
+    }
+    if (i < text.length && !/\s/.test(text[i])) last = i;
+  }
+  return text.trimEnd();
+}
+
+/** True when a value starts at i: only whitespace follows line start, `: `, `- `, `[` or `,`. */
+function valueStarts(text, last, i) {
+  if (last < 0) return true;
+  const c = text[last];
+  const spaced = i - last > 1;
+  return c === "[" || c === "," || (spaced && c === ":") || (spaced && c === "-" && (last === 0 || /\s/.test(text[last - 1])));
+}
+
+const ESCAPES = { n: "\n", t: "\t", '"': '"', "\\": "\\", "/": "/" };
+const SOURCE_ESCAPES = { ...ESCAPES, n: "\\n" };
+
+function unquote(text, line, source) {
+  const q = text[0];
+  if (text.length < 2 || text.at(-1) !== q) throw new YamlSubsetError(line, "unterminated quoted string");
+  const body = text.slice(1, -1);
+  if (q === "'") return body.replaceAll("''", "'");
+  let out = "";
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\" && i + 1 < body.length) {
+      const next = body[i + 1];
+      if (!Object.hasOwn(ESCAPES, next)) throw new YamlSubsetError(line, `unsupported escape \\${next} in double-quoted string`);
+      out += (source ? SOURCE_ESCAPES : ESCAPES)[next];
+      i++;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function scalar(raw, line, source) {
+  const text = raw.trim();
+  if (text === "") return null;
+  if (text[0] === "'" || text[0] === '"') {
+    const close = source ? closingQuote(text) : -1;
+    if (close !== -1 && close !== text.length - 1) throw new YamlSubsetError(line, "unexpected text after a value");
+    return unquote(text, line, source);
+  }
+  if (text[0] === "{") throw new YamlSubsetError(line, "flow mapping ({...}) is outside the subset; use block style");
+  if (text[0] === "&" || text[0] === "*") throw new YamlSubsetError(line, "anchors and aliases are outside the subset");
+  if (text[0] === "!") throw new YamlSubsetError(line, "tags are outside the subset");
+  if (["|", ">", "|-", ">-", "|+", ">+"].includes(text)) throw new YamlSubsetError(line, "block scalars (| and >) are outside the subset");
+  if (text[0] === "[") return flowSequence(text, line, source);
+  if (/:[ \t]/.test(text)) throw new YamlSubsetError(line, "a plain value may not hold `: `; quote it");
+  if (source) return text;
+  if (["null", "Null", "NULL", "~"].includes(text)) return null;
+  if (["true", "True", "TRUE"].includes(text)) return true;
+  if (["false", "False", "FALSE"].includes(text)) return false;
+  if (INT.test(text) || FLOAT.test(text)) return Number(text);
+  return text;
+}
+
+function flowSequence(text, line, source) {
+  if (!text.endsWith("]")) throw new YamlSubsetError(line, "unterminated flow sequence");
+  const body = text.slice(1, -1).trim();
+  if (body === "") return [];
+  const items = [];
+  let current = "";
+  let q = null;
+  let depth = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (q) {
+      current += ch;
+      // A backslash escape in "..." and a doubled quote in '...' stay inside the item.
+      if ((q === '"' && ch === "\\") || (q === "'" && ch === "'" && body[i + 1] === "'")) current += body[++i] ?? "";
+      else if (ch === q) q = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') q = ch;
+    else if (ch === "[") depth++;
+    else if (ch === "]") depth--;
+    else if (ch === "," && depth === 0) {
+      items.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  items.push(current);
+  return items.map((raw) => {
+    const item = raw.trim();
+    if (item.startsWith("[")) throw new YamlSubsetError(line, "nested flow sequences are outside the subset");
+    return scalar(item, line, source);
+  });
+}
+
+/** The index of the quote closing the quoted text that opens at text[0], or -1. A doubled `''` in
+ * single quotes and a backslash escape in double quotes stay inside, as in unquote(). */
+function closingQuote(text) {
+  const q = text[0];
+  for (let i = 1; i < text.length; i++) {
+    if (q === '"' && text[i] === "\\") i++;
+    else if (text[i] === q) {
+      if (q === "'" && text[i + 1] === "'") i++;
+      else return i;
+    }
+  }
+  return -1;
+}
+
+/** [key, rest] when the content is a mapping entry, else null. */
+function splitKey(content, line, source) {
+  if (content[0] === "'" || content[0] === '"') {
+    const close = closingQuote(content);
+    if (close === -1) throw new YamlSubsetError(line, "unterminated quoted key");
+    const key = unquote(content.slice(0, close + 1), line, source);
+    const rest = source ? content.slice(close + 1).replace(/^[ \t]+/, "") : content.slice(close + 1);
+    if (!rest.startsWith(":") || (rest.length > 1 && rest[1] !== " " && rest[1] !== "\t")) return null;
+    // A source-mode key is one step of a dotted record path, as in lib/yaml-subset.awk.
+    if (source && (key === "" || /[.\t]/.test(key))) throw new YamlSubsetError(line, "a key may not be empty or hold `.` or a tab");
+    return [key, rest.slice(1).trim()];
+  }
+  const split = plainKey(content) ?? (content.endsWith(":") ? [content.slice(0, -1).trim(), ""] : null);
+  // lib/yaml-subset.awk reads no other plain key, so the line is no mapping entry there: it falls
+  // through to a scalar, or to "expected a mapping entry" on the same line awk errors on.
+  if (split && source && !/^[A-Za-z0-9_-]+$/.test(split[0])) return null;
+  if (split && /[\s$.]/.test(split[0])) throw new YamlSubsetError(line, `a plain key may not hold a space, \`$\` or \`.\`; quote it: ${quote(split[0])}`);
+  return split;
+}
+
+/** The Python grammar `^([^\s:[\]{}#][^:#]*?):(?:\s+(.*))?$` in one linear scan: the key runs to
+ * the first `:`, holds no `#`, and the `:` ends the line or is followed by whitespace and a rest
+ * with no line terminator after its leading whitespace. */
+function plainKey(content) {
+  if (content === "" || /[\s:[\]{}#]/.test(content[0])) return null;
+  const colon = content.indexOf(":");
+  if (colon === -1 || content.slice(0, colon).includes("#")) return null;
+  const key = content.slice(0, colon).trim();
+  const after = content.slice(colon + 1);
+  if (after === "") return [key, ""];
+  if (!/^\s/.test(after)) return null;
+  const rest = after.trimStart();
+  if (/[\n\r\u2028\u2029]/.test(rest)) return null;
+  return [key, rest.trim()];
+}
+
+class Parser {
+  constructor(text, source = false) {
+    this.source = source;
+    this.lines = []; // [indent, lineNumber, content]
+    text
+      .replace(/^﻿/, "")
+      .split(/\r\n|\r|\n/)
+      .forEach((raw, i) => {
+        const number = i + 1;
+        if (raw.startsWith("---") || raw.startsWith("...")) throw new YamlSubsetError(number, "document markers are outside the subset");
+        const stripped = stripComment(raw);
+        if (!stripped.trim()) return;
+        const indent = stripped.length - stripped.replace(/^ +/, "").length;
+        if (stripped[indent] === "\t") throw new YamlSubsetError(number, "tab indentation is outside the subset");
+        this.lines.push([indent, number, stripped.slice(indent)]);
+      });
+    this.pos = 0;
+    this.depth = 0;
+  }
+
+  parse() {
+    if (!this.lines.length) return null;
+    if (this.source && isItem(this.lines[0][2])) throw new YamlSubsetError(this.lines[0][1], "a root sequence is not part of the subset");
+    const value = this.block(this.lines[0][0]);
+    if (this.pos < this.lines.length) {
+      const [indent, number, content] = this.lines[this.pos];
+      throw new YamlSubsetError(number, `unexpected content at indent ${indent}: ${quote(content)}`);
+    }
+    return value;
+  }
+
+  block(indent) {
+    const [, number, content] = this.lines[this.pos];
+    if (isItem(content)) return this.sequence(indent);
+    if (splitKey(content, number, this.source) === null) throw new YamlSubsetError(number, `expected a mapping entry or sequence item, got ${quote(content)}`);
+    return this.mapping(indent);
+  }
+
+  /** The block mapping at `indent`, its entries put into `result` (a sequence item's dash-line entry
+   * arrives already in it, so a duplicate is reported on its own line). */
+  mapping(indent, result = this.map()) {
+    while (this.pos < this.lines.length) {
+      const [lineIndent, number, content] = this.lines[this.pos];
+      if (lineIndent < indent) break;
+      if (lineIndent > indent) throw new YamlSubsetError(number, `unexpected indent ${lineIndent} (expected ${indent})`);
+      const split = splitKey(content, number, this.source);
+      if (split === null) throw new YamlSubsetError(number, `expected a mapping entry, got ${quote(content)}`);
+      const [key, rest] = split;
+      if (result instanceof Map ? result.has(key) : Object.hasOwn(result, key)) throw new YamlSubsetError(number, `duplicate key ${quote(key)}`);
+      this.pos++;
+      this.set(result, key, rest === "" ? this.nested(indent) : scalar(rest, number, this.source));
+    }
+    return result;
+  }
+
+  nested(parentIndent) {
+    if (this.pos < this.lines.length) {
+      const [childIndent, number, content] = this.lines[this.pos];
+      if (childIndent < parentIndent || (childIndent === parentIndent && !isItem(content))) return null;
+      if (this.depth === MAX_DEPTH) throw new YamlSubsetError(number, `nesting deeper than ${MAX_DEPTH} levels is outside the subset`);
+      this.depth++;
+      try {
+        // A sequence may sit at the parent's indent (`key:` then `- item`).
+        return childIndent > parentIndent ? this.block(childIndent) : this.sequence(childIndent);
+      } finally {
+        this.depth--;
+      }
+    }
+    return null;
+  }
+
+  sequence(indent) {
+    const result = [];
+    while (this.pos < this.lines.length) {
+      const [lineIndent, number, content] = this.lines[this.pos];
+      if (lineIndent < indent || !isItem(content)) break;
+      if (lineIndent > indent) throw new YamlSubsetError(number, `unexpected indent ${lineIndent} (expected ${indent})`);
+      const item = content.slice(1).trim();
+      if (this.source && isItem(item)) throw new YamlSubsetError(number, "a sequence nested on one line is not part of the subset");
+      this.pos++;
+      if (item === "") {
+        // Only a deeper line belongs to an empty item; a `- ` line at this indent is its sibling.
+        const next = this.lines[this.pos];
+        result.push(next && next[0] > indent ? this.nested(indent) : null);
+        continue;
+      }
+      // An item opening a quote it never closes is a quoted scalar, which scalar() reads or rejects.
+      const split = (item[0] === "'" || item[0] === '"') && closingQuote(item) === -1 ? null : splitKey(item, number, this.source);
+      if (split === null) {
+        result.push(scalar(item, number, this.source));
+        continue;
+      }
+      // A mapping whose first entry sits on the dash line; the rest of its entries are indented
+      // to the item column.
+      const itemIndent = indent + 2;
+      const [key, rest] = split;
+      const mapping = this.set(this.map(), key, rest === "" ? this.nested(itemIndent) : scalar(rest, number, this.source));
+      if (this.pos < this.lines.length && this.lines[this.pos][0] === itemIndent) this.mapping(itemIndent, mapping);
+      result.push(mapping);
+    }
+    return result;
+  }
+
+  map() {
+    return this.source ? new Map() : {};
+  }
+
+  set(mapping, key, value) {
+    return mapping instanceof Map ? mapping.set(key, value) : put(mapping, key, value);
+  }
+}
+
+/** Parse a document written in the subset; throw YamlSubsetError otherwise. */
+export const parse = (text, { source = false } = {}) => new Parser(text, source).parse();

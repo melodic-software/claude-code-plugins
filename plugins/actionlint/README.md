@@ -59,7 +59,7 @@ marketplace repository.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the plugin registers no `PostToolUse` or `PostToolBatch` row, so an edit or a batch of tool calls
 costs nothing. The Stop row fires on every turn end; with `actionlint_end_of_turn` off (its
 default) the launcher's `--require-true` gate closes before bash starts, so it costs one `node`
@@ -136,7 +136,7 @@ Three supported routes:
    {"actionlint_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

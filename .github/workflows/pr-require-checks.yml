@@ -107,8 +107,8 @@ concurrency:
     || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id)) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' || github.run_attempt != 1 }}
 
-# Quality lanes run the ci-workflows composite actions (referenced by SHA,
-# bumped via Dependabot — never copied) against this repo's exact standards
+# Quality lanes run the ci-workflows composite actions (at `@main`, never
+# copied) against this repo's exact standards
 # materializations. Tool configs live at their tool-native root paths;
 # check-comment-markers' default policy is bundled with its action. The `ci-status`
 # gateway aggregates every lane into the single required check the org ci-gate
@@ -180,6 +180,7 @@ concurrency:
 # read as npm's global config by every npm call here, run-tests.sh's included.
 env:
   npm_config_audit: "false"
+  npm_config_fetch_timeout: "60000"
   npm_config_fund: "false"
   npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
 jobs:
@@ -456,7 +457,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           filters: |
             shell:
@@ -475,6 +476,7 @@ jobs:
               **/*.bash
               plugins/docs-naming/skills/generate-file-name-gate/**
               .claude/docs-naming.json
+              docs/conventions/docs-naming.yaml
             python:
               .github/**
               scripts/**
@@ -974,7 +976,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -991,7 +993,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/typos@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -1015,7 +1017,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -1030,7 +1032,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: lychee.toml
           exclude: >-
@@ -1040,7 +1042,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .editorconfig-checker.json
 
@@ -1054,13 +1056,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -1068,7 +1070,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -1080,12 +1082,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1118,12 +1120,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1232,6 +1234,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json') }}
       - name: Install pinned runner-policy dependencies
+        timeout-minutes: 4
         if: needs.select-tests.outputs.run_workflows == 'true'
         run: npm ci --prefix .github/standards/runner-policy
       - name: Save the npm cache
@@ -1246,10 +1249,6 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
-          # The surface-diff auto-approval fetches commit trees from api.github.com
-          # (runner-policy.mjs fetchCommitTree); authenticated, it skips the shared
-          # anonymous rate limit. The job token is read-only (`contents: read`).
-          GITHUB_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
@@ -1588,7 +1587,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -2210,9 +2209,12 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
       - name: Install the locked root toolchain
+        timeout-minutes: 2
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
-          npm ci
+          # --loglevel http logs each registry request, so a stalled install
+          # shows which request stalls.
+          npm ci --loglevel http
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
@@ -2489,7 +2491,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2725,7 +2727,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2811,6 +2813,7 @@ jobs:
       # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
       # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
+        timeout-minutes: 5
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
@@ -2998,6 +3001,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
+        timeout-minutes: 4
         id: toolchains
         env:
           PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
@@ -3114,6 +3118,7 @@ jobs:
       # but cannot install or serve MCP is caught here, not on a consumer's
       # machine.
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm ci
@@ -3159,6 +3164,7 @@ jobs:
       # installs (install-links via the package's .npmrc), so manifest/lockfile
       # drift breaks `npm ci` only on a clean install.
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
@@ -3177,6 +3183,7 @@ jobs:
       # that decides which URLs the briefing validator is allowed to
       # dereference (#1488).
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
@@ -3191,6 +3198,7 @@ jobs:
       # pulled in as file: dependencies via the package's .npmrc
       # install-links=true (#1507).
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
@@ -3212,6 +3220,7 @@ jobs:
       # workflow commands stopped: a green run raises no failure annotations.
       # Pinned by scripts/ci-test-node-stop-commands.test.sh.
       - name: Test resolve-config
+        timeout-minutes: 4
         run: |
           [[ " $PACKAGES " == *" .github/actions/resolve-config "* ]] || exit 0
           npm ci --ignore-scripts --prefix .github/actions/resolve-config
@@ -3276,7 +3285,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3981,7 +3990,7 @@ jobs:
           # the lane-scope step writes.
           { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -4223,6 +4232,8 @@ jobs:
             /.github/scripts/work-resolve-issue/retry-fetch.mjs
             /.github/scripts/work-resolve-issue/stop-routes.mjs
             /.github/scripts/work-resolve-issue/stop-routes.json
+            /.github/scripts/lib/done-evidence.mjs
+            /.github/scripts/lib/stop-reason.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
@@ -4639,6 +4650,15 @@ jobs:
             exit 1
           }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
+          # The base module's OUTSIDE_ACTOR_LABEL, a hold of its own; a base
+          # that exports none names no such hold.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          outside=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { OUTSIDE_ACTOR_LABEL } = await import(pathToFileURL(process.argv[2]).href);
+            console.log(typeof OUTSIDE_ACTOR_LABEL === "string" ? OUTSIDE_ACTOR_LABEL : "");' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || {
+            echo "::error::cannot read the outside-actor label from merge-holds.mjs at $BASE_SHA"
+            exit 1
+          }
           for attempt in 1 2 3; do
             if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
               break
@@ -4648,6 +4668,10 @@ jobs:
           done
           if ! grep -qxF -- "$human_gated" <<<"$labels"; then
             echo "held=false" >>"$GITHUB_OUTPUT"
+            if [ -n "$outside" ] && grep -qxF -- "$outside" <<<"$labels"; then
+              echo "::error::#$PR_NUMBER carries '$outside': someone outside the organization wrote on it, and only a person removes the label."
+              exit 1
+            fi
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
@@ -6001,7 +6025,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

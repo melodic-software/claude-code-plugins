@@ -111,7 +111,7 @@ flows. Neither emits mermaid C4.
 `landscape_dialect` keeps its mermaid default: it predates this decision, and the convention gives
 a landscape no key. The mermaid-C4 experimental fact and its recheck trigger live in the
 authoring-formats convention
-([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
+([Why mermaid is not offered for the system key](../../../docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. That trigger fires when the experimental banner
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
 key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output

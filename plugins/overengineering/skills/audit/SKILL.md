@@ -138,7 +138,7 @@ Documentation, headers and rationale text are claims to verify, never evidence; 
 marked unverified.
 
 An existing check is held to the enforcement ladder's guardrail criterion: read
-[the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/enforcement-ladder/README.md#guardrail-criterion)
+[the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md#guardrail-criterion)
 live. **As of**: 2026-10-21. **Recheck trigger**: the ladder's major version changes.
 
 Protected items are audited in full: §7 caps the recommendation, not the scrutiny, and uncertain

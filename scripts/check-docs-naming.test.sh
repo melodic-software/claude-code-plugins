@@ -173,7 +173,7 @@ fi
 
 # 11. No drift from the docs-naming template this gate was generalized into.
 #     The emitter renders the template with THIS repository's
-#     .claude/docs-naming.json, both gates run over one seeded tree, and their
+#     docs/conventions/docs-naming.yaml, both gates run over one seeded tree, and their
 #     exit codes, stdout, and stderr must agree. The comparison is behavioral,
 #     not textual: the two differ by construction in the script's name and
 #     path, in the rule's display name (`lower-kebab-case` here, the config's
@@ -203,7 +203,18 @@ exempt_name_seeds() {
     script_exempt_names "$1"
   } | sort -u | awk 'NF {print "docs/x/" $0; print "plugins/x/" $0}'
 }
-REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
+# This repository's settings live in docs/conventions/docs-naming.yaml; the
+# emitter takes a JSON document, so the YAML is converted once into a fixture dir.
+# shellcheck source=../plugins/docs-naming/lib/layer-yaml.sh
+. "$SCRIPT_DIR/../plugins/docs-naming/lib/layer-yaml.sh"
+REPO_YAML="$SCRIPT_DIR/../docs/conventions/docs-naming.yaml"
+fixture_tree::build CONFIG_DIR --no-lib --label docs-naming-config
+# The builder assigns CONFIG_DIR through a nameref, which shellcheck cannot follow.
+# shellcheck disable=SC2154
+REPO_CONFIG="$CONFIG_DIR/docs-naming.json"
+if command -v jq >/dev/null 2>&1; then
+  layer_yaml_to_json "$REPO_YAML" >"$REPO_CONFIG"
+fi
 EMITTED_RULE=""
 EMITTED_ROOTS=""
 DRIFT_REPORT=""
@@ -265,6 +276,17 @@ drift_ready=1
 if ! command -v jq >/dev/null 2>&1; then
   drift_ready=""
   fail "template drift: jq is required to emit the template gate, so the drift cases cannot run"
+fi
+
+# 11-pre. The YAML carries every value of the JSON file it replaces. The JSON stays
+#     until the cleanup slice deletes it, and until then the two may not diverge.
+OLD_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
+if [[ -n "$drift_ready" && -f "$OLD_CONFIG" ]]; then
+  if [[ "$(jq -S -c '.file_names' "$REPO_CONFIG")" == "$(jq -S -c '.file_names' "$OLD_CONFIG")" ]]; then
+    ok "docs/conventions/docs-naming.yaml carries every value of the pre-YAML JSON file"
+  else
+    fail "docs/conventions/docs-naming.yaml differs from the pre-YAML JSON file: $(diff <(jq -S '.file_names' "$REPO_CONFIG") <(jq -S '.file_names' "$OLD_CONFIG") | head -n 20)"
+  fi
 fi
 
 exempt_seeds=()

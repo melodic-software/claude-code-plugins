@@ -364,31 +364,10 @@ jobs:
             # job's.
             # A dispatched red files nothing, and the report job skips it,
             # once a newer full run on this repository's main has passed: main
-            # already recovered. newer_green prints that run as <id>\t<sha>,
-            # or nothing when there is none. Only a run whose head descends
-            # from the red SHA and is on main's history counts (a ref named
-            # main, a tag included, can sit anywhere): compare red...newer and
-            # newer...<main's tip, read by heads/main> must each read ahead or
-            # identical, and any other status or a failed read prints nothing.
+            # already recovered (newer-green.bash says which run counts).
+            . .base/.github/scripts/post-merge-demotion-alert/newer-green.bash
             newer_green() {
-              local found newer_id newer_sha ancestry main_tip on_main
-              found="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
-                --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
-                  and (.event | IN("schedule", "workflow_dispatch"))
-                  and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
-                  and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
-                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || return 1
-              [[ -n "$found" ]] || return 0
-              IFS=$'\t' read -r newer_id newer_sha <<<"$found"
-              [[ "$newer_id" =~ ^[0-9]+$ && "$newer_sha" =~ ^[0-9a-f]{40}$ ]] || return 0
-              ancestry="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$newer_sha" --jq '.status')" || return 0
-              [[ "$ancestry" == ahead || "$ancestry" == identical ]] || return 0
-              main_tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" || return 0
-              [[ "$main_tip" =~ ^[0-9a-f]{40}$ ]] || return 0
-              on_main="$(gh api "repos/$GITHUB_REPOSITORY/compare/$newer_sha...$main_tip" --jq '.status')" || return 0
-              if [[ "$on_main" == ahead || "$on_main" == identical ]]; then
-                printf '%s\n' "$found"
-              fi
+              newer_green_of "$GITHUB_REPOSITORY" "$RUN_WORKFLOW_ID" "$RUN_ID" "$RUN_CREATED" "$RUN_SHA"
             }
             main_recovered() {
               local newer_id newer_sha
@@ -926,6 +905,9 @@ jobs:
       group: red-main-report
       cancel-in-progress: false
     env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -959,6 +941,7 @@ jobs:
       # report.mjs reads the red-main leaf through the base's resolve-config,
       # which needs its dependencies.
       - name: Install resolve-config's dependencies
+        timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 

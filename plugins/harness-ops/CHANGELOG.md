@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.19.1] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [4.19.0] - 2026-10-30
+
+### Added
+
+- `plugins` skill: `scripts/reset-refresh.sh`, an operator-run script for the user-scope plugin fleet. `preview` prints what `refresh` would move aside. `refresh` moves the marketplace clones and `cache/` into a run directory and re-fetches them through `claude plugin marketplace update` and `claude plugin install --scope user`. It exits non-zero when marketplaces, user installs or user `enabledPlugins` differ from their pre-run snapshots. It refuses to run under `CLAUDE_CODE_REMOTE` or while a `claude` process is running.
+
 ## [4.18.1] - 2026-10-30
 
 ### Fixed

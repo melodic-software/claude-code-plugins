@@ -76,7 +76,7 @@ another skill can run it. Bare invocation and `--json` write no findings file.
   its rule ids, and the missing part); `Location` is the repo-relative `file:line`. `Tier`
   (`IMPORTANT`), `Confidence` (`high`) and the fact that neither rule is auto-applicable come from
   the two rules' rows in the detector-findings convention
-  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>,
+  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>,
   "The severity crosswalk"), never from the finding. The `Action` names where this tool keeps its
   reason, and asks for a rule id only where the tool can name one and the line names none.
 - **Coverage.** `## Surfaces` names the scope and how many suppressions were examined, and counts
@@ -158,7 +158,7 @@ The marker catalog follows each tool's own directive syntax, read from these pag
 ## What this skill does not do
 
 - It does not remove, rewrite or approve a suppression, and it runs no linter.
-- It is not the finding-suppression record in `docs/conventions/finding-suppression/`, which holds
+- It is not the finding-suppression record in `docs/contracts/finding-suppression/`, which holds
   review findings a team chose to dismiss; this skill reads source comments and attributes.
 - It does not judge: no count here is a bar. `/code-metrics:principles` explains what each number
   in this plugin can and cannot tell you.

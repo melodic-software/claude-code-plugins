@@ -58,9 +58,11 @@ export const HANDED = "handed";
 const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?|handed) -->/;
 // work-unblock's comment when it hands an issue back to triage after its lane
 // PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
-// and the issue lane's when a stop's intake route sends it back
-// (report-outcome.mjs, outcome=intake).
-const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-resolve-issue outcome=intake[ >])/;
+// the issue lane's when a stop's intake route sends it back
+// (report-outcome.mjs, outcome=intake), and admission's when a blocker's
+// report-delivered close sends it back (admit.mjs retriageNote). Admission
+// edits its comment in place, so a hand-back counts from its last edit.
+const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-resolve-issue outcome=intake[ >]|<!-- intake-triage admission -->\n<!-- intake-triage retriage -->)/;
 // The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
@@ -96,7 +98,7 @@ export function readState(comments, appId = null) {
   const handBack = Math.max(
     ...comments
       .filter((c) => appId !== null && String(c.user?.id) === String(appId) && HAND_BACK.test(String(c.body ?? "")))
-      .map((c) => Date.parse(c.created_at))
+      .map((c) => Date.parse(c.updated_at ?? c.created_at))
       .filter(Number.isFinite),
   );
   for (const c of comments) {
@@ -187,7 +189,7 @@ export function handedInComments(comments, appId = null) {
       c.author?.__typename === "Bot" &&
       String(c.author.databaseId) === String(appId) &&
       HAND_BACK.test(String(c.body ?? "")) &&
-      !(Date.parse(c.createdAt) <= at),
+      !(Date.parse(c.updatedAt ?? c.createdAt) <= at),
   );
 }
 

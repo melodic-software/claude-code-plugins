@@ -111,7 +111,7 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
 - **Claim.** The rule-id and rule-family sections restate rule ids another document owns: the
   qualified ids the six producers emit today, and the one id form allowed.
 - **Basis.** The detector-findings contract, read at
-  <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>,
+  <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>,
   cross-checked against each producer's own emitter script for the ids it constructs at run time.
   The `attribution:audit` producer holds crosswalk rows in that contract without an adopters-table
   row, which is why its ids appear here and its adoption status does not.

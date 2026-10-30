@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-contained tests for render-landscape.sh (skill-script shape, per
-# docs/conventions/shell-test-helpers/README.md: per-plugin assertion
+# docs/contracts/shell-test-helpers/README.md: per-plugin assertion
 # primitives are duplicated on purpose, never shared across plugins).
 #
 # The fixture record is written here rather than collected, so the renderer is

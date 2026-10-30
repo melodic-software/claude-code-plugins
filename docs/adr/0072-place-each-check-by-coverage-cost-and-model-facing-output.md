@@ -116,3 +116,8 @@ run, local-to-shared migration, which install command to run, and acting on drif
 
 Recheck when a Claude Code release changes `PostToolBatch`, the "hook modified <file>" note, `if`
 matching, or hook `ask` handling in auto mode.
+
+Recheck the rubric's rule 4 (report-only findings never reach the model per edit;
+[check-placement](../contracts/check-placement/README.md#the-rubric)) when sessions move off Sonnet
+5.5: its evidence is the Sonnet 5.5 probes in Context and the typos-format pilot, which also ran on
+Sonnet ([2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080)).

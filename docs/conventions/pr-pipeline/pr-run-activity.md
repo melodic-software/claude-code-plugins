@@ -98,7 +98,7 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 [Patch output mode](#patch-output-mode), and `reply-attempt`, the attempt in the name of the
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran; the last four are the
 [scan job](#the-scan-job)'s in both modes. In issue mode it also outputs `scan-base-sha`,
-`scan-resume-tip`, `scan-issue-run-started`, `scan-reuse-branch` and `scan-resume-branch`, the run
+`scan-resume-tip`, `scan-issue-run-started`, `scan-reuse-branch`, `scan-resume-branch` and `scan-prune-branches`, the run
 job's pre-model fields as the [issue-fields job](#the-issue-fields-job) checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
@@ -1635,14 +1635,18 @@ report gate. It checks the run job's pre-model issue fields from `env`, each in 
 1. `issue-run-started` is `true` or `false`, and is the job's output whatever follows. A reuse or
    resume branch has the issue's lane-branch shape, and `base-sha` and `resume-tip` are commit ids.
    The combination is one the run job's steps make: a reuse branch comes with `false` and no
-   resume; a resume branch comes with its tip and `true`; a started run has a base.
+   resume; a resume branch comes with its tip and `true`; a started run has a base. The
+   space-separated `prune-branches` holds at most 20 distinct lane branches of the issue, none of
+   them the reuse or resume branch.
 2. A branch claim is re-derived: `report-outcome.mjs --find-prior`, from the default branch tip
    with this job's read-only token, must choose the same reuse branch, resume branch and tip, so the
    branch also meets that check's rules (its commits the lanes App's, not handed back). The run job
    chose before the model ran, so the re-derivation sets `FIND_PRIOR_KEEP_BEHIND`: a resume branch
-   the default branch has moved past since then still resumes.
+   the default branch has moved past since then still resumes. A non-empty `prune-branches` is
+   re-derived the same way, and only the branches the re-derived check also names are published;
+   a failed re-derive publishes none.
 3. Only then does it set `checked` and the read file's `scan-base-sha`, `scan-resume-tip`,
-   `scan-reuse-branch` and `scan-resume-branch` outputs, and the start commit (the resume tip, else
+   `scan-reuse-branch`, `scan-resume-branch` and `scan-prune-branches` outputs, and the start commit (the resume tip, else
    the base) the scan job applies the patch to. A refusal leaves them empty: the scan job then
    publishes nothing, and the report job, with `scan-issue-run-started` `true`, reads no outcome
    and stops the run.
@@ -2060,7 +2064,8 @@ which needs `admit` and `pick-slot` only, runs `report-outcome` in the write fil
 `dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
 issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
 and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
-files its sub-issues (owner Q93). When the admit job stops the run because the issue's author is
+files its sub-issues (owner Q93), or says on the issue why it cannot; a sub-issue that split filed
+runs at `split-child-size` instead ([Models](README.md#models)). When the admit job stops the run because the issue's author is
 neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
 it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
 that a listed human re-files the work as a new issue. What changes from the PR flow:
@@ -2119,7 +2124,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   comes out as `stale-branch` and `stale-tip` (the tip it read), with `stale-noted` true when a
   lanes App comment already opens with `<!-- work-resolve-issue stale-branch=<branch> -->`; the
   runner's `lane.json` carries it as `stale` only while unnoted, and report-outcome then posts that
-  comment naming it, once per branch, so a person can find and delete it (no lane deletes it):
+  comment naming it, once per branch; the next run on the issue deletes it (below):
   `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
   out that tip, so its patch is made there instead of on the default branch tip. Any failed
@@ -2203,10 +2208,25 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
   A security mention always reaches the owner: a reason with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
-  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key,
-  `backdoor`, `exploit` or branch protection, in any case and even inside a word; `XSS`, `RCE` or
-  `CVE` as a whole word; or an ignore-instructions phrase)
-  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route.
+  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
+  SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
+  in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
+  stranger or an outsider as a whole word; or an ignore-instructions phrase)
+  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route. After
+  an ending code, every one of those words but the secret nouns (credential, secret, token,
+  password, API key) always holds. A secret noun holds unless it sits in a needs-a-credential
+  capability phrasing ("a host with model credentials", "needs an API key the lane does not
+  hold", "tokens per task") with at most a model or deploy qualifier, and the noun ends the
+  clause (end of text, `.`, `;` or `)`) or is followed by "the lane", "this lane", "only" or `to`
+  and a run verb ("to run"). Even then the rest of the reason, with those phrasings removed, may
+  hold only words from a fixed list of capability words (lane, host, desktop, run, needs, invoke,
+  spend, credit, eval, model, task and plain function words; "this" and "that" only before "lane"
+  or "needs"). Any other word holds, so an exposure in any wording, in any sentence, holds
+  ("uploaded to the issue", "the key was posted", a pronoun such as "it" or "them"), and so does
+  a capability reason that names output, a log, a summary or an artifact: a false hold over a
+  false release. So "a host with model credentials to run the evals" takes its code's route,
+  while "needs the token to be rotated", "needs the API key, which was shared" and "needs the
+  reused token" hold.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
   `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
   carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
@@ -2289,6 +2309,18 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
   routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
   fails the job and opens no PR.
+- A stopped run's leftover branch is deleted on the issue's next run (owner decision on #7948).
+  With the model running or a branch reused, `issue-prior` names, as `prune-branches`, every lane
+  branch of the issue whose run posted a lanes-App outcome marker, whose commits ahead of the
+  default branch are all the lanes App's, and that has no pull request in any state, sparing the
+  branch it reuses, resumes or starts fresh past and every branch of this run; at most 20, from
+  the reads it already made. `work-resolve-issue.yml`'s `prune-lane-branches` job, the lane's only
+  `contents: write` (with `pull-requests: read`, on its own `GITHUB_TOKEN`), runs
+  `prune-branches.mjs` from the default branch tip: it drops any name that is not this issue's
+  lane branch, is this run's own, or is the reuse or resume branch, reads every remaining branch in
+  one GraphQL request, and deletes only one with no pull request from it and no open one into it, one `updateRefs` per branch whose
+  `beforeOid` is the tip it read. A failed read deletes nothing, a refused delete is logged, and
+  neither fails the run. The log line of each delete gives the tip to restore it from.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

@@ -90,6 +90,28 @@ or the lanes App); any other issue waits in `needs-triage` for a person, so an o
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
 claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
+Anyone outside the organization who writes on an issue or pull request is flagged for a person by
+[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
+or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
+comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
+removed from an issue or pull request. A flag job starts only when the sender is not a Bot (an App
+installed here), or the event is on a pull request whose head is a fork (an App on the fork can act
+there), and either the content's author is neither `OWNER` nor `MEMBER` or the event is an edit,
+push or reopen by someone other than the author, which judges the sender. The run then trusts the
+actor only by numeric id on the default branch's trusted-actor list, and an unreadable list flags.
+An outside actor's item always gets `security: outside-actor` and `needs-human` written, and one
+comment per actor names the login, without a mention, and the event, quoting none of their text.
+`security: outside-actor` is a hold of its own (`merge-holds.mjs` `OUTSIDE_ACTOR_LABEL`): the merge
+queue, auto-merge arming, the babysit merge gate, ci-status, intake triage, the work-unblock sweep
+and every pull request activity (its `labels-absent`, which the write runner holds too) skip it,
+and `clear-escalations.mjs` keeps `needs-human` on an item carrying it. Only a person on the
+trusted list removes it: when anyone else removes it (any letter case of the name), the run puts
+both labels back and posts one comment naming the remover, without a mention. The job holds the
+job's own `GITHUB_TOKEN` (`contents: read`, `issues: write`, `pull-requests: write`). A review or
+diff comment on a fork pull request gets a read-only token and is not flagged; the fork pull
+request itself is flagged when it opens.
+
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
 Converting a PR back to draft
@@ -1102,10 +1124,29 @@ the rules that only tighten in
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
   token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
-  git would call binary is shown as text, and a patch that still holds a binary file or is over
-  300000 bytes gets no verdict. The diff is split into parts one Read returns whole (15000 bytes
-  and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when the
-  run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
+  git would call binary is shown as text, and a patch that still holds a binary file gets no
+  verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
+  boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
+  order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
+  any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single file
+  over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
+  until a dynamic chunk count lifts it
+  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
+  diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
+  chunk and status (added, modified, deleted, or renamed with both paths), up to what one Read
+  returns whole (`PART_BYTES`). Each chunked prompt names that file, tells the reviewer to read
+  it as untrusted data, and asks for a finding naming both paths when a change references a file
+  another chunk holds; the paths, which the pull request's author chose, never enter the prompt,
+  and a one-chunk prompt is unchanged. The diff step logs a `pr-review-main chunks` notice with
+  the chunk count, each chunk's bytes and `manifest_paths`, the files the manifest names, and the
+  verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
+  CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
+  bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
+  every chunk's run succeeded and read each of its parts whole, with no offset or limit
+  (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
+  leg, which reviews every chunk again. A diff
   line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
   the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
   `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
@@ -1126,12 +1167,13 @@ the rules that only tighten in
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled
   `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head. A designed stop (a
-  binary file, a patch over the size cap or a line over 1800 bytes) leaves the leg green with no
+  binary file, a patch over the chunk cap or a line over 1800 bytes) leaves the leg green with no
   verdict, and the record job posts it on the head as the same check run titled
-  `verdict=none reason=<too-large|binary|long-line>`, so each stop is a countable record; it
-  posts nothing else. A stop counts no CRITICAL finding and never binds a lane: with no verdict
-  the lanes stay unbound as `main-review-stop:<reason>`, a lane's reason. A forged stop only
-  renames that reason.
+  `verdict=none reason=<too-large|binary|long-line|chunk-failed>`, so each stop is a countable
+  record; it posts nothing else. `chunk-failed` is a chunked review one of whose chunks failed,
+  left no result or skipped a part: no chunk's counts bind, and that leg still fails. A stop
+  counts no CRITICAL finding and never binds a lane: with no verdict the lanes stay unbound as
+  `main-review-stop:<reason>`, a lane's reason. A forged stop only renames that reason.
   The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
   file, event `workflow_run`, on the default branch of this repository with a head the branch
   holds, and the verdict names that lane, pull request and tree. As with pr-verify's FAIL, a
@@ -2824,7 +2866,10 @@ events) is neither a listed human on the trusted-actor list nor the lanes App, r
 those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
-its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
+its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
+text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
+sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
+as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
 timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
 (`<size>/<complexity>/<uncertainty>`) and `timeout-minutes`;
@@ -2836,7 +2881,24 @@ timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for 
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
 complexity with no entry keeps the route's profile. The config
-reader rejects a key that is not a complexity and a value that is not a profile.
+reader rejects a key that is not a complexity and a value that is not a profile, and a
+`split-child-size` that names no size that runs.
+
+Intake splits an issue admission parks as Size Large into native sub-issues before any run
+(owner Q93; `.github/scripts/intake-triage/refine.mjs`). The model returns either `parts`, groups
+of the issue's trusted task-list line numbers, or, when each line repeats over named targets,
+`groups` of target names it copies verbatim from those lines (a target-subset split). A
+target-subset sub-issue holds every trusted line and one last `Scope:` line naming its targets,
+under a header that says so; it counts as its parent's text only when every target is verbatim
+text of a trusted parent line. `size-split` in `.github/actions/resolve-config/admission-rules.json`
+holds `on-decline` (`subset` allows the target-subset split, `park` does not) and `max-parts`. An
+issue with fewer than 2 trusted task-list lines gets the thin refinement first and splits on its
+lines at the next triage. A split that cannot be made leaves the issue parked at `status: ready`
+with no hold label, and the lanes App posts one comment naming the reason, once per reason and
+body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
+(a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
+refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
+`no-type` (an Issue Type admission does not take).
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
@@ -3361,6 +3423,10 @@ runs daily and sorts every branch; its rules and tests are in
    with the tip moved and 0 commits ahead of the default branch, and every linked issue closed;
    or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
    on the issue does not keep the branch once the issue is closed.
+
+While the issue is open, its next lane run deletes a stopped run's lane branch that has no pull
+request in any state (owner decision on #7948,
+[`pr-run-activity.md`](pr-run-activity.md#issue-mode)); this daily rule is unchanged.
 
 Two jobs run it. The plan job, whose token writes nothing (`contents`, `issues` and
 `pull-requests` read), sorts the branches, prints how many it will delete, and hands at most

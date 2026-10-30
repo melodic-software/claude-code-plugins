@@ -3,7 +3,7 @@
 disk-hygiene's wired hooks invoke Python directly (not bash wrappers), so this
 module is the fleet's native Python telemetry path — a deliberate parallel to
 ``lib/hook-utils.sh`` ``hook::emit_telemetry``, not a subprocess wrapper around
-it. Contract: ``docs/conventions/hook-telemetry/README.md``.
+it. Contract: ``docs/contracts/hook-telemetry/README.md``.
 """
 
 from __future__ import annotations

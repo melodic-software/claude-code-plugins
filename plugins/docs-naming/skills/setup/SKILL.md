@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal overlay is ignored; `apply` writes the tracked `.claude/docs-naming.json` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
+description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal overlay is ignored; `apply` writes the tracked `docs/conventions/docs-naming.yaml` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
 argument-hint: "[check|apply] [--defaults] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,10 +10,16 @@ shell: bash
 ## Purpose
 
 Every value the file-name skills act on comes from one consumer surface,
-`.claude/docs-naming.json`, layered as user-global (`~/.claude/docs-naming.json`),
-team (tracked), and personal overlay (`.claude/docs-naming.local.json`). All
-three absent is a valid state: every key has a bundled default, and the defaults
-are this marketplace's own values, except `generated`, which is empty.
+layered as user-global (`docs-naming.json` under `~/.claude/`), team
+(`docs/conventions/docs-naming.yaml`, tracked, validated by
+`${CLAUDE_PLUGIN_ROOT}/schemas/docs-naming.schema.json`), and personal overlay
+(`docs/conventions/docs-naming.local.yaml`). The convention home is
+`docs/conventions` unless the repository's `AGENTS.md` or `CLAUDE.md` binds
+another. All three absent is a valid state: every key has a bundled default, and
+the defaults are this marketplace's own values, except `generated`, which is empty.
+For one release a team or
+overlay layer whose YAML is absent is still read from the JSON file under
+`.claude/` it used to live in; `check` flags it and `apply` moves it.
 
 This skill is the check-centric setup for that surface: `check` inspects and
 verifies, `apply` persists, and neither installs anything. Keys, defaults, layer
@@ -39,10 +45,10 @@ Rows, each PASS, FAIL, WARN, or INFO:
 1. **jq**, **git**: the prerequisites. A missing `jq` is FAIL and stops the
    table, because every skill in this plugin reads the concern file with it.
 2. **layer user-global / team / overlay**: absent (INFO), or present with its
-   path, or WARN when the file still carries the retired `docs-hygiene` name
-   (it is read, and the row names it). A present file that does not parse, or
-   that declares an unknown schema, surfaces at the **resolve** row with the file
-   named.
+   path, or WARN when the file is at the pre-YAML location under `.claude/` or
+   still carries the retired `docs-hygiene` name (it is read, and the row names
+   it). A present file that does not parse, or a JSON layer that declares an
+   unknown schema, surfaces at the **resolve** row with the file named.
 3. **key shape**: every key carries the type the contract declares.
 4. **rule**, **regex**, **regex quoting**: the casing rule is one this version
    implements, the regex compiles under `grep -E`, and it carries no single
@@ -56,8 +62,8 @@ Rows, each PASS, FAIL, WARN, or INFO:
    uncommitted (WARN, it has reached nobody else yet), or gitignored (FAIL, an
    ignored team layer never reaches the team).
 8. **overlay ignored**: the personal overlay is gitignored, else WARN naming the
-   recommended line `.claude/**/*.local.*`. Recommend it; never edit the
-   consumer's `.gitignore`.
+   recommended line, `<home>/*.local.*` (the row prints it). Recommend it; never
+   edit the consumer's `.gitignore`.
 9. **policy floor**: a personal layer that declared a key only the team layer
    supplies is reported here and was ignored.
 
@@ -74,11 +80,11 @@ never green.
 
 In this plugin's manifest that yields `docs-naming-r001` FAIL while
 `.claude/docs-hygiene.json` persists and `docs-naming-r002` FAIL while
-`.claude/docs-hygiene.local.json` persists. Until the files are renamed the
-resolver still reads them, with a warning, for one release. The user-global
+`.claude/docs-hygiene.local.json` persists. Until their settings move to the
+YAML the resolver still reads them, with a warning, for one release. The user-global
 `~/.claude/docs-hygiene.json` sits outside the repository and has no record; the
 layer row reports it as WARN with the same remedy: rename it to
-`~/.claude/docs-naming.json`.
+`docs-naming.json` in the same directory.
 
 ## `apply` (idempotent)
 
@@ -100,14 +106,18 @@ layer row reports it as WARN with the same remedy: rename it to
    and taken as a string when it does not, so `roots=["docs","guide"]` sets a
    list and `rule=lower-kebab` sets a scalar. The script prints
    `already configured` without touching the file when nothing changes, and
-   writes `.claude/docs-naming.json` and nothing else. It refuses, exit 2, while
-   the team layer still sits at the retired `docs-hygiene` name: rename it with
-   `git mv` first, or the new file would shadow its settings.
+   writes `docs/conventions/docs-naming.yaml` (under the repository's convention
+   home) and nothing else. When the YAML is absent and the team layer still
+   lives in the pre-YAML JSON file, the first write seeds the YAML from it, so
+   the new file never shadows those settings; a team layer still at the
+   retired `docs-hygiene` name seeds it the same way. The JSON file stays until
+   a person deletes it. A rewrite keeps the comment block at the top of the file
+   and drops comments between keys.
 4. **Clean up retired files.** After any agreed keys are written, re-run the
    retirement detection and handle each finding behind its own confirmation. A
-   retired file is renamed onto the new name when the new file does not exist
-   (`git mv` for the team layer, `mv` for the overlay), and otherwise its keys
-   are carried into the new file by adding only the ones it lacks. The old file's
+   retired file's `file_names` keys are carried into the YAML of its layer as
+   top-level keys, adding only the ones that file lacks (step 3 already seeded a
+   team YAML that did not exist). The old file's
    content is untrusted input, never executed or interpolated. When the operator
    confirms the result, run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
