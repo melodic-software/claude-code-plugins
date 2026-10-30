@@ -107,11 +107,18 @@ const modules = new Map();
 // method and what it calls on the regex, the flag getters `flags` reads
 // included, since `g` and `u` decide what is replaced.
 const REPLACE_TRUSTS = ["replace", "@@replace", "exec", "flags", "global", "unicode", "unicodeSets", "lastIndex"];
+// The scanned module supplies both the regex and the subject of a folded
+// `.replace`, so the fold runs only one that cannot backtrack for long: no
+// quantifier character anywhere in the pattern (`/(a+)+$/` stays a sink),
+// and both within these lengths.
+const FOLD_PATTERN_MAX = 32;
+const FOLD_SUBJECT_MAX = 256;
 
 // What a direct `eval` argument evaluates to when the reader can tell, as
 // {text, trusts}: a string literal, a template with no expressions, or
 // `.replace` on one with a regex literal and a string literal (protobufjs's
 // `eval("quire".replace(/^/,"re"))`), which trusts REPLACE_TRUSTS; else null.
+// A regex past the FOLD_ limits, or with a quantifier, is null too.
 function evalText(arg) {
   const text = literalString(arg);
   if (text !== null) return { text, trusts: [] };
@@ -120,6 +127,8 @@ function evalText(arg) {
   const subject = literalString(arg.callee.object);
   const by = literalString(replacement);
   if (subject === null || by === null || !pattern.regex) return null;
+  const source = pattern.regex.pattern;
+  if (source.length > FOLD_PATTERN_MAX || subject.length > FOLD_SUBJECT_MAX || /[*+?{]/.test(source)) return null;
   try {
     return { text: subject.replace(new RegExp(pattern.regex.pattern, pattern.regex.flags), by), trusts: REPLACE_TRUSTS };
   } catch {

@@ -838,6 +838,41 @@ class TestOpenFindings(unittest.TestCase):
             True, named, self.INQUIRE, 'String.prototype.replace=function(){return"x"};'
         )
 
+    def test_a_replace_whose_regex_may_backtrack_stays_partial(self) -> None:
+        """The module supplies the regex and the subject a fold runs, so a
+        pattern with a quantifier or past the length limits is not folded:
+        the `eval` stays a sink, and the helper never runs a catastrophic
+        backtrack."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            self.INQUIRE.replace("/^/", "/^r?/"),
+            'eval("' + "a" * 40 + '!".replace(/(a+)+$/,"x"));',
+            # Folds to `require` and spaces, which parses, but is too long.
+            self.INQUIRE.replace('"quire"', '"quire' + " " * 300 + '"'),
+        ):
+            with self.subTest(module=module[:80]):
+                self.assert_across_modules(True, named, module)
+
+    def test_a_parameter_load_its_callers_do_not_clear_stays_partial(
+        self,
+    ) -> None:
+        """`paramSpecsOf` names a parameter's literals only when every use
+        of the function is a direct call passing a literal there, and the
+        function is not exported. A caller passing no literal or a spread,
+        an export, or a use as a value leaves the load unknown; a literal
+        naming node:vm or a bundle file keeps the list partial too."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            self.INQUIRE.replace('inquire("buffer")', "inquire(x)"),
+            self.INQUIRE.replace('inquire("buffer")', "inquire(...a)"),
+            self.INQUIRE.replace('inquire("buffer")', 'inquire("vm")'),
+            self.INQUIRE.replace('inquire("buffer")', 'inquire("/a.js")'),
+            "export " + self.INQUIRE,
+            self.INQUIRE + "var g=inquire;",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+
     def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
         """#5970 verifier probes: a load whose file the AST does not name
         (an aliased or `.call`ed require, a comma callee, a specifier that
