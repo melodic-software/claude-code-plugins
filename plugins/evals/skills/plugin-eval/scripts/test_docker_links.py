@@ -189,15 +189,25 @@ class DockerLinksTest(unittest.TestCase):
         self.release(proc, "a")
         self.assert_restored()
 
-    def test_dangling_link_refuses_and_changes_nothing(self):
-        os.symlink(str(self.desktop / "gone"), self.store / "dangling")
-        before = self.find_links()
-        result = self.wrapped(LIST_LINKS)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("dangling", result.stderr)
-        self.assertEqual(self.find_links(), before)
-        self.assertFalse((self.home / "links-during-run").exists())
-        self.assertFalse((self.home / ".docker-link-swap.json").exists())
+    def test_dangling_link_is_removed_for_the_run_and_recreated_after(self):
+        # features.json -> a /mnt/c file that does not exist, beside a resolving link.
+        os.remove(self.desktop / "features.json")
+        result = self.wrapped(
+            LIST_LINKS + ' && test ! -e "$HOME/.docker/features.json"'
+            ' && cat "$HOME/.docker/contexts/meta/meta.json"'
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.links_during_run(), "")
+        self.assertEqual(result.stdout, '{"Name": "desktop-linux"}\n')
+        self.assert_restored()
+        self.assertFalse((self.store / "features.json").exists(), "still dangling")
+
+    def test_killed_run_with_a_dangling_link_is_recovered(self):
+        os.remove(self.desktop / "features.json")
+        self.kill_run(self.start("a"), "a")
+        self.assertFalse(os.path.lexists(self.store / "features.json"))
+        self.assertEqual(self.cli("restore").returncode, 0)
+        self.assert_restored()
 
     def test_store_root_that_is_itself_a_link_is_swapped_and_restored(self):
         # ~/.docker -> <mnt-c>/.docker, whose contexts entry is itself a link.

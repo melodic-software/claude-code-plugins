@@ -6,7 +6,8 @@
 
 The store is $HOME/.docker. `run` replaces every symbolic link the preflight's
 `find "$HOME/.docker/" -mindepth 1 -type l` would list, or the store itself when
-it is a link, with a dereferenced copy of its target, runs the command (no
+it is a link, with a dereferenced copy of its target (a dangling link is
+removed for the run and recreated after), runs the command (no
 shell), and puts the links back when it exits, fails, or the wrapper gets
 SIGINT, SIGTERM or SIGHUP, which it forwards to the command first.
 
@@ -25,8 +26,8 @@ and the link targets are only read. A path that is a link again at restore time
 read or set.
 
 Exit: `run` exits with the command's code, or 128 + the signal number; 0 for a
-done `restore`; 2 refused with nothing changed (a dangling link, no store, a
-live holder for `restore`, a failed swap rolled back); 3 a restore step failed,
+done `restore`; 2 refused with nothing changed (no store, a live holder for
+`restore`, a failed swap rolled back); 3 a restore step failed,
 the manifest is kept and names what is left.
 """
 
@@ -181,18 +182,20 @@ def acquire(me):
         say(f"refused: no store at {store}")
         return 2
     links = find_links(store)
-    dangling = [str(p) for p in links if not p.exists()]
-    if dangling:
-        say("refused: dangling link(s), nothing changed: " + ", ".join(dangling))
-        return 2
     state = {
-        "links": [{"path": str(p), "target": os.readlink(p)} for p in links],
+        "links": [
+            {"path": str(p), "target": os.readlink(p), "dangling": not p.exists()}
+            for p in links
+        ],
         "holders": [me],
     }
     save(state)
     try:
         for path in links:
-            replace_with_copy(path)
+            if path.exists():
+                replace_with_copy(path)
+            else:
+                path.unlink()
         left = find_links(store)
         if left:
             raise OSError("links remain after the swap: " + ", ".join(map(str, left)))
@@ -201,7 +204,10 @@ def acquire(me):
         restore_links(state)
         return 2
     for entry in state["links"]:
-        say(f"swapped {entry['path']} (link to {entry['target']}) for a copy")
+        done = (
+            "removed the dangling link" if entry["dangling"] else "swapped for a copy"
+        )
+        say(f"{done} {entry['path']} (link to {entry['target']})")
     return 0
 
 
