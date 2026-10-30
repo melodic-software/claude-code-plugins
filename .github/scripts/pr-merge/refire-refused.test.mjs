@@ -103,8 +103,10 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
-    if (failOn && `${method} ${path}`.startsWith(failOn)) {
-      throw new Error(`${method} ${path} failed with status 422`);
+    // `failOn` is a call prefix that answers 422, or {prefix, status}.
+    const fail = typeof failOn === "string" ? { prefix: failOn, status: 422 } : failOn;
+    if (fail && `${method} ${path}`.startsWith(fail.prefix)) {
+      throw new GitHubError(fail.status, `${method} ${path}`);
     }
     const route = path.replace(/\?.*$/, "");
     const page = Number(new URL(path, "https://x").searchParams.get("page") ?? "1");
@@ -450,12 +452,52 @@ test("a marker by anyone but the lanes App counts for nothing", async () => {
   assert.equal(pushes(w.calls).length, 1);
 });
 
-test("a failed marker comment pushes nothing to that PR and counts as its failure", async (t) => {
+test("a failed marker comment pushes nothing and fails the run", async (t) => {
   const w = refusedWorld([pr(9)], { failOn: `POST /repos/${REPO}/issues/9/comments` });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/issues/9/comments failed with status 422`), lines.join("\n"));
+});
+
+// A 409 or 422 on the new commit or the ref update is that branch moving
+// under the push; any other answer (an auth refusal, a 5xx after retries)
+// would fail every PR the same way, so it fails the run.
+test("a 409 on the commit write is a warning for each PR it hits, and the run passes", async (t) => {
+  // Every commit write answers 409 here, so neither ref moves.
+  const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `POST /repos/${REPO}/git/commits`, status: 409 } });
   const { code, lines } = await logged(t, w);
   assert.equal(code, 0);
   assert.deepEqual(pushes(w.calls), []);
-  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=0 failed=1 skipped-owned=0 deferred=0");
+  assert.equal(lines.filter((line) => line.startsWith("::warning title=refire-refused::#")).length, 2, lines.join("\n"));
+  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=0 failed=2 skipped-owned=0 deferred=0");
+});
+
+test("a 403 on the ref update fails the run at the first PR instead of warning for each", async (t) => {
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: { prefix: "PATCH ", status: 403 } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.equal(pushes(w.calls).length, 1);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 403`), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+});
+
+test("a named file with no blob SHA on main fails the run before anything is posted or pushed", async (t) => {
+  const w = refusedWorld([pr(9)], { blobs: { ...MAIN_BLOBS, [UNBLOCK]: undefined } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+  assert.ok(lines.includes(`::error title=refire-refused::${UNBLOCK} on main has no blob SHA`), lines.join("\n"));
+});
+
+test("a failed run listing for a lane fails the run and pushes nothing", async (t) => {
+  const w = refusedWorld([pr(9)], { failOn: `GET /repos/${REPO}/actions/workflows/${LANE}/runs` });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+  assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::${LANE}:`)), lines.join("\n"));
 });
 
 // Run 41065454536: one PR's ref update answered 422, and the step failed the

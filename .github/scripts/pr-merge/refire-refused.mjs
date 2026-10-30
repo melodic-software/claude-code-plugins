@@ -111,11 +111,20 @@ export const REFIRES_PER_RUN = 5;
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (what, error) =>
   console.log(`::error title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
-// A failure that concerns one run or PR warns and leaves the others to go on:
-// a branch a workflow rebuilds under it (run 41065454536, a 422 on
-// release/plugins) must not fail the merge job.
+// A failure that concerns one PR alone warns and leaves the others to go on:
+// the PR changed since the listing, or its branch moved under the push (409
+// or 422 on the commit or ref write; run 41065454536's 422 on
+// release/plugins). Any other failure would hit every PR the same way (an
+// auth refusal, a 5xx after retries), so it stops the run and fails the step.
 const reportWarning = (what, error) =>
   console.log(`::warning title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
+class PullFailure extends Error {}
+class Fatal extends Error {
+  constructor(what, error) {
+    super(`${what}: ${error?.message ?? error}`);
+  }
+}
+const branchMoved = (error) => error instanceof GitHubError && (error.status === 409 || error.status === 422);
 
 // merge.refire-skip-branches from resolve-config's output: the head refs a
 // workflow owns and rebuilds, where an empty commit would race its rebuild.
@@ -264,7 +273,7 @@ async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha
 async function headTree(github, repo, pull) {
   const current = await github("GET", `/repos/${repo}/pulls/${pull.number}`);
   if (current?.head?.sha !== pull.head.sha || current.head.ref !== pull.head.ref || current.state !== "open" || current.draft === true || current.base?.ref !== "main") {
-    throw new Error("the PR changed since it was listed; nothing pushed");
+    throw new PullFailure("the PR changed since it was listed; nothing pushed");
   }
   const head = await github("GET", `/repos/${repo}/git/commits/${pull.head.sha}`);
   if (!SHA.test(String(head?.tree?.sha))) {
@@ -276,7 +285,14 @@ async function headTree(github, repo, pull) {
 // An empty commit on the head, moved onto the branch only as a fast-forward,
 // so a push since the read fails it.
 async function pushEmptyCommit(github, repo, pull, path, tree) {
-  const commit = await github("POST", `/repos/${repo}/git/commits`, {
+  const write = async (...request) => {
+    try {
+      return await github(...request);
+    } catch (error) {
+      throw branchMoved(error) ? new PullFailure(error.message) : error;
+    }
+  };
+  const commit = await write("POST", `/repos/${repo}/git/commits`, {
     message: commitMessage(path),
     tree,
     parents: [pull.head.sha],
@@ -285,7 +301,7 @@ async function pushEmptyCommit(github, repo, pull, path, tree) {
     throw new Error("the new commit has no SHA");
   }
   const ref = pull.head.ref.split("/").map(encodeURIComponent).join("/");
-  await github("PATCH", `/repos/${repo}/git/refs/heads/${ref}`, { sha: commit.sha, force: false });
+  await write("PATCH", `/repos/${repo}/git/refs/heads/${ref}`, { sha: commit.sha, force: false });
   return commit.sha;
 }
 
@@ -296,6 +312,9 @@ export const actionsClient = (env, { latch = rateLimitLatch, fetchImpl } = {}) =
   createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("github-token", latch), ...(fetchImpl ? { fetchImpl } : {}) });
 
 export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
+  // The outcome counts, logged when the PRs were listed, whether or not the
+  // run then stopped.
+  let outcome = null;
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -335,20 +354,18 @@ export async function main({ env = process.env, github, actions, now = Date.now(
 
     const listed = (await paginate(github, `/repos/${repo}/pulls?state=open&base=main`)).filter((pull) => qualifies(pull, repo, ids));
     const open = [];
-    let skippedOwned = 0;
+    outcome = { refired: 0, failed: 0, skippedOwned: 0, deferred: 0 };
     for (const pull of listed) {
       if (owned.has(pull.head.ref)) {
-        skippedOwned += 1;
+        outcome.skippedOwned += 1;
         console.log(`refire-refused: #${pull.number} not re-fired: its branch ${pull.head.ref} is owned by a workflow that rebuilds it`);
       } else {
         open.push(pull);
       }
     }
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
-    // Failures of one run or PR; a lane's run listing failing fails the step.
-    let failed = 0;
+    // A lane's run listing failing fails the step after the other lanes.
     let listingFailed = false;
-    let refired = 0;
     // One refused file per PR, the first found.
     const refused = new Map();
     for (const [file, lane] of Object.entries(LANES)) {
@@ -371,8 +388,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
             refused.set(pull.number, { pull, path, file, lane, run: run.id });
           }
         } catch (error) {
-          failed += 1;
-          reportWarning(`run ${run.id}`, error);
+          throw new Fatal(`run ${run.id}`, error);
         }
       }
     }
@@ -390,20 +406,22 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     };
     const ready = [];
     for (const [number, { pull, path, file, lane, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
+      const blob = await blobOf(path);
+      let verdict;
       try {
-        const blob = await blobOf(path);
-        const { reason, recorded } = await refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha });
-        if (reason !== null) {
-          console.log(`refire-refused: #${number} not re-fired: ${reason}`);
-          continue;
-        }
-        ready.push({ pull, path, file, blob, recorded, run });
+        verdict = await refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha });
       } catch (error) {
-        failed += 1;
-        reportWarning(`#${number}`, error);
+        throw new Fatal(`#${number}`, error);
       }
+      const { reason, recorded } = verdict;
+      if (reason !== null) {
+        console.log(`refire-refused: #${number} not re-fired: ${reason}`);
+        continue;
+      }
+      ready.push({ pull, path, file, blob, recorded, run });
     }
     const deferred = ready.slice(REFIRES_PER_RUN);
+    outcome.deferred = deferred.length;
     for (const { pull } of deferred) {
       console.log(`refire-refused: #${pull.number} deferred: ${REFIRES_PER_RUN} re-fires this run`);
     }
@@ -417,25 +435,31 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         }
         const sha = await pushEmptyCommit(github, repo, pull, path, tree);
         const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} was refused for ${path} at ${blob}`;
-        refired += 1;
+        outcome.refired += 1;
         console.log(`refire-refused: ${line}`);
         if (env.GITHUB_STEP_SUMMARY) {
           appendFileSync(env.GITHUB_STEP_SUMMARY, `- refire-refused: ${line}\n`);
         }
       } catch (error) {
-        failed += 1;
+        if (!(error instanceof PullFailure)) {
+          throw new Fatal(`#${pull.number}`, error);
+        }
+        outcome.failed += 1;
         reportWarning(`#${pull.number}`, error);
       }
-    }
-    const outcome = `outcome re-fired=${refired} failed=${failed} skipped-owned=${skippedOwned} deferred=${deferred.length}`;
-    console.log(`refire-refused: ${outcome}`);
-    if (env.GITHUB_STEP_SUMMARY) {
-      appendFileSync(env.GITHUB_STEP_SUMMARY, `- refire-refused: ${outcome}\n`);
     }
     return listingFailed ? 1 : 0;
   } catch (error) {
     console.log(`::error title=refire-refused::${escapeCommand(error?.message ?? error)}`);
     return 1;
+  } finally {
+    if (outcome !== null) {
+      const line = `outcome re-fired=${outcome.refired} failed=${outcome.failed} skipped-owned=${outcome.skippedOwned} deferred=${outcome.deferred}`;
+      console.log(`refire-refused: ${line}`);
+      if (env.GITHUB_STEP_SUMMARY) {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `- refire-refused: ${line}\n`);
+      }
+    }
   }
 }
 
