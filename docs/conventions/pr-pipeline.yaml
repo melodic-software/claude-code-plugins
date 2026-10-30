@@ -23,7 +23,7 @@ activities:
       # The human-gated label holds it in pr-refine.yml's fix-docs-head job
       # unless a lane escalation put it on (lane-hold.mjs), so one lane's
       # escalation does not stop this fixer.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       # Skips a draft PR before any model turn: pipeline lanes leave drafts
       # alone.
       draft: [false]
@@ -56,7 +56,7 @@ activities:
       mergeable: [conflicting, clean]
       # The human-gated label holds it in the select job unless another
       # lane's escalation put it on (lane-hold.mjs).
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-conflict-patch:
     # Merges the base tip resolve-conflicts-select pinned into the head it
@@ -76,7 +76,7 @@ activities:
     applies-when:
       # As resolve-conflicts: the write runner keeps the human-gated label a
       # hold unless the select job read another lane's escalation.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   address-feedback:
     # Fixes the review lanes' open findings on a pull request and records a
@@ -121,7 +121,7 @@ activities:
       # do-not-merge stops it. On a needs-human PR the select job keeps only
       # threads a trusted person with write access asked it to fix, and
       # holds the PR when there are none; pr-merge still refuses that PR.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       # A draft pull request is skipped.
       draft: [false]
   apply-feedback-patch:
@@ -143,7 +143,7 @@ activities:
     applies-when:
       # As address-feedback: a needs-human PR still takes a fix a trusted
       # person with write access asked for.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   publish-feedback:
     # Posts the replies address-feedback recorded, exactly as written, resolves
@@ -192,7 +192,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
       draft: [false]
   apply-dependency-patch:
     # Applies review-dependency's patch, on a fix verdict only, to the head
@@ -212,7 +212,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
       draft: [false]
   apply-dependency-verdict:
     # Acts on the verdict review-dependency recorded: posts the round marker
@@ -253,7 +253,7 @@ activities:
     applies-when:
       # The human-gated label holds it in fix-ci-context unless another
       # lane's escalation put it on.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-patch:
     # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
@@ -273,7 +273,7 @@ activities:
     applies-when:
       # The write runner keeps the human-gated label a hold unless the
       # producer's base-code job read a lane escalation that lets it pass.
-      labels-absent: [do-not-merge]
+      labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either leaves the change in the
@@ -380,7 +380,7 @@ activities:
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, or, for attended, takes its step
       # present, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended]
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended, "security: outside-actor"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -407,6 +407,7 @@ activities:
         - "status: needs-decision"
         - "status: needs-info"
         - attended
+        - "security: outside-actor"
       labels:
         - agent-ready
   report-outcome:

@@ -56,7 +56,7 @@ cannot_evaluate() {
   exit 2
 }
 
-# Judgment, derived from docs/conventions/hook-budget/README.md 'after at S=80 ms' table.
+# Judgment, derived from docs/contracts/hook-budget/README.md 'after at S=80 ms' table.
 budgets="Stop=2000,PostToolBatch=1500,UserPromptSubmit=1500,SubagentStop=1500,"
 readonly KNOWN_EVENTS=" SessionStart Setup UserPromptSubmit UserPromptExpansion PreToolUse PermissionRequest PermissionDenied PostToolUse PostToolUseFailure PostToolBatch Notification MessageDisplay SubagentStart SubagentStop TaskCreated TaskCompleted Stop StopFailure TeammateIdle InstructionsLoaded ConfigChange CwdChanged DirectoryAdded FileChanged WorktreeCreate WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult SessionEnd "
 # Both forms are SQL over digits-only input; make_timestamp(epoch_us(now())) is UTC, the same
@@ -150,7 +150,7 @@ NR == 1 {
   printf "Hook latency since %s UTC (store %s)\n", $1, ENVIRON["STORE"]
   if ($2 > $1)
     printf "warning: the oldest hot fire is %s UTC; older fires sit in the cold tier (clean compacts after --keep-days) and are not included.\n", $2
-  print "p95 budgets: judgment, derived from docs/conventions/hook-budget/README.md '\''after at S=80 ms'\'' table; other events report-only."
+  print "p95 budgets: judgment, derived from docs/contracts/hook-budget/README.md '\''after at S=80 ms'\'' table; other events report-only."
   printf "slope flag (judgment): >= %s sessions with >= %s fires, sign-test z >= 1.645, median slope >= max(100 ms, 0.5 x p50).\n\n", min_sessions, min_fires
   printf fmt, "", "lane", "hook_event", "fires", "sess", "p50", "p95", "budget", "slope_n", "slope", "pos", "reason"
 }

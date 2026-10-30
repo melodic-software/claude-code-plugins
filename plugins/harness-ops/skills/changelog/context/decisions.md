@@ -49,7 +49,7 @@ condition. A release that produced no decision leaves no row, and the ledger nev
 changelog item: the id column is the pointer.
 
 The harness facts a skill states, with their verification stamps and recheck triggers, follow the
-[upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/upstream-drift/README.md).
+[upstream-drift convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/upstream-drift/README.md).
 This skill does not restate it; the fetch route is in [read-actions.md](read-actions.md).
 
 ## Fan-out shape
