@@ -35,6 +35,19 @@ statement kind. Inside the query it refuses `INTO`, a user `OPTION (...)`, `OPEN
 comment, a string literal or a bracketed or quoted identifier does not count. A column named like
 a refused word must be bracketed, as in `[TABLOCK]`.
 
+What the list lets through, because it is a heuristic:
+
+- **Linked servers.** A four-part name such as `SELECT * FROM linkedsrv.db.dbo.t` reaches outside
+  the registered server just as `OPENQUERY` does, and the list does not refuse it: on tokens it
+  cannot be told apart from a `db.schema.table.column` reference. The remote read runs under the
+  linked server's login mapping, which can be more privileged than your read-only principal, so
+  that principal bounds it only when no linked server maps it to a remote login.
+- **Unreserved statement starters.** The list stops a second statement only at a reserved keyword.
+  A statement led by an unreserved word, such as `RECEIVE` (a Service Broker dequeue, a destructive
+  read) or `ENABLE TRIGGER`, passes when it follows a complete `SELECT` with no semicolon, as in
+  `SELECT 1 AS a RECEIVE TOP(1) * FROM q`. The read-only principal, which holds no `RECEIVE` or
+  `ALTER` permission, is what refuses it.
+
 ## Config
 
 One JSON file, validated by [`schemas/config.v1.schema.json`](schemas/config.v1.schema.json)
