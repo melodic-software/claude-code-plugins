@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the purge job. Alongside it, /planning:questionnaire turns the retention-window question into a document Dana fills in.",
+      "why": "no window chosen"
+    },
+    {
+      "answer": "The retention window stays deferred to Dana (Q3). Run /planning:plan and /planning:questionnaire.",
+      "why": "a register id is not a duration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /planning:questionnaire for Dana and /planning:plan; meanwhile assume 90 days.",
+      "why": "contradictory: routes to the questionnaire but settles the window"
+    },
+    {
+      "answer": "Use a 30-day retention window and run /planning:plan.",
+      "why": "wrong answer: picks a window on Dana's behalf"
+    },
+    {
+      "answer": "Plan around a 1 year window until Dana replies to /planning:questionnaire.",
+      "why": "contradictory: a placeholder window recorded as the working value"
+    },
+    {
+      "answer": "Default the purge to 6 months, then run /planning:plan.",
+      "why": "wrong answer: a window in months"
+    }
+  ]
+}
