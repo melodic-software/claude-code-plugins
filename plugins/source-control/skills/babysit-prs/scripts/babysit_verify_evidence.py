@@ -725,6 +725,19 @@ def _bot_login(identity: str | None) -> str:
     return (identity or "").strip().lower().removesuffix("[bot]")
 
 
+def _started_attempt(body: Any) -> int | None:
+    """The pull request a capped-close record names when its first line is one
+    that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
+    parked); a parked or attempt-less record, None. `capped_closed` and
+    `_spent` both count by it, so the cap's excuse and the attempts spent
+    agree."""
+    first = str(body or "").split("\n", 1)[0].rstrip("\r")
+    match = CAPPED_CLOSE_RE.fullmatch(first)
+    if match is None or match[3] is None or match[5]:
+        return None
+    return int(match[1])
+
+
 def capped_closed(
     live: dict[Any, Any], identity: str | None, attempts: int
 ) -> set[int]:
@@ -750,7 +763,6 @@ def capped_closed(
                 json_object(node.get("author")),
                 json_object(node.get("editor")),
             )
-            first = str(node.get("body") or "").split("\n", 1)[0].rstrip("\r")
             if (
                 author.get("__typename") == "Bot"
                 and str(author.get("login") or "").lower() == bot
@@ -761,13 +773,11 @@ def capped_closed(
                         and str(editor.get("login") or "").lower() == bot
                     )
                 )
-                and (match := CAPPED_CLOSE_RE.fullmatch(first))
-                and match[3] is not None
-                and not match[5]
-                and int(match[1]) not in started
+                and (pr := _started_attempt(node.get("body"))) is not None
+                and pr not in started
             ):
                 # The comments are read oldest first.
-                started.append(int(match[1]))
+                started.append(pr)
         named.update(started[: max(attempts, 0)])
     return named
 
@@ -3504,14 +3514,16 @@ def _lane_removals(
 
 def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     """How many other pull requests for the issue the lane has closed at the
-    cap: the fresh attempts already started from it."""
+    cap for a fresh attempt: the records `capped_closed` counts
+    (`_started_attempt`), so a parked or attempt-less one spends nothing."""
     named = set()
     for c in comments:
-        first = str(c.get("body") or "").split("\n", 1)[0].rstrip("\r")
         if str(
             json_object(c.get("user")).get("login") or ""
-        ).lower() == identity.lower() and (match := CAPPED_CLOSE_RE.fullmatch(first)):
-            named.add(int(match[1]))
+        ).lower() == identity.lower() and (
+            pr := _started_attempt(c.get("body"))
+        ) is not None:
+            named.add(pr)
     return len(named - {number})
 
 

@@ -246,6 +246,18 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         ]
         self.assertEqual(world.run()["restarted"], [ISSUE])
 
+    def test_only_records_that_started_an_attempt_spend_one(self) -> None:
+        # The records `capped_closed` excuses nothing for spend nothing: one
+        # written while a person had taken agent-ready off, and a parked one.
+        world = World()
+        world.comments[ISSUE] = [
+            comment(f"<!-- verify-capped-close pr=40 heads={FAILED[2]} -->"),
+            comment("<!-- verify-capped-close pr=41 heads= attempt=0 of=0 parked -->"),
+        ]
+        result = world.run()
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertTrue(world.body(1).split("\n")[0].endswith("attempt=1 of=1 -->"))
+
     def test_a_rerun_after_a_failed_close_writes_only_what_is_left(self) -> None:
         world = World()
         world.fail_once.add(f"PATCH repos/{REPO}/pulls/{PR}")
