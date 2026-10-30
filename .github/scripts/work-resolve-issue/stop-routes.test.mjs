@@ -183,6 +183,8 @@ test("an ending reason that names a secret noun as a capability keeps its route"
     "host-only: the work runs the eval suites against prepaid credit and records pass rate, tokens, advisor call rate and wall time. That needs `claude` eval runs on a host with model credentials; this lane cannot invoke `claude` or spend credit.",
     "host-only: needs an API key the lane does not hold",
     "host-only: tokens per completed task need a live run",
+    "host-only: needs a host with model credentials to run the evals",
+    "host-only: printer driver needs a host with credentials",
   ]) {
     assert.equal(runCode(reason), "host-only", reason);
     assert.equal(stopRoute(runCode(reason)), "host-run", reason);
@@ -216,6 +218,16 @@ test("an ending reason that names an exposed secret without a risk word holds", 
     "the token was dumped into the debug output",
     "the api key is revealed in the URL",
     "needs a host with credentials; also the token is in the run log",
+    "the run log holds the API key in plain text",
+    "the job summary holds credentials",
+    "Holds the TOKEN, visible to forks",
+    "the fork PR job holds a token with write scope",
+    "needs the token that leaked into the log",
+    "requires the secret that is committed in config.json",
+    "committed without the secret redacted",
+    "a host with the token printed in its env",
+    "the log holds tokens; needs a host",
+    "tokens used in the public log are real",
   ];
   for (const code of ["host-only", "manual-external", "already-done"]) {
     for (const exposure of exposures) {
@@ -223,6 +235,8 @@ test("an ending reason that names an exposed secret without a risk word holds", 
       assert.equal(runCode(reason), "security-risk", reason);
     }
   }
+  const pasted = "manual-external: the dashboard holds an api key that was pasted publicly";
+  assert.equal(runCode(pasted), "security-risk", pasted);
 });
 
 test("a reason with no code that names a security word holds", () => {

@@ -2201,7 +2201,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   an ending code, a secret noun (credential, secret, token, password, API or private key) holds
   unless it is part of a recognized needs-a-credential capability phrasing, such as "a host with
   model credentials", "needs an API key" or "tokens per task", so a capability limit takes its
-  code's route.
+  code's route. A secret noun beside an exposure word (log, output, public, committed, printed,
+  leaked and the like) always holds, whatever phrasing it sits in.
   Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
   `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
   carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
