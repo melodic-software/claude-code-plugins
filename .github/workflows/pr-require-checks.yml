@@ -178,7 +178,14 @@ concurrency:
 # fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
 # NPM'S FETCH TIMEOUT AND RETRIES ARE BOUNDED. .github/npm-fetch.npmrc sets them,
 # read as npm's global config by every npm call here, run-tests.sh's included.
+# A STALLED CACHE SEGMENT GIVES UP IN A MINUTE. actions/cache races each
+# 128 MB segment of a restore against SEGMENT_DOWNLOAD_TIMEOUT_MINS (default
+# 10), longer than most jobs here, so a stalled restore ran out the job limit
+# and dropped the merge group. At 1 the restore misses and the job installs
+# cold. The URL lookup and the extract are not under this timer.
+# https://github.com/actions/toolkit/blob/main/packages/cache/src/options.ts
 env:
+  SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
   npm_config_audit: "false"
   npm_config_fetch_timeout: "60000"
   npm_config_fund: "false"
@@ -4117,10 +4124,14 @@ jobs:
           [ "$found" -eq 0 ] || exit 1
           echo "No squash message line starts with 'committer '."
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing, and the aggregate below passes those skips. A green
-      # draft cannot admit a merge: a draft cannot merge, and the merge-queue
-      # ruleset has no bypass actor, so every merge waits for this workflow's
-      # merge-group run, which runs every lane. This step says why it is green.
+      # and tested nothing, and the aggregate below passes those skips. That
+      # green check stays on the head after the ready flip until the
+      # ready_for_review run replaces it, so an enqueue in that gap meets the
+      # required check, and the merge-group run does not fully close it: the
+      # changed-file gates that read only github.base_ref decline there. No
+      # merge hold checks this, so arm a pull request only once the newest
+      # ci-status on its head is not a draft run's. This step says why it is
+      # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
         run: |
