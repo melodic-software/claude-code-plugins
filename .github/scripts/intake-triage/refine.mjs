@@ -413,7 +413,7 @@ export function subsetProblem({ groups, order }, lines, maxParts) {
   }
   const every = lines.map((_, index) => index + 1);
   const record = renderSplitRecord({ items: "0".repeat(64), parts: groups.map(() => every), order, groups });
-  return isDeepStrictEqual(splitRecord(record)?.groups, groups) ? null : "the groups are too long for the split record";
+  return isDeepStrictEqual(splitRecord(`${SIZE_SPLIT_MARKER}\n${record}`)?.groups, groups) ? null : "the groups are too long for the split record";
 }
 
 // Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
