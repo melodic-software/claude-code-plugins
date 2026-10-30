@@ -10,7 +10,7 @@
 # `docs/conventions/source-control.yaml` (for one release, else the legacy
 # `.claude/source-control.md` surfaces) by the vendored enforcement resolver
 # (resolve-convention-pattern.sh — the commit-convention seam,
-# docs/conventions/commit-convention/). The sibling
+# docs/contracts/commit-convention/). The sibling
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #

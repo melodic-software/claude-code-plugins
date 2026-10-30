@@ -114,7 +114,7 @@ repository, from Claude, a person, an IDE or another agent, and report at commit
 push time rather than after each edit. `/guardrails:setup apply install-git-hooks [scope=local|shared]`
 registers them with the repository's hook manager (lefthook, husky or plain git
 hooks) under the check-placement convention's contract
-(`docs/conventions/check-placement/README.md` in the marketplace repository): local
+(`docs/contracts/check-placement/README.md` in the marketplace repository): local
 scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
 committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
 `main` branch (`git-hooks/lefthook-remote.yml`), refetched hourly: whoever can merge to that
@@ -1097,7 +1097,7 @@ the guards' own per-call work (the subshell fork itself, and the external progra
 guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
 three PreToolUse processes to one, three PostToolUse processes to one.
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
 plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the surface that
@@ -1165,7 +1165,7 @@ Each guard is toggled by its own `userConfig` boolean, default **on**, except th
 behavioral-class advisories `workflow-resilience-check` and `flag-commit-pr-skill-bypass`, which
 have been default **off** since 0.20.0 per #2021, and `block-credential-read`, default
 **off** because its measured precision is below the bar
-([guard precision](../../docs/conventions/hook-precision/guard-precision.md)). Set a switch to `true` to opt in, or to `false`
+([guard precision](../../docs/contracts/hook-precision/guard-precision.md)). Set a switch to `true` to opt in, or to `false`
 for a clean no-op. Each per-hook switch
 disables one guard without touching the others. The [git hooks](#git-hooks) run without
 Claude Code, so they have no switch here: a clone turns one off by declining its entry.
@@ -1207,7 +1207,7 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
   point a blocking guard fails **closed** (`exit 2` with a `BLOCKED:` reason)
   whatever arrived, rather than let an unscanned tool call through; the same
   holds for text that is not JSON. The one allowed shape is a well-formed JSON
-  prefix on a pipe that then **closes**: that is the harness's payload cut
+  prefix on a pipe that then **closes**. That is the harness's payload cut
   short in transit, a fault the command did not cause and the agent cannot
   stage, so the guard allows the call with a visible notice instead of
   blocking it. A stall on the same prefix is deliberately not given that
@@ -1257,7 +1257,7 @@ repo-specific policy of their own:
   `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` environment variable (`bin1,bin2,…`) in the
   committing environment and skip binaries with `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS`.
   `npm` is **excluded by default**, alongside
-  `git` and `npx`: every npm config key is a flag on every subcommand
+  `git` and `npx`, because every npm config key is a flag on every subcommand
   (`npm <command> --key=value`), so per-subcommand `--help` is non-exhaustive by
   design and the authoritative list (`npm config ls -l`) prints `prefix = "…"`
   rather than `--prefix`. A generic `--help` parser cannot consume it, and
@@ -1294,7 +1294,7 @@ repo-specific policy of their own:
 
 ## Telemetry (opt-in)
 
-Every guard emits one structured [hook-telemetry](../../docs/conventions/hook-telemetry/README.md)
+Every guard emits one structured [hook-telemetry](../../docs/contracts/hook-telemetry/README.md)
 envelope per run to whatever `HOOK_TELEMETRY_SINK` names, carrying `status`
 (`blocked` on a guard block, `ok` otherwise), `duration_ms`, and a privacy-safe
 `data` payload (category **labels** only, never a secret value, matched path,
@@ -1439,7 +1439,7 @@ matches, and a glob option the shell had on before the command (a shell snapshot
 prefixes) and for `cmd /c rd /s` / `rmdir /s`, without loading the shared PowerShell classifier.
 
 **`block_root_delete_target_allowed_roots`.** The list ADDS TO the temp roots and the session
-scratchpad the guard already allows. Only you set it: it is read from the hook's own environment,
+scratchpad the guard already allows. Only you set it, because it is read from the hook's own environment,
 never from the command text, so an agent cannot grant itself a root with a `VAR=...` prefix or a
 flag. Targets are compared by real path, so a symlinked root or target is judged where it lands, a
 sibling that only shares the name prefix is refused, and a symlink under a root that points outside

@@ -77,7 +77,7 @@ hook::buffer_stdin_to INPUT || {
 # jq is required to parse the tool payload. hook::require jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),

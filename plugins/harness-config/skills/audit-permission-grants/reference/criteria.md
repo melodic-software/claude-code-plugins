@@ -7,7 +7,7 @@ Synced from: permission-rule-hygiene convention 1.4.0 (`0a9bae33`)
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
 anti-patterns, and the prescribed correct pattern, with official-doc citations, live in the
 marketplace's permission-rule-hygiene convention** and are not restated here, published at
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/permission-rule-hygiene/README.md>
 (pinned at the commit named in **Synced from** above).
 This file is the mechanical check layer: what the detector flags, at what severity, and how to read a
 finding. Each check's **Recommend** line below carries the fix in the form the report needs, so a run
@@ -177,7 +177,7 @@ The two exceptions on Bash rules:
    matches past an assignment that section does not cover.
 
 Full doctrine, and the source this row syncs from: the
-[permission-rule-hygiene convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/permission-rule-hygiene/README.md)
+[permission-rule-hygiene convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/permission-rule-hygiene/README.md)
 anti-pattern 2.
 
 **Recommend**: replace with a portable form: `${CLAUDE_SKILL_DIR}` for a skill's own bundled script, a
