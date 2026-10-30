@@ -457,9 +457,9 @@ out of scope until such a signal exists.
 ### Hook budget accounting
 
 **block-root-delete-target find deletes (#9752).** The arm starts no process of its own, so the
-row's k is unchanged: it reads find's argv from the parse the guard already makes, and each start
-point takes the path a recursive `rm` operand takes, through the same one `realpath` (and, on
-Windows, the one `cygpath`). The Bash prefilter now also passes a command whose text holds
+common call's k is unchanged: it reads find's argv from the parse the guard already makes, and
+each start point takes the path a recursive `rm` operand takes, through the same one `realpath`
+(and, on Windows, the one `cygpath`). The Bash prefilter now also passes a command whose text holds
 `-delete` or `unlink`, and a find delete pays the whole recursive-delete judgment a recursive
 `rm` already paid: the strace census of `find ./build -name x -delete` goes from 2 processes
 (`node`, `bash`) to 6, adding `git`, `realpath` and two `timeout`, the same 6 `rm -rf ./build`
@@ -470,8 +470,10 @@ telemetry sink: with the fan-out harness above, 21 interleaved rounds of `--runs
 row's paired median moved +0 ms and the `$(…)` sample +2 ms, against +0 and +1 ms for the
 untouched `Write` and `Edit` rows. With `hyperfine` (300 runs, S = 0.76 ms), the row's median on
 `find ./build -name x -delete` went from 43.5 to 115.7 ms, and on `rm -rf ./build` stayed at
-119.9 and 119.1 ms. The common call stays inside its k × S budget; a find delete now costs what
-a recursive `rm` costs.
+119.9 and 119.1 ms. The common call stays inside its k × S budget. A find delete is a new
+judged shape: its k goes from 0 to 4 and it costs +72 ms (about 95 S), the cost a recursive `rm`
+already pays. Taking that recursive-delete cost as the budget for a find delete is a judgment,
+not a k × S result.
 
 **block-root-delete-target protected trees (#9751).** The arm starts no process of its own, so
 the row's k is unchanged: it reads the worktree registry from the files git keeps with bash
