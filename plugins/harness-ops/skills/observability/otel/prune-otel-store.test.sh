@@ -38,6 +38,10 @@ assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" 
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# A test must never reach a real OTEL store: drop any inherited store path, and have the prune
+# refuse a store outside this run's temp dir.
+unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
+export CC_OTEL_TEST_ROOT="$TMP"
 
 # Hermeticity: the developer's environment must not leak retention knobs into the cases
 # (RETENTION_DAYS guard would trip every run if RETENTION_DAYS were exported machine-wide).
@@ -171,6 +175,18 @@ out="$(bash "$SCRIPT" --bogus 2>&1)"
 rc=$?
 assert_eq "unknown arg exits 2" "2" "$rc"
 assert_contains "unknown arg reported" "$out" "unknown argument"
+
+# --- 2a. test-root guard: a store outside CC_OTEL_TEST_ROOT is refused before anything runs ---
+outside="$(dirname "$TMP")/cc-otel-guard-probe-$$"
+for store in "$outside" "$TMP/../cc-otel-guard-probe-$$" "$TMP/missing/../../cc-otel-guard-probe-$$"; do
+  out="$(CC_OTEL_STORE="$store" bash "$SCRIPT" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "guard: $store exits 2" "2" "$rc"
+  assert_contains "guard: $store refused" "$out" "outside CC_OTEL_TEST_ROOT"
+done
+assert_eq "guard: outside store never created" "no" "$([[ -e "$outside" ]] && echo yes || echo no)"
+out="$(CC_OTEL_STORE="$TMP/guard-inside" bash "$SCRIPT" --dry-run 2>&1)"
+assert_contains "guard: a store inside the root runs" "$out" "action=dry-run"
 
 # --- 3. --dry-run: reports counts, mutates nothing, creates no cold/ ---
 S="$(new_store dry)"

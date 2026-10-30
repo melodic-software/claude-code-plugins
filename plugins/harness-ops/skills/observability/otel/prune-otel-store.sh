@@ -109,6 +109,8 @@
 #   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
 #                          cold COPY+verify; must create <cold-temp> on success — test seam
 #                          (failure injection ONLY; real compaction is always duckdb)
+#   CC_OTEL_TEST_ROOT      the test suites' temp dir: a store outside it is refused (exit 2), so
+#                          a test can never reach a real store
 
 set -euo pipefail
 
@@ -269,6 +271,28 @@ parse_counts() {
   SURGERY="${SURGERY%% *}"
 }
 
+# Print a path with its deepest existing directory resolved (symlinks, and on Windows one long-name
+# drive form for MSYS, short 8.3 and C:\ spellings) and the missing tail appended.
+real_path() {
+  local p="$1" tail=""
+  while [[ ! -d "$p" && "$p" == */* ]]; do
+    tail="/${p##*/}$tail"
+    p="${p%/*}"
+  done
+  [[ "$tail/" != */../* ]] || return 0 # unresolvable: prints nothing, which no root contains
+  p="$(cd "${p:-/}" && pwd -P)"
+  if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -aml "$p")"; fi
+  printf '%s%s\n' "${p%/}" "$tail"
+}
+
+# True when path is root or inside it.
+under_root() {
+  local path root
+  path="$(real_path "$1")"
+  root="$(real_path "$2")"
+  [[ "${path%/}/" == "${root%/}/"* ]]
+}
+
 # Take the sentinel, recovering a stale one, or report why not: 1 = a live prune holds it
 # (action=noop-locked), 3 = it has held it past the bound (action=error-lock-held).
 take_lock_or_report() {
@@ -349,6 +373,11 @@ main() {
   # awk -v treats each backslash as an escape and strips it. Forward slashes work for bash,
   # awk and duckdb alike.
   [[ "$OS_KIND" == windows ]] && store_dir="${store_dir//\\//}"
+  # shellcheck disable=SC2310  # a predicate: its status IS the branch
+  if [[ -n "${CC_OTEL_TEST_ROOT:-}" ]] && ! under_root "$store_dir" "$CC_OTEL_TEST_ROOT"; then
+    err "store $store_dir is outside CC_OTEL_TEST_ROOT ($CC_OTEL_TEST_ROOT) — refusing"
+    return 2
+  fi
   SENTINEL="$store_dir/.prune-in-progress"
 
   if [[ "$scrub_cold_mode" == true ]]; then
