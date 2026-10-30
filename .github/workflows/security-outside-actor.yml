@@ -12,9 +12,9 @@ name: security-outside-actor
 # events cost nothing:
 # - the content's author has `author_association` OWNER or MEMBER, unless the
 #   event is an edit, a push to a pull request or a reopen by someone other
-#   than that author: flag.mjs then judges the sender, so a collaborator who
-#   is not a member editing a member's text or pushing to a member's pull
-#   request is checked;
+#   than that author: flag.mjs then judges the sender by id alone, so anyone
+#   not on the trusted list, an organization member included, who edits
+#   another's text or pushes to another's pull request is flagged;
 # - the event's sender is a Bot. Only a GitHub App installed on this
 #   repository acts as a Bot here, which means one of ours, so lane traffic
 #   starts no job. A fork pull request is the exception: an App installed on

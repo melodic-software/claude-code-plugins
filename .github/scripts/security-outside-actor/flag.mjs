@@ -64,10 +64,11 @@ export function readEvent(eventName, payload) {
   if (!Number.isInteger(number) || number < 1 || !Object.hasOwn(KINDS, eventName)) {
     return null;
   }
-  // An edit, push or reopen by someone other than the author (a person
-  // retitling an outsider's issue, or a collaborator who is not a member
-  // editing a member's comment or pushing to a member's pull request) is the
-  // sender's act, so the sender is judged, by id alone.
+  // An edit, push or reopen by someone other than the author (retitling an
+  // outsider's issue, editing another's comment, pushing to another's pull
+  // request) is the sender's act, so the sender is judged by id alone: the
+  // payload carries no association for them, so anyone not on the trusted
+  // list, an organization member included, is flagged.
   const sender = payload.sender ?? {};
   const bySender = SENDER_ACTIONS.has(payload.action) && Number.isInteger(sender.id) && sender.id !== content.user?.id;
   const user = (bySender ? sender : content.user) ?? {};
