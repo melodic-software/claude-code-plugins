@@ -68,10 +68,10 @@ layer_yaml_to_json() {
   local declared blank
   declared="$(LC_ALL=C tr -d '\r' <"$file" | sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:.*$/\1/p')"
   for blank in $declared; do
-    printf '%s\n' "$records" | grep -q "^$blank[.	]" && continue
+    printf '%s\n' "$records" | grep -q "^${blank}[.	]" && continue
     printf '%s' "$empties" | jq -e --arg k "$blank" 'index($k) != null' >/dev/null && continue
-    printf 'line %s: empty value for `%s`; write a value or `[]`, or remove the key\n' \
-      "$(LC_ALL=C tr -d '\r' <"$file" | grep -n -m 1 -E "^$blank[[:space:]]*:" | cut -d: -f1)" "$blank" >&2
+    printf 'line %s: empty value for "%s"; write a value or [], or remove the key\n' \
+      "$(LC_ALL=C tr -d '\r' <"$file" | grep -n -m 1 -E "^${blank}[[:space:]]*:" | cut -d: -f1)" "$blank" >&2
     return 1
   done
   printf '%s\n' "$records" | jq -R -s -c --argjson empties "$empties" '

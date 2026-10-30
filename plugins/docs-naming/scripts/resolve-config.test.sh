@@ -467,7 +467,7 @@ for value in 'regex:' 'regex:   # todo'; do
   write_yaml "$root/docs/conventions/docs-naming.yaml" "$value"
   out="$(resolve "$root" 2>&1)"
   assert_eq "empty yaml value ($value): resolve exits 2" "2" "$?"
-  assert_contains "empty yaml value ($value): names the key and line" "$out" 'line 1: empty value for `regex`'
+  assert_contains "empty yaml value ($value): names the key and line" "$out" 'line 1: empty value for "regex"'
 done
 root="$(new_root)"
 write_yaml "$root/docs/conventions/docs-naming.yaml" "$(printf 'roots:\n- docs\nexempt_paths: []\nredirect_map: null')"
