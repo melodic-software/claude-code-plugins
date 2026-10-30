@@ -23,19 +23,37 @@
 #       }
 #     },
 #     "identity_files": ["<path>"],
-#     "shared_exceptions": ["<path>"],
+#     "shared_exceptions": [{ "path": "<abs>", "from": ["<name>"], "to": "<name>" }],
 #     "messages": { "<key>": "<text>" }
 #   }
 #
 # `domains` and each domain's `roots` are required; every other key may be left
 # out. A domain name is letters, digits, `.`, `_` and `-`; every value is a
 # non-empty one-line string; a root is absolute and below a filesystem root
-# (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). An unknown key or any
-# other shape makes the map malformed. Only this host's roots (OSTYPE: msys,
-# cygwin and win32 read `windows`, darwin `macos`, every other host `linux`),
-# the owners, the markers, the gh and az config directories and the identity
-# files are used here; the other keys are validated and kept for the rules that
-# read them.
+# (`/x`, and on Windows also `C:/x`, `C:\x` or `/c/x`). A shared exception
+# needs all three keys, a `to` and a non-empty `from` that name domains of the
+# map, and no `to` among its `from`. An unknown key or any other shape makes the
+# map malformed. Only this host's roots (OSTYPE: msys, cygwin and win32 read
+# `windows`, darwin `macos`, every other host `linux`), the owners, the markers,
+# the gh and az config directories, the identity files and the shared
+# exceptions are used here; `messages` is validated and kept for the rules that
+# read it.
+#
+# SHARED EXCEPTIONS. One exception opens one directory of its `to` domain to
+# sessions in its `from` domains, one way. From a cwd in a `from` domain, a
+# command that names the path, or a path below it, is not denied for it, as long
+# as the command text, quotes and `\` dropped, holds no `..`. Every other foreign
+# path the command names still denies it, and the exception opens nothing to a
+# session in `to` or in a domain `from` does not list. A glob, brace or
+# expansion right after the path (`shared*`, `shared{,-x}`, `shared$x`) closes
+# it for that mention, since it can reach a sibling. The path counts only when
+# it is a path of `to` on this host: the longest root or owner directory of any
+# domain that holds it, or equals it, is `to`'s, compared with runs of `\` and
+# `/` as one `/` and a drive spelled `C:`, `/cygdrive/c` or `/mnt/c` (and on
+# Windows `/c`) as one drive, in any case on Windows. An exception whose path is
+# not one, or an entry that is a plain string (the earlier shape), grants
+# nothing; it leaves the map well formed, and the user is told which entry once
+# per session.
 #
 # WHAT A CALL COSTS. Each step leaves at the first that settles the call:
 #   1. the kill switch, before any source;
@@ -173,6 +191,10 @@
 #     continuation, or to git's XDG global file (`~/.config/git/config`),
 #     which is no identity file here; and, the other way, an `&>` or `>|`
 #     with an identity file after it inside quoted text, which denies
+#   - a shared exception's `..` test reads the whole text, so a `..` anywhere
+#     (`git log a..b`) closes the exception for that command; and a path computed
+#     from inside the exception (`cd <exception> && ls "${PWD%/*}/x"`) is the
+#     computed-path gap above
 #   - a map that is malformed, or a missing jq, which turns the whole guard
 #     off, the identity-write rule included
 #
@@ -249,7 +271,7 @@ esac
 
 # What the compiler below writes. A change to the jq program or to how the
 # records are read changes it, so a cache an older guard wrote is compiled again.
-BCD_FORMAT=4
+BCD_FORMAT=5
 BCD_CACHE="${BCD_MAP%.json}.cache"
 BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
@@ -261,6 +283,11 @@ BCD_ROOT_DOMAIN=()
 BCD_NEEDLE=()
 BCD_NEEDLE_DOMAIN=()
 BCD_NEEDLE_PATH=()
+BCD_NEEDLE_FROM=()
+BCD_DOTDOT=0
+BCD_GRANTS_NOTHING=()
+BCD_NOTICE=""
+BCD_NOTICE_JSON=""
 BCD_NAMED=" "
 BCD_DENY=()
 BCD_SUBJECT=""
@@ -288,8 +315,10 @@ BCD_WRITE_DENY=()
 
 # The compiler: the map's raw text and HOME in, one line per record out:
 # `marker`, `gh` and `az` records, one `idfile` record per identity file with
-# an empty domain, then this host's `root` records and each owner's two `owner`
-# directories below HOME, longest first
+# an empty domain, a `legacy` or `outside` record for each shared exception that
+# grants nothing (its index as the value), then this host's `root` records, each
+# owner's two `owner` directories below HOME and each `shared` record (its
+# domain `<to><TAB><from domains, space-separated>`), longest first
 # (`<kind><TAB><domain><TAB><value>`), or one `invalid<TAB><reason>` line for a
 # map it rejects. The whole map is validated before any record is written, so a
 # rejected map yields no partial set. The reason names keys, never values.
@@ -332,17 +361,46 @@ def domain($d; $os; $home):
     (if $home == "" then empty
      else $owners[] | {kind: "owner", d: $d, v: "\($home)/src/github.com/\(.)"},
        {kind: "owner", d: $d, v: "\($home)/worktrees/github.com/\(.)"} end);
+def fold($os):
+  gsub("[\\\\/]+"; "/") | sub("(?<=.)/$"; "")
+  | if $os == "windows" then ascii_downcase | sub("^/(cygdrive/|mnt/)?(?<d>[a-z])(?=/|$)"; "\(.d):")
+    else sub("^/(cygdrive|mnt)/(?<d>[A-Za-z])(?=/|$)"; "\(.d | ascii_downcase):")
+      | sub("^(?<d>[A-Z]):"; "\(.d | ascii_downcase):") end;
+def shared($names; $paths; $os):
+  if type != "array" then fail("shared_exceptions is not an array") else . end
+  | range(length) as $i | .[$i] | "shared_exceptions[\($i)]" as $w
+  | if type == "string" then line($w) | {kind: "legacy", d: "", v: "\($i)"}
+    else only($w; ["path", "from", "to"])
+    | if (has("path") and has("from") and has("to")) | not then fail("\($w) needs path, from and to") else . end
+    | (.path | line("\($w).path")) as $p
+    | (.to | line("\($w).to")) as $to
+    | [.from | list("\($w).from")] as $from
+    | if any($names[]; . == $to) | not then fail("\($w).to names no domain of the map")
+      elif $from == [] then fail("\($w).from is empty")
+      elif any($from[]; . as $f | any($names[]; . == $f) | not) then fail("\($w).from names no domain of the map")
+      elif any($from[]; . == $to) then fail("\($w).from holds its to")
+      elif ($p | fold($os)) as $q
+        | [$paths[] | (.v | fold($os)) as $r | select($q == $r or ($q | startswith($r + "/"))) | {d, n: ($r | length)}]
+        | max_by(.n) | .d == $to
+      then {kind: "shared", d: "\($to)\t\($from | join(" "))", v: $p}
+      else {kind: "outside", d: $to, v: "\($i)"} end
+    end;
 def compile($os; $home):
   only("the map"; ["domains", "identity_files", "shared_exceptions", "messages"])
   | if has("domains") | not then fail("the map has no domains") else . end
   | [optional("identity_files"; list("identity_files"))] as $files
-  | [optional("shared_exceptions"; list("shared_exceptions"))] as $shared
   | [optional("messages"; object("messages") | to_entries[] | .key as $k | .value | line("messages.\($k)"))] as $messages
-  | .domains | object("domains")
-  | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]
+  | (.domains | object("domains") | [to_entries[] | .key as $d | .value | domain($d; $os; $home)]) as $records
+  | ($records | map(select(.kind == "root" or .kind == "owner"))) as $paths
+  | (.domains | keys) as $names
+  | [optional("shared_exceptions"; shared($names; $paths; $os))] as $shared
+  | $records
   | map(select(.kind != "root" and .kind != "owner"))
     + [$files[] | {kind: "idfile", d: "", v: .}]
-    + (map(select(.kind == "root" or .kind == "owner"))
+    + ($shared | map(select(.kind != "shared")))
+    # A shared path sorts after a root of its length, so the reverse puts its
+    # needles first and it spends its text before that root reads it.
+    + ($paths + ($shared | map(select(.kind == "shared")))
       | sort_by(.v | gsub("[\\\\/]+"; "/") | sub("/$"; "") | sub("^/(cygdrive|mnt)/"; "/") | length) | reverse)
   | map("\(.kind)\t\(.d)\t\(.v)");
 (try [fromjson] catch null) as $doc
@@ -471,22 +529,30 @@ bcd::dir_to() {
   printf -v "$1" '%s' "$__bcd_dt"
 }
 
-bcd::add_needle() { # <domain> <folded text> <1 for a path, 0 for a marker>
+# bcd::add_needle <domain> <folded text> <1 for a path, 2 for a shared
+# exception's path, 0 for a marker> [<the exception's from domains>]
+bcd::add_needle() {
   [[ -n "$2" ]] || return 0
   BCD_NEEDLE+=("$2")
   BCD_NEEDLE_DOMAIN+=("$1")
   BCD_NEEDLE_PATH+=("$3")
+  BCD_NEEDLE_FROM+=("${4-}")
 }
 
-# bcd::add_root <domain> <root or owner directory as spelled>: the path for the
-# cwd and every spelling of it a command can name.
+# bcd::add_root <domain> <root or owner directory as spelled> [<from domains>]:
+# the path for the cwd and every spelling of it a command can name; with from
+# domains, a shared exception's path, which classifies no cwd.
 bcd::add_root() {
-  local c n rest drive="" p
+  local c n rest drive="" p kind=1
   bcd::norm_to c "$2"
-  BCD_ROOT+=("$c")
-  BCD_ROOT_DOMAIN+=("$1")
+  if [[ -n "${3-}" ]]; then
+    kind=2
+  else
+    BCD_ROOT+=("$c")
+    BCD_ROOT_DOMAIN+=("$1")
+  fi
   bcd::fold_to n "$2"
-  bcd::add_needle "$1" "$n" 1
+  bcd::add_needle "$1" "$n" "$kind" "${3-}"
   if [[ "$n" =~ ^([a-z]):(/.*)$ ]]; then
     drive=${BASH_REMATCH[1]}
     rest=${BASH_REMATCH[2]}
@@ -499,14 +565,14 @@ bcd::add_root() {
   fi
   if [[ -n "$drive" ]]; then
     for p in "$drive:" "/$drive" "/cygdrive/$drive" "/mnt/$drive"; do
-      [[ "$p$rest" == "$n" ]] || bcd::add_needle "$1" "$p$rest" 1
+      [[ "$p$rest" == "$n" ]] || bcd::add_needle "$1" "$p$rest" "$kind" "${3-}"
     done
   fi
   if [[ -n "$BCD_HOME" && "$c" == "$BCD_HOME"/?* ]]; then
     bcd::fold_to rest "${c#"$BCD_HOME"}"
     # shellcheck disable=SC2016,SC2088  # spellings matched as text, never expanded
     for p in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
-      bcd::add_needle "$1" "$p$rest" 1
+      bcd::add_needle "$1" "$p$rest" "$kind" "${3-}"
     done
   fi
 }
@@ -523,6 +589,8 @@ bcd::named() {
 # the text names. The needles come markers first, then paths longest first, and
 # a path that names its domain spends its text: an outer path that text holds
 # (a nested pair) is not named by it, while one named elsewhere in the text is.
+# A shared exception's path open to the cwd's domain goes to bcd::spend_open;
+# closed, it names its `to` domain as that domain's root would.
 bcd::names() {
   local t="$1" n i
   for ((i = 0; i < ${#BCD_NEEDLE[@]}; i++)); do
@@ -532,6 +600,10 @@ bcd::names() {
     "$n" | "$n"[!a-z0-9._-]* | *[!a-z0-9._-]"$n" | *[!a-z0-9._-]"$n"[!a-z0-9._-]*) ;;
     *) continue ;;
     esac
+    if ((BCD_NEEDLE_PATH[i] == 2 && BCD_DOTDOT == 0)) && [[ -n "$BCD_CWD_DOMAIN" && " ${BCD_NEEDLE_FROM[i]} " == *" $BCD_CWD_DOMAIN "* ]]; then
+      bcd::spend_open "$n" "${BCD_NEEDLE_DOMAIN[i]}"
+      continue
+    fi
     bcd::named "${BCD_NEEDLE_DOMAIN[i]}" "${BCD_NEEDLE_PATH[i]}"
     if ((BCD_NEEDLE_PATH[i])); then
       t=${t//"$n"/ }
@@ -542,12 +614,55 @@ bcd::names() {
   return 0
 }
 
+# bcd::spend_open <needle> <its to domain>: an open shared exception's path, in
+# bcd::names's text `t`. Each occurrence that names it becomes a space, and one
+# a glob, brace or expansion follows (`shared*`, `shared{,-x}`, `shared$x`),
+# which can reach past it, names its `to` domain. An occurrence inside a longer
+# name is kept, so a sibling (`shared-x`) still names `to` through its root.
+bcd::spend_open() {
+  local rest=$t out="" pre
+  while [[ "$rest" == *"$1"* ]]; do
+    pre=${rest%%"$1"*}
+    rest=${rest#*"$1"}
+    if [[ "${pre: -1}" == [a-z0-9._-] || "${rest:0:1}" == [a-z0-9._-] ]]; then
+      out+=$pre$1
+      continue
+    fi
+    case "$rest" in
+    '*'* | '?'* | '['* | '{'* | '$'* | '`'* | '@('* | '+('* | '!('*) bcd::named "$2" 2 ;;
+    *) ;;
+    esac
+    out+="$pre "
+  done
+  t=$out$rest
+}
+
 # bcd::deny: the decision, as a PreToolUse document on stdout. The exit stays 0.
 bcd::deny() {
   local d others="" esc
   for d in "${BCD_DENY[@]}"; do others+="${others:+, }'$d'"; done
   hook::json_escape_to esc "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command names a path the domain map gives to another domain ($others). Reading a path there is denied too. Run the command from a session in that domain. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}}'
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}'"$BCD_NOTICE_JSON"'}'
+}
+
+# bcd::grants_nothing: the once-per-session notice naming each shared exception
+# that grants nothing, into BCD_NOTICE and, for a deny document,
+# BCD_NOTICE_JSON.
+# shellcheck disable=SC2154  # HOOK_NOTICE_TO_USER is set by hook::notice_once
+bcd::grants_nothing() {
+  local e list="" esc
+  hook::notice_once guardrails-cross-domain-shared "$INPUT" || return 0
+  [[ "$HOOK_NOTICE_TO_USER" == 1 ]] || return 0
+  for e in "${BCD_GRANTS_NOTHING[@]}"; do list+="${list:+; }$e"; done
+  BCD_NOTICE="guardrails block-cross-domain: in the domain map $BCD_MAP, $list. An entry is {\"path\": <dir>, \"from\": [<domain>], \"to\": <domain>}, with the path inside the to domain's paths; re-run /guardrails:setup apply identity-domains to rewrite it."
+  hook::json_escape_to esc "$BCD_NOTICE"
+  BCD_NOTICE_JSON=',"systemMessage":"'"$esc"'"'
+}
+
+# bcd::allow: the call is allowed; a pending notice goes out alone, then exit 0.
+bcd::allow() {
+  [[ -z "$BCD_NOTICE" ]] || hook::emit_channels PreToolUse "" "$BCD_NOTICE"
+  exit 0
 }
 
 # The parse callback: every argv word and redirection target of one segment.
@@ -748,7 +863,7 @@ bcd::identity_deny() {
   for p in "${BCD_IDENTITY_DENY[@]}"; do list+="${list:+, }$p"; done
   hook::json_escape_to reason "BLOCKED by guardrails block-cross-domain: this session's directory is in one identity domain, and this command puts another domain's identity marker in an identity position ($list). Run it from a session in that domain's tree, or turn the guard off with the block_cross_domain_enabled option."
   bcd::emit_tel identity-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
   exit 0
 }
 
@@ -888,7 +1003,7 @@ bcd::config_deny() {
   for m in "${BCD_CONFIG_DENY[@]}"; do list+="${list:+; it }$m"; done
   hook::json_escape_to reason "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command $list. Set GH_CONFIG_DIR or AZURE_CONFIG_DIR in the command to this domain's directory, or leave it unset where this domain uses the default. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
   bcd::emit_tel config-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
   exit 0
 }
 
@@ -1134,7 +1249,7 @@ bcd::write_deny() {
   for p in "${BCD_WRITE_DENY[@]}"; do list+="${list:+; }$p"; done
   hook::json_escape_to reason "guardrails block-cross-domain: denied. This command writes this machine's git identity ($list). The global, system and identity-file values of user.email, user.signingkey, user.useConfigOnly, credential.helper, core.sshCommand, core.hooksPath and includeIf, and the identity files themselves (~/.gitconfig*, *.gitconfig and the domain map's identity_files), decide which identity every repository on this machine commits and pushes as, so no session writes them, from any directory. Set a value for this repository alone with git config --local, or ask the user to make the change. To turn the guard off, set block_cross_domain_enabled to false."
   bcd::emit_tel identity-write-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}}'
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
   exit 0
 }
 
@@ -1163,6 +1278,9 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
   BCD_VAL=${BCD_REC#*"$BCD_TAB"}
   case "$BCD_KIND" in
   root | owner) bcd::add_root "$BCD_DOM" "$BCD_VAL" ;;
+  shared) bcd::add_root "$BCD_DOM" "${BCD_VAL#*"$BCD_TAB"}" "${BCD_VAL%%"$BCD_TAB"*}" ;;
+  legacy) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: it is a plain path, the earlier shape") ;;
+  outside) BCD_GRANTS_NOTHING+=("shared_exceptions[$BCD_VAL] grants nothing: its path is not a path of its to domain, '$BCD_DOM', on this host") ;;
   marker)
     bcd::fold_to BCD_VAL "$BCD_VAL"
     bcd::add_needle "$BCD_DOM" "$BCD_VAL" 0
@@ -1184,9 +1302,12 @@ for BCD_REC in ${BCD_RECORDS[@]+"${BCD_RECORDS[@]}"}; do
 done
 
 bcd::classify_cwd
+((${#BCD_GRANTS_NOTHING[@]})) && bcd::grants_nothing
 
 bcd::fold_to BCD_SUBJECT "$COMMAND"
 BCD_SUBJECT=${BCD_SUBJECT//[\"\']/}
+BCD_DOTS=${COMMAND//[\\\"\']/}
+[[ "$BCD_DOTS" == *..* ]] && BCD_DOTDOT=1
 bcd::names "$BCD_SUBJECT"
 [[ "$BCD_NAMED" == " " ]] || BCD_PATHS=1
 if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
@@ -1201,7 +1322,7 @@ if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_WRITES == 0)); then
   [[ -n "$BCD_MAP" ]] || exit 0
   bcd::trace prefilter-miss
   bcd::emit_tel prefilter-miss
-  exit 0
+  bcd::allow
 fi
 ((BCD_PATHS)) && bcd::trace prefilter-hit
 ((BCD_CONFIG)) && bcd::trace config-hit
@@ -1246,5 +1367,6 @@ if ((${#BCD_DENY[@]})); then
   bcd::emit_tel "$BCD_FORM" blocked
 else
   bcd::emit_tel "$BCD_FORM"
+  bcd::allow
 fi
 exit 0
