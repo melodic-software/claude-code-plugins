@@ -691,7 +691,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup either way and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
+- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup either way and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview. The offer stays beside the skill's opt-in review mode: the canvas is user-run, hand-editable artboards with no structured decision capture, while review mode records per-screen decisions from several reviewers on the planning interview's shared page.
 - **Integration:** `suggest`
 - **Native surface:** `design` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -902,7 +902,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `prototype` → `prototype:explore-directions`
 
-- **Verdict:** `defer`: Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants as a local HTML mockup by default, or on the real stack on request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `defer`: Deferred: the bundled skill is gated, so its presence is not determinable from this session's evidence. It publishes a single proof-of-concept Artifact; ours builds switchable throwaway layout variants as a local HTML mockup by default, or on the real stack on request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. The skill's opt-in review mode keeps the split without reversing the defer: it compares variants with per-screen decisions recorded from several reviewers on the planning interview's shared page and publishes no Artifact, where the bundled skill iterates one proof of concept on feedback.
 - **Integration:** `route`
 - **Native surface:** `prototype` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
@@ -1309,7 +1309,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 
 ### `playground` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (a local mockup in the app's own look by default, or the real header, data and routes on request) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.
+- **Verdict:** `complementary`: Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (a local mockup in the app's own look by default, or the real header, data and routes on request) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper. Its opt-in review mode stays distinct too: per-screen product decisions from several reviewers on the planning interview's shared page, not a prompt returned to one user.
 - **Integration:** `route`
 - **Native surface:** `playground` (first-party marketplace plugin; markers: none)
 - **Our component:** `prototype:explore-directions` (skill)
