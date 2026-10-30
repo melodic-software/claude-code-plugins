@@ -886,8 +886,9 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
-on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
-([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
+on the issue instead: `research-first` and `probe-first` get `needs-human`, no `agent-ready`, and
+a comment naming the next step, and `split-required` goes back through intake, whose split files
+its sub-issues ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -2878,7 +2879,7 @@ with its default.
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
-| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry`, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
