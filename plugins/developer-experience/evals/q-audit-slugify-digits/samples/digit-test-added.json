@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "import unittest\n\nfrom bfk.text import slugify\n\n\nclass SlugifyTests(unittest.TestCase):\n    def test_joins_words_with_hyphens(self):\n        self.assertEqual(slugify(\"Hello World\"), \"hello-world\")\n\n    def test_strips_punctuation(self):\n        self.assertEqual(slugify(\"  Release notes!  \"), \"release-notes\")\n\n    def test_keeps_digits(self):\n        self.assertEqual(slugify(\"Release 2 notes\"), \"release-2-notes\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "why": "a new digit case beside the seeded tests"
+    },
+    {
+      "answer": "    def test_keeps_digits(self):\n        self.assertEqual(slugify('Version 10'), 'version-10')\n",
+      "why": "single-quoted input"
+    },
+    {
+      "answer": "    def test_keeps_digits(self):\n        self.assertEqual(\"room-101\", slugify(\"Room 101\"))\n",
+      "why": "expected value first"
+    },
+    {
+      "answer": "    def test_keeps_digits(self):\n        self.assertEqual(slugify(r\"Q3 report\"), \"q3-report\")\n",
+      "why": "raw-string input"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "import unittest\n\nfrom bfk.text import slugify\n\n\nclass SlugifyTests(unittest.TestCase):\n    def test_joins_words_with_hyphens(self):\n        self.assertEqual(slugify(\"Hello World\"), \"hello-world\")\n\n    def test_strips_punctuation(self):\n        self.assertEqual(slugify(\"  Release notes!  \"), \"release-notes\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "why": "the seeded tests, no digit case"
+    },
+    {
+      "answer": "    def test_keeps_digits(self):\n        self.assertEqual(slugify(\"Release notes\"), \"release-notes-2\")\n",
+      "why": "near miss: the digit is only in the expected value"
+    },
+    {
+      "answer": "    def test_keeps_digits(self):\n        self.assertEqual(slugify(\"Room 101\"), \"room\")\n",
+      "why": "near miss: the expected value pins the bug, dropping the digits"
+    }
+  ]
+}
