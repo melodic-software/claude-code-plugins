@@ -1,0 +1,8 @@
+{
+  "enabledPlugins": {
+    "alpha@market1": true,
+    "beta@market1": false,
+    "gamma@market2": true
+  },
+  "theme": "dark"
+}
