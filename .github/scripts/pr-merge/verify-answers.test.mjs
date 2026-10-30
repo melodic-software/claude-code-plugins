@@ -42,13 +42,17 @@ async function readRun({ pages = [[]], files = {}, skips = {}, offMain = [], fai
     return { total_count: artifacts.length, artifacts };
   };
   // The run's artifact holds the answers file and, in `skips`, its skip records.
+  // A file the artifact lacks fails as readFileSync does; "download-fails" fails
+  // as `gh run download` does.
+  const missing = (file) => Object.assign(new Error(`ENOENT: no such file, open '${file}'`), { code: "ENOENT", syscall: "open" });
   const download = (id, file = ANSWERS_FILE) => {
     downloads.push(file === ANSWERS_FILE ? id : `${id}:${file}`);
+    if (files[id] === "download-fails") throw new Error("Command failed: gh run download");
     if (file === SKIP_FILE) {
-      if (!(id in skips)) throw new Error(`no ${file}`);
+      if (!(id in skips)) throw missing(file);
       return skips[id];
     }
-    if (files[id] === null) throw new Error(`no ${file}`);
+    if (files[id] === null) throw missing(file);
     return files[id];
   };
   const lines = [];
@@ -85,6 +89,7 @@ test("no earlier answers write nothing, and remove a file left at the path", asy
 test("an unreadable or foreign answers file writes nothing and warns", async () => {
   for (const options of [
     { fail: new Error("HTTP 502") },
+    { pages: [[wf(1, "schedule")]], files: { 1: "download-fails" } },
     { pages: [[wf(1, "schedule")]], files: { 1: "not json" } },
     { pages: [[wf(1, "schedule")]], files: { 1: answersOf({}, { repo: "someone/else" }) } },
     { pages: [[wf(1, "schedule")]], files: { 1: answersOf([]) } },

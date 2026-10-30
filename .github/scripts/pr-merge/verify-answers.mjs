@@ -56,13 +56,14 @@ export async function answersRun({ repo, runId, actions: client, shared }) {
 
 // Run `id`'s answers file, as `{ run, text, count }`; undefined when the
 // artifact holds none (a run whose reader read nothing), an error for a file
-// that is not this repository's.
+// that is not this repository's or a download that failed.
 export function readAnswers({ repo, id, download }) {
   let text;
   try {
     text = download(id);
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (error?.code === "ENOENT" && error?.syscall === "open") return undefined;
+    throw error;
   }
   const data = JSON.parse(text);
   if (!isObject(data) || data.repo !== repo || !isObject(data.entries)) {
