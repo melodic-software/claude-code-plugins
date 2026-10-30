@@ -1599,6 +1599,35 @@ class PersonReasonsTests(unittest.TestCase):
                 result = score(_input(files=(_file(path, has_patch=False),)))
                 self.assertFalse(holds(result), result.reasons)
 
+    def test_only_a_rename_proven_unchanged_skips_the_person(self):
+        # The files API sends no patch for a pure rename: an equal blob at an
+        # equal mode leaves nothing unread. A 0/0 binary edit looks the same
+        # without that proof, so a differing blob, a changed mode or an
+        # unknown identity still holds.
+        def rename(unchanged, mode="100644"):
+            return dataclasses.replace(
+                _file(
+                    "evals/new/case.yaml",
+                    status="renamed",
+                    previous_path="evals/old/case.yaml",
+                    additions=0,
+                    deletions=0,
+                    has_patch=False,
+                    mode=mode,
+                ),
+                content_unchanged=unchanged,
+            )
+
+        code = "unreviewed-patch:evals/new/case.yaml"
+        self.assertNotIn(code, _codes(score(_input(files=(rename(True),)))))
+        for name, changed in (
+            ("blob differs", rename(False)),
+            ("mode changed", rename(True, mode="100755")),
+            ("unknown", rename(None)),
+        ):
+            with self.subTest(name):
+                self.assertIn(code, _codes(score(_input(files=(changed,)))))
+
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(

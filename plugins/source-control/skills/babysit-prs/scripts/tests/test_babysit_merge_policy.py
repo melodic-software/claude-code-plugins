@@ -1890,6 +1890,58 @@ class ChangedFiles(unittest.TestCase):
             ],
         )
 
+    def test_a_rename_is_unchanged_only_on_an_equal_blob_and_mode(self) -> None:
+        gh = GhFake().install(self)
+        renames = {"same.md": "1", "edited.bin": "2", "exec.sh": "3", "unknown.md": "4"}
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": f"new/{path}",
+                "previous_filename": f"old/{path}",
+                "status": "renamed",
+                "additions": 0,
+                "deletions": 0,
+            }
+            for path in renames
+        ] + [
+            {"filename": "docs/a.md", "status": "modified", "additions": 1,
+             "deletions": 0, "patch": "@@"}
+        ]  # fmt: skip
+        gh.rest[f"repos/{REPO}/git/trees/{self.HEAD}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": "new/same.md", "mode": "100644", "sha": "1" * 40},
+                {"path": "new/edited.bin", "mode": "100644", "sha": "9" * 40},
+                {"path": "new/exec.sh", "mode": "100755", "sha": "3" * 40},
+                {"path": "new/unknown.md", "mode": "100644"},
+                {"path": "docs/a.md", "mode": "100644", "sha": "5" * 40},
+            ],
+        }
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": f"old/{path}", "mode": "100644", "sha": blob * 40}
+                for path, blob in renames.items()
+            ]
+            + [{"path": "docs/a.md", "mode": "100644", "sha": "5" * 40}],
+        }
+        pr = {
+            "number": 7,
+            "changed_files": 5,
+            "head": {"sha": self.HEAD},
+            "base": {"sha": SHA},
+        }
+        files, _ = policy.changed_files(REPO, pr)
+        self.assertEqual(
+            [(f.path, f.content_unchanged) for f in files],
+            [
+                ("new/same.md", True),
+                ("new/edited.bin", False),
+                ("new/exec.sh", False),
+                ("new/unknown.md", None),
+                ("docs/a.md", None),
+            ],
+        )
+
     def test_a_truncated_tree_is_incomplete(self) -> None:
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = []
@@ -3694,6 +3746,31 @@ class LocalEnabledSince(unittest.TestCase):
                 ]
             ],
         )
+
+    def test_a_pure_rename_is_proven_unchanged_from_the_clone(self) -> None:
+        base = self.commit("old/case.yaml", "x: 1\n", "2026-10-01T00:00:00Z")
+        self.git(self.clone, "mv", "old", "new")
+        self.git(self.clone, "commit", "-q", "-m", "mv", date="2026-10-02T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "new/case.yaml",
+                "previous_filename": "old/case.yaml",
+                "status": "renamed",
+                "additions": 0,
+                "deletions": 0,
+            }
+        ]
+        pr = {
+            "number": 7,
+            "changed_files": 1,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, complete = policy.changed_files(REPO, pr)
+        self.assertTrue(complete)
+        self.assertEqual([f.content_unchanged for f in files], [True])
 
     def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")

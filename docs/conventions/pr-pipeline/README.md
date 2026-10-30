@@ -947,7 +947,8 @@ the rules that only tighten in
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
   `no-patch:` is only an image, font or PDF; any other file the files API sends no patch for (a
   script with a NUL byte that git calls binary, an over-size patch) no review read, so it holds for
-  a person as `unreviewed-patch:<path>`.
+  a person as `unreviewed-patch:<path>`. A rename or copy whose base blob and mode at the old path
+  equal the head's at the new one has nothing to read and does not hold; an unknown blob holds.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from

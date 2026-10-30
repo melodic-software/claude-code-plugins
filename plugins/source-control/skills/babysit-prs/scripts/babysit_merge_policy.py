@@ -5051,14 +5051,24 @@ def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
 
 
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
-    """Each path's git mode at `sha`, or None when the listing is truncated:
-    from a local clone holding `sha` (`_clones_holding`), else the trees API."""
+    """Each path's git mode at `sha` (`_tree_entries`), or None when the
+    listing is truncated."""
+    entries = _tree_entries(owner, name, sha)
+    return None if entries is None else {p: e[0] for p, e in entries.items()}
+
+
+def _tree_entries(
+    owner: str, name: str, sha: str
+) -> dict[str, tuple[str, str | None]] | None:
+    """Each path's git mode and object id at `sha`, or None when the listing
+    is truncated: from a local clone holding `sha` (`_clones_holding`), else
+    the trees API."""
     for root in _clones_holding(sha):
         listing = _git(root, "ls-tree", "-r", "-t", "-z", "--full-tree", sha)
         if listing is not None:
             # Each entry is `<mode> <type> <id>\t<path>`.
             return {
-                path: meta.split(" ", 1)[0]
+                path: (meta.split(" ")[0], meta.split(" ")[-1])
                 for meta, _, path in (
                     entry.partition("\t") for entry in listing.split("\0") if entry
                 )
@@ -5069,7 +5079,7 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
     if payload.get("truncated") is not False:
         return None
     return {
-        str(entry.get("path")): str(entry.get("mode"))
+        str(entry.get("path")): (str(entry.get("mode")), entry.get("sha"))
         for entry in map(json_object, json_array(payload.get("tree")))
     }
 
@@ -5086,8 +5096,10 @@ def _changed_files(
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
-    head_modes = _tree_modes(owner, name, str(head))
-    base_modes = _tree_modes(owner, name, base_sha)
+    head_tree = _tree_entries(owner, name, str(head))
+    base_tree = _tree_entries(owner, name, base_sha)
+    head_modes = None if head_tree is None else {p: e[0] for p, e in head_tree.items()}
+    base_modes = None if base_tree is None else {p: e[0] for p, e in base_tree.items()}
     complete = (
         head_modes is not None
         and base_modes is not None
@@ -5098,6 +5110,14 @@ def _changed_files(
         path, previous = entry.get("filename"), entry.get("previous_filename")
         status = entry.get("status")
         side = base_modes if status == "removed" else head_modes
+        # A rename or copy is unchanged when its (mode, blob id) pair is the
+        # same on both trees; an id either tree lacks leaves it unknown.
+        after = (head_tree or {}).get(path)
+        before = (base_tree or {}).get(previous or path)
+        unchanged = None
+        if status in ("renamed", "copied") and after and before:
+            if SHA_RE.fullmatch(str(after[1])) and SHA_RE.fullmatch(str(before[1])):
+                unchanged = after == before
         files.append(
             ChangedFile(
                 path=path,
@@ -5111,6 +5131,7 @@ def _changed_files(
                 previous_mode=None
                 if status in ("added", "removed")
                 else (base_modes or {}).get(previous or path),
+                content_unchanged=unchanged,
             )
         )
     return tuple(files), complete

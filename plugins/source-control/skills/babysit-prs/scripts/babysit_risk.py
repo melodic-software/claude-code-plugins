@@ -173,6 +173,10 @@ class ChangedFile:
     # read by the caller; contents_error says why it could not.
     contents: tuple[str | None, str | None] | None = None
     contents_error: str | None = None
+    # A rename or copy whose base blob and mode at previous_path equal the
+    # head's at path, read by the caller from both trees; None when unknown,
+    # read as changed. The files API sends no patch for such a file.
+    content_unchanged: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -661,6 +665,8 @@ class _File:
     lines: int
     has_patch: bool | None  # None when malformed: reported once, as a problem
     problems: tuple[str, ...]
+    # A rename or copy proven byte- and mode-identical: no patch to read.
+    unchanged: bool = False
 
 
 def _check_file(changed: Any) -> _File:
@@ -703,6 +709,9 @@ def _check_file(changed: Any) -> _File:
         lines=lines,
         has_patch=has_patch,
         problems=tuple(problems),
+        unchanged=getattr(changed, "content_unchanged", None) is True
+        and status in ("renamed", "copied")
+        and getattr(changed, "mode", None) == getattr(changed, "previous_mode", None),
     )
 
 
@@ -2161,7 +2170,9 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
         )
     elif cap is not None and len(files) > cap:
         reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
-    for path in dict.fromkeys(f.path for f in files if f.has_patch is False):
+    for path in dict.fromkeys(
+        f.path for f in files if f.has_patch is False and not f.unchanged
+    ):
         if path.casefold().endswith(MEDIA_SUFFIXES):
             reasons.append(
                 Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
