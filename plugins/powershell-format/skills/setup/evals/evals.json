@@ -72,10 +72,11 @@
       "id": 6,
       "name": "headless-toggle-off-reruns-install-never-uninstalls",
       "prompt": "/powershell-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
-      "expected_output": "Routes the headless change to a plain `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (citing the marketplace's plugin-reconfiguration convention as the owner of the verified-version record), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "expected_output": "Routes the headless change to `claude plugin configure powershell-format@<marketplace> --values-stdin` with `{\"powershell_format_enabled\": \"false\"}`, run from the project the plugin is installed in, and names as its fallback a plain `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (citing the marketplace's plugin-reconfiguration convention as the owner of the verified-version record), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
       "files": [],
       "expectations": [
-        "Prescribes a plain `claude plugin install … --config powershell_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Prescribes `claude plugin configure powershell-format@<marketplace> --values-stdin` first, with powershell_format_enabled set to the string \"false\", and the `claude plugin install … --config` rerun second as the fallback for a release without `plugin configure`",
+        "For the fallback, prescribes a plain `claude plugin install … --config powershell_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stating a CLI version inline",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
