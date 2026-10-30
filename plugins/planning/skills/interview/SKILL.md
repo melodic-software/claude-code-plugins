@@ -298,6 +298,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 
 A non-zero exit HALTS the confirmation request; stderr names each defect (a round missing from the register, a retired row with no resolution). Fix the ledger and re-run. It checks only what a file can show. Not checked, and not implied by a green exit or by the recap: whether the Step 1 survey grounded the questions, whether the domain was classified, whether register rows were written at ask-time rather than answer-time, and whether the frontier was recomputed between rounds. `/planning:audit-answers` adversarially re-validates the answers; the recap shows the user the Q&A and the check shows the procedure ran, and neither composes nor duplicates it. A run with no register skips both.
 
+**Close the restatement with an active request.** In the terminal lane, the restatement ends by asking the user to confirm it or to name the `Q<N>` numbers of the items to change, for example "Confirm this, or name the Q numbers to change." A run with no register asks the user to confirm it or say what to change. Never close on a yes/no check ("Sound good?", "Does this look right?"). When the recap command or the procedure check cannot be run (no Bash in the session), the restatement still goes out with that gap named in one line and no hand-written recap in its place; it is never replaced by setup questions or a request to run them. A check that ran and exited non-zero still halts, as above. Eval evidence: case `interview-final-confirm-active-reply`.
+
 **`me` mode tightening:** "captured as named assumption" is NOT a valid stop for a *consequential* branch. Drive it to a decision (a decision MAY be "defer to post-V1", but it must be explicit and surfaced, never silent). The stop condition is an **empty decision-tree ledger** plus the confirmation gate. Not a question count.
 
 ### Step 4. Persist the contract
@@ -376,7 +378,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
-Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and the `acceptance_criteria_format` resolution ladder.
+Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and how `acceptance_criteria_format` resolves, through the shared ladder in [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md).
 
 ## Composition with other skills
 

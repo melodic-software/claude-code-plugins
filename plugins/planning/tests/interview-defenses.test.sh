@@ -549,11 +549,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
 # gate reads only the Restatement stamp (#9912); no defense weakened
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "1444af9f6a8c7f29ca46d629e5dc8b20f17e8035f54fdb076a8038142a234e1a"
+  "e562afcdb204a94b3e236e179de3e598373c780194d46c8e01ef951f13e623cb"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -665,11 +666,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # verbatim, with `--changed` after the first confirmation (#6136); the recap stays sourced
 # from the register on disk, and the gate, the procedure check and its halt are unchanged.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "1d7690bb3c9d2c928dc547f97e1aa32fb6acc8f6b1535f27e28ac0ace4d2aa7c"
+  "db3a9ec42b6b48739965251b879a32c285d38b2d3972104c6503dd3acbc34bff"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
@@ -733,9 +735,10 @@ pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts i
 # The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "d44ad1a0d4b3ceba53b4f962afd8afee2d939dc5b68c305a0318dd18a31ecc54"
+  "903332451df15c686d46259080f54f82824287b1efe4199a42716e5e95609c6f"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -923,8 +926,8 @@ pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$S
   "When an accept-shorthand resolves commitment rows, name their \`Q<N>\` ids in one line."
 pin "SKILL.md: a page accept resolves only ticked parts" "$SKILL" \
   "(on the page, only the parts the user ticks)"
-pin "loop.md: parts of a page question answered with an alternative are withdrawn" "$LOOP" \
-  "An alternative withdraws the parts, so they do not reach the Brief"
+pin "loop.md: parts of a page question answered with an alternative or an own answer are withdrawn" "$LOOP" \
+  "An alternative or an \`own\` answer replaces the recommendation and withdraws the parts, so they do not reach the Brief"
 pin "loop.md defines commitment rows" "$LOOP" \
   "**Commitment rows.**"
 pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \

@@ -11,7 +11,10 @@ name: pr-review-main
 # workflow_run runs this file from main, never a head's copy. No pull request
 # code runs here: the diff, the trusted pull request text and the lane's
 # criteria (copied from main) are data files in pr-review-main-data, and the
-# model reads them with the Read tool alone. Each lane uploads its verdict as
+# model reads them with the Read tool alone. A diff over one review's size
+# cap is reviewed in chunks of whole files, one run each, and one verdict
+# sums their findings and takes the most CRITICAL ones in a chunk. Each
+# lane uploads its verdict as
 # the artifact pr-review-main-<lane>-<pr>-<tree> (write-verdict.mjs); only a
 # run's own steps can upload its artifacts, so the gate authenticates the
 # name through this run's record (path, workflow_run event, main, completed
@@ -85,7 +88,8 @@ jobs:
             route: review-security
             switch: CLAUDE_SECURITY_REVIEW_DISABLED
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Each chunk's review has 22 minutes.
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -97,10 +101,10 @@ jobs:
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
       claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
       claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
-      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
-      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
-      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
-      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop || steps.chunk-stop.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop || steps.chunk-stop.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head || steps.chunk-stop.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head || steps.chunk-stop.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -193,13 +197,17 @@ jobs:
       # into or out of a lane source, a mode change, a symlink or submodule,
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch that still
-      # shows a binary file, is larger than one review can read whole, or
-      # holds a line longer than Read returns whole gets no verdict: the step
-      # stops green with the reason as an output, the record job posts it as
-      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
-      # under that reason. Any other failure fails the step. The tree the
-      # verdict is keyed on comes from git, never from the model.
+      # added line names still print whole. A patch over the size cap is
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # returns whole gets no verdict: the step stops green with the reason
+      # as an output, the record job posts it as `verdict=none
+      # reason=<reason>` on the head, and the lanes stay unbound under that
+      # reason. Any other failure fails the step. The tree the verdict is
+      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
@@ -213,6 +221,9 @@ jobs:
           # About 75k tokens of patch: room in the lane's turn budget to read
           # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
+          # The most chunks, each one review: at most the leg's Review chunk
+          # steps (workflow.test.mjs holds them equal).
+          MAX_CHUNKS: "4"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
           # a token is at least a byte, so a part this size with its line
@@ -240,36 +251,52 @@ jobs:
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
           fi
-          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
-          fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
-          # Parts the reviewer reads whole, each named in the prompt; the
-          # verdict counts only when every part was read whole
-          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
-          # no verdict.
+          # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
-          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-            { len = length($0) + 1
-              if (len > maxb) exit 3
-              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-              print > f; b += len; l++ }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+          split=0
+          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
+          if [ "$split" -eq 3 ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
+          elif [ "$split" -ne 0 ]; then
+            echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
           fi
           rm "$DATA/diff.patch"
-          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+          chunks=$(find "$DATA/diff" -name 'chunk-*.patch' | wc -l)
+          if [ "$chunks" -eq 0 ]; then
             echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
             exit 1
           fi
+          # Each chunk's parts, which its reviewer reads whole, each named in
+          # its prompt; the verdict counts only when every part was read
+          # whole (write-verdict.mjs `readCoverage`). A line longer than a
+          # part gets no verdict.
+          bytes=
+          for k in $(seq "$chunks"); do
+            dir="$DATA/diff/chunk-$k"
+            mkdir "$dir"
+            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+              { len = length($0) + 1
+                if (len > maxb) exit 3
+                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+                print > f; b += len; l++ }' "$dir.patch"; then
+              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+              exit 1
+            fi
+            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
+            rm "$dir.patch"
+          done
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
-          echo "tree=$tree" >>"$GITHUB_OUTPUT"
-          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+          { echo "tree=$tree"; echo "chunks=$chunks"; } >>"$GITHUB_OUTPUT"
+          echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes"
+          echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -344,7 +371,8 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both.
+      # Files, not step outputs: run-claude-cli reads both. One prompt per
+      # chunk, naming that chunk's parts.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -353,23 +381,36 @@ jobs:
           LANE: ${{ matrix.lane }}
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
-          prompt=${prompt//LANE_NAME/$LANE}
-          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
-          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
-          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
-          prompt=${prompt//DIFF_PARTS/$parts}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            prompt=${prompt//LANE_NAME/$LANE}
+            prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+            prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+            fi
+            prompt=${prompt//CHUNK_NOTE/$note}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
@@ -381,8 +422,14 @@ jobs:
       # the outcome report; "Fail without a verdict" carries the red. A
       # handoff skips the verdict and the outcome report: the next leg
       # reviews the lane and records it.
-      - name: Review the pull request
-        id: review
+      # One run per chunk, in order, each on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 reviewed and handed
+      # nothing on, so a handoff hands the whole lane on and the next leg
+      # reviews every chunk again. Each run leaves its own lane record and
+      # its sealed transcript (failed runs included, kept 7 days for the
+      # puller; a failed upload never fails the job).
+      - name: Review chunk 1
+        id: review-1
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
@@ -393,7 +440,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -419,14 +466,239 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
           leg-timeout-minutes: "15"
 
+      - name: Report chunk 1's outcome
+        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-1.outcome }}
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
+          log-file: ${{ steps.review-1.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-1.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+
+      - name: Upload chunk 1's sealed transcript
+        if: always() && steps.review-1.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      - name: Time chunk 2
+        id: time-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 2
+        id: review-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 2's outcome
+        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-2.outcome }}
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          log-file: ${{ steps.review-2.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.review-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 3
+        id: review-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 3's outcome
+        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-3.outcome }}
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          log-file: ${{ steps.review-3.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.review-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 4
+        id: review-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 4's outcome
+        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-4.outcome }}
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          log-file: ${{ steps.review-4.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.review-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-4
+
       # The lane's handoff reason, from run-claude-cli's closed handoff-reason
       # (or an empty credential), under the lane's own output name.
       - name: Hand the lane on
         id: handoff
-        if: steps.review.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        if: steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
         env:
           LANE: ${{ matrix.lane }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review.outputs.handoff-reason }}
+          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
         run: |
           case "$REASON" in
             credit-stop | auth | limit-stop | no-key) ;;
@@ -435,42 +707,20 @@ jobs:
           echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
           echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
 
-      # One lane record per lane and run, as pr-verify.yml keeps one, so this
-      # lane's model legs show in lane telemetry and spend: the leg that
-      # handed nothing on records it.
-      - name: Report the review's outcome
-        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          outcome: ${{ steps.review.outcome }}
-          execution-file: ${{ steps.review.outputs.execution-file }}
-          log-file: ${{ steps.review.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.prompt.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
-
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
-      - name: Upload the sealed transcript
-        if: always() && steps.review.outputs.execution-file != ''
-        continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
-        with:
-          execution-file: ${{ steps.review.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}
-
       # The structured output is untrusted model text: read from the file and
       # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          # Each chunk's execution file in chunk order; it runs only when
+          # every chunk's review succeeded and handed nothing on.
+          EXECUTION_FILES: |
+            ${{ steps.review-1.outputs.execution-file }}
+            ${{ steps.review-2.outputs.execution-file }}
+            ${{ steps.review-3.outputs.execution-file }}
+            ${{ steps.review-4.outputs.execution-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -479,6 +729,21 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      # A chunked review that wrote no verdict and handed nothing on (a
+      # chunk's review failed, or one left no result or skipped a part) is a
+      # designed stop too: no chunk's counts bind, and the record job names
+      # it on the head. The job still fails.
+      - name: Record a failed chunk
+        id: chunk-stop
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+        run: |
+          echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
+          { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
       - name: Upload the verdict
         if: steps.verdict.outcome == 'success'
@@ -575,7 +840,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.review-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Each chunk's review has 22 minutes.
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -587,10 +853,10 @@ jobs:
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
       claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
       claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
-      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
-      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
-      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
-      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop || steps.chunk-stop.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop || steps.chunk-stop.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head || steps.chunk-stop.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head || steps.chunk-stop.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -682,13 +948,17 @@ jobs:
       # into or out of a lane source, a mode change, a symlink or submodule,
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch that still
-      # shows a binary file, is larger than one review can read whole, or
-      # holds a line longer than Read returns whole gets no verdict: the step
-      # stops green with the reason as an output, the record job posts it as
-      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
-      # under that reason. Any other failure fails the step. The tree the
-      # verdict is keyed on comes from git, never from the model.
+      # added line names still print whole. A patch over the size cap is
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # returns whole gets no verdict: the step stops green with the reason
+      # as an output, the record job posts it as `verdict=none
+      # reason=<reason>` on the head, and the lanes stay unbound under that
+      # reason. Any other failure fails the step. The tree the verdict is
+      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
@@ -702,6 +972,9 @@ jobs:
           # About 75k tokens of patch: room in the lane's turn budget to read
           # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
+          # The most chunks, each one review: at most the leg's Review chunk
+          # steps (workflow.test.mjs holds them equal).
+          MAX_CHUNKS: "4"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
           # a token is at least a byte, so a part this size with its line
@@ -729,36 +1002,52 @@ jobs:
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
           fi
-          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
-          fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
-          # Parts the reviewer reads whole, each named in the prompt; the
-          # verdict counts only when every part was read whole
-          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
-          # no verdict.
+          # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
-          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-            { len = length($0) + 1
-              if (len > maxb) exit 3
-              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-              print > f; b += len; l++ }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+          split=0
+          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
+          if [ "$split" -eq 3 ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
+          elif [ "$split" -ne 0 ]; then
+            echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
           fi
           rm "$DATA/diff.patch"
-          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+          chunks=$(find "$DATA/diff" -name 'chunk-*.patch' | wc -l)
+          if [ "$chunks" -eq 0 ]; then
             echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
             exit 1
           fi
+          # Each chunk's parts, which its reviewer reads whole, each named in
+          # its prompt; the verdict counts only when every part was read
+          # whole (write-verdict.mjs `readCoverage`). A line longer than a
+          # part gets no verdict.
+          bytes=
+          for k in $(seq "$chunks"); do
+            dir="$DATA/diff/chunk-$k"
+            mkdir "$dir"
+            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+              { len = length($0) + 1
+                if (len > maxb) exit 3
+                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+                print > f; b += len; l++ }' "$dir.patch"; then
+              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+              exit 1
+            fi
+            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
+            rm "$dir.patch"
+          done
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
-          echo "tree=$tree" >>"$GITHUB_OUTPUT"
-          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+          { echo "tree=$tree"; echo "chunks=$chunks"; } >>"$GITHUB_OUTPUT"
+          echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes"
+          echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -833,7 +1122,8 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both.
+      # Files, not step outputs: run-claude-cli reads both. One prompt per
+      # chunk, naming that chunk's parts.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -842,23 +1132,36 @@ jobs:
           LANE: ${{ matrix.lane }}
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
-          prompt=${prompt//LANE_NAME/$LANE}
-          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
-          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
-          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
-          prompt=${prompt//DIFF_PARTS/$parts}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            prompt=${prompt//LANE_NAME/$LANE}
+            prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+            prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+            fi
+            prompt=${prompt//CHUNK_NOTE/$note}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
@@ -870,8 +1173,14 @@ jobs:
       # the outcome report; "Fail without a verdict" carries the red. A
       # handoff skips the verdict and the outcome report: the next leg
       # reviews the lane and records it.
-      - name: Review the pull request
-        id: review
+      # One run per chunk, in order, each on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 reviewed and handed
+      # nothing on, so a handoff hands the whole lane on and the next leg
+      # reviews every chunk again. Each run leaves its own lane record and
+      # its sealed transcript (failed runs included, kept 7 days for the
+      # puller; a failed upload never fails the job).
+      - name: Review chunk 1
+        id: review-1
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
@@ -882,7 +1191,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -909,14 +1218,250 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
+      - name: Report chunk 1's outcome
+        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-1.outcome }}
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
+          log-file: ${{ steps.review-1.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-1.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 1's sealed transcript
+        if: always() && steps.review-1.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      - name: Time chunk 2
+        id: time-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 2
+        id: review-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 2's outcome
+        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-2.outcome }}
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          log-file: ${{ steps.review-2.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.review-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 3
+        id: review-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 3's outcome
+        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-3.outcome }}
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          log-file: ${{ steps.review-3.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.review-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 4
+        id: review-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 4's outcome
+        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-4.outcome }}
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          log-file: ${{ steps.review-4.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.review-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-4
+
       # The lane's handoff reason, from run-claude-cli's closed handoff-reason
       # (or an empty credential), under the lane's own output name.
       - name: Hand the lane on
         id: handoff
-        if: steps.review.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        if: steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
         env:
           LANE: ${{ matrix.lane }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review.outputs.handoff-reason }}
+          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
         run: |
           case "$REASON" in
             credit-stop | auth | limit-stop | no-key) ;;
@@ -925,44 +1470,20 @@ jobs:
           echo "$LANE=$REASON" >>"$GITHUB_OUTPUT"
           echo "::notice::$LANE handed on ($REASON); the next leg reviews it"
 
-      # One lane record per lane and run, as pr-verify.yml keeps one, so this
-      # lane's model legs show in lane telemetry and spend: the leg that
-      # handed nothing on records it.
-      - name: Report the review's outcome
-        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
-        with:
-          outcome: ${{ steps.review.outcome }}
-          execution-file: ${{ steps.review.outputs.execution-file }}
-          log-file: ${{ steps.review.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.prompt.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
-          # Why this leg ran, for the lane's one record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
-
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
-      - name: Upload the sealed transcript
-        if: always() && steps.review.outputs.execution-file != ''
-        continue-on-error: true
-        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
-        with:
-          execution-file: ${{ steps.review.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}
-
       # The structured output is untrusted model text: read from the file and
       # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          # Each chunk's execution file in chunk order; it runs only when
+          # every chunk's review succeeded and handed nothing on.
+          EXECUTION_FILES: |
+            ${{ steps.review-1.outputs.execution-file }}
+            ${{ steps.review-2.outputs.execution-file }}
+            ${{ steps.review-3.outputs.execution-file }}
+            ${{ steps.review-4.outputs.execution-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -971,6 +1492,21 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      # A chunked review that wrote no verdict and handed nothing on (a
+      # chunk's review failed, or one left no result or skipped a part) is a
+      # designed stop too: no chunk's counts bind, and the record job names
+      # it on the head. The job still fails.
+      - name: Record a failed chunk
+        id: chunk-stop
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+        run: |
+          echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
+          { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
       - name: Upload the verdict
         if: steps.verdict.outcome == 'success'
@@ -1063,7 +1599,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.subscription-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Each chunk's review has 22 minutes.
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -1071,10 +1608,10 @@ jobs:
     # One output per lane, since a matrix job's outputs merge: the designed
     # stop that left the lane without a verdict, and the head it names.
     outputs:
-      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
-      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
-      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
-      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop || steps.chunk-stop.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop || steps.chunk-stop.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head || steps.chunk-stop.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head || steps.chunk-stop.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1166,13 +1703,17 @@ jobs:
       # into or out of a lane source, a mode change, a symlink or submodule,
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
-      # added line names still print whole. A patch that still
-      # shows a binary file, is larger than one review can read whole, or
-      # holds a line longer than Read returns whole gets no verdict: the step
-      # stops green with the reason as an output, the record job posts it as
-      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
-      # under that reason. Any other failure fails the step. The tree the
-      # verdict is keyed on comes from git, never from the model.
+      # added line names still print whole. A patch over the size cap is
+      # split into chunks of at most the cap at file boundaries, each file
+      # whole (split-diff.py), and each chunk is reviewed by its own run; the
+      # verdict sums their findings and takes the most CRITICAL ones in a
+      # chunk. A patch that still shows a binary file, holds a file over the
+      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
+      # returns whole gets no verdict: the step stops green with the reason
+      # as an output, the record job posts it as `verdict=none
+      # reason=<reason>` on the head, and the lanes stay unbound under that
+      # reason. Any other failure fails the step. The tree the verdict is
+      # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
@@ -1186,6 +1727,9 @@ jobs:
           # About 75k tokens of patch: room in the lane's turn budget to read
           # it whole beside the criteria (judgment).
           MAX_DIFF_BYTES: "300000"
+          # The most chunks, each one review: at most the leg's Review chunk
+          # steps (workflow.test.mjs holds them equal).
+          MAX_CHUNKS: "4"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
           # a token is at least a byte, so a part this size with its line
@@ -1213,36 +1757,52 @@ jobs:
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
           fi
-          if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
-          fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
             stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
-          # Parts the reviewer reads whole, each named in the prompt; the
-          # verdict counts only when every part was read whole
-          # (write-verdict.mjs `readCoverage`). A line longer than a part gets
-          # no verdict.
+          # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
+          # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
           mkdir "$DATA/diff"
-          if ! LC_ALL=C awk -v dir="$DATA/diff" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-            { len = length($0) + 1
-              if (len > maxb) exit 3
-              if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-              print > f; b += len; l++ }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+          split=0
+          python3 -I .base/.github/scripts/pr-review-main/split-diff.py "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" || split=$?
+          if [ "$split" -eq 3 ]; then
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes: a file over $MAX_DIFF_BYTES bytes, or more than $MAX_CHUNKS reviews of $MAX_DIFF_BYTES bytes of whole files"
+          elif [ "$split" -ne 0 ]; then
+            echo "::error::the diff did not split into chunks; no verdict, so the lanes stay unbound"
             exit 1
           fi
           rm "$DATA/diff.patch"
-          if [ -z "$(find "$DATA/diff" -type f)" ]; then
+          chunks=$(find "$DATA/diff" -name 'chunk-*.patch' | wc -l)
+          if [ "$chunks" -eq 0 ]; then
             echo "::error::the diff is empty; no verdict, so the lanes stay unbound"
             exit 1
           fi
+          # Each chunk's parts, which its reviewer reads whole, each named in
+          # its prompt; the verdict counts only when every part was read
+          # whole (write-verdict.mjs `readCoverage`). A line longer than a
+          # part gets no verdict.
+          bytes=
+          for k in $(seq "$chunks"); do
+            dir="$DATA/diff/chunk-$k"
+            mkdir "$dir"
+            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+              { len = length($0) + 1
+                if (len > maxb) exit 3
+                if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+                print > f; b += len; l++ }' "$dir.patch"; then
+              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
+              exit 1
+            fi
+            bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
+            rm "$dir.patch"
+          done
           tree=$(git -C "$SRC" rev-parse --verify "$HEAD_SHA^{tree}")
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg tree "$tree" \
             '{pr: $pr, head_sha: $head, base_sha: $base, tree: $tree}' >"$DATA/pr.json"
-          echo "tree=$tree" >>"$GITHUB_OUTPUT"
-          echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
+          { echo "tree=$tree"; echo "chunks=$chunks"; } >>"$GITHUB_OUTPUT"
+          echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes"
+          echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
@@ -1317,7 +1877,8 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both.
+      # Files, not step outputs: run-claude-cli reads both. One prompt per
+      # chunk, naming that chunk's parts.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -1326,23 +1887,36 @@ jobs:
           LANE: ${{ matrix.lane }}
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-review-main-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-review-main/prompt.md)
-          prompt=${prompt//LANE_NAME/$LANE}
-          prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
-          prompt=${prompt//STANDARDS_DIR/$DATA/standards}
-          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-          parts=$(printf '  - `%s`\n' "$DATA"/diff/part-*.patch)
-          prompt=${prompt//DIFF_PARTS/$parts}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-review-main/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            prompt=${prompt//LANE_NAME/$LANE}
+            prompt=${prompt//CRITERIA_DIR/$DATA/review/skills/$SKILL}
+            prompt=${prompt//STANDARDS_DIR/$DATA/standards}
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=" The diff is larger than one review reads whole, so it is split into $CHUNKS chunks at file boundaries, each file whole, and each chunk gets its own review. These parts are chunk $k of $CHUNKS: here the whole diff means these parts, and the other chunks are not yours to judge."
+            fi
+            prompt=${prompt//CHUNK_NOTE/$note}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
@@ -1354,8 +1928,14 @@ jobs:
       # the outcome report; "Fail without a verdict" carries the red. A
       # handoff skips the verdict and the outcome report: the next leg
       # reviews the lane and records it.
-      - name: Review the pull request
-        id: review
+      # One run per chunk, in order, each on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 reviewed and handed
+      # nothing on, so a handoff hands the whole lane on and the next leg
+      # reviews every chunk again. Each run leaves its own lane record and
+      # its sealed transcript (failed runs included, kept 7 days for the
+      # puller; a failed upload never fails the job).
+      - name: Review chunk 1
+        id: review-1
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
@@ -1366,7 +1946,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -1392,44 +1972,253 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
           leg-timeout-minutes: "15"
 
-      # One lane record per lane and run, as pr-verify.yml keeps one, so this
-      # lane's model legs show in lane telemetry and spend: the leg that
-      # handed nothing on records it.
-      - name: Report the review's outcome
-        if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
+      - name: Report chunk 1's outcome
+        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
-          outcome: ${{ steps.review.outcome }}
-          execution-file: ${{ steps.review.outputs.execution-file }}
-          log-file: ${{ steps.review.outputs.log-file }}
+          outcome: ${{ steps.review-1.outcome }}
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
+          log-file: ${{ steps.review-1.outputs.log-file }}
           lane: pr-review-main
           lane-id: pr-review-main-${{ matrix.lane }}
           step-started-at: ${{ steps.prompt.outputs.started-at }}
           step-timeout-minutes: 22
-          credential: ${{ steps.review.outputs.credential }}
+          credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
-      - name: Upload the sealed transcript
-        if: always() && steps.review.outputs.execution-file != ''
+      - name: Upload chunk 1's sealed transcript
+        if: always() && steps.review-1.outputs.execution-file != ''
         continue-on-error: true
         uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
         with:
-          execution-file: ${{ steps.review.outputs.execution-file }}
+          execution-file: ${{ steps.review-1.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}
+
+      - name: Time chunk 2
+        id: time-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 2
+        id: review-2
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 2's outcome
+        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-2.outcome }}
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          log-file: ${{ steps.review-2.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.review-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 3
+        id: review-3
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 3's outcome
+        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-3.outcome }}
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          log-file: ${{ steps.review-3.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.review-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Review chunk 4
+        id: review-4
+        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-review-main
+          role: reviews
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
+          preamble: >-
+            You run unattended; return only the findings the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-review-main-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 4's outcome
+        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        with:
+          outcome: ${{ steps.review-4.outcome }}
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          log-file: ${{ steps.review-4.outputs.log-file }}
+          lane: pr-review-main
+          lane-id: pr-review-main-${{ matrix.lane }}
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.review-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          # Why this leg ran, for the lane's one record.
+          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.review-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.review-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
       # The structured output is untrusted model text: read from the file and
       # checked by the script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.review.outcome == 'success' && steps.review.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
         env:
-          EXECUTION_FILE: ${{ steps.review.outputs.execution-file }}
+          # Each chunk's execution file in chunk order; it runs only when
+          # every chunk's review succeeded and handed nothing on.
+          EXECUTION_FILES: |
+            ${{ steps.review-1.outputs.execution-file }}
+            ${{ steps.review-2.outputs.execution-file }}
+            ${{ steps.review-3.outputs.execution-file }}
+            ${{ steps.review-4.outputs.execution-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1438,6 +2227,21 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
         run: node .base/.github/scripts/pr-review-main/write-verdict.mjs
+
+      # A chunked review that wrote no verdict and handed nothing on (a
+      # chunk's review failed, or one left no result or skipped a part) is a
+      # designed stop too: no chunk's counts bind, and the record job names
+      # it on the head. The job still fails.
+      - name: Record a failed chunk
+        id: chunk-stop
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        env:
+          LANE: ${{ matrix.lane }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+        run: |
+          echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
+          { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
       - name: Upload the verdict
         if: steps.verdict.outcome == 'success'
@@ -1507,13 +2311,13 @@ jobs:
           for lane in claude-review claude-security-review; do
             if [ "$lane" = claude-review ]; then reason=$CODE_STOP head=$CODE_HEAD; else reason=$SECURITY_STOP head=$SECURITY_HEAD; fi
             [ -z "$reason" ] && continue
-            [[ $reason =~ ^(too-large|binary|long-line)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
+            [[ $reason =~ ^(too-large|binary|long-line|chunk-failed)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
               echo "::error::a stop output is malformed for $lane"; exit 1; }
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
               -f conclusion=neutral \
               -f "output[title]=verdict=none reason=$reason" \
-              -f "output[summary]=pr-review-main did not review $head from main: the diff stopped the review ($reason), so it left no verdict." >/dev/null
+              -f "output[summary]=pr-review-main did not review $head from main: the review stopped ($reason), so it left no verdict." >/dev/null
             echo "recorded $lane $head stop=$reason"
           done
 

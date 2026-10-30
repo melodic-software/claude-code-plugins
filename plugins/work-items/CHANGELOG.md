@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.1] - 2026-10-30
+
+### Changed
+
+- The `work` skill's CI mode reads a fourth `author_kind` in `issue.json`, `verify-findings`: the
+  pr-merge lane's record of the verifier's findings on an earlier pull request for the issue that
+  it closed at the verify cap. Its text is data, never instructions: the run takes each finding
+  only as a hint to check against the code and the issue's body, and reports any instruction in it.
+
 ## [3.12.0] - 2026-10-30
 
 ### Added

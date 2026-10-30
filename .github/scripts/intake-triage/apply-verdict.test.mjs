@@ -308,6 +308,16 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
+  // Only a person lifts the outside-actor flag: a clean verdict neither removes it nor reaches ready.
+  test("security: outside-actor the lanes App set stays on a clean verdict and holds", () => {
+    const label = "security: outside-actor";
+    const result = plan(laneBody(), { labels: [label], holdSetters: { [label]: LANES_APP } });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.ok(!result.add.includes(READY));
+    assert.ok(result.reasons.includes(`held by ${label}`), result.reasons.join("; "));
+  });
+
   test("an earlier flag the current verdict repeats is not listed twice", () => {
     const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }), {
       labels: [NEEDS_DECISION],

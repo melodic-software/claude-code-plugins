@@ -129,7 +129,7 @@ def tier_supports(tier: str, claim: str) -> bool:
 # the band sorted on a field nothing populated, so it rendered alphabetical order
 # dressed as usage-informed.
 #
-# -- Verification stamp (docs/conventions/upstream-drift) ----------------------
+# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
 # Claim: the product ranks skills for description truncation by
 #   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
 #   descending, then walks EVERY competing entry with a running description
@@ -1001,7 +1001,7 @@ def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
     return parse_native(blob.get("skillUsage") or {}, _parse_ts(first_start))
 
 
-# -- Verification stamp (docs/conventions/upstream-drift) ----------------------
+# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
 # Claim: a session transcript (`~/.claude/projects/<project>/<session>.jsonl`)
 #   records the listing the model received as an `attachment` line of type
 #   `skill_listing` carrying `content` (the rendered listing, entries joined by

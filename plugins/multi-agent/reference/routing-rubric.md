@@ -31,6 +31,18 @@ failed on accuracy
 ([#6955](https://github.com/melodic-software/claude-code-plugins/issues/6955)).
 `retrieval` stays on `sonnet`.
 
+The paired routing eval
+([#10022](https://github.com/melodic-software/claude-code-plugins/issues/10022))
+ran the worker (`evals/routing/mechanical-edit/`), retrieval and verifier
+(`evals/routing/review/`) cases on Claude Code 2.1.314, 3 runs per case. Haiku
+5.5 at `high` matched each role's current default on accuracy, but used more
+input and output tokens per completed task in every role and took longer per
+run on the verifier cases, so no role moves to `haiku` and every default in
+`defaults.yaml` stands. Nearly every arm scored at or near 1.00, so these
+cases barely separate the models on accuracy. The advisor arm did not run:
+`claude plugin eval` loads no user settings, and no advisor tool appeared in a
+probe run's tools.
+
 ## Where to read the specifics
 
 - **Pointer**: when choosing an effort level for a role, fetch

@@ -219,7 +219,7 @@ The unattended condition is **declared by the caller, never sniffed**: never rea
 
 ### EARS tags, when the convention selects them
 
-Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every degrade, every section is emitted untagged, the same shape as a run with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a bracketed pattern prefix on a plain bullet:
+Resolve `acceptance_criteria_format` per "Resolving `acceptance_criteria_format`" below. Under `free-text`, the default and every degrade, every section is emitted untagged, the same shape as a run with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a bracketed pattern prefix on a plain bullet:
 
 | Tag | Pattern |
 |---|---|
@@ -238,34 +238,9 @@ The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwant
 
 **Scope.** The eight required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
 
-### Resolution ladder for `acceptance_criteria_format`
+### Resolving `acceptance_criteria_format`
 
-Restated here rather than cited: an installed plugin never sees the publishing repository's convention docs, so a path citation would make that publisher a runtime dependency of this session.
-
-```markdown
-1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
-   `git rev-parse --show-toplevel`. Never a CWD-relative read.
-2. Resolve the convention home `<home>` from the pointer line in the marked
-   `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
-   (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
-   bundled resolver where the plugin ships one; never hand-parse the root file.
-3. The printed home is repo-relative: join it to the root resolved in step 1,
-   then read `<home>/authoring-formats/README.md` from that path and take the
-   key's value from its fenced YAML block.
-4. Layer order is one layer deep: an explicit invocation argument, where the skill has
-   one, then the team convention doc, then the documented default. A convention-doc
-   surface has no personal overlay, so there is no further layer to consult.
-5. Default: `acceptance_criteria_format` is `free-text` — emit untagged criteria,
-   exactly today's shape.
-6. Degrade soft, and say so. No pointer line, no convention home on disk, no
-   `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
-   each resolve to the documented default. Name the cause in one clause and continue;
-   never hard-fail, and never ask the operator to create the surface mid-task.
-7. Report provenance whenever the resolved value shapes output: name the key, the value,
-   and the layer it came from — `argument`, `team convention doc <path>`, or `default`.
-```
-
-This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout, exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target directory does not exist). Every non-zero exit is a step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create the surface.
+Follow [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md) "Resolution ladder", where `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}` and `<project-root>` is `${CLAUDE_PROJECT_DIR}` (unexpanded or empty means unset). Default and every degrade: `free-text`, untagged criteria, exactly today's shape.
 
 ## PRD review mode (`review`)
 
