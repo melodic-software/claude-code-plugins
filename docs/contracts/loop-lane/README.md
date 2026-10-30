@@ -366,6 +366,12 @@ Three labels take work off the unattended path, and each means one thing (owner 
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | An unattended agent run on a host, which the issue lane cannot make | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
+`needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
+lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
+not fix, an unfinished dependency review)
+goes to an agent session, which removes the label once it has made the change
+([routing table](../../conventions/pr-pipeline/README.md#activities)).
+
 Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
 `host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
 paid eval, and nothing else refuses, waits or holds the issue. It maps a
