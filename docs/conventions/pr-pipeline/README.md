@@ -1454,8 +1454,8 @@ except six:
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
 COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
-veto from <logins>`). Naming the `do-not-merge` label as a list item between two commas, or as
-"the `do-not-merge` label", is not a veto; anywhere else, a comma clause included, it is. That person lifts the hold with any later comment that does not say it, such
+veto from <logins>`). Writing "the `do-not-merge` label" is not a veto; any other
+`do-not-merge`, a comma list included, is. That person lifts the hold with any later comment that does not say it, such
 as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
 does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
 review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from

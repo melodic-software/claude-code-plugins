@@ -233,14 +233,13 @@ from babysit_util import (
 # review nor the configured label: the shared blocking-text predicate does not
 # carry a do-not-merge pattern, so the tier's "no human blocking comment"
 # criterion matches it here. Bounded to the merge-veto sense (do/don't/do-not
-# merge) so ordinary prose does not false-block. `do-not-merge` names the label,
-# and vetoes nothing, only between two list commas or as "the do-not-merge
-# label" (backticks allowed); anywhere else, a comma clause included, it vetoes.
+# merge) so ordinary prose does not false-block. "the do-not-merge label"
+# (backticks allowed) names the label and vetoes nothing; any other
+# do-not-merge vetoes, a comma list included (it fails closed).
 HUMAN_MERGE_VETO_RE = re.compile(
     r"\bdo(?:n['’]?t| not)[\s-]*merge\b"
     r"|\bdo-not(?!-merge\b)[\s-]*merge\b"
-    r"|(?<!,)(?<!, )(?<!the )(?<!the `)\bdo-not-merge\b"
-    r"|(?:(?<=,)|(?<=, ))do-not-merge\b(?!\s*,)"
+    r"|(?<!the )(?<!the `)\bdo-not-merge\b"
     r"|(?<=the )do-not-merge\b(?!\s*labels?\b)"
     r"|(?<=the `)do-not-merge\b(?!`\s*labels?\b)",
     re.I,

@@ -449,9 +449,7 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
     def test_naming_the_do_not_merge_label_holds_nothing(self) -> None:
-        # An owner reply listing the hold label by name held #10983 as a veto.
         for body in (
-            "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
             "Apply the `do-not-merge` label before writing any explanation.",
             "Removed the do-not-merge label; the hold reason is gone.",
         ):
@@ -471,6 +469,8 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
             "Not ready, do-not-merge until Friday.",
             "The checks are failing, do-not-merge until they pass.",
             "`do-not-merge` label please",
+            "Hold on, do-not-merge, I'm still reviewing.",
+            "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
         ):
             with self.subTest(body):
                 result = _evaluate(

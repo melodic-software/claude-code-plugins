@@ -1588,13 +1588,12 @@ test("queueHolds: a pull request, label list or status list that does not read t
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull(), statuses: {} }), /not a list/);
 });
 
-// A member naming the `do-not-merge` label is not asking to hold the merge:
-// an owner reply listing "ci-status, gitleaks, do-not-merge, cost holds"
-// held #10983 as a veto. A sentence that says not to merge still holds.
+// A member naming "the do-not-merge label" is not asking to hold the merge.
+// A sentence that says not to merge still holds, and so does a comma list,
+// which cannot be told from a comma clause.
 test("a member naming the do-not-merge label is no veto; saying not to merge is", () => {
   const said = (body) => [{ login: "kyle-sexton", isUser: true, association: "OWNER", at: "2026-10-30T01:00:00Z", body }];
   for (const body of [
-    "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
     "Apply the `do-not-merge` label before writing any explanation.",
     "Removed the do-not-merge label; the hold reason is gone.",
   ]) {
@@ -1608,6 +1607,8 @@ test("a member naming the do-not-merge label is no veto; saying not to merge is"
     "Not ready, do-not-merge until Friday.",
     "The checks are failing, do-not-merge until they pass.",
     "`do-not-merge` label please",
+    "Hold on, do-not-merge, I'm still reviewing.",
+    "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
   ]) {
     assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
   }

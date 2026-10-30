@@ -1730,7 +1730,7 @@ test("auto-merge a person turned off stays off; one the lanes App turned off is 
 });
 
 test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
-  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", "", "do-not-merge", "ci-status, gitleaks, do-not-merge, cost holds", "the `do-not-merge` label", "removed the do-not-merge label", "Not ready, do-not-merge until Friday.", "Sorry, do-not-merge this.", "`do-not-merge` label please", "a, b, do-not-merge"];
+  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", "", "do-not-merge", "ci-status, gitleaks, do-not-merge, cost holds", "the `do-not-merge` label", "removed the do-not-merge label", "Not ready, do-not-merge until Friday.", "Sorry, do-not-merge this.", "`do-not-merge` label please", "a, b, do-not-merge", "Hold on, do-not-merge, I'm still reviewing."];
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
     "python3",
