@@ -51,11 +51,11 @@ re-read the page.
   - Allowed in every shape: the static validator, `validate-cases.py <absolute eval dir>`.
   - Not probed: whether `ExitWorktree` lifts isolation in a `--worktree` session.
   - A peer isolated session also had routine Bash refused for the bare word (`grep -i eval`).
+  Recheck: re-run `claude plugin eval --help` in a `--worktree` session and in a normal session
+  started in a worktree.
 - Recheck on Claude Code 2.1.312, Linux/WSL2, 2026-10-29 (#5696), same probe shape: `claude -p
   --worktree` still refused, same message; a normal session in a `git worktree add` worktree
   allowed.
-  Recheck: re-run `claude plugin eval --help` in a `--worktree` session and in a normal session
-  started in a worktree.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
   observed on Claude Code 2.1.289, Linux/WSL2, 2026-10-04. Recheck: re-run on a plugin in a
   repository with many linked worktrees.
