@@ -11437,7 +11437,7 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(self._run_marker().is_file())
         self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
 
-    def test_preview_over_an_unreadable_marker_keeps_it_as_a_verifys(self) -> None:
+    def test_preview_over_an_unreadable_marker_leaves_the_manual_lane(self) -> None:
         self.authorize_data_root()
         marker = self._run_marker()
         marker.parent.mkdir(parents=True)
