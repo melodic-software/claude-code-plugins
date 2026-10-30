@@ -37,7 +37,7 @@ more than one decision lists every part".
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
+| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:`, `Flips if:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `facts` carries the `Checked against:` line, then `context`, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
 

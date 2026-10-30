@@ -2335,6 +2335,96 @@ test("breaker trips at the mint never count toward the failed-mint bound", async
   assert.deepEqual(writes(calls), refired(30));
 });
 
+// With request-lane-token's kill-switch-ok, the same refusal ends the mint
+// step green with no token and a `lane-token-stopped` notice: every step that
+// keys on the token, `Stage the activity from the base` first, skips, and the
+// run ends green. Only that shape in the job listing earns a log read.
+const stoppedJob = (id, name) => ({
+  id,
+  name,
+  conclusion: "success",
+  steps: [
+    { name: "Request the lane token", conclusion: "success" },
+    { name: "Select the trusted PR text", conclusion: "skipped" },
+    { name: "Stage the activity from the base", conclusion: "skipped" },
+    { name: "Write the verdict", conclusion: "success" },
+  ],
+});
+const stoppedLog = ({ stamp = "2026-10-30T01:57:51.9466327Z ", line = "lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest" } = {}) =>
+  [
+    "2026-10-30T01:57:50.6158116Z ##[group]Run request-lane-token",
+    `${stamp}##[notice]${line}`,
+    "2026-10-30T01:57:52.0000000Z ##[group]Run jq -n \\",
+    "",
+  ].join("\n");
+const MINT_STOPPED = [
+  ADMITTED,
+  pickSlot,
+  BROKER_ALLOWED,
+  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  stoppedJob(PATCH_MINT_ID, "apply-issue-patch / run"),
+  stoppedJob(REPORT_MINT_ID, "report-outcome / run"),
+];
+const MINT_STOPPED_LOGS = { [PATCH_MINT_ID]: stoppedLog(), [REPORT_MINT_ID]: stoppedLog() };
+
+test("a green run whose mints the kill switch stopped is a breaker trip, read from one log", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+  assert.deepEqual(logReads(calls), [`GET /repos/${REPO}/actions/jobs/${PATCH_MINT_ID}/logs`]);
+  // Past the failed-mint bound on these workflow files it still goes as a trip.
+  const pumped = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success", ...earlierPumps(3) });
+  assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
+  tripped(pumped.calls);
+  // The model ran, so like a mint refusal it waits limits.reset-clamp-min after the run ended.
+  const early = stalledRun({ jobs: MINT_STOPPED, logs: MINT_STOPPED_LOGS, conclusion: "success", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: early.github, actions: early.actions }), 0);
+  assert.deepEqual(writes(early.calls), []);
+});
+
+test("a stopped patch mint before a report the switch also stopped, or one alone, is a breaker trip", async () => {
+  const alone = MINT_STOPPED.filter((job) => job.id !== REPORT_MINT_ID).concat({ name: "report-outcome", conclusion: "skipped", steps: [] });
+  const { github, actions, calls } = stalledRun({ jobs: alone, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  tripped(calls);
+});
+
+test("a run whose stopped mint is followed by a mint that took its token did work, read with no log", async () => {
+  const minted = { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const jobs = [...MINT_STOPPED.slice(0, -1), minted];
+  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, ...earlierPumps(1) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.deepEqual(logReads(calls), []);
+});
+
+// The reverse order: apply-issue-patch minted and pushed, then the switch
+// stopped report-outcome green. The run did work but never reported, so it
+// gets a failed run's once-per-version re-fire at once, not the stranded
+// wait for a green run, and it reads no log.
+test("a green run whose report mint the kill switch stopped after a patch mint is re-fired like a failed run", async () => {
+  const minted = { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const jobs = [...MINT_STOPPED.slice(0, -2), minted, stoppedJob(REPORT_MINT_ID, "report-outcome / run")];
+  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.deepEqual(logReads(calls), []);
+});
+
+test("a stopped mint whose log does not carry the kill-switch notice is a failed mint, never a breaker trip", async () => {
+  for (const [name, log] of [
+    ["a lookalike notice", stoppedLog({ line: "lane-token-stopped: the broker refused the token because a lanes kill switch is onward" })],
+    ["no timestamp", stoppedLog({ stamp: "" })],
+    ["a warning, not a notice", stoppedLog().replace("##[notice]", "##[warning]")],
+    ["over the size cap", `${"x".repeat(2 * 1024 * 1024)}\n${stoppedLog()}`],
+    ["no log", undefined],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: log === undefined ? {} : { [PATCH_MINT_ID]: log }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
 test("breaker trips past limit-stops-per-issue since a person last added agent-ready wait on the stranded backoff", async () => {
   const under = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED, ...(await afterSweeps(2, BROKER_REFUSED, CHECK_KILLED)) });
   assert.equal(await sweep({ github: under.github, actions: under.actions }), 0);
@@ -2569,6 +2659,11 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
+  // A stopped mint is read from the stage step after it, which runs exactly when the token is set.
+  const write = jobs(workflow("pr-run-activity-write.yml")).run;
+  const named = steps(write);
+  assert.ok(named.indexOf("Stage the activity from the base") > named.indexOf("Request the lane token"));
+  assert.match(write, /^ {6}- name: Stage the activity from the base\n {8}id: stage\n {8}if: steps\.lane-token\.outputs\.token != ''\n/m);
 });
 
 // Each re-runner check matches by id. The dispatch lane cannot read its run's
@@ -2728,6 +2823,29 @@ test("a lane PR closed unmerged hands the issue to triage and never re-runs it",
   assert.deepEqual(writes(rerun.calls), []);
 });
 
+// The pr-merge lane closed the PR at the verify cap and restarted or parked
+// the issue itself (babysit_verify_evidence capped_close): no hand-off. Only
+// the lanes App's record counts; anyone can write the marker.
+test("a lane PR the pr-merge lane closed at the verify cap hands nothing off", async () => {
+  const capped = { id: 62, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} attempt=1 of=1 -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls, lines } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), capped] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+  const forged = lanePr({ pulls: [CLOSED_PR()], comments: [note(), { ...capped, user: OWNER }] });
+  assert.equal(await sweep({ github: forged.github }), 0);
+  assert.deepEqual(writes(forged.calls), triaged(30, 7493, refsClosedComment(7493)));
+});
+
+// A record with no attempt: the issue did not carry agent-ready when the
+// pr-merge lane read it, so that lane started nothing, and the closed PR is
+// handed to triage as any other.
+test("a verify-cap record that started no attempt still hands the issue off", async () => {
+  const unstarted = { id: 63, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), unstarted] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7493, refsClosedComment(7493)));
+});
+
 test("hand-offs after ended lane PRs share the five-a-run cap with restarts, the earliest end first", async () => {
   const numbers = [31, 32, 33, 34, 35, 36];
   const pullOf = (n) =>
@@ -2790,6 +2908,14 @@ test("a Refs PR closed unmerged lifts the needs-human report-outcome set for it 
   assert.equal(await sweep({ github }), 0);
   const [comment, status, agentReady] = triaged(30, 7805, refsClosedComment(7805));
   assert.deepEqual(writes(calls), [comment, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, status, agentReady]);
+});
+
+test("an issue carrying security: outside-actor is never handed to triage when its Refs PR ends, and keeps needs-human", async () => {
+  for (const merged of [true, false]) {
+    const { github, calls } = refsHeld({ labels: ["needs-human", "security: outside-actor"], pulls: [lanePull({ merged })] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], `merged: ${merged}`);
+  }
 });
 
 test("a needs-human that report-outcome did not set for the ended PR, or a PR still open, keeps the hold", async () => {

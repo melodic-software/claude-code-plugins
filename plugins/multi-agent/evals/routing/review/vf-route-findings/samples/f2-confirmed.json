@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "F1: refuted - errexit skips && lists\nF2: confirmed - `[[ \"$item\" == $needle ]]` treats an unquoted right side as a pattern, so `*` matches every role\nF3: refuted\nF4: confirmed\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "| F2 | confirmed | `route.sh '*'` routes |\n",
+      "why": "a table row"
+    },
+    {
+      "answer": "**F2: CONFIRMED** - glob match on the needle\n",
+      "why": "bold and upper case"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F2: refuted - [[ ]] does not glob\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F2: unconfirmed - could not run the script\n",
+      "why": "a different word that contains the verdict"
+    },
+    {
+      "answer": "F4: confirmed\nF2: refuted\n",
+      "why": "confirmed sits on another finding's line"
+    },
+    {
+      "answer": "The role check in route.sh uses an unquoted glob.\n",
+      "why": "no verdict line"
+    }
+  ]
+}

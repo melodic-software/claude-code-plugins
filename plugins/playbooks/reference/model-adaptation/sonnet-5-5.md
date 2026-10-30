@@ -152,7 +152,7 @@ add a hook that writes into context after tool results, read the pointers.
   for Claude Code hooks, see
   [Add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude); for our
   convention, see the
-  [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-observability/README.md).
+  [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-observability/README.md).
 - **As of**: 2026-10-01
 - **Recheck trigger**: either upstream section moving, or the convention changing.
 
@@ -265,7 +265,7 @@ limitations at the pointer; for which models fast mode supports, read the fast m
   model list sits in the page's opening, which has no section anchor as of 2026-10-11), and, for
   the
   tier,
-  [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#3-capability-tiers).
+  [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#3-capability-tiers).
 - **As of**: 2026-10-01
 - **Recheck trigger**: any pointed section moving, or fast mode leaving research preview.
 

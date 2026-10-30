@@ -174,6 +174,10 @@
 // issue of a Refs PR, and this lifts that hold once that PR merges or closes
 // unmerged, only while its refs-hold marker and the App's needs-human label
 // are the newest. Each hand-off also counts against limits.restarts-per-run.
+// A lane PR the pr-merge lane closed at the verify cap, which its
+// capped-close record on the issue names with an attempt, is no hand-off:
+// that lane already restarted the issue for a fresh attempt or parked it.
+// The issues this path reads carry agent-ready.
 //
 // It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
@@ -236,6 +240,7 @@ import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { doneReason, isSplitParent, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -272,6 +277,12 @@ const DENIAL = {
   token: /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]lane-token-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)/,
 };
 const STEP_FAILED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[error\]Process completed with exit code [0-9]+\.$/;
+// The write runner's step after MINT_STEP that runs exactly when a token was
+// minted; a MINT_STEP success with it skipped is a mint that stopped green.
+const STAGE_STEP = "Stage the activity from the base";
+// request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
+// green with no token.
+const STOPPED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-token-stopped: the broker refused the token because a lanes kill switch is on(?:,|$)/;
 const BREAKER = "kill-switch";
 // The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
 // (apply-issue-patch); a longer one is left unread.
@@ -283,10 +294,16 @@ const SWEEP_JOB = "label-unblocked";
 const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
+// The pr-merge lane's capped-close record on the issue
+// (babysit_verify_evidence.py CAPPED_CLOSE_RE) naming an attempt: it closed
+// the lane PR it names at the verify cap and restarted or parked the issue
+// itself. One with no attempt started nothing.
+const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// The lane never starts on these: a person decides the first five, and
-// `attended` waits on a step the owner takes present (admit.mjs ATTENDED).
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED]);
+// The lane never starts on these: a person decides each but `attended`,
+// which waits on a step the owner takes present (admit.mjs ATTENDED). Only a
+// person removes OUTSIDE_ACTOR_LABEL, so its issue is never handed to triage.
+const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED, OUTSIDE_ACTOR_LABEL]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it
@@ -1010,10 +1027,12 @@ async function laneRuns(actions, repo, number, addedAt) {
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step or broker-check's BROKER_STEP
-// fail for a reason other than the kill switch, or with no reason in its log
-// (`mint-failed`, which wins; the read runner resolve-issue calls has no
+// fail for a reason other than the kill switch, or with no reason in its log,
+// or had that mint step stop green with no token and no STOPPED notice in its
+// log (`mint-failed`, which wins; the read runner resolve-issue calls has no
 // MINT_STEP, so its broker ask is the one the broker can fail), had the broker
-// refuse it for the kill switch at broker-check or a mint, or had broker-check
+// refuse it for the kill switch at broker-check or a mint (failed, or stopped
+// green with its STOPPED notice), or had broker-check
 // skip its broker ask for the kill switch (`breaker`), was skipped by the WIP
 // cap (`capped`: pick-slot ran, resolve-issue did not), or was skipped by the
 // admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
@@ -1039,16 +1058,15 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const jobs = await jobsOf(run);
-    const mints = jobs.flatMap((job) => (job?.steps ?? []).filter((step) => step?.name === MINT_STEP));
-    if (mints.some((step) => step.conclusion === "success")) {
+    const failedAt = (job, name) => endedAt(job, name, "failure");
+    if (jobs.some((job) => endedAt(job, MINT_STEP, "success") && !stoppedAt(job))) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
-    const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
-    const failedAt = (job, name) => endedAt(job, name, "failure");
     const killed = named("resolve-issue").some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
     const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
+    const stopped = jobs.find(stoppedAt);
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
@@ -1056,11 +1074,20 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const blocked =
       named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    // One log per run: broker-check's when it refused, else the first failed mint's.
-    const refused = killed ? null : checked ? refusalOf(checked, "check") : minting ? refusalOf(minting, "token") : null;
+    // One log per run: broker-check's when it refused, else the first failed
+    // mint's, else the first stopped mint's.
+    const refused = killed
+      ? null
+      : checked
+        ? refusalOf(checked, "check")
+        : minting
+          ? refusalOf(minting, "token")
+          : stopped
+            ? refusalOf(stopped, "stop")
+            : null;
     if (killed || (await refused) === BREAKER) {
       atLeast("breaker", run, killed || checked ? "check" : "token");
-    } else if (minting || checked) {
+    } else if (minting || checked || stopped) {
       atLeast("mint-failed");
     } else if (capped) {
       atLeast("capped");
@@ -1073,9 +1100,10 @@ async function didNoWork(jobsOf, refusalOf, runs) {
 
 // The reason the broker refused `job`, from its log: the failed step's last
 // line before the runner's first `Process completed`, in `mode` (check or
-// token). Null when that line is no such refusal or the log cannot be read
-// within LOG_CAP_BYTES, or no log reader was given; the log is data, and no
-// other line of it is read.
+// token), or BREAKER for a `stop` mode log with a STOPPED notice line. Null
+// when there is no such line or the log cannot be read within LOG_CAP_BYTES,
+// or no log reader was given; the log is data, and no other line of it is
+// read.
 function refusalReader(jobLog, repo) {
   return async (job, mode) => {
     if (!jobLog || !RUN_ID.test(String(job?.id))) {
@@ -1089,6 +1117,9 @@ function refusalReader(jobLog, repo) {
       return null;
     }
     const lines = String(log ?? "").split("\n");
+    if (mode === "stop") {
+      return lines.some((line) => STOPPED.test(line)) ? BREAKER : null;
+    }
     const end = lines.findIndex((line) => STEP_FAILED.test(line));
     return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;
   };
@@ -1112,6 +1143,21 @@ function jobLister(actions, repo) {
     }
     return listed.get(run.id);
   };
+}
+
+const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
+// A mint that ended green with no token: kill-switch-ok's stop.
+const stoppedAt = (job) => endedAt(job, MINT_STEP, "success") && endedAt(job, STAGE_STEP, "skipped");
+
+// Whether a mint of one of `runs` stopped green: such a run that also minted
+// did work and never reported, as a failed run did before kill-switch-ok.
+async function stoppedMint(jobsOf, runs) {
+  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
+    if ((await jobsOf(run)).some(stoppedAt)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
@@ -1309,6 +1355,9 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
   if (pull.state === "open") {
     return { reason: `its lane PR #${pull.number} is open` };
   }
+  if (!merged && comments.some((comment) => comment.user?.login === bot && Number(CAPPED_CLOSE.exec(String(comment.body ?? ""))?.[1]) === pull.number)) {
+    return { reason: `its lane PR #${pull.number} closed at the verify cap, and pr-merge restarted or parked the issue` };
+  }
   if (merged && !refs) {
     return { reason: `its lane PR #${pull.number} merged` };
   }
@@ -1463,7 +1512,12 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
   }
-  if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
+  if (
+    !runs.some((run) => FAILED.has(run.conclusion)) &&
+    !(await stoppedMint(jobsOf, runs)) &&
+    !(await cancelledBeforeWork(jobsOf, runs)) &&
+    !(await stoppedStale(jobsOf, runs))
+  ) {
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();

@@ -188,6 +188,38 @@ test("keeps the lanes App's intake refinement, tagged refinement, whose criteria
   assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
 });
 
+// The pr-merge lane's capped-close record carries the verifier's findings on
+// the pull request it closed for this fresh attempt, posted just before the
+// restart, so after the label the restart anchors at. It is the one other
+// lanes App comment kept; any other App comment, marker-like or not, stays out.
+test("keeps the lanes App's capped-close record, tagged verify-findings, and no other App comment", async () => {
+  const record = `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} attempt=1 of=1 -->\nPull request #7493: closed.\n\n\`\`\`text\nhead 1111 summary: fails\n\`\`\``;
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [
+        comment(29, LANES_BOT, record),
+        comment(12, LANES_BOT, "**Decision recorded.** quoted from the body"),
+        comment(13, LANES_BOT, "<!-- verify-capped -->\nnot the record"),
+        comment(14, LANES_BOT, `x\n${record}`),
+        comment(30, OWNER, record),
+      ],
+    }),
+  );
+  assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "verify-findings", false]]);
+  assert.equal(issue.comments[0].body, record);
+});
+
+test("a capped-close record someone else edited stays out", async () => {
+  const record = `<!-- verify-capped-close pr=7493 heads= -->\nclosed`;
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [comment(29, LANES_BOT, record)],
+      edits: { IC_29: { lastEditedAt: "2026-10-29T01:00:00Z", editor: { databaseId: OWNER.id } } },
+    }),
+  );
+  assert.deepEqual(issue.comments, []);
+});
+
 // Intake's split refinement (refine.mjs) names body items a person runs; the
 // lane gets them as person_checks only under admission's guards (admit.mjs
 // personChecks), and never from the comment's prose.
@@ -285,6 +317,26 @@ describe("split_parent", () => {
     assert.equal(issue.split_parent, undefined);
     assert.ok(!plain.calls.some((call) => call.endsWith("/parent")));
   });
+});
+
+test("a trusted target-subset part carries its Scope line's targets as scope", async () => {
+  const PARENT_BODY = ["## Done when", "", "- [ ] Port pkg-a.", "- [ ] Port pkg-b."].join("\n");
+  const body = `${splitChildHeader(7719, 1, 2, null, true)}\n- [ ] Port pkg-a.\n- [ ] Port pkg-b.\nScope: pkg-a`;
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const base = fakeGitHub({ comments: [], issue: { ...ISSUE, body }, spec: { body, author: LANES_ACTOR } });
+  const github = async (method, apiPath, payload) => {
+    if (`${method} ${apiPath}` === `GET /repos/${REPO}/issues/6825/parent`) {
+      return { number: 7719, repository_url: `https://api.github.com/repos/${REPO}` };
+    }
+    if (method === "POST" && apiPath === "/graphql" && payload.variables.number === 7719) {
+      return { data: { repository: { issue: { body: PARENT_BODY, lastEditedAt: null, author: { __typename: "User", databaseId: OWNER.id }, editor: null, comments: { totalCount: 0, nodes: [] } } } } };
+    }
+    return base(method, apiPath, payload);
+  };
+  const { code, issue } = await run(github);
+  assert.equal(code, 0);
+  assert.deepEqual(issue.scope, ["pkg-a"]);
+  assert.equal((await run(fakeGitHub({ comments: [], issue: ISSUE }))).issue.scope, undefined);
 });
 
 test("a decision line inside a quote or code fence, or not first, is no decision", async () => {

@@ -22,7 +22,7 @@
 # --body-file. No labels, assignees or mentions.
 #
 # The whole report is parsed before any gh call. Each line follows the fixed
-# field order of the report (docs/conventions/upstream-drift/README.md, the
+# field order of the report (docs/contracts/upstream-drift/README.md, the
 # --report row): the path is everything after the first ` path=`. A line that
 # breaks the order exits 2 with no gh call.
 #
@@ -186,7 +186,7 @@ write_body() {
   local body note repo="${REPOS[$1]}"
   body="Upstream $(span "$repo") changed since the pin on its docs/upstream page."
   body+=$'\n\n'"Run: $RUN_DATE, $RUN_URL"$'\n'"${DETAIL[$1]}"
-  body+=$'\n'"Re-audit the rows named above as docs/conventions/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."$'\n'
+  body+=$'\n'"Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."$'\n'
   if ((${#body} > CAP)); then
     note=$'\n'"Cut at $CAP characters. The full report is in the run's job summary: $RUN_URL"$'\n'
     body="${body:0:$((CAP - ${#note}))}"
