@@ -134,8 +134,10 @@ the session is working in.
 
 ## What writes this surface
 
-Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. Every `map-*` skill
+`/architecture:setup apply` writes two artifacts: the marked `convention-home` pointer region in
+the root instruction file, and `<home>/architecture/README.md`. `/architecture:improve conventions`
+writes one section of that topic doc, `## Boundary rules`, one entry per rule the user accepts, and
+no key. Every `map-*` skill
 reads this surface and never writes it. `map-data` also reads `<home>/authoring-formats/README.md`
 for `diagram_dialect.data`, and `map-components`, `map-context`, `map-containers`, and
 `map-deployment` read it for `diagram_dialect.system`; none of them writes that file. None of
