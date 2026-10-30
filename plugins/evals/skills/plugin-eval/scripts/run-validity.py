@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
-    run-validity <aggregate-result.json> --runs N
+    run-validity <aggregate-result.json> --runs N [--scaffolded]
 
 --runs is the run count the eval was invoked with (its --runs, else the case
-default). Reads the result file and, where each run's tracePath resolves, the
-kept trace (`--keep-temp`). A relative tracePath or suite root is read relative
-to the result file. Prints one line per check, detail lines indented under it:
+default). --scaffolded records that the eval was invoked with --scaffold, which
+the result file does not record. Reads the result file, each case's case.yaml,
+and, where each run's tracePath resolves, the kept trace (`--keep-temp`). A
+relative tracePath or suite root is read relative to the result file. Prints
+one line per check, detail lines indented under it:
 
     complete          partial is false
     paid graders      no run skipped its paid graders
     run errors        no run errored, aborted, or ended its trace in an error
     row count         every case holds N rows per arm; runsPerCase is ignored
+    scaffold          no case sets context.scaffold_script in its case.yaml,
+                      or the pass ran with --scaffold (--scaffolded); without
+                      it, both arms of such a case ran in an empty workspace.
+                      A case.yaml that cannot be located, read or parsed is
+                      UNCHECKED; a case with no case.yaml has no script, so
+                      read the result where its suite root still exists
     traces            how many tracePaths resolve, and what that leaves unchecked
     session started   no run ended at 0 turns with no run error, no failed Bash
                       result reports the sandbox failing to start, and no run of 2
@@ -78,6 +86,7 @@ CASES = "cases"
 CASE_NAME = "name"
 CASE_DIR = "dir"  # cases[].dir, relative to suite.root
 CASE_PROMPT = "prompt.md"  # <suite.root>/<dir>/prompt.md, its frontmatter
+CASE_YAML = "case.yaml"  # <suite.root>/<dir>/case.yaml, absent for most cases
 CASE_RUNS_STATED = "runsPerCase"  # the case default, not the run count
 CASE_ARMS = "arms"
 CASE_GRADER_DEFS = "graders"  # cases[].graders[]: name, type, config
@@ -136,6 +145,15 @@ CONTROL_DESCRIPTION = re.compile(
     r"\bno[- ]trigger\b|\bwithout invoking\b|\bmust not (?:fire|trigger|invoke)\b",
     re.IGNORECASE,
 )
+
+# case.yaml's context.scaffold_script, in block or flow form, read without a
+# YAML parser. A scaffold_script key outside these shapes leaves the case UNCHECKED.
+SCAFFOLD_KEY = re.compile(r"^[^#\n]*\bscaffold_script\s*:", re.MULTILINE)
+CONTEXT_BLOCK = re.compile(r"context:\s*(?:#.*)?")
+CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
+BLOCK_SCRIPT = re.compile(r"\s+scaffold_script:\s*(.*?)\s*(?:#.*)?")
+FLOW_SCRIPT = re.compile(r"\bscaffold_script:\s*([^,}]*)")
+NO_VALUE = ("", "null", "~")
 
 PASS, WARN, FAIL, UNCHECKED = "PASS", "WARN", "FAIL", "UNCHECKED"
 
@@ -302,6 +320,91 @@ def is_control(case, root):
             return True
     requiring, forbids = skill_graders(case, root)
     return forbids and not requiring
+
+
+def script_value(text):
+    value = text.strip().strip("'\"")
+    return None if value in NO_VALUE else value
+
+
+def scaffold_script(case, root):
+    """(the case's context.scaffold_script or None, why its case.yaml could not
+    be read or None). A case with no case.yaml has no script."""
+    case_dir = case.get(CASE_DIR)
+    if not root or not isinstance(case_dir, str) or not case_dir:
+        return None, (
+            "the result records no suite root or case dir, so its case.yaml"
+            " cannot be located"
+        )
+    path = os.path.join(root, case_dir, CASE_YAML)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except FileNotFoundError:
+        return None, None
+    except (OSError, ValueError) as error:
+        return None, "cannot read %s (%s)" % (path, error)
+    if not SCAFFOLD_KEY.search(text):
+        return None, None
+    in_context = False
+    for line in text.splitlines():
+        flow = CONTEXT_FLOW.fullmatch(line)
+        if flow:
+            found = FLOW_SCRIPT.search(flow.group(1))
+            if found:
+                return script_value(found.group(1)), None
+            in_context = False
+        elif CONTEXT_BLOCK.fullmatch(line):
+            in_context = True
+        elif line[:1] not in ("", " ", "\t", "#"):
+            in_context = False
+        elif in_context:
+            found = BLOCK_SCRIPT.fullmatch(line)
+            if found:
+                return script_value(found.group(1)), None
+    return None, (
+        "%s names scaffold_script outside a context block this check reads" % path
+    )
+
+
+def check_scaffold(cases, root, scaffolded):
+    """A case whose case.yaml sets context.scaffold_script ran both arms in an
+    empty workspace unless the eval ran with --scaffold, and the result file does
+    not record whether it did, so --scaffolded is the operator's record of it."""
+    declared, unread = {}, []
+    for case in cases:
+        script, problem = scaffold_script(case, root)
+        if problem:
+            unread.append("case %s: %s" % (case.get(CASE_NAME), problem))
+        elif script:
+            declared[str(case.get(CASE_NAME))] = script
+    if declared and not scaffolded:
+        return (
+            FAIL,
+            "%s set context.scaffold_script and --scaffolded is not passed, so both"
+            " arms ran in an empty workspace; rerun with --scaffold, or pass"
+            " --scaffolded if the eval had it" % plural(len(declared), "case"),
+            ["case %s: scaffold_script %s" % item for item in declared.items()]
+            + unread,
+            "case %s never scaffolded: the pass records no --scaffold"
+            % ", ".join(declared),
+        )
+    if unread:
+        return (
+            UNCHECKED,
+            "%s whose case.yaml could not be read" % plural(len(unread), "case"),
+            unread,
+            "scaffold scripts unchecked in %s" % plural(len(unread), "case"),
+        )
+    if declared:
+        return (
+            PASS,
+            "%s set context.scaffold_script, and --scaffolded records the pass ran"
+            " with --scaffold" % plural(len(declared), "case"),
+            [],
+            None,
+        )
+    return PASS, "no case sets context.scaffold_script", [], None
 
 
 def check_complete(result, runs):
@@ -823,6 +926,11 @@ def main(argv=None):
         required=True,
         help="the run count the eval was invoked with",
     )
+    parser.add_argument(
+        "--scaffolded",
+        action="store_true",
+        help="the eval was invoked with --scaffold",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -864,6 +972,7 @@ def main(argv=None):
         ("paid graders", check_paid(runs)),
         ("run errors", check_errors(runs)),
         ("row count", check_rows(cases, args.runs, arms)),
+        ("scaffold", check_scaffold(cases, root, args.scaffolded)),
     ]
     lines = []
     for name, (status, summary, details, _) in checks:
