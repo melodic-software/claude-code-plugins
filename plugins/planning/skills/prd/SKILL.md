@@ -18,7 +18,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command that contains git. Dated record: the worktree skill's [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".
+Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command that contains git. Dated record: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
 
 ## Variables
 
