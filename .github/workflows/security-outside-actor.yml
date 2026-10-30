@@ -13,8 +13,12 @@ name: security-outside-actor
 #   is not a member editing a member's text or pushing to a member's pull
 #   request is checked;
 # - the event's sender is a Bot. Only a GitHub App installed on this
-#   repository acts as a Bot, which here means one of ours, so lane traffic
-#   starts no job. Machine-user accounts are type User and are still checked.
+#   repository acts as a Bot here, which means one of ours, so lane traffic
+#   starts no job. A push to a fork pull request is the exception: an App
+#   installed on the fork can push there, so a Bot's `synchronize` on a pull
+#   request whose head repository is not this one still runs (the job reads
+#   that repository's name from the payload and never checks the head out).
+#   Machine-user accounts are type User and are still checked.
 # Everything that runs is judged by the default branch's trusted-actor list,
 # matched by numeric id: a listed id is trusted, any other author is flagged,
 # and an unreadable list flags too.
@@ -22,7 +26,10 @@ name: security-outside-actor
 # No model, no secret and no App token: the job's GITHUB_TOKEN adds the
 # `security: outside-actor` and `needs-human` labels and posts one comment per
 # outside actor, naming their login without a mention and quoting none of
-# their text. The script reads the event payload itself; no event text
+# their text. `security: outside-actor` is a hold of its own (merge-holds.mjs
+# OUTSIDE_ACTOR_LABEL): the merge gates, intake triage, the work-unblock
+# sweep and each lane that skips needs-human skip it, and only a person
+# removes it. The script reads the event payload itself; no event text
 # reaches a shell. The lanes kill switch does not stop this check: it would
 # silence the boundary it guards.
 #
@@ -56,7 +63,9 @@ jobs:
     # The author is the comment's, else the review's, else the pull
     # request's, else the issue's, the order flag.mjs reads them in.
     if: >-
-      github.event.sender.type != 'Bot'
+      (github.event.sender.type != 'Bot'
+        || (github.event.action == 'synchronize'
+          && github.event.pull_request.head.repo.full_name != github.repository))
       && ((contains(fromJSON('["edited", "synchronize", "reopened"]'), github.event.action)
            && github.event.sender.id != (github.event.comment.user.id
              || github.event.review.user.id

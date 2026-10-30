@@ -14,10 +14,11 @@ const steps = text.split(/\n {6}- name: /).slice(1);
 
 // Evaluates the job's `if` against a payload: it uses only `github.event`
 // paths, `!=`, `&&`, `||`, `!`, contains() and fromJSON() over literals.
-function runs(event) {
+function runs(event, repository = "melodic-software/claude-code-plugins") {
   const get = (pathText) => pathText.split(".").reduce((value, key) => value?.[key], event) ?? null;
   const js = condition
     .replace(/github\.event\.([a-z_.]+)/g, (_, p) => `get(${JSON.stringify(p)})`)
+    .replace(/github\.repository\b/g, JSON.stringify(repository))
     .replace(/fromJSON\('([^']*)'\)/g, "JSON.parse('$1')")
     .replace(/ (==|!=) /g, " $1= ");
   return new Function("get", "contains", `return Boolean(${js});`)(get, (list, item) => list.includes(item));
@@ -84,6 +85,25 @@ test("a Bot sender starts no job: only Apps installed here send as Bot, so lane 
   assert.equal(runs({ sender: { type: "User" }, issue: { author_association: "NONE" } }), true, "a machine user is still checked");
 });
 
+// An App installed on a fork, not here, can push to the fork's branch, so a
+// Bot sender of a synchronize on a fork pull request is still judged.
+test("a Bot's push to a fork pull request starts the job; to this repository's own branch, or any other Bot event, it does not", () => {
+  const app = { id: 9, type: "Bot" };
+  const author = { id: 1, type: "User" };
+  const pull = (fullName, association = "MEMBER") => ({ user: author, author_association: association, head: { repo: { full_name: fullName } } });
+  const repository = "melodic-software/claude-code-plugins";
+  const fork = "stranger/claude-code-plugins";
+  const event = (action, fullName, association) => ({ action, sender: app, repository, pull_request: pull(fullName, association) });
+  const runsIn = (e) => runs({ ...e, repository: undefined }, e.repository);
+  assert.equal(runsIn(event("synchronize", fork)), true, "a fork push by a Bot");
+  assert.equal(runsIn(event("synchronize", fork, "NONE")), true, "a fork push by a Bot on an outsider's pull request");
+  assert.equal(runsIn(event("synchronize", repository)), false, "a push to our own branch by a Bot");
+  assert.equal(runsIn(event("synchronize", repository, "NONE")), false, "our own branch, outsider author, Bot push");
+  for (const action of ["opened", "edited", "reopened"]) {
+    assert.equal(runsIn(event(action, fork, "NONE")), false, `a Bot ${action} on a fork pull request`);
+  }
+});
+
 test("the job holds the job token with least privilege, and no secret, App token or model", () => {
   assert.match(text, /\npermissions: \{\}\n/);
   assert.equal([...text.matchAll(/^ *permissions:/gm)].length, 2, "one workflow block and one job block");
@@ -98,7 +118,11 @@ test("it checks out main only, without credentials, and pins every external acti
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
     assert.match(uses, /@[0-9a-f]{40}$/, uses);
   }
-  assert.doesNotMatch(text, /pull_request\.head|github\.head_ref/);
+  // The one head read is the fork test in the job's `if`: metadata, never a checkout.
+  const forkRead = "github.event.pull_request.head.repo.full_name != github.repository";
+  assert.equal(text.split(forkRead).length, 2, "the fork test appears once");
+  assert.ok(condition.includes(forkRead), "the fork test sits in the job's if");
+  assert.doesNotMatch(text.replace(forkRead, ""), /pull_request\.head|github\.head_ref/);
 });
 
 test("no event text reaches a shell: run lines carry no expression, the script reads the payload", () => {

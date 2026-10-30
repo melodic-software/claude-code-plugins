@@ -2792,6 +2792,14 @@ test("a Refs PR closed unmerged lifts the needs-human report-outcome set for it 
   assert.deepEqual(writes(calls), [comment, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, status, agentReady]);
 });
 
+test("an issue carrying security: outside-actor is never handed to triage when its Refs PR ends, and keeps needs-human", async () => {
+  for (const merged of [true, false]) {
+    const { github, calls } = refsHeld({ labels: ["needs-human", "security: outside-actor"], pulls: [lanePull({ merged })] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], `merged: ${merged}`);
+  }
+});
+
 test("a needs-human that report-outcome did not set for the ended PR, or a PR still open, keeps the hold", async () => {
   for (const [name, fake] of [
     ["the marker by a person", refsHeld({ comments: [note(), holdNote(7805, OWNER)] })],

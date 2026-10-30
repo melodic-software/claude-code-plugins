@@ -193,9 +193,8 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT, laneChange, REVIEW_LANES } from "./merge-holds.mjs";
+import { LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
-import { LABEL as OUTSIDE_ACTOR } from "../security-outside-actor/flag.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 // An outside actor's hold is a person's to lift: an item carrying the

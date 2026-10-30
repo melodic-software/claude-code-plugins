@@ -28,8 +28,9 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
-export const LABEL = "security: outside-actor";
+export const LABEL = OUTSIDE_ACTOR_LABEL;
 export const NEEDS_HUMAN = "needs-human";
 export const MARKER = "<!-- security-outside-actor";
 // github-actions[bot], the author of every comment this job's token writes.
