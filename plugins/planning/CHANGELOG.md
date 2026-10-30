@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.8] - 2026-10-30
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:design` resolve their authoring-formats keys through one shared ladder in `context/authoring-formats.md` instead of three restated copies; no behavior change. New eval cases cover the `ears` path in interview and prd and the `dbml` path in design.
+
 ## [0.126.7] - 2026-10-30
 
 ### Fixed
