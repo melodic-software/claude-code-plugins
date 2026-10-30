@@ -20,6 +20,6 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
-    uses: melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@2097e798cf050506383e1df8d8c0d8c436d9b44c # v0.67.2
+    uses: melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@main
     with:
       runner: ubuntu-24.04

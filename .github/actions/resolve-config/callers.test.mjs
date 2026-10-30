@@ -281,7 +281,7 @@ test("intake-triage.yml: the kill switch stops the born-triaged check and the fl
   assert.deepEqual(label.permissions, { issues: "write" });
   assert.equal(label.concurrency, undefined);
   assert.equal(label.secrets, undefined);
-  assert.match(label.uses, /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-label-needs-triage\.yml@[0-9a-f]{40}$/);
+  assert.match(label.uses, /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-label-needs-triage\.yml@main$/);
   assert.deepEqual(label.with, { runner: "ubuntu-24.04", label: "needs-triage" });
 });
 
@@ -1685,7 +1685,7 @@ function ifTerms(condition) {
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
 const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
 const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
-const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@[0-9a-f]{40}$/;
+const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@main$/;
 function jobGates(doc, job) {
   const gates = new Set();
   const needs = [job.needs ?? []].flat();
@@ -1743,7 +1743,7 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // fallback-token or to the read runner as its third call's
 // fallback-claude-code-oauth-token. Any job may ask only whether it is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
-const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@[0-9a-f]{40}$/;
+const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
@@ -1863,7 +1863,7 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
   const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
   const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
-  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@d02b8697e092705153f0996549b05f95a446bb52";
+  const AT_MAIN = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main";
   const cases = {
     "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
@@ -1880,10 +1880,10 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
     "the gate's proceed && another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' && steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
     "the gate's proceed || another check": [{ issues: {} }, { admit: { ...admit(), outputs: { proceed: "${{ steps.gate.outputs.proceed == 'true' || steps.more.outputs.proceed == 'true' }}" } }, run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
     "a gate output compared to false": [{ issues: {} }, { admit: admit(), run: { needs: "admit", if: "needs.admit.outputs.proceed != 'true'", steps: [launcher] } }, { "f.yml run": [] }],
-    "the pinned intake reusable with author ids": [{ issues: {} }, { triage: intake(PINNED, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
-    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(PINNED, "") }, { "f.yml triage": [] }],
-    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(PINNED.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
-    "an unpinned intake reusable": [{ issues: {} }, { triage: intake(PINNED.replace(/@.*/, "@main"), "1") }, { "f.yml triage": [] }],
+    "the intake reusable at main with author ids": [{ issues: {} }, { triage: intake(AT_MAIN, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
+    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(AT_MAIN, "") }, { "f.yml triage": [] }],
+    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(AT_MAIN.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
+    "an intake reusable at a ref other than main": [{ issues: {} }, { triage: intake(AT_MAIN.replace(/@.*/, "@feature"), "1") }, { "f.yml triage": [] }],
     "a pull_request job": [{ pull_request: {} }, { run: { steps: [launcher] } }, {}],
     "a gated trigger with no Claude credential": [{ issues: {} }, { run: { steps: [{ run: "true" }] } }, {}],
   };
@@ -1992,8 +1992,9 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
 // 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
-// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743 and 81a603a6e2b0319428c981bf28f3fe923032afb2: lane.cjs:404-405; in cliArgs. A pin
-// bump fails here until its lane.cjs is read and its SHA added.
+// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
+// and 2476d5dde8979eab34374150b7e4b0a2b99f4e88: lane.cjs:404-405; in cliArgs. The org requires
+// actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
 const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "7b362428c76085a160e28656cd2c75c3147a69ff",
   "164c2809f6150429b6f24d4a2777bb377af953d9",
@@ -2002,6 +2003,7 @@ const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
   "ba7af78d291f10bd75651857a0db2357c23df0fe",
   "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
   "81a603a6e2b0319428c981bf28f3fe923032afb2",
+  "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
 ]);
 
 test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
@@ -3937,7 +3939,7 @@ async function issueStep(env) {
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
   const { createRequire } = await import("node:module");
-  const full = { LANE: "work-resolve-issue", ISSUE_NUMBER: "7", STARTED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: "b".repeat(40), ...env };
+  const full = { LANE: "work-resolve-issue", ISSUE_NUMBER: "7", STARTED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: "b".repeat(40), PRUNE_BRANCHES: "", ...env };
   await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, {}, SCAN_CONTEXT, { env: full });
   return { outputs, failed };
 }
@@ -3961,11 +3963,11 @@ test("pr-run-activity-read.yml: issue-fields runs after any run job result but s
   // A refusal ends the job green, so its outputs reach the caller.
   for (const step of job.steps) assert.equal(step["continue-on-error"], true, step.name);
   const outputs = read.on.workflow_call.outputs;
-  for (const name of ["issue-run-started", "reuse-branch", "resume-branch", "resume-tip", "base-sha"]) {
+  for (const name of ["issue-run-started", "reuse-branch", "resume-branch", "resume-tip", "base-sha", "prune-branches"]) {
     assert.equal(outputs[`scan-${name}`].value, `\${{ jobs.issue-fields.outputs.${name} }}`, name);
   }
   assert.equal(job.outputs["issue-run-started"], "${{ steps.issue.outputs.issue-run-started }}");
-  for (const name of ["checked", "reuse-branch", "resume-branch", "resume-tip", "base-sha", "start-sha"]) {
+  for (const name of ["checked", "reuse-branch", "resume-branch", "resume-tip", "base-sha", "start-sha", "prune-branches"]) {
     assert.equal(job.outputs[name], `\${{ steps.checked.outputs.${name} }}`, name);
   }
   // The scan job publishes nothing in issue mode unless the fields were checked.
@@ -3981,7 +3983,10 @@ test("issue-fields: the issue step holds each field to its closed set and to the
   const branch = "work-resolve-issue/issue-7-123-1";
   const fresh = await issueStep({});
   assert.equal(fresh.failed, null);
-  assert.deepEqual(fresh.outputs, { "issue-run-started": "true", claimed: "false", "reuse-branch": "", "resume-branch": "", "resume-tip": "", "base-sha": base });
+  assert.deepEqual(fresh.outputs, { "issue-run-started": "true", claimed: "false", "reuse-branch": "", "resume-branch": "", "resume-tip": "", "base-sha": base, "prune-branches": "" });
+  const older = "work-resolve-issue/issue-7-100-1 work-resolve-issue/issue-7-101-2";
+  const pruning = await issueStep({ PRUNE_BRANCHES: older });
+  assert.deepEqual([pruning.failed, pruning.outputs.claimed, pruning.outputs["prune-branches"]], [null, "false", older]);
   const resumed = await issueStep({ RESUME_BRANCH: branch, RESUME_TIP: tip });
   assert.deepEqual([resumed.failed, resumed.outputs.claimed, resumed.outputs["resume-tip"]], [null, "true", tip]);
   const reused = await issueStep({ STARTED: "false", REUSE_BRANCH: branch });
@@ -3997,6 +4002,14 @@ test("issue-fields: the issue step holds each field to its closed set and to the
     ["a resume branch with no tip", { RESUME_BRANCH: branch }],
     ["a resume that started no skill", { STARTED: "false", RESUME_BRANCH: branch, RESUME_TIP: tip }],
     ["a started run with no base", { BASE_SHA: "" }],
+    ["another issue's branch to prune", { PRUNE_BRANCHES: "work-resolve-issue/issue-8-100-1" }],
+    ["the default branch to prune", { PRUNE_BRANCHES: "main" }],
+    ["the resume branch to prune", { RESUME_BRANCH: branch, RESUME_TIP: tip, PRUNE_BRANCHES: branch }],
+    ["the reuse branch to prune", { STARTED: "false", REUSE_BRANCH: branch, PRUNE_BRANCHES: branch }],
+    ["a branch named twice to prune", { PRUNE_BRANCHES: `${branch} ${branch}` }],
+    ["more than 20 branches to prune", { PRUNE_BRANCHES: Array.from({ length: 21 }, (_, i) => `work-resolve-issue/issue-7-${100 + i}-1`).join(" ") }],
+    ["a second line in the prune list", { PRUNE_BRANCHES: `${branch}\nchecked=true` }],
+    ["an empty name in the prune list", { PRUNE_BRANCHES: ` ${branch}` }],
   ]) {
     const result = await issueStep(env);
     assert.match(String(result.failed), /^bad-output: /, name);
@@ -4031,13 +4044,13 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
     const output = join(root, "output");
     writeFileSync(priorOut, priorLines);
     writeFileSync(output, "");
-    const result = runStep(checked, root, { CLAIMED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, ...claim, PRIOR_OUT: priorOut, GITHUB_OUTPUT: output });
+    const result = runStep(checked, root, { CLAIMED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, PRUNE_BRANCHES: "", ...claim, PRIOR_OUT: priorOut, GITHUB_OUTPUT: output });
     return { status: result.status, stdout: result.stdout, outputs: outputLines(output) };
   };
   const resume = { RESUME_BRANCH: branch, RESUME_TIP: tip };
   const same = publish(resume, `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${tip}\nresume-cause=turn-cap\n`);
   assert.equal(same.status, 0, same.stdout);
-  assert.deepEqual(same.outputs, { checked: "true", "reuse-branch": "", "resume-branch": branch, "resume-tip": tip, "base-sha": base, "start-sha": tip });
+  assert.deepEqual(same.outputs, { checked: "true", "reuse-branch": "", "resume-branch": branch, "resume-tip": tip, "base-sha": base, "start-sha": tip, "prune-branches": "" });
   for (const [name, lines] of [
     ["another tip", `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${"e".repeat(40)}\n`],
     ["no resume now (the branch is rejected or not the App's)", "proceed=true\nreuse-branch=\n"],
@@ -4052,6 +4065,32 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   assert.equal(reuse.status, 1, "a reuse the check does not choose");
   const fresh = publish({ CLAIMED: "false" }, "");
   assert.deepEqual([fresh.status, fresh.outputs["start-sha"]], [0, base]);
+  // A branch to prune is published only when the re-derived check names it
+  // too: a forged name, or a re-derive that wrote nothing, publishes none.
+  const older = "work-resolve-issue/issue-7-100-1";
+  const forged = "work-resolve-issue/issue-7-101-1";
+  const pruning = publish({ CLAIMED: "false", PRUNE_BRANCHES: `${older} ${forged}` }, `proceed=true\nreuse-branch=\nprune-branches=${older} work-resolve-issue/issue-7-99-1\n`);
+  assert.deepEqual([pruning.status, pruning.outputs["prune-branches"]], [0, older]);
+  const underived = publish({ CLAIMED: "false", PRUNE_BRANCHES: older }, "");
+  assert.deepEqual([underived.status, underived.outputs.checked, underived.outputs["prune-branches"]], [0, "true", ""]);
+  // A plain fresh run skips the re-derive, so its file is never written.
+  for (const prune of ["", older]) {
+    const output = join(root, "output");
+    writeFileSync(output, "");
+    const result = runStep(checked, root, { CLAIMED: "false", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, PRUNE_BRANCHES: prune, PRIOR_OUT: join(root, "missing"), GITHUB_OUTPUT: output });
+    const outputs = outputLines(output);
+    assert.deepEqual([result.status, outputs.checked, outputs["prune-branches"]], [0, "true", ""], `no re-derive file, prune list "${prune}"`);
+  }
+  const baseStep = job.steps.find((s) => s.id === "base");
+  const ctx = (claimed, prune) => ({ "steps.issue.outcome": "success", "steps.issue.outputs.claimed": claimed, "steps.issue.outputs.prune-branches": prune, "github.event.repository.default_branch": "main" });
+  assert.equal(evaluate(baseStep.if, ctx("false", older)), true, "a prune list is re-derived");
+  assert.equal(evaluate(baseStep.if, ctx("false", "")), false, "nothing to re-derive");
+  // The re-derive runs whenever the base checkout did.
+  const node = job.steps.find((s) => s.id === "node");
+  for (const outcome of ["success", "failure", "skipped"]) {
+    assert.equal(evaluate(node.if, { "steps.base.outcome": outcome }), outcome === "success", `node after a ${outcome} checkout`);
+    assert.equal(evaluate(prior.if, { "steps.node.outcome": outcome }), outcome === "success", `re-derive after a ${outcome} node setup`);
+  }
 });
 
 // lane.json is the runner's record: an issue run that started carries it,
@@ -4096,12 +4135,47 @@ test("pr-run-activity-read.yml: the reuse summary job takes code from the defaul
   assert.equal(runs(ctx("", "work-resolve-issue/issue-7-1-1")), false, "an unchecked reuse branch runs no summary");
 });
 
+// The prune job (#7948): the one job that deletes a lane branch, with the
+// write grant alone and code from the default branch tip only, taking the
+// branches to prune and the reuse and resume branches it spares from the
+// call that ran last, and this run's id from the run itself.
+test("work-resolve-issue.yml: the prune job deletes from the default branch tip with contents write, only when branches are named", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["prune-lane-branches"];
+  assert.deepEqual(job.needs, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
+  assert.deepEqual(job.permissions, { contents: "write", "pull-requests": "read" });
+  const checkout = job.steps.find((step) => step.name === "Check out the default branch tip");
+  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assert.equal(checkout.with["persist-credentials"], false);
+  const del = job.steps.find((step) => step.name === "Delete the stopped runs' lane branches");
+  assert.equal(del.run, "node .base/.github/scripts/work-resolve-issue/prune-branches.mjs");
+  assert.equal(del.env.RUN_ID, "${{ github.run_id }}");
+  assert.equal(del.env.GITHUB_TOKEN, "${{ github.token }}");
+  for (const [name, output] of [["PRUNE_BRANCHES", "scan-prune-branches"], ["REUSE_BRANCH", "scan-reuse-branch"], ["RESUME_BRANCH", "scan-resume-branch"]]) {
+    assert.match(del.env[name], new RegExp(`needs\\.resolve-issue\\.outputs\\.${output} \\|\\| '' \\}\\}$`), name);
+  }
+  const runs = (first, fallback = "") =>
+    evaluate(job.if.replace(/^\$\{\{ |\s*\}\}$/g, "").replace(/!cancelled\(\) && /, ""), {
+      "needs.resolve-issue.outputs.scan-prune-branches": first,
+      "needs.resolve-issue-fallback.result": fallback === "" ? "skipped" : "success",
+      "needs.resolve-issue-fallback.outputs.scan-prune-branches": fallback,
+      "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue-subscription.outputs.scan-prune-branches": "",
+    });
+  assert.equal(runs("work-resolve-issue/issue-7-100-1"), true);
+  assert.equal(runs("", "work-resolve-issue/issue-7-100-1"), true, "the fallback call's list");
+  assert.equal(runs(""), false, "nothing named runs no job");
+  // No other job of the lane holds contents: write.
+  for (const [name, other] of Object.entries(workflow("work-resolve-issue.yml").jobs)) {
+    if (name !== "prune-lane-branches") assert.notEqual(other.permissions?.contents, "write", name);
+  }
+});
+
 test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan or issue-fields job's", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-prune-branches", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   // The subscription call's are the same outputs, read in the same picks.
   assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);

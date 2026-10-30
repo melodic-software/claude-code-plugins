@@ -349,6 +349,13 @@ on:
           Issue mode: the earlier run's lane branch this run resumed; empty
           otherwise.
         value: ${{ jobs.issue-fields.outputs.resume-branch }}
+      scan-prune-branches:
+        description: >-
+          Issue mode: the space-separated lane branches of the issue's stopped
+          runs, with no pull request, that the earlier-work check named for
+          the caller's prune job to delete; empty otherwise. The prune job
+          re-checks each.
+        value: ${{ jobs.issue-fields.outputs.prune-branches }}
       # From run-claude-cli and the credential steps, never from model text,
       # but set by the run job, which head code can forge: no caller starts
       # its fallback call on them.
@@ -513,6 +520,7 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
       resume-tip: ${{ steps.issue-prior.outputs.resume-tip }}
+      prune-branches: ${{ steps.issue-prior.outputs.prune-branches }}
       # run-claude-cli sets lane-class and handoff after it restores the step
       # files, so the leg cannot set them; the presence steps run before it.
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
@@ -886,7 +894,10 @@ jobs:
       # model runs on that branch's tip instead (resume-branch, resume-tip,
       # resume-cause); a branch behind it starts fresh from the default tip
       # (stale-branch, stale-tip, and stale-noted when a lanes App comment
-      # already names it).
+      # already names it). With the model running or a branch reused, it also
+      # names the issue's stopped runs' branches with no pull request in any
+      # state, past the branch it picked (prune-branches), for
+      # work-resolve-issue.yml's prune job to delete.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
@@ -1109,7 +1120,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1414,7 +1425,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1466,7 +1477,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1512,7 +1523,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1736,7 +1747,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2046,6 +2057,7 @@ jobs:
       resume-tip: ${{ steps.checked.outputs.resume-tip }}
       base-sha: ${{ steps.checked.outputs.base-sha }}
       start-sha: ${{ steps.checked.outputs.start-sha }}
+      prune-branches: ${{ steps.checked.outputs.prune-branches }}
     steps:
       # Each field through env. issue-run-started is set first, alone, so a
       # refused field still leaves it; claimed says a branch is named.
@@ -2061,10 +2073,11 @@ jobs:
           RESUME_BRANCH: ${{ needs.run.outputs.resume-branch }}
           RESUME_TIP: ${{ needs.run.outputs.resume-tip }}
           BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          PRUNE_BRANCHES: ${{ needs.run.outputs.prune-branches }}
         with:
           retries: 0
           script: |
-            const { LANE, ISSUE_NUMBER, STARTED, REUSE_BRANCH, RESUME_BRANCH, RESUME_TIP, BASE_SHA } = process.env;
+            const { LANE, ISSUE_NUMBER, STARTED, REUSE_BRANCH, RESUME_BRANCH, RESUME_TIP, BASE_SHA, PRUNE_BRANCHES } = process.env;
             const SHA = /^[0-9a-f]{40}$/;
             const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const BRANCH = new RegExp(`^${escape(LANE)}/issue-${escape(ISSUE_NUMBER)}-[1-9][0-9]*-[1-9][0-9]*$`);
@@ -2083,15 +2096,24 @@ jobs:
             if (REUSE_BRANCH !== '' && (STARTED !== 'false' || RESUME_BRANCH !== '' || RESUME_TIP !== '')) return bad('reuse-branch');
             if ((RESUME_BRANCH === '') !== (RESUME_TIP === '') || (RESUME_TIP !== '' && STARTED !== 'true')) return bad('resume-tip');
             if (STARTED === 'true' && BASE_SHA === '') return bad('base-sha');
+            // Branches to prune: at most 20 distinct lane branches of the
+            // issue, none of them the reuse or resume branch. Not re-derived:
+            // the prune job re-checks each against GitHub before deleting.
+            const prune = PRUNE_BRANCHES === '' ? [] : PRUNE_BRANCHES.split(' ');
+            if (prune.length > 20 || new Set(prune).size !== prune.length
+              || prune.some((name) => !BRANCH.test(name) || name === REUSE_BRANCH || name === RESUME_BRANCH)) return bad('prune-branches');
             core.setOutput('claimed', REUSE_BRANCH !== '' || RESUME_BRANCH !== '' ? 'true' : 'false');
             core.setOutput('reuse-branch', REUSE_BRANCH);
             core.setOutput('resume-branch', RESUME_BRANCH);
             core.setOutput('resume-tip', RESUME_TIP);
             core.setOutput('base-sha', BASE_SHA);
+            core.setOutput('prune-branches', PRUNE_BRANCHES);
 
       - name: Check out the default branch tip
         id: base
-        if: steps.issue.outcome == 'success' && steps.issue.outputs.claimed == 'true' && github.event.repository.default_branch != ''
+        if: >-
+          steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
+          && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2126,7 +2148,10 @@ jobs:
           GITHUB_OUTPUT=$PRIOR_OUT node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
       # A branch claim must be what the re-derived check chose, field for
-      # field; with no claim there is nothing to re-derive.
+      # field; with no claim there is nothing to re-derive. A branch to prune
+      # is published only when the re-derived check names it too, so a forged
+      # list deletes nothing the check would spare; a failed re-derive
+      # publishes none.
       - name: Publish the checked issue fields
         id: checked
         if: >-
@@ -2139,16 +2164,22 @@ jobs:
           RESUME_BRANCH: ${{ steps.issue.outputs.resume-branch }}
           RESUME_TIP: ${{ steps.issue.outputs.resume-tip }}
           BASE_SHA: ${{ steps.issue.outputs.base-sha }}
+          PRUNE_BRANCHES: ${{ steps.issue.outputs.prune-branches }}
           PRIOR_OUT: ${{ runner.temp }}/issue-prior
         run: |
+          prior() { [ ! -f "$PRIOR_OUT" ] || sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
           if [ "$CLAIMED" = true ]; then
-            prior() { sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
             if [ "$(prior reuse-branch)" != "$REUSE_BRANCH" ] || [ "$(prior resume-branch)" != "$RESUME_BRANCH" ] ||
               [ "$(prior resume-tip)" != "$RESUME_TIP" ]; then
               echo "::error::bad-output: the run job's lane branch is not the one the earlier-work check chooses; nothing is published"
               exit 1
             fi
           fi
+          prune=""
+          derived=" $(prior prune-branches) "
+          for name in $PRUNE_BRANCHES; do
+            [[ $derived == *" $name "* ]] && prune="${prune:+$prune }$name"
+          done
           {
             echo "checked=true"
             echo "reuse-branch=$REUSE_BRANCH"
@@ -2156,6 +2187,7 @@ jobs:
             echo "resume-tip=$RESUME_TIP"
             echo "base-sha=$BASE_SHA"
             echo "start-sha=${RESUME_TIP:-$BASE_SHA}"
+            echo "prune-branches=$prune"
           } >>"$GITHUB_OUTPUT"
 
   # Everything the run job hands on leaves here, on a fresh VM that ran no
@@ -3003,7 +3035,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Isolate the runner
         id: isolate
@@ -3022,7 +3054,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3048,7 +3080,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

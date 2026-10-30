@@ -760,7 +760,8 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
   for (const [, remote] of text.matchAll(/^\s+uses: ([^.\s]\S*)/gm)) {
-    assert.match(remote, /@[0-9a-f]{40}$/, remote);
+    // Actions pin a full SHA (org policy); first-party reusable workflows float on main.
+    assert.match(remote, /^melodic-software\/[^/]+\/\.github\/workflows\//.test(remote) ? /@main$/ : /@[0-9a-f]{40}$/, remote);
   }
 });
 
