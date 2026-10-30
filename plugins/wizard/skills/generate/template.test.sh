@@ -4,7 +4,7 @@
 #
 # Self-contained: no external test lib, fixtures built inline in a mktemp dir,
 # nothing outside that dir is written. The assertion primitives are duplicated
-# per plugin on purpose, see docs/conventions/shell-test-helpers/README.md.
+# per plugin on purpose, see docs/contracts/shell-test-helpers/README.md.
 #
 # HOW THE TEMPLATE IS EXERCISED. template.sh is a runnable wizard, not a library:
 # sourcing it whole would execute its example stage and block on prompts, and it

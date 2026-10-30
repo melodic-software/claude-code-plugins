@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "finding: scripts/resolve-roles.sh json_str - quotes are escaped before backslashes, so a quote yields invalid JSON\n",
+      "why": "one finding"
+    },
+    {
+      "answer": "Findings below.\n\n- **finding:** `scripts/resolve-roles.sh` `json_str` - swapped escape order\n\nThe note helper is a safe refactor.\n",
+      "why": "a Findings heading and a closing remark do not count"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: scripts/resolve-roles.sh json_str - swapped escape order breaks quotes\nfinding: scripts/resolve-roles.sh note - the shared helper changes how notes are stored\n",
+      "why": "the decoy flagged as a second finding"
+    },
+    {
+      "answer": "1. finding: scripts/resolve-roles.sh json_str - swapped escape order\n2. finding: scripts/resolve-roles.sh json_str - a backslash in a path is doubled twice\n",
+      "why": "one defect split over two lines"
+    },
+    {
+      "answer": "The json_str change swaps the escape order.\n",
+      "why": "no finding line"
+    }
+  ]
+}

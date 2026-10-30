@@ -110,7 +110,7 @@ after everything passes changes nothing and reports "already configured":
 - **Missing Git Bash on Windows:** install Git for Windows; nothing in this plugin runs without it.
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure repo-hygiene@<marketplace>`
   any time, or headless `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and

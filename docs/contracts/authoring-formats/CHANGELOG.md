@@ -6,6 +6,14 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
+## [1.0.4] - 2026-10-29
+
+Clarification. No key, allowed value, or default changes.
+
+- **One bundled copy per plugin (#10119).** A consuming plugin restates the ladder once, in a file
+  it bundles, and each of its reading skills points at that file instead of carrying its own copy.
+  The planning plugin's copy is `plugins/planning/context/authoring-formats.md`.
+
 ## [1.0.3] - 2026-09-28
 
 Clarification. No key, allowed value, or default changes.

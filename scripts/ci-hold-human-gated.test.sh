@@ -292,6 +292,16 @@ else
 fi
 expect "a pull request with no labels passes" 0 1 "" 0
 expect "a label that only contains the name does not hold" 0 1 "needs-human-later,not-needs-human" 0
+expect "the outside-actor label alone fails" 1 1 "ci,security: outside-actor" 0 \
+  "::error::#6419 carries 'security: outside-actor': someone outside the organization wrote on it"
+if grep -qxF 'held=false' "$TMP_ROOT/output"; then
+  ok "an outside-actor hold without the human-gated label still outputs held=false"
+else
+  fail "an outside-actor hold's outputs: '$(cat "$TMP_ROOT/output")'"
+fi
+export STUB_MODULE_TEXT='export const humanGatedLabel = () => "needs-human";'
+expect "a base module that exports no outside-actor label names no such hold" 0 1 "security: outside-actor" 0 "#6419 carries no 'needs-human' label."
+unset STUB_MODULE_TEXT
 expect "needs-human with no hold comment fails without a reason" 1 1 "ci,needs-human" 0 \
   "::error::#6419 carries 'needs-human'. $APPROVE"
 if [[ "$(cat "$TMP_ROOT/output")" == "label=needs-human" ]]; then

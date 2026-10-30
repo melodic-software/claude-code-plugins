@@ -41,7 +41,7 @@
 # cannot catch a new file.
 #
 # It matches the gate /docs-naming:generate-file-name-gate emits from
-# .claude/docs-naming.json, whose roots carry the same scope and whose
+# docs/conventions/docs-naming.yaml, whose roots carry the same scope and whose
 # exempt_basenames carries the same list; the co-located test compares the two.
 #
 # Output follows the check-script contract (README.md, "The check-script
@@ -96,7 +96,7 @@ sys.stdout.buffer.write(data.lower().encode("utf-8", "surrogateescape"))'
 NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$'
 # Space-delimited so one pattern match tests membership on stock macOS Bash 3.2,
 # which has no associative arrays. Keep in step with exempt_basenames in
-# .claude/docs-naming.json.
+# docs/conventions/docs-naming.yaml.
 EXEMPT_NAMES=' README.md CHANGELOG.md INDEX.md LICENSE.md AGENTS.md CLAUDE.md SKILL.md CONTRIBUTING.md SECURITY.md REVIEW.md CODE_OF_CONDUCT.md CONTRACT.md STYLE.md TODO.md PLAN.md '
 offenders=()
 

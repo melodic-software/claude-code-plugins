@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reference telemetry sink for harness-ops. Maps a hook-telemetry envelope (from
-# ANY producer, per docs/conventions/hook-telemetry) into one JSONL line under
+# ANY producer, per docs/contracts/hook-telemetry) into one JSONL line under
 # the log root (.observability/claude by default, project-relative; the
 # session_event_log_dir option moves it).
 #

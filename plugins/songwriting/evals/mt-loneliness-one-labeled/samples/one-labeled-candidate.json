@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "§7 Image filter: cliche scan pass (no \"empty heart\"), literally-false check pass.\n\nHere is one:\n\n*The porch light still waits up for nobody.*\n\nType: verbal. Linking: a habit that outlived its reason. Family distance: medium.\n\nIt keeps the focus on the house, which suits a slow ballad."
+    },
+    {
+      "answer": "| Metaphor | Type | Family distance |\n| --- | --- | --- |\n| the hallway swallows my footsteps | Verbal | far |\n\nThe verb carries the silence, so the hallway does the grieving for you.",
+      "why": "one-row table with a distance header"
+    },
+    {
+      "answer": "**Loneliness is an off-season motel.**\n\n- Type: expressed identity\n- **Distance:** far\n\nWhat characteristics does it have? vacancy, quiet, a sign left lit. What else has them? a church lot on Monday.",
+      "why": "finder-question answers beside one candidate"
+    },
+    {
+      "answer": "**The bed yawns on my side.** A verbal metaphor, family distance: close. Keep the distance in the verb; a closer image would tip into cliche.",
+      "why": "near miss: distance mentioned twice, labeled once"
+    },
+    {
+      "answer": "*The porch light still waits up for nobody.* Family distance: medium. Distance here means how far the image sits from loneliness itself.",
+      "why": "near miss: far in prose after a second distance"
+    },
+    {
+      "answer": "**The bed yawns on my side.** A verbal metaphor, family distance: close. Keep the distance in the verb; a close image would tip into cliche.",
+      "why": "near miss: close in prose after a second distance"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rhymes for 'alone': phone, stone, known.",
+      "why": "a different question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Two finder questions first, because both lists are raw material for you.\n\n**What characteristics does this loneliness have?** quiet, echoing, too much space, routine without a witness, half of everything left over.\n\n**What else has those characteristics?** an empty church after the service, a two-car garage with one truck, a jukebox with no quarters, a dance hall at closing.\n\nOptions (you pick by emotional intent):\n\n1. *The house rings like a bell nobody pulls.* Type: verbal. Linking: echo and silence. Distance: medium.\n2. *Loneliness is a two-car garage.* Type: expressed identity. Linking: the missing half. Distance: close.\n3. *The evenings stack up like unwashed plates.* Type: verbal (simile). Linking: routine piling up. Distance: close.\n4. *The bed yawns on my side.* Type: verbal. Linking: too much space. Distance: medium.\n5. *a jukebox quiet* Type: qualifying. Linking: music with no one to choose it. Distance: far.\n6. *The phone sleeps through Sundays.* Type: verbal. Linking: no one calls. Distance: far.",
+      "why": "a list menu"
+    },
+    {
+      "answer": "| # | Candidate | Type | Why it lands | Family distance |\n| --- | --- | --- | --- | --- |\n| 1 | the hallway swallows my footsteps | Verbal metaphor | sound with nowhere to go | close |\n| 2 | I'm an off-season motel | Expressed identity | vacancy sign | medium |\n| 3 | Sunday drags its feet | Verbal metaphor | time slowing | medium |\n\nI'm not crowning one; which fits depends on whether the ballad is bitter or tender.",
+      "why": "a table menu"
+    },
+    {
+      "answer": "One pick: *the porch light waits up for nobody* (verbal, distance: medium). Backup: *Sunday drags its feet* (verbal, distance: close).",
+      "why": "a backup makes it a menu"
+    }
+  ]
+}

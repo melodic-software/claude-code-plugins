@@ -92,7 +92,8 @@ const TUNING = {
 };
 const tunedConfig = () => {
   const doc = parse(LIVE.config);
-  doc.models["issue-dimensions"] = { fields: doc.models["issue-dimensions"].fields, ...TUNING };
+  const live = doc.models["issue-dimensions"];
+  doc.models["issue-dimensions"] = { fields: live.fields, ...(live["split-child-size"] === undefined ? {} : { "split-child-size": live["split-child-size"] }), ...TUNING };
   return stringify(doc);
 };
 const TUNED = { ...LIVE, config: tunedConfig() };
@@ -110,13 +111,13 @@ const fieldFacts = ({ size, complexity, uncertainty }, setter = LISTED) => {
     fieldSetters: Object.fromEntries(rows.map(([field]) => [field, setter])),
   };
 };
-const issueSlot = (dims, { setter, labels = [], pinnedDimensions } = {}) =>
+const issueSlot = (dims, { setter, labels = [], pinnedDimensions, splitChild } = {}) =>
   resolve(TUNED, {
     lane: "work-resolve-issue",
     activity: "resolve-issue",
     configPath: CONFIG_PATH,
     basePath: ".base",
-    facts: { ...LIVE_FACTS, labels: ["agent-ready", ...labels], ...fieldFacts(dims, setter) },
+    facts: { ...LIVE_FACTS, labels: ["agent-ready", ...labels], ...fieldFacts(dims, setter), ...(splitChild === undefined ? {} : { splitChild }) },
     pinnedDimensions,
   }).selected;
 
@@ -164,6 +165,22 @@ for (const [why, dims, options, reason] of [
     assert.equal(slot["timeout-minutes"], 7);
   });
 }
+
+// Admission takes a trusted size-split sub-issue whatever its Size (owner
+// Q93), so a Large one runs on split-child-size's budget, pinned as that size.
+test("live config: a trusted split child rated Large runs on split-child-size's budget; any other Large stays split-required", () => {
+  const large = { size: "large", complexity: "low", uncertainty: "known" };
+  const child = issueSlot(large, { splitChild: true });
+  assert.equal(child.applies, true);
+  assert.equal(child["issue-dimensions"], "medium/low/known");
+  assert.equal(child["timeout-minutes"], 9);
+  assert.equal(child.models["max-turns"], 20);
+  assert.equal(issueSlot(large, { splitChild: false })["skip-reason"], "split-required");
+  assert.equal(issueSlot({ ...large, size: "small" }, { splitChild: true })["issue-dimensions"], "small/low/known", "a child that runs keeps its own size");
+  const request = { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH };
+  assert.ok(neededFacts(LIVE, request).includes("splitChild"));
+  assert.ok(!neededFacts(LIVE, { ...request, pinnedDimensions: "medium/low/known" }).includes("splitChild"));
+});
 
 test("live config: a held large issue keeps its hold reason", () => {
   const slot = issueSlot({ size: "large", complexity: "low", uncertainty: "known" }, { labels: ["needs-human"] });
@@ -890,7 +907,7 @@ const fieldEvent = (type, field, actor) => ({
   actor: { databaseId: actor },
   issueField: { fullDatabaseId: String(field) },
 });
-async function mainOnIssue(events) {
+async function mainOnIssue(events, splitChild = "false") {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -916,9 +933,20 @@ async function mainOnIssue(events) {
     return { labels: [{ name: "agent-ready" }] };
   };
   writeFileSync(join(env.BASE_PATH, "event.json"), JSON.stringify({ action: "labeled", issue }));
-  const code = await main({ env: { ...env, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
+  const code = await main({ env: { ...env, SPLIT_CHILD: splitChild, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
   return { code, outputs: readOutputs(env.GITHUB_OUTPUT), calls };
 }
+
+// The caller reads whether the issue is a trusted split child (check-blockers.mjs)
+// and passes it; a resolve that reads the dimensions without it fails rather
+// than rating a trusted Large child split-required.
+test("main on an issue fails when split-child is neither true nor false", async () => {
+  for (const value of ["", "yes"]) {
+    const { code } = await mainOnIssue([], value);
+    assert.equal(code, 1, JSON.stringify(value));
+  }
+  assert.equal((await mainOnIssue([], "true")).code, 0);
+});
 
 test("main on an issue set Medium, High, Known writes its turn cap, dimensions and timeout", async () => {
   const { code, outputs, calls } = await mainOnIssue([

@@ -180,7 +180,7 @@ LANES: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
-# The canonical presence-gate token owned by docs/conventions/native-references.
+# The canonical presence-gate token owned by docs/contracts/native-references.
 # A baked description phrase carries it; the reverse-parity scan keys on it.
 GATE_TOKEN = "resolves in this session"
 
@@ -252,7 +252,7 @@ Every verdict here was written by a person or by a session acting on the owner's
 direction, never by an unattended run. Rows are recorded per overlap between a native Claude Code
 surface and a component in this repository, and each one carries the observable event that obliges
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
-and when. See [`docs/conventions/native-references/`](conventions/native-references/README.md).
+and when. See [`docs/contracts/native-references/`](contracts/native-references/README.md).
 """
 
 

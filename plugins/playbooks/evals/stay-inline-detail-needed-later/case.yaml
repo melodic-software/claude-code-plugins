@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: stay-inline-detail-needed-later
+description: "fable-5 delegation case 23 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Plans to stay inline: the redesign will need the module's full detail later in the session, and a worker would return a lossy summary whose missing detail it would have to re-read. It plans to read the payments files in the main session and starts no read."
+execution:
+  prompt: "/playbooks:fable-5. Plan this, do not start yet: read through the payments module, about 15 files, until you know it in detail. Next we will redesign its error handling together, and I will be asking about specific functions as we go. Say how you will do the read."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans to read the payments module files in the main session. Context, the reference answer: Plans to stay inline: the redesign will need the module's full detail later in the session, and a worker would return a lossy summary whose missing detail it would have to re-read. It plans to read the payments files in the main session and starts no read. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Does not plan to delegate the read to a worker that returns a summary. Context, the reference answer: Plans to stay inline: the redesign will need the module's full detail later in the session, and a worker would return a lossy summary whose missing detail it would have to re-read. It plans to read the payments files in the main session and starts no read. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-3
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Does not plan parallel workers to cover the 15 files. Context, the reference answer: Plans to stay inline: the redesign will need the module's full detail later in the session, and a worker would return a lossy summary whose missing detail it would have to re-read. It plans to read the payments files in the main session and starts no read. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: dispatches-no-worker
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

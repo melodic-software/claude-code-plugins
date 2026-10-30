@@ -23,7 +23,7 @@
 # leak into the next, in one place.
 #
 # Plugin *.test.sh helpers stay duplicated on purpose; see
-# docs/conventions/shell-test-helpers/README.md. This file is the repo-tooling
+# docs/contracts/shell-test-helpers/README.md. This file is the repo-tooling
 # layer only.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

@@ -2,9 +2,11 @@
 // sends in $RUNNER_TEMP/api-budget/<token>, one reading line per answer, for
 // the job-end api-calls notice (api-budget.bash api_budget_emit_calls).
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests, createRateLimitLatch } from "./rate-guard.mjs";
 import { countedFetch, createGitHubApi as addressFeedbackApi } from "../../scripts/pr-unblock/address-feedback.mjs";
@@ -183,3 +185,45 @@ for (const [name, run] of [
       }
     }));
 }
+
+// A step's own api-calls line (API_BUDGET_SCRIPT): one child process sends
+// two core reads, a 304 and a GraphQL query on the step's token and one read
+// on a second token, so its line reads github-token=3 lanes-app=1
+// not-modified=1 graphql=1, and the job-end lines over the same files agree.
+const STEP_CALLS = `
+import { createGitHub } from ${JSON.stringify(new URL("../check-trusted-trigger/check-trusted-trigger.mjs", import.meta.url).href)};
+const answer = (status, resource) => new Response(status === 304 ? null : "{}", { status, headers: { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": resource } });
+const fetchImpl = async (url, init) => (init.headers["If-None-Match"] ? answer(304, "core") : url.endsWith("/graphql") ? answer(200, "graphql") : answer(200, "core"));
+const own = createGitHub({ token: "own", fetchImpl, log: () => {} });
+await own("GET", "/repos/o/r/pulls/1");
+await own("GET", "/repos/o/r/pulls/2");
+await own("GET", "/repos/o/r/pulls/3", undefined, { "If-None-Match": "etag" }).catch(() => {});
+await own("POST", "/graphql", { query: "{ viewer { login } }" });
+await createGitHub({ token: "other", fetchImpl, log: () => {} })("GET", "/repos/o/r");
+`;
+const runStep = (script) => {
+  const dir = tempDir("count-requests-step-");
+  const env = { PATH: process.env.PATH, RUNNER_TEMP: dir, GH_TOKEN: "own", API_BUDGET_TOKEN: "github-token", API_BUDGET_OVERRIDE_TOKEN: "lanes-app" };
+  try {
+    const step = spawnSync(process.execPath, ["--input-type=module", "-e", STEP_CALLS], { encoding: "utf8", env: script === undefined ? env : { ...env, API_BUDGET_SCRIPT: script } });
+    assert.equal(step.status, 0, step.stderr);
+    const job = spawnSync("bash", ["-c", `. ${JSON.stringify(fileURLToPath(new URL("./api-budget.bash", import.meta.url)))}; api_budget_emit_calls github-token lanes-app`], { encoding: "utf8", env });
+    return { step: step.stdout, job: job.stdout };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("API_BUDGET_SCRIPT ends the process with its own api-calls line, which the job-end lines agree with", () => {
+  const { step, job } = runStep("who");
+  assert.equal(step, "::notice title=api-calls::script=who github-token=3 lanes-app=1 not-modified=1 graphql=1\n");
+  assert.equal(job, "::notice title=api-calls::github-token=3 not-modified=1 graphql=1\n::notice title=api-calls::lanes-app=1 not-modified=0 graphql=0\n");
+});
+
+test("without API_BUDGET_SCRIPT, or with one that is not lower-case kebab case, the same calls print nothing", () => {
+  for (const script of [undefined, "Who", "who::x", ""]) {
+    const { step, job } = runStep(script);
+    assert.equal(step, "", String(script));
+    assert.match(job, /^::notice title=api-calls::github-token=3 not-modified=1 graphql=1$/m);
+  }
+});

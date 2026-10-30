@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: confirmed\nF2: refuted - finditer scans from the end of each match, so `aa` in `aaa` is 1 match, the same as the loader\nF3: refuted\nF4: confirmed\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "| F2 | refuted | matches never overlap |\n",
+      "why": "a table row"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F2: confirmed - finditer overlaps\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F3: refuted\nF2: confirmed\n",
+      "why": "refuted sits on another finding's line"
+    },
+    {
+      "answer": "F2: not refuted, finditer can overlap with lookaheads\n",
+      "why": "a negated verdict"
+    }
+  ]
+}

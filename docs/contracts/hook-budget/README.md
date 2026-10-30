@@ -164,7 +164,10 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **Prerequisite.** Node on PATH is now required for every exec-form hook (`command` is `node`). The launcher
   cannot detect a missing node, because the launcher is a node process; a failed launch is
   non-blocking, so the guard then enforces nothing (the
-  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)). With node present and bash
+  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)), unless the row sets
+  `"onFailure": "block"` on Claude Code 2.1.295 or later
+  ([`onFailure` probes](#onfailure-probes-melo-desk-001-2026-10-29); the rows that set it are under
+  [Which rows set `onFailure: "block"`](#which-rows-set-onfailure-block)). With node present and bash
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
@@ -224,6 +227,101 @@ form.
 The absolute times come from a one-plugin config with the harness's synthetic payloads, so they
 cannot be compared with the reference figures above. The difference between the arms is the
 measurement.
+
+### `onFailure` probes (melo-desk-001, 2026-10-29)
+
+These probes answer [#6755](https://github.com/melodic-software/claude-code-plugins/issues/6755)'s
+older-client question and its missing-interpreter question
+([#9967](https://github.com/melodic-software/claude-code-plugins/issues/9967)). Two throwaway
+plugins each carry one PreToolUse `Bash` row, `node ${CLAUDE_PLUGIN_ROOT}/hooks/h.mjs`, whose
+script exits 1. The `block` fixture sets `"onFailure": "block"` and the control fixture omits it.
+Each session (`claude -p --plugin-dir <fixture> --permission-mode auto`) asks for one Bash
+`touch` of a marker file, so a marker on disk shows the call ran. Host: WSL2 Linux, Node 24.21.0.
+
+| Probe | Client | Command | Observed |
+| --- | --- | --- | --- |
+| Older client, validator | 2.1.294 | `plugin validate --json <fixture>` | `success: true`, exit 0, no error or warning on `onFailure`; output matches the control's apart from names |
+| CI's validator (`package.json` pin) | 2.1.312 | same | Same as 2.1.294: accepted silently |
+| Older client, session | 2.1.294 | session, `block` fixture | No load error. The hook ran and failed, and the Bash call ran: the key is ignored |
+| Older client, session control | 2.1.294 | session, control fixture | Hook ran and failed, and the Bash call ran |
+| Current client, session | 2.1.314 | session, `block` fixture | Bash call denied: `failed; blocking because onFailure is "block"` |
+| Missing interpreter, `onFailure` set | 2.1.314 | session, `block` fixture, no `node` on PATH | Bash call denied: `Executable not found in $PATH: "node"`, then the same blocking message |
+| Missing interpreter, control | 2.1.314 | session, control fixture, no `node` on PATH | Bash call ran, and no hook error reached the model |
+
+So `plugin validate` gives no signal on `onFailure` in either version, and a pre-2.1.295 client
+loads the row and ignores the key, so a row that relies on `"block"` fails open there. On a current
+client, `"block"` also closes the missing-`node` gap the **Prerequisite** bullet names: the matched
+call is denied instead of running unguarded. Each session made one matched call.
+
+## Which rows set `onFailure: "block"`
+
+Only a named security guard sets `"onFailure": "block"`: a `PreToolUse` row whose job is to deny a
+call, where a hook that could not judge the call must deny it rather than let it run unguarded.
+Every other row leaves the key unset and keeps the default, under which the action goes ahead when
+the hook fails. The owner chose this scope on 2026-10-18
+([#6755](https://github.com/melodic-software/claude-code-plugins/issues/6755), D17).
+
+On a `command` hook, these count as failures: a hook that cannot start, an exit code other than 0
+or 2, a hook that reaches its `timeout`, or JSON output that does not parse or fails validation.
+With `"block"` set, a failure does what exit 2 does on that event, and on `PreToolUse` that blocks
+the call. Exit 2 blocks either way. The key needs Claude Code 2.1.295 or later; an older client
+loads the row and ignores it ([`onFailure` probes](#onfailure-probes-melo-desk-001-2026-10-29)).
+
+- **Pointer:** [hooks: Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails).
+- **As of:** 2026-10-30.
+- **Recheck trigger:** that section changes what counts as a failure, or which hooks ignore the
+  key.
+
+These rows set `block`. `git grep -n '"onFailure"' -- 'plugins/*/hooks/hooks.json'` lists exactly
+them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gains or loses the key:
+
+| Plugin | Row | Why `block` |
+| --- | --- | --- |
+| guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell` | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
+| disk-hygiene | `PreToolUse` `Bash(*hygiene.py*)` and `PowerShell(*hygiene.py*)` | The command names the clean engine. With no Python, the launcher already denies such a call. `block` also denies it when `node` or bash is missing, when the guard crashes, and on a timeout |
+| discovery | `PreToolUse` `Bash`, the docs-fetcher gate | If the gate fails, `discovery:docs-fetcher`, the agent that reads untrusted pages, gets a `Bash` with no gate on it |
+| multi-agent | `PreToolUse` `Bash`, the docs-fetcher gate; `PreToolUse` `WebFetch`, the drift-checker gate | The same holds for `multi-agent:docs-fetcher`. If the fetch gate fails, the drift checker can fetch any URL |
+
+The docs-fetcher and drift-checker gates match every `Bash` or `WebFetch` call in every session,
+and outside their agent they allow every call. With `block`, a gate that cannot start or times out
+(10 s) denies the main thread's call too. A host with no `node` loses its guardrails `Bash` the
+same way. Each plugin's `SessionStart` node notice says `node` is missing and names the plugin's
+check skill. The check skill's own `Bash` call is denied too, and the denial names the missing
+`node`.
+
+These rows do not set `block`:
+
+| Row | Why not |
+| --- | --- |
+| Every `SessionStart` row, the shell-form node-notice rows included | `SessionStart` cannot block: exit 2 only shows stderr to the user, so the key changes nothing. The node-notice row has to stay a notice so that it can report a missing `node` |
+| `Stop` rows, such as disk-hygiene's guard-launch monitor and the gated end-of-turn checks, and rows with `async` or `asyncRewake`, such as harness-ops' hook-failure audit | The hooks page lists `Stop`, `SubagentStop`, `TaskCompleted`, `TeammateIdle` and background hooks as ignoring the key |
+| Advisory rows: guardrails `Workflow`, discovery's `PostToolUse` `WebFetch` truncation note, disk-hygiene's `PreToolUse` `Skill` marker row, and disk-hygiene's `UserPromptExpansion` engine-context row | These rows judge nothing. With `block`, a row that only adds context or writes a marker would deny the call or expansion it was meant to annotate. The `Skill` row matches every Skill call. The engine-context row hands the skill its interpreter, and the `hygiene.py` rows above deny the engine call |
+| disk-hygiene `PreToolUse` `PowerShell(*python*$*)` and `PowerShell(*& $*)` | These rows match commands that do not name the engine. With no Python, the launcher lets such a call go ahead with a notice, because denying every `& $` call on a host without Python stops work (the header of `plugins/disk-hygiene/hooks/run-python-hook.sh`). `block` would deny them on every launch failure |
+| The `disk-hygiene:clean` skill-frontmatter belt | It is not a `hooks.json` row, and no probe has run a skill-frontmatter hook with the key set |
+| Every row in a plugin not named above | The owner's decision covers only the named guards. A row gets `block` only by a change to this section |
+
+Launcher paths:
+
+- **A closed option gate** (`--require-true`, `--run-if-unset-or-true`, `--run-if-any-set`,
+  `--run-if-settings-mention`) exits 0. That is not a failure, so a `block` row whose gate is off
+  still lets the call through.
+- **`--skip-unless-stdin-contains`** exits 0 when stdin stalls. That fails open even under
+  `block`, so the flag never gates a `block` row.
+- **A launcher exit 1** (no bash or a usage error, and on a row without `--fail-closed` also a
+  spawn error or a child killed by a signal) counts as a failure, so under `block` it denies.
+- **A guard's own abort boundary** turns every status it did not choose into 0 or 2 on exit
+  (`plugins/guardrails/hooks/abort-boundary.sh`). `block` does not change that choice. Every
+  guardrails guard declares `open`, so a guard's crash still lets its call through, with a notice.
+
+`block-root-delete-target`, the root-delete guard, bounds its own work: 25 s for the judgment and
+50 s for its whole run, inside the shared 60 s timeout. Where `timeout` exists, its git and
+path-resolving calls run under it too. It refuses when a bound runs out, so the denial names the
+guard's reason. `block` is the backstop for a hook cancelled at the timeout, such as one whose git
+call stalled on a host without `timeout` (stock macOS). Its false positives
+([#6625](https://github.com/melodic-software/claude-code-plugins/issues/6625),
+[#6626](https://github.com/melodic-software/claude-code-plugins/issues/6626),
+[#6627](https://github.com/melodic-software/claude-code-plugins/issues/6627)) are exit-2 denials,
+which `onFailure` does not affect.
 
 ## Gated Stop rows at the exec-form floor
 

@@ -1664,6 +1664,31 @@ class TestStatusLive(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertIn('  Q1 Short Q1 accepted, to confirm: ["No network"]', out.splitlines())
 
+    def test_a_hedged_row_is_named_and_an_own_answer_is_not(self):
+        doc = base_doc()
+        doc["questions"][0]["commits"] = ["No network"]
+        self.write_doc(doc)
+        for kind, listed in (("hedged", True), ("own", False)):
+            with self.subTest(kind=kind):
+                self.write_events(
+                    [
+                        {
+                            "seq": 1,
+                            "id": "Q1",
+                            "kind": kind,
+                            "alt": None,
+                            "text": "only if cheap",
+                            "at": "2026-09-24T10:00:00Z",
+                        }
+                    ]
+                )
+                rc, out, err = self.rp("status", "--json")
+                self.assertEqual(rc, 0, out + err)
+                pending = [
+                    c["id"] for g in json.loads(out)["groups"] for c in g["toConfirm"]
+                ]
+                self.assertEqual(pending, ["Q1"] if listed else [])
+
 
 class TestDirRequired(unittest.TestCase):
     def test_no_dir_is_refused(self):

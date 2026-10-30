@@ -58,7 +58,8 @@
 #                        Default: the issue morning-brief.sh itself reads
 #                        (discovered with that reader's own title search), else
 #                        the open issue titled exactly
-#                        `Lane telemetry: restart-consumer`. Absent -> the run is
+#                        `Lane telemetry: restart-consumer` and opened by the
+#                        WRITE IDENTITY. Absent -> the run is
 #                        recorded in the local ledger only, with a warning.
 #   --no-telemetry       skip the consumer's own telemetry upsert entirely.
 #   --launcher PATH      lane-launcher.sh to relaunch through (default: the
@@ -84,7 +85,10 @@
 #   { "name": "work", "prompt": "work.md",
 #     "telemetry": { "issue": 42, "marker": "work-items:work-loop",
 #                    "instance": "laptop-a", "repo": "owner/name" } }
-#   issue    default: the open issue titled exactly `Lane telemetry: <name>`.
+#   issue    default: the lowest-numbered open issue titled exactly
+#            `Lane telemetry: <name>` and opened by the WRITE IDENTITY (below)
+#            or by the lane's `telemetry.author` login, when set. A match by
+#            any other author is skipped and named in a warning.
 #   marker   default: any comment on that issue written by the WRITE IDENTITY
 #            (below) and carrying the shared sentinel
 #            `<!-- harness-ops:lane-telemetry marker=... -->` whose fenced JSON
@@ -875,13 +879,21 @@ lane_comment_marker_matches() {
 # a routine `no-telemetry` tick, leaving an unattended consumer apparently
 # healthy while it never observes that lane's request. The caller turns a
 # non-zero return into its own `api-error` decision.
+# Anyone can open an issue with a lane's title, so only one opened by the write
+# identity, or by the lane's `telemetry.author` ($3) when set, is selected; every
+# other exact-title match is skipped and named in a warning.
 resolve_issue_by_title() {
-  local repo="$1" title="$2" raw
+  local repo="$1" title="$2" author="${3:-}" raw foreign
   raw="$(gh api --method GET search/issues -f per_page=100 \
     -f q="repo:$repo is:issue is:open Lane telemetry in:title" 2>/dev/null)" || return 1
   jq -e '.incomplete_results == false' <<<"$raw" >/dev/null 2>&1 || return 1
-  jq -r --arg t "$title" '[ .items[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
-    <<<"$raw" 2>/dev/null || return 1
+  foreign="$(jq -r --arg t "$title" --arg me "$WRITE_IDENTITY" --arg a "$author" \
+    '[ .items[] | select(.title == $t and .user.login != $me and ($a == "" or .user.login != $a))
+       | "#\(.number) by \(.user.login // "unknown")" ] | join(", ")' <<<"$raw" 2>/dev/null)" || return 1
+  [[ -z "$foreign" ]] || warn "skipped '$title' issues not opened by the write identity: $(sanitize "$foreign")"
+  jq -r --arg t "$title" --arg me "$WRITE_IDENTITY" --arg a "$author" \
+    '[ .items[] | select(.title == $t and (.user.login == $me or ($a != "" and .user.login == $a))) ]
+     | sort_by(.number) | .[0].number // empty' <<<"$raw" 2>/dev/null || return 1
 }
 
 # Every comment body on one lane's telemetry issue, as a JSON array of strings.
@@ -1057,7 +1069,7 @@ lane_selected() {
 process_lane() {
   local idx="$1" now="$2"
   local lane repo issue marker instance bodies body state request req reason used n i found=0
-  local comment_marker sibling_request sibling_instance
+  local comment_marker sibling_request sibling_instance author
   lane="$(lane_field "$idx" name)"
   [[ -n "$lane" ]] || return 0
   lane_selected "$lane" || return 0
@@ -1077,13 +1089,21 @@ process_lane() {
     return 0
   fi
   if [[ -z "$issue" && -z "$TELEMETRY_JSON_FILE" ]]; then
-    if ! issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane")"; then
+    # The same check lane-launcher.sh applies to `telemetry.author`: a login,
+    # never a bot account, which names no single writer.
+    author="$(lane_telemetry_field "$idx" author)"
+    if [[ -n "$author" && ! "$author" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+      record "$lane" "error" "telemetry.author is not a GitHub user login: $(sanitize "$author")" null "$now"
+      fail_lane "config-error($lane)" 3
+      return 0
+    fi
+    if ! issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane" "$author")"; then
       record "$lane" "api-error" "could not read a complete issue search on $repo; telemetry issue unresolved, not restarting" null "$now"
       fail_lane "api-error($lane)" 5
       return 0
     fi
     [[ -n "$issue" ]] || {
-      record "$lane" "no-telemetry" "no open issue titled 'Lane telemetry: $lane'; bind lanes[].telemetry.issue" null "$now"
+      record "$lane" "no-telemetry" "no open issue titled 'Lane telemetry: $lane' opened by $WRITE_IDENTITY; bind lanes[].telemetry.issue" null "$now"
       return 0
     }
   fi
@@ -1250,6 +1270,11 @@ upsert_own_telemetry() {
   [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
     --search "loop-lane telemetry running per-lane status in:title" --limit 100 \
     --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
+  # A --telemetry-json run skips the identity read, and the title fallback
+  # selects by it; an unresolved identity selects nothing.
+  if [[ -z "$issue" && -z "$WRITE_IDENTITY" ]] && ! resolve_write_identity; then
+    WRITE_IDENTITY=""
+  fi
   [[ -n "$issue" ]] || issue="$(resolve_issue_by_title "$TARGET_REPO" "Lane telemetry: $CONSUMER_LANE")"
   [[ -n "$issue" ]] || {
     warn "no telemetry issue found on $TARGET_REPO (neither the morning-brief title search nor 'Lane telemetry: $CONSUMER_LANE') — this run is in the local ledger only. Pass --telemetry-issue N (ideally the issue the morning brief reads) so a consumer that stops running shows up as STALE in the morning brief."

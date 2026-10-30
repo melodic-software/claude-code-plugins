@@ -133,6 +133,7 @@ function fakeApi({
     // A run that names no check is the address-feedback one.
     listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
+    listArtifactsNamed: async () => [],
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
       return { workflowRunId };
@@ -157,7 +158,7 @@ const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReas
   return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
-async function decide(api, resolved = resolvedLane()) {
+async function decide(api, resolved = resolvedLane(), extra = {}) {
   const lines = [];
   const asked = [];
   const result = await dispatchFeedback({
@@ -172,6 +173,7 @@ async function decide(api, resolved = resolvedLane()) {
       return resolved;
     },
     log: (line) => lines.push(line),
+    ...extra,
   });
   return { result, lines, asked };
 }
@@ -188,6 +190,63 @@ const pull = (overrides) => [
     ...overrides,
   },
 ];
+
+// Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
+// pull request, so a fix round's push could never merge: the gate's reader
+// (verify-cap.mjs) says so, the dispatcher starts no round and posts nothing,
+// and pr-merge closes it for a fresh attempt.
+test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
+  const api = fakeApi();
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+  // The cap never clears for the head: a later run at it reads nothing.
+  const record = emptyRecord();
+  await decide(api, resolvedLane(), { verifyCapped, record });
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(asked.length, 2);
+  assert.match(again.lines.join("\n"), /\(recorded\)/);
+});
+
+// A sibling pull request's FAIL run the reader cannot read may hide the cap:
+// no round this run, but the head is not recorded, so the next run reads again.
+test("a PR whose sibling FAIL run cannot be read gets no round this run and is read again next run", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  const first = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(first.result, null);
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(reads, 2);
+});
+
+// A verifier PASS at a new head clears no cap, so the pass-only dispatch
+// starts no round either.
+test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
+  const api = fakeApi();
+  const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, verifyCapped: () => "verify:repeated-fail: fails at 3 heads, the cap is 3" });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+test("a PR the reader does not find at the cap dispatches as before", async () => {
+  const api = fakeApi();
+  const { result } = await decide(api, resolvedLane(), { verifyCapped: () => null });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+});
 
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {
   const api = fakeApi();
@@ -1566,6 +1625,117 @@ test("a lost run whose dispatch job never started or was not lost, or this run i
   }
 });
 
+// A verdict the kill switch deferred: the reconciler re-ran post-verify-notes
+// (attempt 2, github-actions[bot]), which posted the notes or found the stale
+// ones and uploaded pr-feedback-deferred-<head>-<verdict>, since the gate
+// trusts no round from that attempt. The tick, an attempt-1 dispatcher, looks
+// the record up by name for each open lanes App head and sends the round an
+// on-time verdict would have.
+const RECORDED_AT = "2026-10-17T13:10:00Z";
+const deferredRerun = (overrides = {}) => ({
+  id: 610,
+  path: ".github/workflows/pr-feedback-dispatch.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  repository: { full_name: REPOSITORY },
+  status: "completed",
+  conclusion: "success",
+  run_attempt: 2,
+  triggering_actor: ACTIONS_BOT,
+  created_at: "2026-10-17T12:31:00Z",
+  ...overrides,
+});
+const deferredRecord = (verdict, head = HEAD, overrides = {}) => ({
+  name: `pr-feedback-deferred-${head}-${verdict}`,
+  expired: false,
+  created_at: RECORDED_AT,
+  workflow_run: { id: 610 },
+  ...overrides,
+});
+function deferredApi({ records = [deferredRecord("fail")], rerun = deferredRerun(), checks = [answeredRound], ...options } = {}) {
+  const api = recoveryApi({ runs: [], checksAt: { [HEAD]: checks }, ...options });
+  api.nameReads = [];
+  api.listArtifactsNamed = async (name) => {
+    api.nameReads.push(name);
+    return records.filter((record) => record.name === name);
+  };
+  api.getWorkflowRun = async (id) => (id === rerun.id ? rerun : { id });
+  return api;
+}
+
+test("a FAIL the kill switch deferred gets its round from the tick, though a round ran before its notes", async (t) => {
+  // A round that started after the pr-verify run but before the late notes
+  // never saw them, so it does not hold the dispatch: the record's own time does.
+  const api = deferredApi({ checks: [roundRun("address-feedback", "success", "Passed", "2026-10-17T13:00:00Z")] });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a deferred FAIL whose round ran after its record is not sent again", async (t) => {
+  const api = deferredApi({ checks: [roundRun("address-feedback", "success", "Passed", "2026-10-17T13:20:00Z")] });
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("a PASS the kill switch deferred gets its pass-only round from the tick", async (t) => {
+  const api = deferredApi({ records: [deferredRecord("pass")] });
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs), [
+    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
+  ]);
+});
+
+test("a deferred verdict is sent once: a round created after its record holds it", async (t) => {
+  for (const verdict of ["fail", "pass"]) {
+    const api = deferredApi({ records: [deferredRecord(verdict)] });
+    api.listWorkflowRuns = async () => [{ id: 7, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T13:20:00Z" }];
+    await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.calls.dispatch, [], verdict);
+  }
+});
+
+test("a deferred record is found by name, however many runs the window holds", async (t) => {
+  const many = Array.from({ length: 100 }, (_, i) => lostRun({ id: 1000 + i, conclusion: "success", created_at: "2026-10-17T13:50:00Z" }));
+  const api = deferredApi();
+  api.listRecentRuns = async () => many;
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.nameReads, [`pr-feedback-deferred-${HEAD}-fail`]);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("a deferred record any other run uploaded, or an expired one, sends nothing", async (t) => {
+  for (const [label, rerun, record] of [
+    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-windows.yml" }), deferredRecord("fail")],
+    ["a pull_request run", deferredRerun({ event: "pull_request", head_branch: "work-resolve-issue/issue-1-2-3" }), deferredRecord("fail")],
+    ["a first attempt", deferredRerun({ run_attempt: 1 }), deferredRecord("fail")],
+    ["a person's re-run", deferredRerun({ triggering_actor: { login: "kyle-sexton", id: 153232337 } }), deferredRecord("fail")],
+    ["another repository's run", deferredRerun({ repository: { full_name: "someone/fork" } }), deferredRecord("fail")],
+    ["an expired record", deferredRerun(), deferredRecord("fail", HEAD, { expired: true })],
+  ]) {
+    const api = deferredApi({ rerun, records: [record] });
+    await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+test("a deferred record that cannot be read is skipped, and the next head and lost-run recovery still run", async (t) => {
+  const second = { ...pull()[0], number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } };
+  const api = deferredApi({ openPulls: [...pull(), second], records: [deferredRecord("fail", SECOND_HEAD)], reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] } });
+  const listNamed = api.listArtifactsNamed;
+  api.listArtifactsNamed = async (name) => {
+    if (name.includes(HEAD)) {
+      throw Object.assign(new Error("rate limited"), { rateLimited: true });
+    }
+    return listNamed(name);
+  };
+  const { lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["43"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes(HEAD)), lines.join("\n"));
+});
+
 test("a lost run that already dispatched is not dispatched again", async (t) => {
   // Its round's address-feedback check run is on the head.
   const checked = recoveryApi({ checksAt: { [HEAD]: [answeredRound] } });
@@ -1926,7 +2096,7 @@ const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
   };
   return api;
 };
-async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) {
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
   const lines = [];
   const result = await dispatchFeedback({
     api,
@@ -1938,11 +2108,26 @@ async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) 
     resolveSlot: async () => resolvedLane(),
     adoption,
     passOnly,
+    verifyCapped,
     now: NOW_MS,
     log: (line) => lines.push(line),
   });
   return { result, lines };
 }
+
+// capped_close closes only the lanes App's pull requests, so an adopted
+// owner's PR at the cap would sit with no round: the cap skip is the lanes
+// App's alone.
+test("an adopted owner PR at the verify cap still gets its round, the cap unread", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await decideOwner(ownerApi({ threads: [thread([CLAUDE])] }), { verifyCapped });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(asked, []);
+});
 
 test("an idle owner PR's lane-review thread dispatches address-feedback, so the lanes App answers it", async () => {
   for (const threads of [[thread([CLAUDE])], [LANE_FINDING]]) {
