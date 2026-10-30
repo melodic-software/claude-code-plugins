@@ -77,6 +77,11 @@ AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 ENGINE_OWNED_DIRS = frozenset({"guard-decisions", "guard-launch-monitor", "inventory"})
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
+# Appended to a preview's --plan path: the engine writes this file when the
+# preview ends the run (a manual-handoff-lane or blocked outcome), and the belt
+# reads it to stand down.
+PREVIEW_RUN_END_SUFFIX = ".run-end.json"
+
 
 def is_engine_owned(relative: str) -> bool:
     """True when a data-root-relative path is the root or engine-owned state.

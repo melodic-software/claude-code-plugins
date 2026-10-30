@@ -9815,7 +9815,12 @@ class GuardTests(unittest.TestCase):
         )
 
     def _invoke_guard(
-        self, command: str, *, tool_name: str = "Bash", enabled: bool = True
+        self,
+        command: str,
+        *,
+        tool_name: str = "Bash",
+        enabled: bool = True,
+        session_id: str | None = None,
     ) -> dict[str, object] | None:
         self._set_kill_switch(enabled)
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
@@ -9824,6 +9829,8 @@ class GuardTests(unittest.TestCase):
         payload: dict[str, object] = {"tool_input": {"command": command}}
         if tool_name:
             payload["tool_name"] = tool_name
+        if session_id is not None:
+            payload["session_id"] = session_id
         stdin = io.StringIO(json.dumps(payload))
         stdout = io.StringIO()
         with (
@@ -11017,7 +11024,7 @@ class GuardTests(unittest.TestCase):
         # its deny-by-default bullet is the one prose copy of the classifier's
         # lists and must match them in both directions.
         skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
-        bullet = skill[skill.index("- The Bash lane is deny-by-default") :]
+        bullet = skill[skill.index("the Bash lane is deny-by-default") :]
         bullet = bullet[: bullet.index("\n- ")]
         shapes = re.search(r"bundled (.+?) shapes", bullet, re.DOTALL)
         heads = re.search(r"trusted system directory: (.+?) \(", bullet, re.DOTALL)
@@ -11057,9 +11064,10 @@ class GuardTests(unittest.TestCase):
             self.assertIn("Allowed shapes: /disk-hygiene:clean.", body)
             self.assertNotIn("basename", body)
         self.assertNotIn("session belt", gated)
-        self.assertNotIn("until the session ends", gated)
+        self.assertNotIn("while a clean run is open", gated)
         self.assertIn("/disk-hygiene:clean session belt", belt)
-        self.assertIn("until the session ends", belt)
+        self.assertIn("while a clean run is open", belt)
+        self.assertNotIn("until the session ends", belt)
 
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
         command = f'python "{script}" scan --target t --output {self.output_arg}'
@@ -11078,6 +11086,163 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("session belt", gated_reason)
         for reason in (belt_reason, gated_reason):
             self.assertIn(f'through "{guard._display_python()}"', reason)
+
+    # --- #6377: the belt holds only while a clean run is open ----------------
+
+    def _belt(self, command: str, tool_name: str = "Bash") -> object:
+        """The belt's verdict on one call in session ``s``; None is no decision."""
+        result = self._invoke_guard(command, tool_name=tool_name, session_id="s")
+        if result is None:
+            return None
+        return cast(dict[str, object], result["hookSpecificOutput"])[
+            "permissionDecision"
+        ]
+
+    def _run_marker(self) -> Path:
+        return guard._run_marker_path(os.fspath(self._data_root), "s")
+
+    def _run_file(self, name: str) -> Path:
+        run = self._data_root.resolve() / "runs" / "r"
+        run.mkdir(parents=True, exist_ok=True)
+        return run / name
+
+    def _scan(self) -> None:
+        self.authorize_data_root()
+        scan = self._engine_words(f"scan --target t --output {self.output_arg}")
+        self.assertEqual("allow", self._belt(scan))
+
+    def _open_run_by_preview(self) -> None:
+        self._scan()
+        preview = self._engine_words(
+            f"preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}"
+        )
+        self.assertEqual("allow", self._belt(preview))
+        self.assertTrue(self._run_marker().is_file())
+
+    def _age_run_marker(self) -> None:
+        old = time.time() - guard._RUN_IDLE_TIMEOUT_SECONDS - 1
+        os.utime(self._run_marker(), (old, old))
+
+    def test_belt_stands_down_after_an_audit_only_scan(self) -> None:
+        self._scan()
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertIsNone(self._belt("Remove-Item x", tool_name="PowerShell"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_belt_stands_down_after_a_scan_refused_at_the_target_check(self) -> None:
+        self._scan()
+        target = self._run_file("not-a-directory")
+        target.write_text("x", encoding="utf-8")
+        output = self._run_file("refused-snapshot.json")
+        with redirect_stdout(io.StringIO()):
+            code = hygiene.main(
+                ["scan", "--target", os.fspath(target), "--output", os.fspath(output)]
+                + ["--data-root", os.fspath(self._data_root)]
+            )
+        self.assertEqual(2, code)
+        self.assertFalse(output.exists())
+        self.assertIsNone(self._belt("gh issue list"))
+
+    def test_belt_holds_between_scan_and_apply_until_the_report_lands(self) -> None:
+        self._open_run_by_preview()
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+        apply = self._engine_words(
+            f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} "
+            f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
+        )
+        self.assertEqual("ask", self._belt(apply))
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self._run_file("report.json").write_text("{}", encoding="utf-8")
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_scan_during_an_open_run_keeps_the_belt(self) -> None:
+        self._open_run_by_preview()
+        self._scan()
+        self.assertEqual("deny", self._belt("gh issue list"))
+
+    def test_engine_call_after_the_report_still_ends_the_run(self) -> None:
+        self._open_run_by_preview()
+        apply = self._engine_words(
+            f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} "
+            f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
+        )
+        self.assertEqual("ask", self._belt(apply))
+        self._run_file("report.json").write_text("{}", encoding="utf-8")
+        self.assertEqual("allow", self._belt(self._engine_words("inventory --target t")))
+        self.assertIsNone(self._belt("gh issue list"))
+
+    def test_handoff_apply_completion_ends_the_run(self) -> None:
+        self._scan()
+        handoff = self._engine_words(
+            f"handoff-apply --execute --snapshot {self.snapshot_arg} --tier medium "
+            f"--report {self.report_arg} --path rel/junk"
+        )
+        self.assertEqual("ask", self._belt(handoff))
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self._run_file("report.json").write_text("{}", encoding="utf-8")
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_terminal_preview_outcome_ends_the_run(self) -> None:
+        self._open_run_by_preview()
+        self.assertEqual("deny", self._belt("gh issue list"))
+        plan = self._run_file("plan.json").as_posix()
+        with mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", os.fspath(self._data_root)):
+            hygiene.record_run_end(plan, "manual-handoff-lane")
+        self.assertEqual(
+            {"outcome": "manual-handoff-lane"},
+            json.loads(
+                Path(plan + guard.engine_grammar.PREVIEW_RUN_END_SUFFIX).read_text()
+            ),
+        )
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_manual_lane_verify_holds_the_belt_for_its_deletes(self) -> None:
+        self._scan()
+        verify = self._engine_words(
+            f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+        )
+        self.assertEqual("allow", self._belt(verify))
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+        self._age_run_marker()
+        self.assertIsNone(self._belt("Remove-Item x", tool_name="PowerShell"))
+
+    def test_corrupt_run_marker_holds_the_belt_until_the_idle_timeout(self) -> None:
+        self.authorize_data_root()
+        marker = self._run_marker()
+        marker.parent.mkdir(parents=True)
+        marker.write_text("{not json", encoding="utf-8")
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self._age_run_marker()
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertFalse(marker.exists())
+
+    def test_run_marker_past_the_idle_timeout_releases_the_belt(self) -> None:
+        self._open_run_by_preview()
+        self._age_run_marker()
+        self.assertIsNone(self._belt("gh issue list"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_belt_without_a_session_id_keeps_denying(self) -> None:
+        self.authorize_data_root()
+        result = self._invoke_guard("gh issue list")
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_powershell_gh_body_naming_the_engine_is_no_invocation_in_a_run(
+        self,
+    ) -> None:
+        self._open_run_by_preview()
+        command = (
+            "gh issue create --title x --body @'\n"
+            "The belt denied a command after hygiene.py ran.\n'@"
+        )
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+            self.assertIsNone(self._belt(command, tool_name="PowerShell"))
 
     def _engine_words(self, tail: str) -> str:
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
@@ -16404,7 +16569,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         # The env var is never a channel, so it is never offered as a recovery.
         self.assertNotIn("CLAUDE_PLUGIN_DATA", belt)
         self.assertNotIn("start Claude Code from a shell", belt)
-        self.assertIn("until the session ends", belt)
+        self.assertIn("while a clean run is open", belt)
 
     def test_no_authority_bare_python_probe_denial_names_the_recovery(self) -> None:
         # Without the guard-values note, the skill learns the interpreter from
