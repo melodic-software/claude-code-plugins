@@ -73,6 +73,7 @@
 # entry here.
 .github/*
 .gitattributes
+scripts/.gitattributes
 .gitignore
 .gitleaksignore
 .lycheeignore
