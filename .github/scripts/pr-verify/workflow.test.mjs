@@ -39,7 +39,7 @@ const list = (block, key) => {
   const body = new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "";
   return body.split("\n").map((line) => line.trim()).filter(Boolean);
 };
-const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@main$/;
+const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # \S/;
 // The subscription job's one lane record names why the key did not judge,
 // in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml).
 const FALLBACK_REASON =
@@ -503,10 +503,11 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   }
 });
 
-test("every ci-workflows action runs at main", () => {
-  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@main$/gm)];
-  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is @main");
+test("every ci-workflows action is pinned to one commit", () => {
+  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@([0-9a-f]{40}) # \S.*$/gm)].map((m) => m[1]);
+  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
   assert.ok(refs.length >= 6);
+  assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {

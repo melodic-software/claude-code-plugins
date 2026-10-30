@@ -1154,7 +1154,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.key.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1187,7 +1187,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1259,7 +1259,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1331,7 +1331,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""

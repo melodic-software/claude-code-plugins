@@ -336,7 +336,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -386,7 +386,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -440,7 +440,7 @@ jobs:
       # handed nothing on records it.
       - name: Report the review's outcome
         if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           outcome: ${{ steps.review.outcome }}
           execution-file: ${{ steps.review.outputs.execution-file }}
@@ -825,7 +825,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -875,7 +875,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -930,7 +930,7 @@ jobs:
       # handed nothing on records it.
       - name: Report the review's outcome
         if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           outcome: ${{ steps.review.outcome }}
           execution-file: ${{ steps.review.outputs.execution-file }}
@@ -1309,7 +1309,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       - name: Isolate the runner
         if: steps.credential.outputs.present == 'true'
@@ -1359,7 +1359,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1397,7 +1397,7 @@ jobs:
       # handed nothing on records it.
       - name: Report the review's outcome
         if: (steps.review.outcome == 'success' || steps.review.outcome == 'failure') && steps.review.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           outcome: ${{ steps.review.outcome }}
           execution-file: ${{ steps.review.outputs.execution-file }}

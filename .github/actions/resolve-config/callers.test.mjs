@@ -543,7 +543,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   const launcher = (job) => job.steps.find((s) => s.id === "run");
   for (const job of [model, sub]) {
     const run = launcher(job);
-    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/);
+    assert.match(run.uses, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/);
     assert.equal(run.with.role, "intake");
     assert.equal(run.with["permission-mode"], "dontAsk");
     assert.deepEqual(run.with.tools.trim().split("\n"), ["Read", "Grep", "Glob", "WebFetch"]);
@@ -1914,7 +1914,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
   const launcher = step("act-key").uses;
-  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/, "run-claude-cli at main");
+  assert.match(launcher, /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40}$/, "a full SHA pin of run-claude-cli");
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
@@ -1979,21 +1979,35 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
-// run-claude-cli at main passes `--permission-prompts none` unconditionally,
+// Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// ci-workflows' run-claude-cli/lane.test.cjs asserts the flag's value.
-const RUN_CLAUDE_CLI_AT_MAIN = "melodic-software/ci-workflows/.github/actions/run-claude-cli@main";
+// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697 and e5167fc2: lane.cjs:357-358;
+// ba7af78d291f10bd75651857a0db2357c23df0fe, 30b251532b2e9f7e0c4215e1dee5be0d3c688743, 81a603a6e2b0319428c981bf28f3fe923032afb2
+// and 2476d5dde8979eab34374150b7e4b0a2b99f4e88: lane.cjs:404-405; in cliArgs. The org requires
+// actions pinned to a full SHA, so a pin bump fails here until its lane.cjs is read and its SHA added.
+const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
+  "7b362428c76085a160e28656cd2c75c3147a69ff",
+  "164c2809f6150429b6f24d4a2777bb377af953d9",
+  "d02b8697e092705153f0996549b05f95a446bb52",
+  "e5167fc29d948ab7d0923cf62f5ea9eeeef8e9e8",
+  "ba7af78d291f10bd75651857a0db2357c23df0fe",
+  "30b251532b2e9f7e0c4215e1dee5be0d3c688743",
+  "81a603a6e2b0319428c981bf28f3fe923032afb2",
+  "2476d5dde8979eab34374150b7e4b0a2b99f4e88",
+]);
 
-test("every run-claude-cli step in this repo's workflows runs the launcher at main", () => {
+test("every run-claude-cli step pin in this repo's workflows is a launcher checked to pass --permission-prompts none", () => {
   const files = new Set();
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
       for (const step of job.steps ?? []) {
         const uses = String(step.uses ?? "");
         if (!uses.includes("/run-claude-cli@")) continue;
+        const sha = uses.slice(uses.indexOf("@") + 1);
         files.add(file);
-        assert.equal(uses, RUN_CLAUDE_CLI_AT_MAIN, `${file} ${id} ${step.id}`);
+        assert.match(sha, /^[0-9a-f]{40}$/, `${file} ${id} ${step.id} pins a full SHA`);
+        assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${file} ${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
       }
     }
   }

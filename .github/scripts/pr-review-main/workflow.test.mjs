@@ -448,7 +448,7 @@ test("an edited rename prints whole, as a delete and an add", () => {
 test("each leg leaves a lane record", () => {
   for (const job of LEGS) {
     const report = step("Report the review's outcome", job);
-    assert.match(report, /report-lane-outcome@main$/m);
+    assert.match(report, /report-lane-outcome@[0-9a-f]{40}/);
     assert.match(report, /^ {10}lane: pr-review-main$/m);
     assert.match(report, /^ {10}lane-id: pr-review-main-\$\{\{ matrix\.lane \}\}$/m);
     assert.ok(index("Review the pull request", job) < index("Report the review's outcome", job));
@@ -485,8 +485,8 @@ test("it checks out main only, and runs local actions from that checkout", () =>
     assert.ok(local.startsWith("./.base/.github/actions/"), local);
   }
   for (const [, remote] of text.matchAll(/^\s+uses: ([^.\s]\S*)/gm)) {
-    // Third parties pin a full SHA; first-party ci-workflows floats on main.
-    assert.match(remote, remote.startsWith("melodic-software/") ? /@main$/ : /@[0-9a-f]{40}$/, remote);
+    // Actions pin a full SHA (org policy); first-party reusable workflows float on main.
+    assert.match(remote, /^melodic-software\/[^/]+\/\.github\/workflows\//.test(remote) ? /@main$/ : /@[0-9a-f]{40}$/, remote);
   }
 });
 
