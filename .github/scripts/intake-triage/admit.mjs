@@ -44,7 +44,10 @@
 //   repository's, and no open pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
-// - 9: the author is a listed human or the lanes App;
+// - 9: the author is a listed human, or the lanes App on a trusted size-split
+//   sub-issue (splitChildBody); any other issue the App filed holds for a
+//   listed human to file as their own (owner decision on #10735);
+// - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
 // - a `recurring` item's schedule row, read from the default branch's
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
@@ -79,6 +82,10 @@
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
 //   is room. With room, an issue still waits behind an older open issue in
 //   `admission-deferred`, so admission takes the oldest first (owner Q95).
+//   Runs for other issues read the same room in parallel, so a capped issue
+//   first claims its place with `admission-deferred` and takes `agent-ready`
+//   only while fewer than the room entered admission ahead of it
+//   (admissionsSince); otherwise, or when that read fails, it stays deferred.
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker, an open pull request or an open
@@ -153,6 +160,9 @@ export const UNTRUSTED = "work-class: untrusted-provenance";
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
+// A body line opening with `Hold:`, as the merge gate reads one in a pull
+// request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
+export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
 const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
@@ -865,8 +875,9 @@ export function admissionSettled(labels, events, isMark) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}, plus `hold: true` on a
-// refusal that parks at needs-decision: an untrusted author or provenance or
-// a person-held label or a charge word (the owner's 2026-10-26 rule keeps a
+// refusal that parks at needs-decision: an untrusted author or provenance, a
+// lanes App issue no size split filed, a person-held label, a body `Hold:`
+// line or a charge word (the owner's 2026-10-26 rule keeps a
 // person out of every other refusal), a paid-eval done-when item, or, on an
 // issue without a trusted `host-run` (addedByTrusted), done-when items a lane
 // run cannot perform beside items it can, which refine
@@ -897,11 +908,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   let hold = false;
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
-  if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
+  const splitChild = splitChildBody(spec, humans, rules["task-list"]) !== null;
+  if (splitChild && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
   if (!authorAdmitted(issue, humans, appId)) {
     refuse.push("the author is neither a listed human nor the lanes App");
+    hold = true;
+  } else if (isAppId(issue.user?.id, appId) && !splitChild) {
+    refuse.push("the lanes App filed it and it is not a trusted size-split sub-issue (splitChildBody), so a listed human files it as their own");
     hold = true;
   }
   const type = issue.type?.name ?? "none";
@@ -979,6 +994,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges, isPublic);
   if (charged.length > 0) {
     refuse.push(`its title or body names a charge (${charged.join(", ")}), which needs an owner decision`);
+    hold = true;
+  }
+  if (BODY_HOLD.test(String(issue.body ?? ""))) {
+    refuse.push("a line of its body opens with `Hold:`, a person's hold; removing that line lifts it");
     hold = true;
   }
   if (verdict.writtenAt !== undefined) {
@@ -1692,6 +1711,65 @@ async function deferredAhead(github, repository, issue) {
   }
 }
 
+// How far before a status read an admission may be missing from the search
+// check-wip-cap counts: admissionsSince reads back this far.
+export const RACE_WINDOW_MS = 10 * 60_000;
+
+// The open issues that entered admission at or after `since` (ms since the
+// epoch), [{number, at}], earliest first. Each one carries agent-ready or
+// admission-deferred in the issues listing (not the search check-wip-cap
+// reads). `at` is its newest admission-deferred add at or after `since`, the
+// claim admit() makes, else its first agent-ready add then (an admission
+// that made no claim), or null when its events show no add of either label
+// at all yet; one whose adds all predate `since` is left out. A failed read
+// throws.
+export async function admissionsSince(github, repository, since) {
+  const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const listed = new Set();
+  for (const label of [AGENT_READY, DEFERRED]) {
+    for (const item of await paginate(github, `/repos/${repository}/issues?labels=${encodeURIComponent(label)}&state=open&since=${stamp}`)) {
+      if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
+        listed.add(item.number);
+      }
+    }
+  }
+  const entered = [];
+  for (const number of listed) {
+    const adds = (await paginate(github, `/repos/${repository}/issues/${number}/events`)).filter(
+      (event) => event?.event === "labeled" && [AGENT_READY, DEFERRED].includes(event.label?.name),
+    );
+    const times = (name) => adds.filter((event) => event.label.name === name).map((event) => Date.parse(event.created_at)).filter((time) => Number.isFinite(time) && time >= since);
+    const [claims, admits] = [times(DEFERRED), times(AGENT_READY)];
+    if (adds.length === 0) {
+      entered.push({ number, at: null });
+    } else if (claims.length > 0 || admits.length > 0) {
+      entered.push({ number, at: claims.length > 0 ? Math.max(...claims) : Math.min(...admits) });
+    }
+  }
+  return entered.sort((a, b) => (a.at ?? Number.NEGATIVE_INFINITY) - (b.at ?? Number.NEGATIVE_INFINITY) || a.number - b.number);
+}
+
+// How many of `entered` (admissionsSince) count ahead of issue `number`: one
+// that entered no later than it, or whose add is not read yet; every other
+// one when its own add is not read. A tie counts ahead, since event times are
+// whole seconds and either run may have read before the other claimed. Pure.
+export function admissionsAhead(entered, number) {
+  const own = entered.find((item) => item.number === Number(number));
+  const others = entered.filter((item) => item.number !== Number(number));
+  return own?.at == null ? others.length : others.filter((item) => item.at === null || item.at <= own.at).length;
+}
+
+// Removes `name` from the issue at `base`; a label already gone is done.
+async function removeLabel(github, base, name) {
+  try {
+    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
+  } catch (error) {
+    if (error?.status !== 404) {
+      throw error;
+    }
+  }
+}
+
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
@@ -1751,6 +1829,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
+  const checkedAt = Date.now();
   const s = await status();
   // A queued count check-wip-cap could not read (fail-open) admits nothing,
   // as an incomplete search answer admits nothing.
@@ -1768,7 +1847,34 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
+  // Runs for other issues may have read the same room: the issue claims its
+  // place with a fresh admission-deferred add, which a later claimant reads
+  // ahead of its own, and keeps the claim unless fewer than the room count
+  // ahead of it (admissionsAhead).
+  const capped = Number.isFinite(s.admission_room);
+  if (capped) {
+    if (names(issue.labels).includes(DEFERRED)) {
+      await removeLabel(github, base, DEFERRED);
+    }
+    await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+    let ahead;
+    try {
+      ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS), number);
+    } catch (error) {
+      const why = `the admissions racing it could not be read (${String(error?.message ?? error).replaceAll("\n", " ")})`;
+      log(`admit: #${number} deferred: ${why}`);
+      return { outcome: "deferred", reasons: [why] };
+    }
+    if (ahead >= s.admission_room) {
+      const why = `${ahead} issue(s) entered admission ahead of it since check-wip-cap's count, which takes the room of ${s.admission_room} it read`;
+      log(`admit: #${number} deferred: ${why}`);
+      return { outcome: "deferred", reasons: [why] };
+    }
+  }
   await github("POST", `${base}/labels`, { labels: [AGENT_READY] });
+  if (capped) {
+    await removeLabel(github, base, DEFERRED);
+  }
   // A manual re-dispatch skips intake-reenter, which lifts the parked
   // status: confirmed; lift it here, as a refusal lifts status: ready, so
   // the issue keeps one status label.
