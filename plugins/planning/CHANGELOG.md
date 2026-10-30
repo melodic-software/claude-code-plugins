@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.8] - 2026-10-30
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:design` resolve their authoring-formats keys through one shared ladder in `context/authoring-formats.md` instead of three restated copies; no behavior change. New eval cases cover the `ears` path in interview and prd and the `dbml` path in design.
+
+## [0.126.7] - 2026-10-30
+
+### Fixed
+
+- An own answer on the interview page replaces the recommendation, so it no longer carries the recommendation's commitments. Confirm's "Tick these and confirm" list leaves them out, the question's pane labels them "replaced by your own answer", and the Brief names none of them, even one ticked before the own answer. Before, Confirm ticked a commitment the own answer had replaced, and the Brief listed it as confirmed beside a decision that contradicted it. The ledger row still keeps those ticks, so an import restores them.
+- `round.sh status` now lists a hedged question's unticked commitments on a `hedged, to confirm:` line, so it names the same commitments as the page's To confirm list.
+
+## [0.126.6] - 2026-10-30
+
+### Changed
+
+- The interview skill's EARS tags and `acceptance_criteria_format` resolution ladder now live in `context/ears.md`, and the acceptance-criteria coverage prompt with its register exemption in `context/coverage-prompt.md`. SKILL.md and the other context files keep a one-sentence pointer at each former site, and SKILL.md still states that the coverage prompt writes no register row and does not bring the register gate into scope.
+
 ## [0.126.5] - 2026-10-29
 
 ### Changed

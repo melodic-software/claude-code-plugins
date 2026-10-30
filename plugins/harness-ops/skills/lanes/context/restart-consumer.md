@@ -184,7 +184,7 @@ parity claim.
   parses. The comment must land on the ONE issue that reader resolves, so the
   consumer's default discovery reuses the brief's own title search; when that
   finds nothing it falls back to an issue titled exactly
-  `Lane telemetry: restart-consumer`, which the brief reads only when both
+  `Lane telemetry: restart-consumer` and opened by the write identity, which the brief reads only when both
   tools are pinned to it (each has a `--telemetry-issue`). When the comment
   lands on the brief's issue, the consumer appears in
   `/harness-ops:morning-brief` with no reader change and inherits its
@@ -252,10 +252,13 @@ parity claim.
 
 Optional `lanes[].telemetry` config keys (`issue`, `marker`, `instance`, `repo`)
 bind a lane to its telemetry comment; every one has a working default (issue
-resolved by the exact `Lane telemetry: <lane>` title, marker matched by the shared
+resolved by the exact `Lane telemetry: <lane>` title on an issue opened by the
+write identity or by the lane's `telemetry.author`, marker matched by the shared
 sentinel plus a `restart_request`-bearing state block in a comment by the write
 identity, instance unpinned, repo
-defaulting to the consumer's `--target-repo`). A bound `marker` names a lane
+defaulting to the consumer's `--target-repo`). Anyone can open an issue with a
+lane's title, so a title match by any other author is skipped with a warning
+naming it, and with no match left the lane reports `no-telemetry`. A bound `marker` names a lane
 **type** and matches every writer instance of it, since a live comment's marker
 carries the loop-lane convention's `@<instance>` writer suffix; pin one instance
 with `instance`, or by writing the suffix into `marker` itself. Unpinned, a

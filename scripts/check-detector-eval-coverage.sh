@@ -178,7 +178,7 @@
 # runs to EOF, so that assertion alone passed while the gate was most broken.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
-# that each severity-crosswalk row in docs/conventions/detector-findings/ argues
+# that each severity-crosswalk row in docs/contracts/detector-findings/ argues
 # its disposition from a stated test. That is a judgment about a markdown table
 # and says nothing about eval coverage.
 # scripts/check-fleet-finding-test-coverage.sh is the same SHAPE one surface

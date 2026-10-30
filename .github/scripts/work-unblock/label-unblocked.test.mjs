@@ -2728,6 +2728,29 @@ test("a lane PR closed unmerged hands the issue to triage and never re-runs it",
   assert.deepEqual(writes(rerun.calls), []);
 });
 
+// The pr-merge lane closed the PR at the verify cap and restarted or parked
+// the issue itself (babysit_verify_evidence capped_close): no hand-off. Only
+// the lanes App's record counts; anyone can write the marker.
+test("a lane PR the pr-merge lane closed at the verify cap hands nothing off", async () => {
+  const capped = { id: 62, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} attempt=1 of=1 -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls, lines } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), capped] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+  const forged = lanePr({ pulls: [CLOSED_PR()], comments: [note(), { ...capped, user: OWNER }] });
+  assert.equal(await sweep({ github: forged.github }), 0);
+  assert.deepEqual(writes(forged.calls), triaged(30, 7493, refsClosedComment(7493)));
+});
+
+// A record with no attempt: the issue did not carry agent-ready when the
+// pr-merge lane read it, so that lane started nothing, and the closed PR is
+// handed to triage as any other.
+test("a verify-cap record that started no attempt still hands the issue off", async () => {
+  const unstarted = { id: 63, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), unstarted] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7493, refsClosedComment(7493)));
+});
+
 test("hand-offs after ended lane PRs share the five-a-run cap with restarts, the earliest end first", async () => {
   const numbers = [31, 32, 33, 34, 35, 36];
   const pullOf = (n) =>

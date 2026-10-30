@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Acceptance criteria\n- [event-driven] WHEN a member requests a download, the CSV is ready on the account page within five minutes\n- [unwanted-behavior] IF building the file fails, THEN the member sees an error on the account page and can request it again\n- [state-driven] WHILE a download is being built, the request button is disabled\n- [ubiquitous] The CSV lists every play with its date, track and artist\n",
+      "why": "all four criteria tagged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Acceptance criteria\n- [event-driven] WHEN a member requests a download, the CSV is ready on the account page within five minutes\n- if building the file fails, the member sees an error and can request it again\n- [state-driven] WHILE a download is being built, the request button is disabled\n- [ubiquitous] The CSV lists every play with its date, track and artist\n",
+      "why": "mixed: one criterion untagged"
+    }
+  ]
+}

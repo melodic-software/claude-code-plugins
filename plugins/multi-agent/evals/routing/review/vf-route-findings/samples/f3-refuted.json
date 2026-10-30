@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: refuted\nF2: confirmed\nF3: refuted - `${NOTES[@]+\"${NOTES[@]}\"}` expands to every element as its own word; the + guard only covers an empty array under set -u\nF4: confirmed\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "- **F3:** refuted. Each note is its own word.\n",
+      "why": "a bold label"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F3: confirmed - only the first note prints\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F1: refuted\nF3: confirmed\n",
+      "why": "refuted sits on another finding's line"
+    },
+    {
+      "answer": "F3: partly refuted - it prints every note on bash 4.4 and later\n",
+      "why": "a hedged verdict"
+    }
+  ]
+}

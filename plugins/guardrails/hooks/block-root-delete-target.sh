@@ -52,8 +52,8 @@
 # text holds none of `rm`, `-delete` and `unlink` never reaches the parse at
 # all. The prefilter is a SUBSTRING match, not a token one, so `npm run format`
 # does reach the tokenizer and is allowed there on its command word. The path
-# question is asked only once a recursive `rm` or a deleting find is
-# established.
+# question is asked only once a recursive `rm` or a deleting find, run
+# directly or by xargs or parallel, is established.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -76,6 +76,44 @@
 # which leaves -prune ineffective (find(1)), and find descends into `.git`, so
 # a find delete started at the git toplevel is refused as a directory holding
 # a `.git` whatever its filters.
+#
+# PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
+# read, so when that command is a recursive rm or a deleting find (named
+# directly, through a launcher, or in a child shell) the items are its targets.
+# The command's own operands are judged as written (an -I or `{}` template
+# included), and so are parallel's `:::` items, which replace its stdin ("The
+# input source is normally stdin", parallel(1)). Items read from a file (xargs
+# -a or --arg-file; parallel's `::::` and every option starting -a or --a) or
+# from a stdin no confined listing feeds are refused, because they name
+# nothing the guard can judge: `cat list | xargs rm -rf`, `xargs rm -rf < list`
+# and a lone `xargs rm -rf` alike. Two listings are confined, and their targets
+# are judged as a recursive rm's: a find without -printf, -fprintf, -ls, -fls,
+# an -exec, -execdir, -ok or -okdir action, or -files0-from, whose start points
+# are judged as FIND DELETES judges them; and `git ls-files` with no git option
+# before the subcommand and no --format, whose entries are judged as one name
+# strictly under the directory it runs from. Between the listing and xargs
+# only line filters may stand, which pass on whole lines of their input: grep,
+# egrep and fgrep (flags from -vixwEFGPsqz, -e, -f, one pattern), sort (flags
+# from -bdfghiMnRrsuVz, -k, -t), uniq (-diuz), head and tail (-n, -<count>,
+# -z), each with no file operand. A redirection of stdin replaces the pipe.
+# The tokenizer reports no operator between two commands, so the one before
+# is read as a pipe into the one after; a parse whose text holds a `(`, `)` or
+# backtick that no backslash escapes is read as no pipeline at all, because a
+# subshell, a substitution or a process substitution splits into commands that
+# are not its stages. In a parse another command feeds (a child shell, eval),
+# a command whose feed from the one before differs from the parse's own reads
+# as unconfined, since after `;` or `&&` it reads the parse's stdin instead,
+# and so does a substitution body's stdin, which is not known. xargs options
+# follow GNU findutils' getopt string `+0a:E:e::i::I:l::L:n:oprs:txP:d:` and
+# long-option table (xargs/xargs.c) and BSD's -J, -R and -S (FreeBSD
+# xargs(1)); the `+` ends options at the first operand, the command. GNU parallel runs "the
+# commands run by GNU parallel" through a shell and, "If no command is given,
+# the line of input is executed" (parallel(1)), so its options are not
+# modeled: each word an option may have taken as its argument is also read as
+# the command's first word, the words from there to the first `:::` or `::::`
+# are joined and parsed as shell text, and every `:::` item is parsed as a
+# command too. All read 2026-10-30; recheck when xargs changes its getopt
+# string or parallel how it builds a job.
 #
 # FOUR MORE TARGET CLASSES, each refused with its own message:
 #   * An EMPTY operand (`rm -rf ""`, `rm -rf "" build`): a path that failed to
@@ -185,7 +223,12 @@
 # punctuation alone (`${X:-{a,b}}/*` leaves a literal `}`, which names nothing
 # here), a backslash-escaped brace (it reads as partly quoted), a find delete
 # started at the git toplevel whose filters match nothing in `.git` (`find .
-# -name '*.pyc' -delete`, or `find -name '*.pyc' -delete` run from there), a
+# -name '*.pyc' -delete`, or `find -name '*.pyc' -delete` run from there), and
+# the same find as the listing piped into `xargs rm -rf`, an xargs delete in
+# a child shell after a listing of its own and `;` or `&&` (`find build | bash
+# -c 'find out; xargs rm -rf'`), any xargs delete inside a command
+# substitution (`echo "$(find build | xargs rm -rf)"`), a pipeline whose text
+# holds a quoted paren (`find build '(' -name a ')' | xargs rm -rf`), a
 # BSD leading option ahead of a start point run from the toplevel (`find -E
 # build -regex '.*\.o' -delete`: the GNU reading then has no start point and
 # judges `.`), and the three launcher lines decided below.
@@ -258,8 +301,17 @@
 #     and a here-string, which is read as ordinary quoting: its body is not
 #     judged, and a quote character inside it ends the span early, so the code
 #     after it is not judged either.
-#   * Other delete verbs: `rsync --delete`, `xargs rm`, `shred`, and a delete
-#     performed from inside an interpreter.
+#   * Other delete verbs: `rsync --delete`, `shred`, and a delete performed
+#     from inside an interpreter.
+#   * In a pipeline-fed delete: a `;`, `&&` or `||` between a listing and
+#     xargs, read as a pipe (`find build; xargs rm -rf` reads the shell's own
+#     stdin); xargs splitting a listed path at a blank or a quote, so a
+#     directory named `a ` holding `etc` lists as `build/a /etc` and xargs
+#     hands rm `/etc` (`-0` with `-print0`, or `-d '\n'`, keeps a path whole); a
+#     path a listing writes on stderr into the pipe (`2>&1`, `|&`); a symlink
+#     below a find start point that -L or -follow makes find list through; and
+#     parallel with no command, whose items from stdin or a file are commands
+#     this guard never sees.
 #   * In a find: an action that runs its deleter through a launcher or a child
 #     shell (`-exec sudo rm`, `-exec sh -c 'rm …'`), the action command's own
 #     operands (`-exec rm -rf /x \;` is judged by its start points alone),
@@ -357,8 +409,8 @@
 #     word.
 #
 # BLOCKING: on a recursive delete of a root, of an empty or
-# bare-variable operand, of a protected tree, or of a target outside the
-# allowed roots, asks the user when the session is attended and exits 2
+# bare-variable operand, of a protected tree, of a target outside the allowed
+# roots, or on items no confined listing produced, asks the user when the session is attended and exits 2
 # otherwise (hook::refuse, refuse.sh). A command it cannot finish reading is
 # denied either way.
 
@@ -530,8 +582,8 @@ rdt_block() {
     ;;
   eval-too-long)
     printf -v msg '%s\n' \
-      'BLOCKED: eval and substitution text exceeds MAX_COMMAND_LEN in total.' \
-      'Fix: drop the nested evals, or run the inner command on its own.'
+      'BLOCKED: eval, parallel and substitution text exceeds MAX_COMMAND_LEN in total.' \
+      'Fix: drop the nested evals or parallel options, or run the inner command on its own.'
     ;;
   too-many-readings)
     printf -v msg '%s\n' \
@@ -562,6 +614,11 @@ rdt_block() {
     printf -v msg '%s\n' \
       'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
       'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.'
+    ;;
+  pipeline-feed)
+    printf -v msg '%s\n' \
+      'BLOCKED: xargs or parallel runs a recursive delete on items no confined listing produced (read from a file, from the stdin of the shell, or from a command other than find or git ls-files), so this guard cannot name its targets.' \
+      'Fix: pipe find <dir> (without -printf, -ls or -exec) or git ls-files into it, through grep, sort, uniq, head or tail at most, or name the targets as operands.'
     ;;
   bare-variable)
     # Single-quoted on purpose: the text shows a literal ${NAME:?}.
@@ -650,7 +707,7 @@ rdt_block() {
   case "$form" in
   # The guard read the delete and names what it would remove: the user can
   # judge that, so an attended session asks (refuse.sh).
-  no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | protected-tree | unplaceable | brace | root-operand)
+  no-preserve-root | empty-operand | pipeline-target | pipeline-feed | bare-variable | outside-tree | protected-tree | unplaceable | brace | root-operand)
     # Attended, the reason is recorded and the reading goes on (refuse.sh).
     hook::refuse "${msg%$'\n'}"
     return 0
@@ -2569,7 +2626,7 @@ rdt_judge_pending() {
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
 # it. Prefixed because guards share one process under run-guards.sh and two
 # siblings already define a function named check_segment.
-# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+# shellcheck disable=SC2329  # invoked from rdt_segment, the hook::bash_parse_segments callback
 rdt_check_segment() {
   # Every launcher, child shell and eval re-enters this function, so nesting
   # is bash recursion; deep enough, bash exhausts its stack and dies before a
@@ -2713,7 +2770,7 @@ rdt_check_segment() {
       ((j < n)) && [[ "${words[j]}" != -* ]] || return 0
       j=$((j + 1))
       ((j + 1 < n)) && [[ "${words[j]}" == -c ]] && j=$((j + 1))
-      ((j < n)) && hook::bash_parse_segments "${words[j]}" rdt_check_segment
+      ((j < n)) && rdt_parse "${words[j]}"
       return 0
       ;;
     # runuser has two grammars and both are judged, blocking if either does:
@@ -2742,7 +2799,7 @@ rdt_check_segment() {
         ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
         rdt_su_shell_run
         for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
-          hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+          rdt_parse "$ru_cmd"
         done
         if ((ru_u)); then
           HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
@@ -2790,7 +2847,7 @@ rdt_check_segment() {
           esac
           # flock takes -c / --command right after its lock file, `--` or not.
           if [[ "$base" == "flock" ]] && ((i < n)) && [[ "${words[i]}" == "-c" || "${words[i]}" == "--command" ]]; then
-            ((i + 1 < n)) && hook::bash_parse_segments "${words[i + 1]}" rdt_check_segment
+            ((i + 1 < n)) && rdt_parse "${words[i + 1]}"
             return 0
           fi
         fi
@@ -2806,7 +2863,7 @@ rdt_check_segment() {
         # flock runs a -c / --command operand through a shell, and demands it
         # be the last word, so the operand is the whole command.
         if [[ "$base" == "flock" && ("$w" == "-c" || "$w" == "--command") ]]; then
-          ((i + 1 < n)) && hook::bash_parse_segments "${words[i + 1]}" rdt_check_segment
+          ((i + 1 < n)) && rdt_parse "${words[i + 1]}"
           return 0
         fi
         # With --fd the lock is an already-open descriptor, so there is no lock
@@ -2924,7 +2981,7 @@ rdt_check_segment() {
   # dynamically scoped locals plus HOOK_SEG_* globals it rebuilds before every
   # call, and the only one this guard reads is rebuilt with them.
   if hook::shell_c_operand "${words[@]:i}"; then
-    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" rdt_check_segment
+    rdt_parse "$HOOK_SHELL_C_OPERAND"
     return 0
   fi
 
@@ -2985,27 +3042,27 @@ rdt_check_segment() {
         sulong="${sulong%%=*}"
         if [[ -n "$sulong" && ("command" == "$sulong"* || ("${#sulong}" -ge 2 && "session-command" == "$sulong"*)) ]]; then
           if [[ "${words[k]}" == *=* ]]; then
-            hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
+            rdt_parse "${words[k]#*=}"
             # su builds `sh -c -- CMD` from an operand of `--`, so CMD is next.
-            ((k + 1 < n)) && [[ "${words[k]#*=}" == "--" ]] && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+            ((k + 1 < n)) && [[ "${words[k]#*=}" == "--" ]] && rdt_parse "${words[k + 1]}"
           else
-            ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+            ((k + 1 < n)) && rdt_parse "${words[k + 1]}"
             # A shell reads `-c -- '…'` as `-c '…'`, so the word after `--` too.
-            ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && hook::bash_parse_segments "${words[k + 2]}" rdt_check_segment
+            ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && rdt_parse "${words[k + 2]}"
           fi
         fi
         ;;
       -*)
         if [[ "${words[k]}" =~ ^-[A-Za-z]+$ && "${words[k]}" == *c* ]]; then
-          ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
-          ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && hook::bash_parse_segments "${words[k + 2]}" rdt_check_segment
+          ((k + 1 < n)) && rdt_parse "${words[k + 1]}"
+          ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && rdt_parse "${words[k + 2]}"
         fi
         # An operand ATTACHED to the -c is the text after the first `c` that
         # only letters precede: `su -c'rm -rf /'` is the one word `-crm -rf /`.
         if [[ "${words[k]}" =~ ^-[A-Zabd-z]*c. ]]; then
           sulong="${words[k]#-}"
-          hook::bash_parse_segments "${sulong#*c}" rdt_check_segment
-          ((k + 1 < n)) && [[ "${sulong#*c}" == "--" ]] && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+          rdt_parse "${sulong#*c}"
+          ((k + 1 < n)) && [[ "${sulong#*c}" == "--" ]] && rdt_parse "${words[k + 1]}"
         fi
         ;;
       *) ;;
@@ -3041,16 +3098,28 @@ rdt_check_segment() {
     local evtext="${ev[*]}"
     rdt_scanned=$((rdt_scanned + ${#evtext}))
     ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
-    hook::bash_parse_segments "$evtext" rdt_check_segment
+    rdt_parse "$evtext"
     return 0
   fi
 
   # A find whose expression deletes removes what its start points hold (FIND
-  # DELETES in the header).
-  if [[ "$base" == "find" ]]; then
+  # DELETES in the header), and xargs and parallel run their command on the
+  # items they read (PIPELINE-FED DELETES).
+  case "$base" in
+  find)
     rdt_find_check "$i"
     return 0
-  fi
+    ;;
+  xargs)
+    rdt_xargs_check "$i"
+    return 0
+    ;;
+  parallel)
+    rdt_parallel_check "$i"
+    return 0
+    ;;
+  *) ;;
+  esac
 
   [[ "$base" == "rm" ]] || return 0
 
@@ -3098,6 +3167,7 @@ rdt_check_segment() {
   # Every arm below needs recursion. A non-recursive `rm /` is refused by rm
   # itself and is not this guard's business.
   ((recursive)) || return 0
+  rdt_deleter=1
   ((no_preserve)) && rdt_block "no-preserve-root"
 
   for j in ${operand_idx[@]+"${operand_idx[@]}"}; do
@@ -3165,19 +3235,40 @@ rdt_delete_operand() {
 
 # rdt_find_check <index of the find word>: a find whose expression deletes has
 # each start point of either reading judged once, as an operand of a recursive
-# rm (FIND DELETES in the header). Reads words, n and HOOK_SEG_WORD_QUOTED from
-# rdt_check_segment through bash's dynamic scope.
+# rm (FIND DELETES in the header).
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_find_check() {
+  local k
+  rdt_find_scan "$1"
+  ((RDT_FIND_DEL)) || return 0
+  rdt_deleter=1
+  local -a sw=(${RDT_FIND_SW[@]+"${RDT_FIND_SW[@]}"}) sq=(${RDT_FIND_SQ[@]+"${RDT_FIND_SQ[@]}"})
+  for ((k = 0; k < ${#sw[@]}; k++)); do
+    rdt_delete_operand "${sw[k]}" "${sq[k]}"
+  done
+  return 0
+}
+
+# rdt_find_scan <index of the find word>: read one find into RDT_FIND_DEL (its
+# expression deletes), RDT_FIND_OUT (it writes only the paths it finds: no
+# -printf, -fprintf, -ls, -fls, -exec, -execdir, -ok, -okdir or -files0-from),
+# and RDT_FIND_SW / RDT_FIND_SQ (each start point of either reading once, as a
+# recursive rm is handed it, with its provenance). Reads words, n and
+# HOOK_SEG_WORD_QUOTED from its caller through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_find_check and rdt_feed_class
+rdt_find_scan() {
   local k w c key del=0 files0=0 gnu=0 follow=0
   local -a sw=() sq=()
   local -A seen=()
+  RDT_FIND_OUT=1
   for ((k = $1 + 1; k < n; k++)); do
     case "${words[k]}" in
     -delete) del=1 ;;
-    -files0-from) files0=1 ;;
+    -files0-from) files0=1 RDT_FIND_OUT=0 ;;
+    -printf | -fprintf | -ls | -fls) RDT_FIND_OUT=0 ;;
     -H | -L | -follow) follow=1 ;;
     -exec | -execdir | -ok | -okdir)
+      RDT_FIND_OUT=0
       k=$((k + 1))
       c="${words[k]-}"
       c="${c##*/}"
@@ -3195,7 +3286,7 @@ rdt_find_check() {
     *) [[ "${words[k]}" =~ ^-[EHLPXdsx]*[HL] ]] && follow=1 ;;
     esac
   done
-  ((del)) || return 0
+  RDT_FIND_DEL=$del
 
   # GNU: the leading options, then the start points; `.` when there is none,
   # unless -files0-from reads them from a file, which is left alone.
@@ -3258,6 +3349,8 @@ rdt_find_check() {
     k=$((k + 1))
   done
 
+  RDT_FIND_SW=()
+  RDT_FIND_SQ=()
   for ((k = 0; k < ${#sw[@]}; k++)); do
     w="${sw[k]}"
     # Under -H, -L or -follow find follows a start point that is a symlink, so
@@ -3266,8 +3359,321 @@ rdt_find_check() {
     key="${sq[k]}|$w"
     [[ -n "${seen[$key]+x}" ]] && continue
     seen[$key]=1
-    rdt_delete_operand "$w" "${sq[k]}"
+    RDT_FIND_SW+=("$w")
+    RDT_FIND_SQ+=("${sq[k]}")
   done
+  return 0
+}
+
+# --- Pipeline-fed deletes (PIPELINE-FED DELETES in the header) ----------------
+#
+# A FEED is where a command reads its items from: `none`, the shell's own stdin
+# (the first command of the top-level parse); `open`, anything this guard
+# cannot name; `f<offset>:<count>`, a confined find, whose start points sit at
+# that offset in RDT_FW and RDT_FQ; and `g`, a confined git ls-files, whose
+# entries are judged as RDT_LS_ENTRY under the directory it runs from.
+RDT_FW=()
+RDT_FQ=()
+RDT_LS_ENTRY='(a file git ls-files lists)'
+rdt_seg_feed=none
+rdt_feed_in=none
+rdt_prev=""
+rdt_flat=1
+rdt_deleter=0
+
+# rdt_parse <text>: judge each simple command of <text> through rdt_segment,
+# with this parse's own pipe state: the feed of the command that runs it
+# (rdt_feed_in) and what the command before the current one writes
+# (rdt_prev). A text holding a `(`, `)` or backtick that no backslash escapes
+# is read as no pipeline (rdt_flat 0), because the tokenizer splits a
+# subshell, a substitution or a process substitution into commands that are
+# not its stages.
+rdt_parse() {
+  local rdt_feed_in="$rdt_seg_feed" rdt_prev="" rdt_flat=1 b=$'\\' t="$1"
+  if [[ "$t" == *"$b"* ]]; then
+    t="${t//"$b$b"/}"
+    t="${t//"$b("/}"
+    t="${t//"$b)"/}"
+  fi
+  case "$t" in
+  *[\(\)\`]*)
+    rdt_flat=0
+    rdt_feed_in=open
+    ;;
+  *) ;;
+  esac
+  hook::bash_parse_segments "$1" rdt_segment
+}
+
+# rdt_segment <argv word>...: the parse callback. The tokenizer reports no
+# operator between two commands, so the command before is read as a pipe into
+# this one. In a parse another command feeds (a child shell, eval), a feed from
+# the command before that differs from the parse's own is open, because after
+# `;` or `&&` this command reads the parse's stdin instead. A redirection of
+# fd 0 replaces the pipe. This command's own output is recorded for the next
+# one before it is judged.
+# shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
+rdt_segment() {
+  local rdt_seg_feed="$rdt_feed_in" j
+  if ((rdt_flat == 0)); then
+    rdt_seg_feed=open
+  elif [[ -n "$rdt_prev" ]]; then
+    rdt_seg_feed="$rdt_prev"
+    [[ "$rdt_feed_in" == none || "$rdt_feed_in" == "$rdt_prev" ]] || rdt_seg_feed=open
+  fi
+  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    if [[ "${HOOK_SEG_REDIR_OP[j]}" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]]; then
+      rdt_seg_feed=open
+    fi
+  done
+  rdt_feed_class "$@"
+  rdt_check_segment "$@"
+}
+
+# rdt_feed_class <argv word>...: what this command writes to a pipe after it,
+# into rdt_prev: a find whose output names only paths under its start points
+# (rdt_find_scan), saved in RDT_FW and RDT_FQ; git ls-files with no git option
+# before the subcommand and no --format (git takes an unambiguous prefix of a
+# long option, and only --format starts with --f[o], the bracket keeping the
+# spell-checker from reading the prefix as a word); a line filter passes on its
+# own feed; anything else, a launcher in front included, is open.
+# shellcheck disable=SC2329  # invoked from rdt_segment
+rdt_feed_class() {
+  rdt_prev=open
+  ((rdt_flat)) || return 0
+  local -a words=("$@")
+  local n=$# i=0 base w
+  while ((i < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    i=$((i + 1))
+  done
+  ((i < n)) || return 0
+  base="${words[i]##*/}"
+  base="${base,,}"
+  base="${base%.exe}"
+  case "$base" in
+  find)
+    rdt_find_scan "$i"
+    ((RDT_FIND_OUT)) || return 0
+    rdt_prev="f${#RDT_FW[@]}:${#RDT_FIND_SW[@]}"
+    RDT_FW+=(${RDT_FIND_SW[@]+"${RDT_FIND_SW[@]}"})
+    RDT_FQ+=(${RDT_FIND_SQ[@]+"${RDT_FIND_SQ[@]}"})
+    ;;
+  git)
+    [[ "${words[i + 1]-}" == ls-files ]] || return 0
+    for ((i = i + 2; i < n; i++)); do
+      [[ "${words[i]}" == --f[o]* ]] && return 0
+    done
+    rdt_prev=g
+    ;;
+  *) rdt_line_filter "${words[@]:i}" && rdt_prev="$rdt_seg_feed" ;;
+  esac
+  return 0
+}
+
+# rdt_line_filter <argv word>...: true when the command passes on only whole
+# lines of what it reads: grep, egrep or fgrep with flags from -vixwEFGPsqz,
+# -e or -f, and one pattern when neither gave one; sort with flags from
+# -bdfghiMnRrsuVz, -k or -t; uniq with flags from -diuz; head or tail with -n,
+# -<count> or -z. Options come first and no operand follows, since an operand
+# is a file it reads.
+# shellcheck disable=SC2329  # invoked from rdt_feed_class
+rdt_line_filter() {
+  local c="${1##*/}" f="" a="" w k=2 e=0 max=0
+  c="${c,,}"
+  c="${c%.exe}"
+  case "$c" in
+  grep | egrep | fgrep) f=vixwEFGPsqz a=ef max=1 ;;
+  sort) f=bdfghiMnRrsuVz a=kt ;;
+  uniq) f=diuz ;;
+  head | tail) f=z a=n ;;
+  *) return 1 ;;
+  esac
+  while ((k <= $#)); do
+    w="${!k}"
+    if [[ "$w" == -- ]]; then
+      k=$((k + 1))
+      break
+    elif [[ "$w" =~ ^-[$f]+$ ]]; then
+      :
+    elif [[ -n "$a" && "$w" =~ ^-[$f]*[$a](.*)$ ]]; then
+      e=1
+      [[ -n "${BASH_REMATCH[1]}" ]] || k=$((k + 1))
+    elif [[ "$c" == head || "$c" == tail ]] && [[ "$w" =~ ^-[0-9]+$ ]]; then
+      :
+    elif [[ "$w" == -* ]]; then
+      return 1
+    else
+      break
+    fi
+    k=$((k + 1))
+  done
+  ((e)) && max=0
+  (($# - k + 1 <= max))
+}
+
+# rdt_feed_judge <feed>: the targets a recursive delete takes from <feed>. A
+# confined find's start points and a confined git ls-files' entry are judged
+# as operands; any other feed is refused, because no target can be named.
+# shellcheck disable=SC2329  # invoked from rdt_xargs_check and rdt_parallel_check
+rdt_feed_judge() {
+  local o l k
+  case "$1" in
+  f*:*)
+    o="${1#f}"
+    l="${o#*:}"
+    o="${o%%:*}"
+    for ((k = o; k < o + l; k++)); do
+      rdt_delete_operand "${RDT_FW[k]}" "${RDT_FQ[k]}"
+    done
+    ;;
+  g) rdt_delete_operand "$RDT_LS_ENTRY" 2 ;;
+  *) rdt_block "pipeline-feed" ;;
+  esac
+  return 0
+}
+
+# rdt_xargs_check <index of the xargs word>: xargs runs its command on the
+# items it reads, so when that command deletes recursively its feed is judged;
+# -a or --arg-file reads them from a file, which is open. The options are GNU
+# xargs' `+0a:E:e::i::I:l::L:n:oprs:txP:d:` and long options with BSD's -J, -R
+# and -S, and both stop at the first operand, the command. An unknown or
+# ambiguous option ends xargs before it runs anything. Reads words, n and
+# HOOK_SEG_WORD_QUOTED from rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_xargs_check() {
+  local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0
+  local -a q0=()
+  while ((k < n)); do
+    w="${words[k]}"
+    case "$w" in
+    --)
+      k=$((k + 1))
+      break
+      ;;
+    --?*)
+      name="${w#--}"
+      name="${name%%=*}"
+      hit=""
+      for x in arg-file delimiter max-args max-chars max-procs process-slot-var eof replace max-lines null open-tty interactive no-run-if-empty verbose show-limits exit version help; do
+        if [[ "$x" == "$name" ]]; then
+          hit="$x"
+          break
+        fi
+        if [[ "$x" == "$name"* ]]; then
+          [[ -z "$hit" ]] || return 0
+          hit="$x"
+        fi
+      done
+      [[ -n "$hit" ]] || return 0
+      [[ "$hit" == arg-file ]] && src=open
+      case "$hit" in
+      arg-file | delimiter | max-args | max-chars | max-procs | process-slot-var)
+        [[ "$w" == *=* ]] || k=$((k + 1))
+        ;;
+      *) ;;
+      esac
+      ;;
+    -?*)
+      for ((c = 1; c < ${#w}; c++)); do
+        x="${w:c:1}"
+        case "$x" in
+        [0oprtx]) ;;
+        [eil]) break ;;
+        [adEIJLnPRSs])
+          [[ "$x" == a ]] && src=open
+          ((c + 1 < ${#w})) || k=$((k + 1))
+          break
+          ;;
+        *) return 0 ;;
+        esac
+      done
+      ;;
+    *) break ;;
+    esac
+    k=$((k + 1))
+  done
+  ((k < n)) || return 0
+  q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
+  rdt_check_segment "${words[@]:k}"
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+  ((rdt_deleter)) && rdt_feed_judge "$src"
+  return 0
+}
+
+# rdt_parallel_check <index of the parallel word>: GNU parallel runs its
+# command line through a shell on each item, and with no command runs each item
+# as a command. Its options are not modeled: each word an option may have taken
+# as its argument is read as the first word of the command too, and from there
+# to the first `:::`, `:::+`, `::::` or `::::+` the words are joined and parsed
+# as shell text. When a reading deletes recursively its items are judged:
+# `:::` items as operands, and items from a file (`::::`, an option starting -a
+# or --a) or from the feed through rdt_feed_judge. Every `:::` item is also
+# parsed as a command. Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_parallel_check() {
+  local k j e=$n w pk=p text args=0 files=0 rdt_deleter=0
+  local -a starts=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  for ((k = $1 + 1; k < n; k++)); do
+    case "${words[k]}" in
+    ::: | :::+)
+      ((k < e)) && e=$k
+      args=1
+      ;;
+    :::: | ::::+)
+      ((k < e)) && e=$k
+      files=1
+      ;;
+    *) ;;
+    esac
+  done
+  for ((k = $1 + 1; k < e; k++)); do
+    w="${words[k]}"
+    if [[ "$w" == -- ]]; then
+      pk=p
+    elif [[ "$w" == -?* ]]; then
+      [[ "$w" == --a* || "$w" =~ ^-[^-]*a ]] && files=1
+      pk=o
+    else
+      starts+=("$k")
+      [[ "$pk" == o ]] || break
+      pk=a
+    fi
+  done
+  for k in ${starts[@]+"${starts[@]}"}; do
+    text="${words[k]}"
+    for ((j = k + 1; j < e; j++)); do
+      text+=" ${words[j]}"
+    done
+    rdt_scanned=$((rdt_scanned + ${#text}))
+    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+    rdt_parse "$text"
+  done
+  # A file source is open. Items given on the line replace stdin, which
+  # parallel then reads only when a file source names `-`.
+  if ((rdt_deleter)); then
+    if ((files)); then
+      rdt_feed_judge open
+    elif ((args)); then
+      for ((k = e + 1; k < n; k++)); do
+        case "${words[k]}" in
+        ::: | :::+) ;;
+        *) rdt_delete_operand "${words[k]}" "${q0[k]:-0}" ;;
+        esac
+      done
+    else
+      rdt_feed_judge "$rdt_seg_feed"
+    fi
+  fi
+  for ((k = e + 1; k < n; k++)); do
+    case "${words[k],,}" in
+    ::: | :::+ | :::: | ::::+) ;;
+    *rm* | *-delete* | *unlink*) rdt_parse "${words[k]}" ;;
+    *) ;;
+    esac
+  done
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
   return 0
 }
 
@@ -3531,9 +3937,12 @@ rdt_brace_rec() {
 # the command and the command has its own ceiling. NESTING can, because a
 # nested body's text is charged once per level enclosing it, and nesting is the
 # shape that made the scan slow enough to reach the harness timeout.
+#
+# A body is lifted out of the command it runs in, so its stdin is not known:
+# its feed is open (PIPELINE-FED DELETES in the header).
 rdt_scanned=0
 rdt_scan_body() {
-  local b="$1"
+  local b="$1" rdt_seg_feed=open
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
   *rm* | *-delete* | *unlink*) ;;
@@ -3541,7 +3950,7 @@ rdt_scan_body() {
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
   ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "bodies-too-long"
-  hook::bash_parse_segments "$b" rdt_check_segment
+  rdt_parse "$b"
 }
 
 # rdt_hd_plain <text>: true when the text around a heredoc opener holds no
@@ -4430,7 +4839,7 @@ else
   rdt_in_subst=1
   rdt_scan_substitutions "$COMMAND"
   rdt_in_subst=0
-  hook::bash_parse_segments "$COMMAND" rdt_check_segment
+  rdt_parse "$COMMAND"
 fi
 # The judgment runs in a subshell, so an error nobody anticipated inside it (an
 # unset variable under `set -u`, say) ends the subshell with a status other

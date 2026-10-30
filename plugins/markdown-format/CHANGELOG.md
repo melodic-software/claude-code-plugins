@@ -3,6 +3,15 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.7] - 2026-10-30
+
+### Changed
+
+- Shared `install.mjs` synced where this plugin carries it: the vendored git-hook installer gains
+  a `config-hook` action for `commit-msg` entries, which this plugin has none of; its own entries
+  install and verify as before
+  ([#9775](https://github.com/melodic-software/claude-code-plugins/issues/9775)).
+
 ## [0.15.6] - 2026-10-29
 
 ### Changed

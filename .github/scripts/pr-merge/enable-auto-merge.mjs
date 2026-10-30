@@ -103,7 +103,7 @@
 // answers them all; a run whose verifier read did not come never narrows a
 // person's comment that already names its reasons. The
 // comment is the record; only a cause a person must clear
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
 // provenance or an untrusted spec, a security finding, a high path, a
 // trusted-actor widening, a real charge or a listing too long to check, see
@@ -149,8 +149,10 @@
 // pin. An armed pull request
 // that fails any rule is disarmed. Each request opens its own connection, and
 // a read or write that fails on the network is sent up to twice more
-// (withRetry). One whose arm or disarm still fails is left as it was, named
-// with its cause, and the run goes on to the rest, then exits 1. While
+// (withRetry). A resent arm or disarm that errors is read back once, and
+// counts as done when the pull request already holds the target state. One
+// whose arm or disarm still fails is left as it was, named with its cause,
+// and the run goes on to the rest, then exits 1. While
 // merge.report-only is true it reports
 // each decision and writes nothing.
 //
@@ -312,6 +314,11 @@ export const ARM_MUTATION = `mutation($id: ID!, $head: GitObjectID!) {
 export const DISARM_MUTATION = `mutation($id: ID!) {
   disablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId }
 }`;
+// A pull request's auto-merge state, read back once when a resent arm or
+// disarm errors (sendSettled).
+export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
+  node(id: $id) { ... on PullRequest { state headRefOid autoMergeRequest { enabledAt } } }
+}`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -351,9 +358,8 @@ export function describe(error, { label = false } = {}) {
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
-// answer that with an error, the run reports it (a warning for an arm, an
-// error and exit 1 for a disarm) with the state right, and the next run reads
-// it as it is.
+// answer that with an error, the run reads the state back once (sendSettled)
+// and counts the target reached as a success.
 export function withRetry(github, { sleep, random = Math.random }) {
   return async (method, path, body, headers = {}, options) => {
     for (let attempt = 0; ; attempt += 1) {
@@ -562,6 +568,12 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
+// The verifier refusals that never clear for the pull request
+// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap and an old pull
+// request. decide closes such a pull request for a fresh attempt at its
+// issue (pythonClose), never adding a person's label.
+export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
+
 // How verifyHold opens the reason for each answer that refuses: the issue
 // link, the verifier verdict and the risk score.
 export const READER_HOLDS = Object.freeze({
@@ -583,7 +595,10 @@ export function verifyHold(evidence, head) {
     return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
   }
   if (evidence.refusal !== null) {
-    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
+    // A refusal that never clears names the reader's detail (the cap's FAILed
+    // heads), so the close log says what closed it.
+    const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
   }
   // A line without the link's or the reviews' answer read neither: it allows nothing.
   if (evidence.ineligible !== null) {
@@ -601,7 +616,7 @@ export function verifyHold(evidence, head) {
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner;
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner;
 // cost and trust holds stay a person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
@@ -1204,6 +1219,36 @@ export function pythonRoom(env, spawn = spawnSync) {
   };
 }
 
+// The close of a pull request decide answers `close` for: the reader's
+// `capped-close` (babysit_verify_evidence.py capped_close), which judges the
+// head again, posts the FAIL findings on the pull request and its issue,
+// closes it, and starts the issue's fresh attempt or parks it. Its writes run
+// under GH_TOKEN, the lanes App token; its Actions reads under
+// BABYSIT_VERIFY_GH_TOKEN, as the verify reads. `holds`: labels that keep the
+// pull request open. Throws when it exits non-zero.
+export function pythonClose(env, spawn = spawnSync) {
+  return ({ number, headRefOid: head, baseRefOid: base }, holds) => {
+    if (!SHA.test(String(base))) {
+      throw new Error("its base commit is not a commit SHA");
+    }
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    for (const label of holds) {
+      args.push("--hold-label", label);
+    }
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    let answer = null;
+    try {
+      answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+    } catch {
+      answer = null;
+    }
+    if (done.status !== 0) {
+      throw new Error(`capped-close exited ${done.status ?? done.signal}: ${answer?.error ?? String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return answer;
+  };
+}
+
 // The gate's whole-review request (babysit_whole_review.py), on the lane token
 // for its writes and the job token for its limits, as the merge job runs it:
 // `request` answers the record line for the head, the prior comment on stdin,
@@ -1375,6 +1420,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     return { action: "verify", reason: "its verifier verdict is not read yet" };
   }
   const unverified = verifyHold(detail.verify, pull.headRefOid);
+  // A refusal that never clears at the head read: closed for a fresh attempt
+  // at its issue, the hold labels above having let it through.
+  if (unverified !== null && detail.verify?.head === pull.headRefOid && VERIFY_FINAL.includes(detail.verify?.refusal)) {
+    return { action: "close", reason: unverified };
+  }
   if (unverified !== null) {
     const clears = verifyClears(detail.verify, pull.headRefOid);
     // A lane's risk hold, the only one here, that a clean whole review of the
@@ -1536,7 +1586,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -1583,6 +1633,37 @@ export async function main({ env = process.env, github, actions, verify, room, w
     // error, and the run fails.
     let stopped = null;
     const disarmStop = () => (stopped === null ? null : latch.until(`${env.GITHUB_API_URL || "https://api.github.com"}/graphql`));
+    // Arms or disarms one pull request. When a resent send errors, the first
+    // may have landed with its answer lost, so the state is read back once:
+    // an open pull request armed at the head the run read, or unarmed, is the
+    // target reached and returns as a success. Any other state, a failed
+    // read, or a rate limit (nothing more is sent) throws the send's own
+    // error, with the newest answer still the send's.
+    const sendSettled = async (action, pull) => {
+      const [query, variables] = action === "arm" ? [ARM_MUTATION, { id: pull.id, head: pull.headRefOid }] : [DISARM_MUTATION, { id: pull.id }];
+      try {
+        await github("POST", "/graphql", { query, variables });
+      } catch (error) {
+        if ((error?.attempts ?? 1) === 1 || answer?.limited || [401, 403, 429].includes(error?.status) || disarmStop() !== null) {
+          throw error;
+        }
+        const sent = answer;
+        let state;
+        try {
+          state = (await github("POST", "/graphql", { query: AUTO_MERGE_STATE_QUERY, variables: { id: pull.id } }))?.data?.node;
+        } catch (readError) {
+          console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend and its state was not read back: ${describe(readError)}`);
+        }
+        answer = sent;
+        // An open pull request only: a merged one shows no auto-merge either,
+        // and a disarm that missed it must still fail.
+        const reached = state?.state === "OPEN" && (action === "arm" ? state.autoMergeRequest != null && state.headRefOid === pull.headRefOid : state.autoMergeRequest === null);
+        if (!reached) {
+          throw error;
+        }
+        console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend (${describe(error)}), but it is already ${action === "arm" ? `armed at ${pull.headRefOid}` : "unarmed"}, so an earlier send landed`);
+      }
+    };
     verify ??= pythonVerify(env);
     whole ??= pythonWholeReview(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
@@ -2024,6 +2105,40 @@ export async function main({ env = process.env, github, actions, verify, room, w
               ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
               : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
       }
+      // A pull request the verifier refuses for good closes for a fresh
+      // attempt; a failed close leaves it for the next run, which finds what
+      // this one wrote.
+      if (action === "close") {
+        if (!write) {
+          console.log(`enable-auto-merge: #${pull.number} would close for a fresh attempt (report-only): ${escapeCommand(reason)}`);
+          continue;
+        }
+        let closed = false;
+        try {
+          // An armed one is disarmed first, so a close that fails leaves it unarmed.
+          if (pull.autoMergeRequest != null) {
+            await sendSettled("disarm", pull);
+            console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
+          }
+          close ??= pythonClose(env);
+          const result = await close(pull, ["do-not-merge", humanGated]);
+          closed = result?.closed === true;
+          console.log(
+            closed
+              ? `enable-auto-merge: #${pull.number} closed for a fresh attempt (${escapeCommand(reason)}); restarted ${JSON.stringify(result.restarted ?? [])}, parked ${JSON.stringify(result.parked ?? [])}`
+              : `enable-auto-merge: #${pull.number} left open: ${escapeCommand(result?.reason ?? "the close answered nothing")}`,
+          );
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} capped close: ${describe(error)}`);
+        }
+        // Left open, it sits unarmed: the lane's refusal note and its
+        // pr-merge/unarmed status, never a person's label.
+        if (!closed) {
+          await note(pull, detail, { clears: "lane", reason, cached, partial, answered });
+        }
+        continue;
+      }
       // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {
         ({ action, reason, clears, comment, withdraw } = { action: "none", reason: "its verifier verdict is not read yet" });
@@ -2092,11 +2207,11 @@ export async function main({ env = process.env, github, actions, verify, room, w
       try {
         if (action === "arm") {
           arms += 1;
-          await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
+          await sendSettled("arm", pull);
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "armed for native auto-merge" });
         } else {
-          await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+          await sendSettled("disarm", pull);
           if (roomHeld.has(pull.number)) {
             roomHeld.set(pull.number, "unarmed");
           }

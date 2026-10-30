@@ -233,8 +233,17 @@ from babysit_util import (
 # review nor the configured label: the shared blocking-text predicate does not
 # carry a do-not-merge pattern, so the tier's "no human blocking comment"
 # criterion matches it here. Bounded to the merge-veto sense (do/don't/do-not
-# merge) so ordinary prose does not false-block.
-HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re.I)
+# merge) so ordinary prose does not false-block. "the do-not-merge label"
+# (backticks allowed) names the label and vetoes nothing; any other
+# do-not-merge vetoes, a comma list included (it fails closed).
+HUMAN_MERGE_VETO_RE = re.compile(
+    r"\bdo(?:n['’]?t| not)[\s-]*merge\b"
+    r"|\bdo-not(?!-merge\b)[\s-]*merge\b"
+    r"|(?<!the )(?<!the `)\bdo-not-merge\b"
+    r"|(?<=the )do-not-merge\b(?!\s*labels?\b)"
+    r"|(?<=the `)do-not-merge\b(?!`\s*labels?\b)",
+    re.I,
+)
 
 BODY_MERGE_HOLD_RE = merge_policy.BODY_MERGE_HOLD_RE
 MERGE_HOLD_LABELS = merge_policy.MERGE_HOLD_LABELS
@@ -3527,6 +3536,7 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
+            cap_attempts=config.verify_cap_attempts,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -3688,6 +3698,7 @@ def assess_unattended(
     shared: merge_policy.SharedPostMerge | None = None,
     share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
     stop_when_closed: bool = False,
+    postmerge_result: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -3695,9 +3706,21 @@ def assess_unattended(
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
-    post_merge = postmerge.gate_reader(
-        repo, self_logins, lane_merges_only=authority == merge_policy.PR_MERGE
-    )
+    lane = authority == merge_policy.PR_MERGE
+    post_merge = postmerge.gate_reader(repo, self_logins, lane_merges_only=lane)
+    if postmerge_result is not None:
+
+        def main_head() -> str | None:
+            try:
+                owner, name = merge_policy._split_repo(repo)
+                branch = merge_policy._default_branch(repo, shared=True)
+                return merge_policy.base_tip(owner, name, branch)
+            except merge_policy.PolicyReadError:
+                return None
+
+        post_merge = postmerge.reuse_unreadable(
+            postmerge_result, post_merge, main_head, lane_merges_only=lane
+        )
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
@@ -3939,6 +3962,50 @@ def escalate_verify(
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     body = verify_escalation_body(refusal, head)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
+
+
+def close_capped(
+    repo: str,
+    number: int,
+    identity: str,
+    branch: str,
+    config: merge_policy.PipelineConfig,
+    inputs: Mapping[str, Any],
+) -> dict[str, Any]:
+    """`verify_evidence.capped_close` for the gate's pull request at its
+    head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
+    label hold it open, and the issue's hold labels
+    (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
+    a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
+    member's blocking comment; an unreadable one holds) keeps it open first,
+    as enable-auto-merge.mjs decide() does. An unreadable human-gated label
+    raises `PostMergeReadError`: a default could miss the mapped one."""
+    if hold := merge_policy.entry_hold(
+        repo,
+        number,
+        identity,
+        self_logins=inputs.get("self_logins") or frozenset(),
+        permission=inputs.get("permission"),
+        queued=False,
+    ):
+        return {"closed": False, "reason": f"held: {hold}"}
+    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    label = human_gated_label(repo)
+    reader = verify_evidence.Reader(
+        repo,
+        branch,
+        max_fails=config.max_verify_fails,
+        agent_identity=identity,
+        cap_attempts=config.verify_cap_attempts,
+    )
+    return verify_evidence.capped_close(
+        reader,
+        number,
+        head,
+        attempts=config.verify_cap_attempts,
+        holds=("do-not-merge", label),
+        issue_holds=merge_policy.issue_hold_labels(config, label),
+    )
 
 
 def escalate(
@@ -4220,6 +4287,7 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
+                    cap_attempts=config.verify_cap_attempts,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
@@ -4384,6 +4452,26 @@ def unattended_writes(
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
+    # A lanes App pull request the verifier refuses for good closes for a
+    # fresh attempt at its issue (`verify_evidence.capped_close`, which judges
+    # it again and leaves a held one alone); no person's label.
+    config = inputs.get("config")
+    if (
+        not stopped
+        and verify.get("refusal") in verify_evidence.VERIFY_FINAL
+        and config is not None
+    ):
+        try:
+            report["cappedClose"] = close_capped(
+                repo, number, identity, branch, config, inputs
+            )
+        except (
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+            postmerge.PostMergeReadError,
+        ) as exc:
+            report["errors"].append(f"capped close: {exc}")
     # A held major Dependabot update gets the same signal, so it reaches the
     # human queue, whatever refusal tops it (an `in-flight:` one included).
     held = f"{merge_policy.MAJOR_HELD}:"
@@ -5351,6 +5439,7 @@ def _main() -> int:
                     # request whose read-back needs the policy of a merged
                     # pull request, so a merged one skips the post-merge check.
                     stop_when_closed=pending_path is None,
+                    postmerge_result=args.postmerge_result,
                     # Each recompute goes back to the file for the next candidate.
                     share=(
                         None
