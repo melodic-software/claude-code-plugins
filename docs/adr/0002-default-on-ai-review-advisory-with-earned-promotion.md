@@ -425,8 +425,8 @@ this ADR to match what `ci-status` already does.
   fails a non-draft pull request unless, for each lane, the newest run on the head finished with
   its status job and its `Apply the hold` step succeeded. A pending, failed, cancelled or skipped
   review fails, and so does a run the kill switch stopped. Dependabot, the release App and the
-  standards-sync App are exempt by author id, except that a change of theirs to a trust-gate path
-  still fails. The `Fail a pull request carrying the human-gated label` step fails while a lane's
+  standards-sync App are exempt by author id. While `merge.diff-check.path-holds` is false, only a
+  Dependabot change to a trust-gate path still fails; the two Apps' trust-gate changes pass. The `Fail a pull request carrying the human-gated label` step fails while a lane's
   hold label stands, and `Fail a review-lane hold an untrusted account lifted` fails unless a person
   on the trusted-actor list removed it, with the exceptions that step's comment lists. The first revisit trigger below, which opened a promotion
   change, is superseded with Decision 2.
