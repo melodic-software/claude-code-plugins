@@ -163,7 +163,7 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
     trap - EXIT # same-login race — @me legitimately stays assigned
   fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
-    "$winner_id" "${winner_holder:-unknown}" >&2
+    "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"
 fi
 

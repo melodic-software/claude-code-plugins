@@ -490,4 +490,15 @@ assert_eq "the lease-only claim supersedes its own comment on that failure" "tru
   "$(jq -r '.[0].body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | has("superseded_at")' "$GH_STUB_DIR/lease-comments")"
 cleanup_scenario
 
+# [log injection] a winner's holder is printed with its control characters removed.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker "$(printf 'bob\n::error::forged')" "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+err="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" 2>&1 >/dev/null)"
+assert_eq "the backed-off claim prints no line break from the holder" "false" \
+  "$(grep -q '^::error::forged' <<<"$err" && echo true || echo false)"
+assert_contains "the backed-off claim still names the holder" "$err" "bob::error::forged"
+cleanup_scenario
+
 [[ $FAILED -eq 0 ]] || exit 1

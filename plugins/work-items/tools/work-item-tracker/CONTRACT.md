@@ -578,6 +578,7 @@ Claim sequence (race-safe, same-identity aware):
 4. Re-read all lease comments. If an EARLIER live lease exists that is not our own
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
+   The back-off message prints the winner's holder with control characters removed.
 5. Emit the claim object.
 
 Release (early end of the caller's own lease): `release` supersedes a lease before its TTL
