@@ -322,7 +322,7 @@ out of scope until such a signal exists.
   `mcp__plugin_<plugin>_github__<tool>`. Pointer:
   <https://code.claude.com/docs/en/hooks#match-mcp-tools>. As of: 2026-09-27.
   Recheck trigger: that section changes how a plugin-bundled server's tools are
-  named. This closes a real hole: a
+  named. This closes a real hole. A
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`
