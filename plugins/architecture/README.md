@@ -35,8 +35,9 @@ module's purpose without traversing the whole import graph.
    recommendation.
 
 A second lens, `boundaries`, checks the module boundaries your repository has
-already written down (in `REVIEW.md`, `ARCHITECTURE.md`, ADRs, rules files or an
-existing architecture test) against the project references
+already written down (in `REVIEW.md`, `ARCHITECTURE.md`, ADRs, rules files, an
+existing architecture test, or the `## Boundary rules` section of your
+architecture topic doc) against the project references
 `/architecture:map-dependencies` reads from your build manifests. It lists each
 reference that crosses a recorded rule, and each rule you confirm goes to a
 findings file that `/review:audit-enforceability` turns into an architecture-test

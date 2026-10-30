@@ -19,8 +19,10 @@ collect:
 
 - **Boundary rules**, from the "Where boundary rules live" list in
   [../research/enforcement-ladder.md](../research/enforcement-ladder.md), read from that file each
-  run. This includes the `## Boundary rules` section of the architecture topic doc, which the list's
-  fifth source covers.
+  run, and from the `## Boundary rules` section of the architecture topic doc,
+  `<home>/architecture/README.md`, read by name: the list's paths do not match that file. Resolve
+  `<home>` as Phase 4 does; on any exit but 0, or with no topic doc or no such section, it holds
+  nothing.
 - **Paved-path entries**, from the file the standards index's `paved-path` row points at. The
   index is `docs/standards/README.md` unless `.claude/standards.yaml` sets another `standards_dir`.
   With no index or no `paved-path` row, there are none.
@@ -98,8 +100,8 @@ Each kind goes to the one place that owns it. This lens writes only the first.
   - exit 3: quote the resolver's message as it printed it;
   - exit 2, 4 or 5: say the home is unavailable and why, and point nowhere.
 
-  The topic doc holds the project's layer rules, so the next `/architecture:improve boundaries`
-  run reads the section as the enforcement ladder's fifth rule source.
+  The next `/architecture:improve boundaries` run reads this section by name, after the
+  enforcement ladder's list (`actions/boundaries.md`, Phase 1), and so does this lens's Phase 1.
 - **Divergence** (code that departs from a convention the repository records, or one the user
   said yes to in this run): hand it to `/corrections:codify "<description>"`, invoked through the
   Skill tool. Invoked by this lens, codify only proposes and writes nothing; below its recurrence
