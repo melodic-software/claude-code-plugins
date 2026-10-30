@@ -1031,12 +1031,17 @@ the rules that only tighten in
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
   clear time, read from every such run since the record, so newer runs never move it. Canary,
   revert and read-back records stay human-close. A push to main files a `revert` record when one
-  of its commits names, on a body line of its squash message, a pull request it reverts (`Reverts
-  #N`, `Reverts <owner>/<repo>#N`, or `This reverts commit <sha>` of a `(#N)` merge) and the lanes
-  App enqueued that pull request or its enqueuer cannot be read; a revert of one a person enqueued
-  files nothing. The alert reads every commit the push brought, a merge-queue batch included:
-  main's first-parent range since the previous canary push run's head, at most 20 commits, and the
-  newest 20 when that head cannot be read or is not on the push's history. The wrapper finds these issues by author (the agent identity
+  of its commits names a pull request it reverts and the lanes App enqueued that pull request or
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  on a line of its squash message: `Reverts` (optionally bulleted `- ` or `* `) followed by `#N`
+  or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
+  `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
+  `<!-- red-main-revert culprit=<sha> -->`, through that commit's `(#N)` subject. Every canary push
+  run, whatever it concluded and on every attempt, reads every commit the push brought, a
+  merge-queue batch included: main's first-parent range since the previous canary push run's head,
+  at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
+  history. A revert commit any record already lists, in any state, is skipped, so a commit is
+  filed once and never again after a person closes its record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,

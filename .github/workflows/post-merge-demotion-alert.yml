@@ -19,14 +19,14 @@ name: post-merge-demotion-alert
 # it as a demotion. Anything the lookup cannot prove demotes.
 #
 # A push to main that reverts a pull request the lanes App put in the merge
-# queue files a `revert` record, read when the canary push run passed on
-# attempt 1 (a failed canary already files its own record). Every commit the
-# push brought is read, a merge-queue batch included: main's first-parent
-# range since the previous canary push run's head, at most 20 commits, and the
-# newest 20 when that head cannot be read or is not an ancestor. A squash
-# message names what it reverts on a body line: `Reverts #N` or `Reverts <this
-# repository>#N`, or `This reverts commit <sha>` of a `(#N)` merge on main's
-# history. A revert of a pull request someone else enqueued files nothing; an
+# queue files a `revert` record. Every canary push run, whatever it concluded
+# and on every attempt, reads the commits the push brought, a merge-queue
+# batch included: main's first-parent range since the previous canary push
+# run's head, at most 20 commits, and the newest 20 when that head cannot be
+# read or is not an ancestor. A revert commit any record already lists is
+# skipped, so overlapping runs and re-runs file it once and never again after
+# a person closes its record. A failed canary still files its canary record
+# too. A revert of a pull request someone else enqueued files nothing; an
 # unproven one demotes. A revert record clears only when a person closes it.
 #
 # A red full run files only after one re-run of its failed jobs, which the
@@ -108,19 +108,18 @@ jobs:
   alert:
     name: File the demotion issue
     # The file step's early exits, read from the event before any checkout: a
-    # workflow_run event that is not a signal, a pass on attempt 1 (except a
-    # canary push run, read for reverts), an action_required, or a run off
-    # this repository's main starts no job. A dispatch always runs; the Read
-    # step checks it.
+    # workflow_run event that is not a signal, a full run's pass on attempt 1
+    # or action_required, or a run off this repository's main starts no job.
+    # Every canary push run on main runs, to read its push for reverts. A
+    # dispatch always runs; the Read step checks it.
     if: >-
       github.event_name == 'workflow_dispatch'
       || (github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && contains(fromJSON('["pr-require-checks:schedule", "pr-require-checks:workflow_dispatch", "post-merge-detect-silent-revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
-      && (contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
-      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)
-      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt == 1
-      && github.event.workflow_run.name == 'post-merge-detect-silent-revert')))
+      && (github.event.workflow_run.name == 'post-merge-detect-silent-revert'
+      || contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
+      || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
     # Up to 20 minutes waiting on the re-run, 40 for a dispatched run.
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 50 || 30 }}
@@ -164,12 +163,14 @@ jobs:
     steps:
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the last green SHA; full history for that worktree.
+      # A canary run reads only its push's commits and what they revert: the
+      # newest 50, and the file step fetches or asks the API for one outside.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/main
           path: .base
-          fetch-depth: 0
+          fetch-depth: ${{ github.event.workflow_run.name == 'post-merge-detect-silent-revert' && 50 || 0 }}
           persist-credentials: false
 
       # A workflow_run event's fields pass through as they are. A dispatch's
@@ -322,31 +323,36 @@ jobs:
           # A re-run that passes is recorded on the record; it clears nothing.
           # A dispatched run also files on action_required, as the Read step
           # accepts every conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS.
+          # A canary push run that files no canary record (`quiet`) still reads
+          # its push for reverts (revert_pass, below).
+          quiet=''
           case "$RUN_CONCLUSION" in
             failure | timed_out | startup_failure | cancelled) passed='' ;;
             action_required)
-              if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+              if [[ "$signal" == canary ]]; then
+                quiet=1
+              elif [[ "$EVENT_NAME" != workflow_dispatch ]]; then
                 echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
                 exit 0
               fi
               passed=''
               ;;
             success)
-              # A passing canary push run on attempt 1 is the revert signal's
-              # turn: the pushed commits are read below for a named revert.
-              if [[ "$signal" == canary && "$RUN_ATTEMPT" == 1 ]]; then
-                signal=revert
-                passed=''
-              elif [[ ! "$RUN_ATTEMPT" =~ ^[0-9]+$ || "$RUN_ATTEMPT" -lt 2 ]]; then
+              if [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ && "$RUN_ATTEMPT" -ge 2 ]]; then
+                passed=1
+              elif [[ "$signal" == canary ]]; then
+                passed='' quiet=1
+              else
                 echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
                 exit 0
-              else
-                passed=1
               fi
               ;;
             *)
-              echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
-              exit 0
+              if [[ "$signal" != canary ]]; then
+                echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+                exit 0
+              fi
+              passed='' quiet=1
               ;;
           esac
           if [[ "$RUN_BRANCH" != main || "$RUN_REPO" != "$GITHUB_REPOSITORY" ]]; then
@@ -369,7 +375,7 @@ jobs:
             exit 0
           fi
           newly=''
-          if [[ -z "$passed" && "$signal" != canary && "$signal" != revert ]]; then
+          if [[ -z "$passed" && "$signal" != canary ]]; then
             # Re-run the failed jobs once and wait here for that attempt: a
             # re-run this token starts raises no workflow_run event of its own.
             # babysit_postmerge.py credits this re-run only on a run the bot
@@ -502,69 +508,6 @@ jobs:
             fi
             newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
           fi
-          # The pull requests the push reverts. Its commits are main's
-          # first-parent range since the previous canary push run's head (a
-          # merge-queue batch pushes several merges at once), read from main's
-          # history in the checkout: at most 20, and the newest 20 when that
-          # head cannot be read or is not on this one's history, so a range
-          # that cannot be read is checked rather than passed. Each squash
-          # message (title, then the PR body) names what it reverts on a body
-          # line: `Reverts #N` or `Reverts <this repo>#N` (GitHub's revert
-          # button), or `This reverts commit <sha>` (git revert) whose subject
-          # on main's history ends `(#N)`. Anchored at a line's start, never a
-          # substring, so prose that mentions a revert names nothing.
-          reverted=()
-          reverting=()
-          if [[ "$signal" == revert ]]; then
-            prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=push&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
-              --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
-                | max_by(.created_at) // empty | .head_sha')" || prev=''
-            pushed=()
-            if [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git -C .base merge-base --is-ancestor "$prev" "$RUN_SHA" 2>/dev/null; then
-              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=21 "$prev..$RUN_SHA" 2>/dev/null)
-              if ((${#pushed[@]} > 20)); then
-                echo "::warning::more than 20 commits since the previous canary push run at ${prev:0:12}: reading the newest 20"
-                pushed=("${pushed[@]:0:20}")
-              fi
-            else
-              echo "::warning::the previous canary push run's head could not be read or is not on ${RUN_SHA:0:12}'s history: reading the newest 20 commits"
-              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=20 "$RUN_SHA" 2>/dev/null)
-            fi
-            if ((${#pushed[@]} == 0)); then
-              pushed=("$RUN_SHA")
-            fi
-            declare -A named=()
-            for c in "${pushed[@]}"; do
-              message="$(git -C .base log -1 --format=%B "$c" 2>/dev/null)" || message=''
-              if [[ -z "$message" && "$c" == "$RUN_SHA" ]]; then
-                message="$RUN_COMMIT_MESSAGE"
-              fi
-              found=''
-              while IFS= read -r line; do
-                line="${line%$'\r'}"
-                rest="${line#Reverts }"
-                rest="${rest/#"$GITHUB_REPOSITORY#"/#}"
-                if [[ "$line" == "Reverts "* && "$rest" =~ ^#([1-9][0-9]*)([^0-9A-Za-z_]|$) ]]; then
-                  named[${BASH_REMATCH[1]}]=1
-                  found=1
-                elif [[ "$line" =~ ^This\ reverts\ commit\ ([0-9a-f]{7,40})([^0-9A-Za-z_]|$) ]] &&
-                  s="$(git -C .base log -1 --format=%s "${BASH_REMATCH[1]}" -- 2>/dev/null)" &&
-                  [[ "$s" =~ \(#([1-9][0-9]*)\)$ ]]; then
-                  named[${BASH_REMATCH[1]}]=1
-                  found=1
-                fi
-              done <<<"$message"
-              if [[ -n "$found" ]]; then
-                reverting+=("$c")
-              fi
-            done
-            reverted=("${!named[@]}")
-            if [[ "${#reverted[@]}" -eq 0 ]]; then
-              echo "the ${#pushed[@]} commits pushed up to ${RUN_SHA:0:12} name no pull request they revert: nothing to file"
-              exit 0
-            fi
-          fi
-
           # A run's URL names no attempt, so every sighting names its attempt:
           # a later failing attempt of a recorded run is a new sighting.
           sighting="$RUN_URL/attempts/$RUN_ATTEMPT"
@@ -574,7 +517,7 @@ jobs:
           # green full run, so the failure is charged to that whole range.
           range=()
           declare -A parent=() entry=()
-          if [[ "$signal" != canary && "$signal" != revert ]]; then
+          if [[ "$signal" != canary ]]; then
             base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and (.event | IN("schedule", "workflow_dispatch"))
                 and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
@@ -607,13 +550,14 @@ jobs:
           # of a human's PR does not carry). Anything unproven demotes: a canary
           # or an unknown range, a commit with no (#N) subject, an unreadable
           # identity, or a failed lookup. One GraphQL call covers the range,
-          # or the pull requests a revert names, made only when a new issue is
-          # filed (classify, below).
+          # or the pull requests a revert names (`reverted`), made only when a
+          # new issue is filed (classify, below).
           lane=1
+          reverted=()
           classify() {
           declare -A numbers=()
           missing=''
-          if [[ "$signal" == revert ]]; then
+          if [[ "${#reverted[@]}" -gt 0 ]]; then
             for n in "${reverted[@]}"; do
               numbers[$n]=1
             done
@@ -684,7 +628,8 @@ jobs:
               --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
                 | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
                    ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
-                    | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
+                    | ltrimstr("- Failing run: ") | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | capture("^- Revert commit: \u0060(?<c>[0-9a-f]{40})\u0060").c] | join(" ") | if . == "" then "none" else . end)]
                 | @tsv'
           }
           own_records="$(read_records "${filers[0]}")"
@@ -696,10 +641,153 @@ jobs:
               echo "::warning::could not read $lane_filer's records; matching this workflow's own records only"
             fi
           fi
+
+          # The pull request a commit's subject names as `(#N)`, read from
+          # main's history in the checkout, else from the API.
+          subject_pr() {
+            local s
+            s="$(git -C .base log -1 --format=%s "$1" -- 2>/dev/null)" ||
+              s="$(gh api "repos/$GITHUB_REPOSITORY/commits/$1" --jq '.commit.message | split("\n")[0]')" || s=''
+            if [[ "$s" =~ \(#([1-9][0-9]*)\)$ ]]; then
+              echo "${BASH_REMATCH[1]}"
+            fi
+          }
+          # revert_pass: the revert record for a canary push run. The push's
+          # commits are main's first-parent range since the previous canary
+          # push run's head (a merge-queue batch pushes several merges at
+          # once; a run's head SHA is set when it is created, so an unfinished
+          # run counts): at most 20, and the newest 20 when that head cannot be
+          # read or is not on this one's history, so a range that cannot be
+          # read is checked rather than passed. A commit any record already
+          # lists as a revert commit is skipped. Each squash message (title,
+          # then the PR body) names what it reverts:
+          # - a body line `Reverts` (after an optional `- ` or `* ` bullet)
+          #   followed by `#N` or `<this repo>#N` references joined by `, ` or
+          #   ` and `, each counted;
+          # - a GitHub revert-button subject, `Revert "... (#N)" (#M)`;
+          # - `This reverts commit <sha>` (git revert) or the red-main bot's
+          #   `<!-- red-main-revert culprit=<sha> -->`, through the subject of
+          #   that commit, `... (#N)`.
+          # Anchored at a line's start, never a substring, so prose, a quoted
+          # line or another repository's pull request names nothing.
+          revert_pass() {
+            local prev c n repo line message rest found lines names
+            local -a cs
+            local -a pushed=() fresh=()
+            local -A named=() listed=()
+            prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=push&branch=main&created=%3C$RUN_CREATED&per_page=20" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')" || prev=''
+            if ! git -C .base cat-file -e "$RUN_SHA^{commit}" 2>/dev/null &&
+              ! git -C .base fetch -q --depth=50 origin "$RUN_SHA" 2>/dev/null; then
+              echo "::warning::${RUN_SHA:0:12} is not in the checkout: reading its own message only"
+            elif [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git -C .base merge-base --is-ancestor "$prev" "$RUN_SHA" 2>/dev/null; then
+              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=21 "$prev..$RUN_SHA" 2>/dev/null)
+              if ((${#pushed[@]} > 20)); then
+                echo "::warning::more than 20 commits since the previous canary push run at ${prev:0:12}: reading the newest 20"
+                pushed=("${pushed[@]:0:20}")
+              fi
+            else
+              echo "::warning::the previous canary push run's head could not be read or is not on ${RUN_SHA:0:12}'s history: reading the newest 20 commits"
+              mapfile -t pushed < <(git -C .base rev-list --first-parent --max-count=20 "$RUN_SHA" 2>/dev/null)
+            fi
+            if ((${#pushed[@]} == 0)); then
+              pushed=("$RUN_SHA")
+            fi
+            while read -r -a cs; do
+              for c in "${cs[@]}"; do
+                listed[$c]=1
+              done
+            done < <(cut -f6 <<<"$records")
+            for c in "${pushed[@]}"; do
+              if [[ -n "${listed[$c]+x}" ]]; then
+                echo "${c:0:12} is already listed on a revert record"
+                continue
+              fi
+              message="$(git -C .base log -1 --format=%B "$c" 2>/dev/null)" || message=''
+              if [[ -z "$message" && "$c" == "$RUN_SHA" ]]; then
+                message="$RUN_COMMIT_MESSAGE"
+              fi
+              found=''
+              line="${message%%$'\n'*}"
+              if [[ "${line%$'\r'}" =~ ^Revert\ \".*\(#([1-9][0-9]*)\)\"(\ \(#[0-9]+\))?$ ]]; then
+                named[${BASH_REMATCH[1]}]=1
+                found=1
+              fi
+              while IFS= read -r line; do
+                line="${line%$'\r'}"
+                if [[ "$line" =~ ^([-*]\ )?Reverts\ (.*)$ ]]; then
+                  rest="${BASH_REMATCH[2]}"
+                  while [[ "$rest" =~ ^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#([1-9][0-9]*)(.*)$ ]]; do
+                    repo="${BASH_REMATCH[1]}" n="${BASH_REMATCH[2]}" rest="${BASH_REMATCH[3]}"
+                    if [[ "$rest" =~ ^[0-9A-Za-z_] ]]; then
+                      break
+                    fi
+                    if [[ -z "$repo" || "${repo,,}" == "${GITHUB_REPOSITORY,,}" ]]; then
+                      named[$n]=1
+                      found=1
+                    fi
+                    if [[ ! "$rest" =~ ^(,\ and\ |,\ |\ and\ )(.*)$ ]]; then
+                      break
+                    fi
+                    rest="${BASH_REMATCH[2]}"
+                  done
+                elif [[ "$line" =~ ^This\ reverts\ commit\ ([0-9a-f]{7,40})([^0-9A-Za-z_]|$) ||
+                  "$line" =~ ^\<!--\ red-main-revert\ culprit=([0-9a-f]{40})\ --\>$ ]]; then
+                  n="$(subject_pr "${BASH_REMATCH[1]}")"
+                  if [[ -n "$n" ]]; then
+                    named[$n]=1
+                    found=1
+                  fi
+                fi
+              done <<<"$message"
+              if [[ -n "$found" ]]; then
+                fresh+=("$c")
+              fi
+            done
+            if ((${#fresh[@]} == 0)); then
+              echo "no new commit among the ${#pushed[@]} pushed up to ${RUN_SHA:0:12} names a pull request it reverts: no revert record"
+              return
+            fi
+            reverted=("${!named[@]}")
+            classify
+            if [[ -z "$lane" ]]; then
+              echo "no pull request ${RUN_SHA:0:12}'s push reverts was put in the merge queue by the lanes App: no revert record"
+              lane=1 reverted=()
+              return
+            fi
+            lines='' names=''
+            for n in "${reverted[@]}"; do
+              names="${names:+$names, }#$n"
+              lines="$lines- Reverted pull request: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$n"$'\n'
+            done
+            for c in "${fresh[@]}"; do
+              lines="$lines- Revert commit: \`$c\`"$'\n'
+            done
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-human' \
+              -f title="Post-merge revert of $names at ${RUN_SHA:0:12}: unattended merging demoted" \
+              -f body="<!-- babysit-merge-demotion sha=$RUN_SHA signal=revert -->
+
+          A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer could not be read. The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging.
+
+          $lines- Main at the push: \`$RUN_SHA\`
+          - Canary run: $sighting
+
+          Find out why the pull request was reverted before closing this record." >/dev/null
+            echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
+            lane=1 reverted=()
+          }
+          if [[ "$signal" == canary ]]; then
+            revert_pass
+          fi
+          if [[ -n "$quiet" ]]; then
+            echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION on attempt $RUN_ATTEMPT: no canary record to file"
+            exit 0
+          fi
           number=''
           state=''
           filed=''
-          while IFS=$'\t' read -r n s _ first failing; do
+          while IFS=$'\t' read -r n s _ first failing _; do
             # A record matched by its failing run must be a demotion record:
             # anything else names the run without holding the gate.
             if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
@@ -713,12 +801,6 @@ jobs:
 
           if [[ -n "$passed" && -z "$number" ]]; then
             echo "attempt $RUN_ATTEMPT passed and no record exists: nothing to file"
-            exit 0
-          fi
-          # A revert is one push, so its record takes no sighting: a canary
-          # re-run never reopens a record a person closed.
-          if [[ -n "$number" && "$signal" == revert ]]; then
-            echo "#$number already records the revert at ${RUN_SHA:0:12}"
             exit 0
           fi
           if [[ -n "$number" ]]; then
@@ -753,10 +835,6 @@ jobs:
           fi
 
           classify
-          if [[ -z "$lane" && "$signal" == revert ]]; then
-            echo "no pull request ${RUN_SHA:0:12} reverts was put in the merge queue by the lanes App: nothing to file"
-            exit 0
-          fi
           if [[ -z "$lane" ]]; then
             marker="$failure_marker"
           fi
@@ -808,23 +886,6 @@ jobs:
           fi
           rung="The unattended merge path stays at
           rung off while any demotion record is open. Fix main first, then close every open demotion record directly (not through a pull request's closing keyword); a new sighting of the same failure reopens its record."
-          run_label='Failing run'
-          if [[ "$signal" == revert ]]; then
-            names='' pr_line=''
-            for n in "${reverted[@]}"; do
-              names="${names:+$names, }#$n"
-              pr_line="$pr_line- Reverted pull request: $pulls/$n"$'\n'
-            done
-            for c in "${reverting[@]}"; do
-              pr_line="$pr_line- Revert commit: \`$c\`"$'\n'
-            done
-            title="Post-merge revert of $names at ${RUN_SHA:0:12}: $outcome"
-            lead="A push to main reverted a pull request the lanes App put in the merge queue, or one whose enqueuer could not be read."
-            rung="The unattended merge path stays at rung off while this record, or any other demotion record, is open. A person closes it directly (not through a pull request's closing keyword) to re-enable unattended merging."
-            sha_label='Main at the push'
-            run_label='Canary run'
-            revert='Find out why the pull request was reverted before closing this record.'
-          fi
           if [[ -z "$lane" ]]; then
             rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; a human fixes main.'
             if [[ "${#range[@]}" -eq 1 ]]; then
@@ -867,7 +928,7 @@ jobs:
           $lead $rung
 
           $pr_line- $sha_label: \`$RUN_SHA\`
-          - $run_label: $sighting${newly:+
+          - Failing run: $sighting${newly:+
           - Newly failing: $newly}${fix_over:+
           - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}
 
