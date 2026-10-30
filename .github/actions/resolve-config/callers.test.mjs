@@ -6957,6 +6957,33 @@ test("every workflow npm ci step is bounded, unretried, and skips audit and fund
   assert.equal(loglevel, 1, "exactly one npm ci step logs at --loglevel http");
 });
 
+// A composite action step takes no timeout-minutes, so its npm ci runs under
+// `timeout` and skips audit and fund by flag, whatever env its caller sets.
+test("every composite action npm ci is bounded by timeout and skips audit and fund", () => {
+  let installs = 0;
+  for (const dir of readdirSync(new URL("..", import.meta.url))) {
+    const file = new URL(`../${dir}/action.yml`, import.meta.url);
+    if (!existsSync(file)) continue;
+    for (const step of parse(readFileSync(file, "utf8")).runs?.steps ?? []) {
+      for (const line of (step.run ?? "").split("\n").filter((text) => /\bnpm ci\b/.test(text))) {
+        const where = `${dir}/action.yml "${step.name}"`;
+        assert.match(line, /^\s*timeout \d+m npm ci\b/, `${where}: no timeout bound`);
+        assert.match(line, /--no-audit\b/, `${where}: --no-audit`);
+        assert.match(line, /--no-fund\b/, `${where}: --no-fund`);
+        installs += 1;
+      }
+    }
+  }
+  assert.ok(installs >= 2, `only ${installs} composite npm ci lines found`);
+});
+
+// #10061: no job timeout-minutes is raised to fit an install bound.
+test("check-catalog keeps its 3-minute job bound with the install step under it", () => {
+  const job = workflow("pr-require-checks.yml").jobs["check-catalog"];
+  assert.equal(job["timeout-minutes"], 3);
+  assert.equal(job.steps.find((step) => step.name === "Install the locked root toolchain")["timeout-minutes"], 2);
+});
+
 // --- lane transcripts: every model leg keeps its transcript, sealed ---
 
 // The read runner's model job uploads nothing (the test above). The write
