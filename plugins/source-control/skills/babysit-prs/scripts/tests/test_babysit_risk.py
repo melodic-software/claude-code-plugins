@@ -283,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 19, "gate": 48, "enforcement": 41},
+            {"trust": 19, "gate": 48, "enforcement": 42},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -1599,6 +1599,109 @@ class PersonReasonsTests(unittest.TestCase):
                 result = score(_input(files=(_file(path, has_patch=False),)))
                 self.assertFalse(holds(result), result.reasons)
 
+    def test_a_no_patch_file_with_no_unread_content_is_a_mergeable_med(self):
+        # The files API lists a pure rename and an empty file as it lists a
+        # binary one; the blob ids tell them apart.
+        blob = "a" * 40
+        no_patch = {"has_patch": False, "additions": 0, "deletions": 0}
+        for name, changed in (
+            (
+                "git mv",
+                dataclasses.replace(
+                    _file(
+                        "scripts/new.sh",
+                        status="renamed",
+                        previous_path="scripts/old.sh",
+                        **no_patch,
+                    ),
+                    blob=blob,
+                    previous_blob=blob,
+                ),
+            ),
+            (
+                "git mv of an executable",
+                dataclasses.replace(
+                    _file(
+                        "scripts/new.sh",
+                        status="renamed",
+                        previous_path="scripts/old.sh",
+                        mode="100755",
+                        previous_mode="100755",
+                        **no_patch,
+                    ),
+                    blob=blob,
+                    previous_blob=blob,
+                ),
+            ),
+            (
+                "empty added",
+                dataclasses.replace(
+                    _file("scripts/x.sh", status="added", **no_patch),
+                    blob=babysit_risk.EMPTY_BLOB,
+                ),
+            ),
+            (
+                "empty removed",
+                dataclasses.replace(
+                    _file("scripts/x.sh", status="removed", **no_patch),
+                    blob=babysit_risk.EMPTY_BLOB,
+                ),
+            ),
+            (
+                "chmod -x",
+                dataclasses.replace(
+                    _file(
+                        "scripts/x.sh",
+                        status="changed",
+                        previous_mode="100755",
+                        **no_patch,
+                    ),
+                    blob=blob,
+                    previous_blob=blob,
+                ),
+            ),
+        ):
+            with self.subTest(name):
+                result = score(_input(files=(changed,)))
+                self.assertIn(f"no-patch:{changed.path}", _codes(result))
+                self.assertFalse(holds(result), result.reasons)
+
+    def test_a_no_patch_file_that_may_carry_unread_content_holds_for_a_person(self):
+        blob, other = "a" * 40, "b" * 40
+        no_patch = {"has_patch": False, "additions": 0, "deletions": 0}
+        renamed = _file(
+            "scripts/new.sh", status="renamed", previous_path="scripts/old.sh", **no_patch
+        )
+        added = _file("scripts/new.sh", status="added", **no_patch)
+        for name, changed in (
+            ("bytes changed", dataclasses.replace(renamed, blob=other, previous_blob=blob)),
+            ("copied", dataclasses.replace(renamed, status="copied", blob=blob, previous_blob=blob)),
+            ("chmod +x", dataclasses.replace(renamed, status="changed", mode="100755", blob=blob, previous_blob=blob)),
+            ("non-empty added", dataclasses.replace(added, blob=other)),
+            ("no blob read", renamed),
+            ("malformed blob", dataclasses.replace(renamed, blob="", previous_blob="")),
+            ("no base blob", dataclasses.replace(renamed, blob=blob)),
+        ):  # fmt: skip
+            with self.subTest(name):
+                result = score(_input(files=(changed,)))
+                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                self.assertIn("unreviewed-patch:scripts/new.sh", persons)
+                self.assertNotIn("no-patch:scripts/new.sh", _codes(result))
+
+    def test_a_path_listed_twice_holds_when_either_entry_does(self):
+        blob = "a" * 40
+        no_patch = {"has_patch": False, "additions": 0, "deletions": 0}
+        clean = dataclasses.replace(
+            _file("scripts/x.sh", **no_patch), blob=blob, previous_blob=blob
+        )
+        unread = dataclasses.replace(clean, blob="b" * 40)
+        for files in ((clean, unread), (unread, clean)):
+            with self.subTest([f.blob for f in files]):
+                result = score(_input(files=files))
+                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                self.assertIn("unreviewed-patch:scripts/x.sh", persons)
+                self.assertNotIn("no-patch:scripts/x.sh", _codes(result))
+
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(
@@ -2118,7 +2221,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 41)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 42)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
