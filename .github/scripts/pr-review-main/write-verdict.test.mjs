@@ -9,7 +9,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { artifactName, buildVerdict, LONG_LINE_BYTES, longestLine, main, readCoverage, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildChunkedVerdict, buildVerdict, LONG_LINE_BYTES, longestLine, main, readCoverage, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -110,33 +110,124 @@ test("the cap is the merge gate's", () => {
   assert.equal(Number(python.stdout.trim()), LONG_LINE_BYTES);
 });
 
+test("a chunked review's verdict sums every chunk's findings and CRITICAL ones", () => {
+  const { output: _, ...rest } = args(undefined);
+  const verdict = buildChunkedVerdict({
+    ...rest,
+    outputs: [
+      { findings: [finding("CRITICAL"), finding("IMPORTANT")], summary: "first" },
+      { findings: [finding("CRITICAL"), finding("CRITICAL"), finding("SUGGESTION")], summary: "second" },
+    ],
+  });
+  assert.deepEqual({ findings: verdict.findings, critical: verdict.critical, items: verdict.items.length }, { findings: 5, critical: 3, items: 5 });
+  assert.equal(verdict.summary, "Chunk 1 of 2: first\n\nChunk 2 of 2: second");
+  assert.deepEqual(Object.keys(verdict).sort(), Object.keys(buildVerdict(args({ findings: [], summary: "s" }))).sort());
+  // One chunk is the single-pass verdict, unchanged.
+  const one = { findings: [finding("CRITICAL")], summary: "s" };
+  assert.deepEqual(buildChunkedVerdict({ ...rest, outputs: [one] }), buildVerdict(args(one)));
+  // Any chunk off the schema voids the whole verdict.
+  assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [one, { findings: [finding("HIGH")], summary: "s" }] }), /chunk 2 of 2/);
+  assert.throws(() => buildChunkedVerdict({ ...rest, outputs: [] }));
+});
+
+// A diff directory of chunk-<k>/part-<n>.patch files, and each chunk's
+// execution file: a Read of each of its own parts and a result.
+function chunkedRun(dir, chunks, { skip = [], result = () => ({ findings: [finding("CRITICAL")], summary: "s" }) } = {}) {
+  const diff = path.join(dir, "diff");
+  const files = chunks.map((texts, i) => {
+    const chunk = path.join(diff, `chunk-${i + 1}`);
+    mkdirSync(chunk, { recursive: true });
+    const parts = texts.map((body, j) => {
+      const part = path.join(chunk, `part-00${j + 1}.patch`);
+      writeFileSync(part, body);
+      return part;
+    });
+    if (skip.includes(i + 1)) return "";
+    const execution = path.join(dir, `execution-${i + 1}.json`);
+    const output = result(i + 1);
+    const messages = parts.map((part, j) => read(`r${i}-${j}`, part));
+    if (output !== undefined) messages.push({ type: "result", structured_output: output, permission_denials: [] });
+    writeFileSync(execution, JSON.stringify(messages));
+    return execution;
+  });
+  const output = path.join(dir, "output");
+  writeFileSync(output, "");
+  return {
+    EXECUTION_FILES: `${files.join("\n")}\n`,
+    CHUNKS: String(chunks.length),
+    LANE: "claude-review",
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    TREE_SHA: TREE,
+    GITHUB_RUN_ID: "9",
+    VERDICT_DIR: path.join(dir, "verdict"),
+    DIFF_DIR: diff,
+    GITHUB_OUTPUT: output,
+  };
+}
+
 test("main writes verdict.json and the name output", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
   try {
-    const execution = path.join(dir, "execution.json");
-    const parts = path.join(dir, "diff");
-    mkdirSync(parts);
-    writeFileSync(path.join(parts, "part-001.patch"), "+x\n");
-    const result = { type: "result", structured_output: { findings: [finding("CRITICAL")], summary: "s" }, permission_denials: [] };
-    writeFileSync(execution, JSON.stringify([read("r1", path.join(parts, "part-001.patch")), result]));
-    const output = path.join(dir, "output");
-    writeFileSync(output, "");
-    main({
-      EXECUTION_FILE: execution,
-      LANE: "claude-review",
-      PR_NUMBER: "42",
-      HEAD_SHA: HEAD,
-      BASE_SHA: BASE,
-      TREE_SHA: TREE,
-      GITHUB_RUN_ID: "9",
-      VERDICT_DIR: path.join(dir, "verdict"),
-      DIFF_DIR: parts,
-      GITHUB_OUTPUT: output,
-    });
+    const env = chunkedRun(dir, [["+x\n"]]);
+    main(env);
     const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));
     assert.equal(verdict.findings, 1);
     assert.equal(verdict.critical, 1);
-    assert.match(readFileSync(output, "utf8"), new RegExp(`^name=pr-review-main-claude-review-42-${TREE}$`, "m"));
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-review-main-claude-review-42-${TREE}$`, "m"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a chunked run writes one verdict summed over its chunks and a notice per chunk", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
+  try {
+    // Chunk 1 is 3 + 4 bytes with one CRITICAL; chunk 2 is 5 bytes with two
+    // CRITICAL and one IMPORTANT.
+    const outputs = { 1: { findings: [finding("CRITICAL")], summary: "a" }, 2: { findings: [finding("CRITICAL"), finding("IMPORTANT"), finding("CRITICAL")], summary: "b" } };
+    const env = chunkedRun(dir, [["+x\n", "+yz\n"], ["+abc\n"]], { result: (k) => outputs[k] });
+    const script = fileURLToPath(new URL("./write-verdict.mjs", import.meta.url));
+    const run = spawnSync(process.execPath, [script], { encoding: "utf8", env: { ...process.env, ...env } });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    const verdict = JSON.parse(readFileSync(path.join(dir, "verdict", "verdict.json"), "utf8"));
+    assert.deepEqual({ findings: verdict.findings, critical: verdict.critical }, { findings: 4, critical: 3 });
+    assert.match(run.stdout, /^::notice title=pr-review-main chunk::lane=claude-review chunk=1\/2 bytes=7 findings=1 critical=1$/m);
+    assert.match(run.stdout, /^::notice title=pr-review-main chunk::lane=claude-review chunk=2\/2 bytes=5 findings=3 critical=2$/m);
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^findings=4\ncritical=3$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a chunk that failed, left no verdict, or skipped a part writes no verdict at all", () => {
+  const cases = {
+    "a chunk never ran": { skip: [2] },
+    "a chunk left no result": { result: (k) => (k === 2 ? undefined : { findings: [], summary: "s" }) },
+    "a chunk's output is off the schema": { result: (k) => (k === 2 ? { findings: [], verdict: "pass" } : { findings: [], summary: "s" }) },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
+    try {
+      const env = chunkedRun(dir, [["+x\n"], ["+y\n"]], options);
+      assert.throws(() => main(env), /chunk 2 of 2/, name);
+      assert.throws(() => readFileSync(path.join(dir, "verdict", "verdict.json")), /ENOENT/, name);
+      assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "", name);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  // A run that read chunk 1's parts for chunk 2, or a chunk count that is
+  // not the directories on disk, voids the verdict too.
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-"));
+  try {
+    const env = chunkedRun(dir, [["+x\n"], ["+y\n"]]);
+    const [first] = env.EXECUTION_FILES.split("\n");
+    assert.throws(() => main({ ...env, EXECUTION_FILES: `${first}\n${first}\n` }), /chunk 2 of 2: the run did not read 1 of 1/);
+    assert.throws(() => main({ ...env, CHUNKS: "1" }), /2 chunk directories/);
+    assert.throws(() => main({ ...env, CHUNKS: "3" }), /2 chunk directories/);
+    assert.throws(() => readFileSync(path.join(dir, "verdict", "verdict.json")), /ENOENT/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
