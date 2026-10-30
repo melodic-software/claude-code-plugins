@@ -51,7 +51,7 @@ def env_var(key: str) -> str:
     return f"CLAUDE_PLUGIN_OPTION_{key.upper()}"
 
 
-CONVENTION_PATH = "docs/conventions/plugin-reconfiguration/README.md"
+CONVENTION_PATH = "docs/contracts/plugin-reconfiguration/README.md"
 CONVENTION_URL = (
     "https://github.com/melodic-software/claude-code-plugins/blob/main/"
     + CONVENTION_PATH
