@@ -957,7 +957,7 @@ jobs:
       # resolve-config resolved it (absent: native).
       - name: Read report-only
         id: mode
-        if: steps.config.outcome == 'success'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml
@@ -997,9 +997,18 @@ jobs:
       # newer run checks every PR. A kill switch turned on after this run read
       # its variables is refused `kill-switch`; it ends green with a notice and
       # no token the same way, and the next scheduled run checks every PR.
+      # A merge-pr slot the config turns off (`enabled: false`, or an
+      # `applies-when` that does not match) mints no token, so no step after
+      # this one runs, and the job ends green.
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::merge-pr does not apply (${REASON:-no reason}); no lane token requested, nothing read or merged"
+
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
