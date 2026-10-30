@@ -3698,6 +3698,7 @@ def assess_unattended(
     shared: merge_policy.SharedPostMerge | None = None,
     share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
     stop_when_closed: bool = False,
+    postmerge_result: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -3705,9 +3706,21 @@ def assess_unattended(
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
-    post_merge = postmerge.gate_reader(
-        repo, self_logins, lane_merges_only=authority == merge_policy.PR_MERGE
-    )
+    lane = authority == merge_policy.PR_MERGE
+    post_merge = postmerge.gate_reader(repo, self_logins, lane_merges_only=lane)
+    if postmerge_result is not None:
+
+        def main_head() -> str | None:
+            try:
+                owner, name = merge_policy._split_repo(repo)
+                branch = merge_policy._default_branch(repo, shared=True)
+                return merge_policy.base_tip(owner, name, branch)
+            except merge_policy.PolicyReadError:
+                return None
+
+        post_merge = postmerge.reuse_unreadable(
+            postmerge_result, post_merge, main_head, lane_merges_only=lane
+        )
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
@@ -5426,6 +5439,7 @@ def _main() -> int:
                     # request whose read-back needs the policy of a merged
                     # pull request, so a merged one skips the post-merge check.
                     stop_when_closed=pending_path is None,
+                    postmerge_result=args.postmerge_result,
                     # Each recompute goes back to the file for the next candidate.
                     share=(
                         None

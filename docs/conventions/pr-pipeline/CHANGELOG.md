@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [8.6.2] - 2026-10-30
+
+### Fixed
+
+- The fix-docs dispatcher no longer dispatches a PR again after a `pr-refine fix-docs #<n>` run for it completed without posting a check. Before, a run that stopped at its trigger gate, emitted an empty head or failed before its report was dispatched again on every push to main, and a same-repository PR stopped at the trigger gate took a dispatch slot each time. A PR whose only run was lost (`cancelled`, `timed_out` or `startup_failure`) gets one more dispatch, and none after a second lost run. The dispatcher reads this from the run listing it already reads for its in-flight guard, so it makes no new call (`.github/scripts/pr-unblock/fix-docs-dispatch.mjs`). ([#8890](https://github.com/melodic-software/claude-code-plugins/issues/8890))
+
+- A `ci-fix-escalated` stop now queues the pull request for a session builder, so it no longer
+  has no next actor once the dispatcher's same-head retry is spent. The label goes on at each such
+  stop while that retry still runs, and the session that finds the head green or lands the fix
+  removes it; no lane removes it. `escalation-routes.json` gives the reason
+  `"label": "needs-session"`, and `report-escalation.sh` adds that label, on a fail route only and
+  only a well-formed label name, before the lane-stopped comment that names it. It puts the label
+  back when a session removed it and the lane stops again on the same head.
+
 ## [8.6.1] - 2026-10-30
 
 ### Changed
