@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { escapeCell, failureRows, main, MAX_ROWS, render } from "./post.mjs";
+import { escapeCell, failureRows, main, MAX_ROWS, render, templatePath } from "./post.mjs";
 
 const BOT = { login: "github-actions[bot]" };
 const ENV = {
@@ -58,7 +58,7 @@ test("only rows of the recorded shape pass, duplicates fold, and the rest count 
   ];
   assert.deepEqual(failureRows(JSON.stringify({ rows, dropped: 3 })), {
     rows: [
-      { method: "GET", path: "/repos/o/r/pulls/1", status: 404 },
+      { method: "GET", path: "/repos/{repo}/pulls/*", status: 404 },
       { method: "POST", path: "/graphql", status: 0 },
     ],
     dropped: 13,
@@ -66,7 +66,7 @@ test("only rows of the recorded shape pass, duplicates fold, and the rest count 
 });
 
 test("rows past the cap are dropped and counted", () => {
-  const rows = Array.from({ length: MAX_ROWS + 7 }, (_, i) => ({ method: "GET", path: `/repos/o/r/pulls/${i}`, status: 500 }));
+  const rows = Array.from({ length: MAX_ROWS + 7 }, (_, i) => ({ method: "GET", path: "/repos/o/r/pulls", status: 400 + i }));
   const out = failureRows(JSON.stringify({ rows, dropped: 0 }));
   assert.equal(out.rows.length, MAX_ROWS);
   assert.equal(out.dropped, 7);
@@ -93,14 +93,14 @@ test("the body opens with the marker and lists the activity, outcome, commits an
     actOutcome: "failure",
     commit: "a".repeat(40),
     readLane: false,
-    failures: { rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 },
+    failures: failureRows(JSON.stringify({ rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 })),
   });
   assert.ok(body.startsWith("<!-- lane-run-report activity=write/fix-docs run=9 -->\n"));
   assert.match(body, /\| Activity \| write\/fix-docs \|/);
   assert.match(body, /\| Run job \| success \|/);
   assert.match(body, /\| Activity step \| failure \|/);
   assert.match(body, new RegExp(`\\| Commits pushed \\| ${"a".repeat(40)} \\|`));
-  assert.match(body, /\| PATCH \| \/repos\/o\/r\/git\/refs\/heads\/my&#95;branch \| 422 \|/);
+  assert.match(body, /\| PATCH \| \/repos\/\{repo\}\/git\/refs\/heads\/&#42; \| 422 \|/);
   assert.match(body, /2 more not shown/);
 });
 
@@ -125,7 +125,7 @@ test("main posts the report on the pull request", async () => {
   assert.equal(write.method, "POST");
   assert.equal(write.path, "/repos/o/r/issues/42/comments");
   assert.ok(write.body.body.startsWith(`${MARKER}\n`));
-  assert.match(write.body.body, /\| GET \| \/repos\/o\/r\/pulls\/42 \| 502 \|/);
+  assert.match(write.body.body, /\| GET \| \/repos\/\{repo\}\/pulls\/&#42; \| 502 \|/);
 });
 
 test("a rerun of the same run edits its comment", async () => {
@@ -150,4 +150,33 @@ test("a posting failure warns and does not fail the step", async () => {
   const out = await run({}, api.github);
   assert.equal(out.code, 0);
   assert.ok(out.lines.some((line) => line.startsWith("::warning::could not post")));
+});
+
+test("a path renders as a template: known words stay, the repository is {repo}, anything else is *", () => {
+  assert.equal(templatePath("/repos/a/b/issues/123/comments"), "/repos/{repo}/issues/*/comments");
+  assert.equal(templatePath("/repos/o/r/git/refs/heads/my_branch"), "/repos/{repo}/git/refs/heads/*");
+  assert.equal(templatePath("/repos/o/r/commits/abc123/check-runs"), "/repos/{repo}/commits/*/check-runs");
+  assert.equal(templatePath("/graphql"), "/graphql");
+  assert.equal(templatePath("/repos/o"), "/repos/*");
+  assert.equal(templatePath("/api/v3/repos/o/r/pulls/7"), "/api/v3/repos/{repo}/pulls/*");
+});
+
+test("planted text never reaches the comment", () => {
+  const key = "sk-ant-api03-AAAABBBBCCCCDDDD";
+  assert.equal(templatePath(`/repos/o/r/issues/${key}`), "/repos/{repo}/issues/*");
+  assert.equal(templatePath(`/${key}/pulls`), "/*/pulls");
+  const rows = Array.from({ length: 4 }, (_, i) => ({ method: "GET", path: `/repos/o/r/${key}${i}`, status: 404 }));
+  const body = render({ lane: "read", activity: "fix-ci", runId: "1", runResult: "success", actOutcome: "success", readLane: true, failures: failureRows(JSON.stringify({ rows, dropped: 0 })) });
+  assert.doesNotMatch(body, /sk-ant|AAAA/);
+});
+
+test("rows that template alike fold into one before the cap", () => {
+  const rows = Array.from({ length: MAX_ROWS + 20 }, (_, i) => ({ method: "GET", path: `/repos/o/r/pulls/${i}`, status: 500 }));
+  rows.push({ method: "GET", path: "/repos/o/r/issues/1", status: 500 });
+  const out = failureRows(JSON.stringify({ rows, dropped: 0 }));
+  assert.deepEqual(out.rows, [
+    { method: "GET", path: "/repos/{repo}/pulls/*", status: 500 },
+    { method: "GET", path: "/repos/{repo}/issues/*", status: 500 },
+  ]);
+  assert.equal(out.dropped, MAX_ROWS + 19);
 });

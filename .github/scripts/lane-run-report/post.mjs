@@ -24,6 +24,26 @@ const OUTCOME = /^[a-z_-]{1,32}$/;
 
 export const marker = ({ lane, activity, runId }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} -->`;
 
+// GitHub REST path words that may appear in the comment. The model shares
+// RUNNER_TEMP, so any other segment could be planted text (a key split across
+// rows): it renders as *, and the owner/name pair after repos as {repo}.
+const WORDS = new Set(
+  "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit".split(" "),
+);
+export function templatePath(path) {
+  const parts = path.split("/").slice(1);
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === "repos" && i + 2 < parts.length) {
+      out.push("repos", "{repo}");
+      i += 2;
+    } else {
+      out.push(WORDS.has(parts[i]) ? parts[i] : "*");
+    }
+  }
+  return `/${out.join("/")}`;
+}
+
 const validRow = (row) =>
   row !== null &&
   typeof row === "object" &&
@@ -35,7 +55,7 @@ const validRow = (row) =>
   row.status <= 599;
 
 // The carried rows that have the recorded shape, each distinct row once, at
-// most MAX_ROWS; dropped counts the rest and the run job's own dropped count.
+// most MAX_ROWS, each path as its template (templatePath); dropped counts the rest and the run job's own dropped count.
 export function failureRows(text) {
   let carried;
   try {
@@ -49,10 +69,11 @@ export function failureRows(text) {
   const rows = [];
   for (const row of given) {
     if (!validRow(row)) continue;
-    const key = `${row.method} ${row.path} ${row.status}`;
+    const path = templatePath(row.path);
+    const key = `${row.method} ${path} ${row.status}`;
     if (seen.has(key) || rows.length >= MAX_ROWS) continue;
     seen.add(key);
-    rows.push({ method: row.method, path: row.path, status: row.status });
+    rows.push({ method: row.method, path, status: row.status });
   }
   return { rows, dropped: before + given.length - rows.length };
 }
