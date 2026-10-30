@@ -107,7 +107,7 @@
       {
         "name": "check-links",
         "status": "in-use",
-        "purpose": "Check every Markdown link with the network on; audit-link-check-excludes covers only the exclude list."
+        "purpose": "Check every Markdown link with the network on."
       },
       { "name": "file-upstream-drift-issues", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },

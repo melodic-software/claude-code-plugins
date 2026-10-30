@@ -122,10 +122,10 @@ exclude = [
   # Listed per repo, not per owner, so links to public siblings stay checked.
   # GENERATED, not hand-edited: the two alternations below are derived from
   # actual repository visibility by components/lychee/private-repo-inventory.sh
-  # (`generate --write` regenerates them; `check` fails CI and the scheduled
-  # maintenance-audit-link-check-excludes workflow when they disagree with
-  # visibility, the drift that produced standards#212 and #483). The optional
-  # \.git arm covers
+  # (`generate --write` regenerates them; `check` fails CI when an excluded
+  # repository is public). A private repository missing from the list, the
+  # drift behind standards#212 and #483, shows up as a 404 in an online run;
+  # regenerate then. The optional \.git arm covers
   # HTTPS clone URLs: the dot after the repo name would otherwise miss the
   # [/#?] boundary.
   '^https?://github\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
