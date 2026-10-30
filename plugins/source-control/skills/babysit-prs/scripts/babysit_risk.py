@@ -2382,12 +2382,13 @@ def holding(result: RiskResult) -> list[Reason]:
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 # with real-charge and trust holds kept, and for a hold no lane can clear): a
 # CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
-# new secrets reference or model leg, every high path
-# (the floor, a configured denied path, or an aliasing path, symlink,
-# submodule or mode change) and a listing past the files API's cap. The lanes
-# clear every other holding reason, such as review evidence not yet bound to
-# the head or a listing a read did not finish, by judging again. The one list
-# both the merge gate and enable-auto-merge.mjs read.
+# new secrets reference or model leg and a listing past the files API's cap.
+# A high path (the floor, a configured denied path, or an aliasing path,
+# symlink, submodule or mode change) still holds, but is not a person's: the
+# owner set no path restrictions (#11020). The lanes clear every other
+# holding reason, such as review evidence not yet bound to the head or a
+# listing a read did not finish, by judging again. The one list both the
+# merge gate and enable-auto-merge.mjs read.
 FILES_CAPPED_CODE = "files-capped"
 PERSON_CODES = frozenset(
     {
@@ -2402,7 +2403,6 @@ PERSON_CODES = frozenset(
 )
 PERSON_PREFIXES = (
     TRUST_GATE_PREFIX,
-    "high-path:",
     UNREVIEWED_PATCH_PREFIX,
     LONG_LINE_PREFIX,
 )

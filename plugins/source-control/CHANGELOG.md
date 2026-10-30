@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.3] - 2026-10-30
+
+### Changed
+
+- `/source-control:setup`: the babysit config section names `claude plugin configure source-control@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
+### Fixed
+
+- **resolve-conflicts:** a new second discipline, ahead of the Task, tells the agent to decline a bulk side-pick even when the user asks for it. It names the commands to leave unrun (`git checkout --ours/--theirs`, `git restore --ours/--theirs`, `-X ours/theirs`, `--strategy-option ours/theirs`, `-s ours`, and any command that writes one side's or one ref's version over a conflicted path) and what to do instead: list the unmerged paths, recover each side's intent, then resolve each file or stop and ask. When a file's evidence says one side wins, the agent writes that side by editing the file. Before this, the refusal was only a definition inside the first discipline, and aborting was the only shortcut with a stated alternative.
+
 ## [4.4.2] - 2026-10-30
 
 ### Changed

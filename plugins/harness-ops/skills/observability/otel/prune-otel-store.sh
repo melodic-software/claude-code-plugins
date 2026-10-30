@@ -18,6 +18,9 @@
 # Lock-safe cycle (only runs when records actually need dropping — see dry-check below):
 #   1. acquire an mkdir-atomic sentinel (.prune-in-progress) in the store dir. The mkdir is the
 #      mutual-exclusion lock: a second prune fails to create it and exits without mutation.
+#      Its owner token records the holder's pid and start time. A sentinel whose holder is gone
+#      (or, with no token, older than an hour) is stale: the run logs it and takes it over. A
+#      live holder past the hour fails the run (action=error-lock-held, exit 1).
 #   2. stop the provisioning-owned otelcol-contrib Windows service; poll Get-Service until it is
 #      Stopped so its file exporter has released the store handles.
 #   3. per store file: awk-route each line to a kept temp / dropped temp / surgery temp in the
@@ -31,6 +34,8 @@
 #      store intact — no backup/rollback needed.
 #   4. start the service + release the sentinel last. Done in the EXIT trap, so every trim exit path
 #      attempts recovery; a failed restart makes an otherwise successful prune fail visibly.
+#      A hard kill skips the trap, so the no-op paths and --scrub-cold also start a Stopped
+#      Collector whenever no live prune holds the sentinel.
 #
 # Comparison is at SECOND granularity: a 19-digit nano (~1.78e18) exceeds awk's exact-integer
 # range (IEEE-754 double, exact only to 2^53 ≈ 9.0e15), so a raw-nano awk compare silently
@@ -104,6 +109,11 @@
 #   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
 #                          cold COPY+verify; must create <cold-temp> on success — test seam
 #                          (failure injection ONLY; real compaction is always duckdb)
+#   CC_OTEL_SENTINEL_MAX_AGE_MINUTES
+#                          age past which a sentinel with no owner token is stale and a live
+#                          holder fails the run (default: 60; a positive integer)
+#   CC_OTEL_TEST_ROOT      the test suites' temp dir: a store outside it is refused (exit 2), so
+#                          a test can never reach a real store
 
 set -euo pipefail
 
@@ -158,6 +168,8 @@ Env:
   CC_OTEL_COLD_KEEP_USER_PROMPTS
                                =1 keeps user_prompt bodies + prompt/prompt_text attributes in cold (default: off)
   CC_OTEL_COLD_KEEP_CONTENT    =0 scrubs the other content-class columns in cold (default: 1, kept)
+  CC_OTEL_SENTINEL_MAX_AGE_MINUTES
+                               stale-lock bound in minutes (default: 60)
   Lifecycle                    Windows service: otelcol-contrib (requires provisioning's scoped
                                SERVICE_STOP and SERVICE_START grant for the runtime user)
 EOF
@@ -264,6 +276,45 @@ parse_counts() {
   SURGERY="${SURGERY%% *}"
 }
 
+# Print a path with its deepest existing directory resolved (symlinks, and on Windows one long-name
+# drive form for MSYS, short 8.3 and C:\ spellings) and the missing tail appended.
+real_path() {
+  local p="$1" tail=""
+  while [[ ! -d "$p" && "$p" == */* ]]; do
+    tail="/${p##*/}$tail"
+    p="${p%/*}"
+  done
+  [[ "$tail/" != */../* ]] || return 0 # unresolvable: prints nothing, which no root contains
+  p="$(cd "${p:-/}" && pwd -P)"
+  if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -aml "$p")"; fi
+  printf '%s%s\n' "${p%/}" "$tail"
+}
+
+# True when path is root or inside it.
+under_root() {
+  local path root
+  path="$(real_path "$1")"
+  root="$(real_path "$2")"
+  [[ "${path%/}/" == "${root%/}/"* ]]
+}
+
+# Take the sentinel, recovering a stale one, or report why not: 1 = a live prune holds it
+# (action=noop-locked), 3 = it has held it past the bound (action=error-lock-held).
+take_lock_or_report() {
+  local rc=0
+  # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+  acquire_sentinel || rc=$?
+  ((rc == 0)) && return 0
+  if ((rc == 3)); then
+    lock_held_too_long
+    printf 'action=error-lock-held\n'
+  else
+    err "a prune is already in progress ($SENTINEL) — exiting"
+    printf 'action=noop-locked\n'
+  fi
+  return "$rc"
+}
+
 # The probe reads this stamp to show the scheduled prune is firing.
 stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
 
@@ -311,6 +362,10 @@ main() {
     err "CC_OTEL_HOT_TOTAL_MAX_MB must be a non-negative integer (got: $hot_total_max_mb)"
     return 2
   fi
+  if [[ ! "$SENTINEL_MAX_AGE_MINUTES" =~ ^[1-9][0-9]*$ ]]; then
+    err "CC_OTEL_SENTINEL_MAX_AGE_MINUTES must be a positive integer (got: $SENTINEL_MAX_AGE_MINUTES)"
+    return 2
+  fi
   # Base 10, so a leading zero (08) is not read as octal.
   hot_max_mb=$((10#$hot_max_mb))
   hot_total_max_mb=$((10#$hot_total_max_mb))
@@ -327,6 +382,11 @@ main() {
   # awk -v treats each backslash as an escape and strips it. Forward slashes work for bash,
   # awk and duckdb alike.
   [[ "$OS_KIND" == windows ]] && store_dir="${store_dir//\\//}"
+  # shellcheck disable=SC2310  # a predicate: its status IS the branch
+  if [[ -n "${CC_OTEL_TEST_ROOT:-}" ]] && ! under_root "$store_dir" "$CC_OTEL_TEST_ROOT"; then
+    err "store $store_dir is outside CC_OTEL_TEST_ROOT ($CC_OTEL_TEST_ROOT) — refusing"
+    return 2
+  fi
   SENTINEL="$store_dir/.prune-in-progress"
 
   if [[ "$scrub_cold_mode" == true ]]; then
@@ -335,7 +395,8 @@ main() {
     if keep_prompts && ! scrub_content; then
       printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and CC_OTEL_COLD_KEEP_CONTENT (unset or 1) keep prompts and content in cold; nothing scrubbed\n'
       printf 'action=noop-scrub-cold-keep-user-prompts\n'
-      return 0
+      [[ "$dry_run" == true ]] || ensure_collector_briefly
+      return
     fi
     if ! command -v duckdb >/dev/null 2>&1; then
       err "duckdb not found — cannot scrub cold files"
@@ -350,14 +411,11 @@ main() {
     # alone keeps a concurrent prune from compacting into cold/ mid-scrub.
     mkdir -p "$store_dir"
     # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-    if ! take_sentinel; then
-      err "a prune is already in progress ($SENTINEL) — exiting"
-      printf 'action=noop-locked\n'
-      return 0
-    fi
+    take_lock_or_report || return $(($? == 3))
     OWN_SENTINEL=true
     trap cleanup EXIT
     rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
+    ensure_collector_running
     scrub_cold "$store_dir" false
     return
   fi
@@ -426,24 +484,22 @@ main() {
 
   if ((${#present_files[@]} == 0)); then
     printf 'action=noop-store-absent\n'
-    return 0
+    ensure_collector_briefly
+    return
   fi
 
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
     stamp_last_prune "$store_dir"
     printf 'action=noop-nothing-to-prune\n'
-    return 0
+    ensure_collector_briefly
+    return
   fi
 
   # Acquire the sentinel (lock + revival-race signal). Failure => another prune holds it.
   mkdir -p "$store_dir"
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-  if ! take_sentinel; then
-    err "a prune is already in progress ($SENTINEL) — exiting"
-    printf 'action=noop-locked\n'
-    return 0
-  fi
+  take_lock_or_report || return $(($? == 3))
   OWN_SENTINEL=true
   trap cleanup EXIT
   # The first prune of a store had no cold/ for mark_cold_clean_briefly; it gets one here.

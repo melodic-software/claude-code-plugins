@@ -3,7 +3,8 @@
 #
 #   identity-domains.sh --profile FILE|- [--data-dir DIR [--confirm] [--replace]]
 #                       [--owner NAME=OWNER] [--marker NAME=TEXT]
-#                       [--az-config-dir NAME=DIR] [--shared-exception PATH]
+#                       [--az-config-dir NAME=DIR]
+#                       [--shared-exception FROM[,FROM...]:TO=PATH]
 #
 # FILE is a /harness-ops:machine-profile document: the stored profile.json or a
 # saved `discover` output ("-" reads stdin). Each recorded identity domain whose
@@ -13,6 +14,12 @@
 # segment, with `-2`, `-3` added on a clash. The profile records no owners,
 # identity markers, az directory or shared exceptions; the repeatable flags add
 # them by domain name, and a value left unsupplied is left out of the map.
+#
+# A --shared-exception opens PATH, a directory of domain TO, to sessions in the
+# FROM domains, one way: the map entry {path, from, to}. PATH must be TO's tree,
+# or below it or below one of TO's owner directories under $HOME, and not below
+# another domain's path nested there, compared as block-cross-domain.sh compares
+# them; FROM must not list TO.
 #
 # Prints the map, and one note per tree skipped or value left out on stderr.
 # With --data-dir, refuses when DIR already holds a different map, unless
@@ -48,6 +55,17 @@ def base: sub("[\\\\/]+$"; "") | split("/") | last | split("\\") | last
 def fresh($taken):
   . as $b
   | if $taken[$b] then first(range(2; infinite) | "\($b)-\(.)" | select($taken[.] | not)) else $b end;
+def fold($os):
+  gsub("[\\\\/]+"; "/") | sub("(?<=.)/$"; "")
+  | if $os == "windows" then ascii_downcase | sub("^/(cygdrive/|mnt/)?(?<d>[a-z])(?=/|$)"; "\(.d):")
+    else sub("^/(cygdrive|mnt)/(?<d>[A-Za-z])(?=/|$)"; "\(.d | ascii_downcase):")
+      | sub("^(?<d>[A-Z]):"; "\(.d | ascii_downcase):") end;
+# The domain of the longest path in $paths ({d, v} objects) that holds or equals
+# the input, else null.
+def innermost($paths; $os):
+  fold($os) as $q
+  | [$paths[] | (.v | fold($os)) as $r | select($q == $r or ($q | startswith($r + "/"))) | {d, n: ($r | length)}]
+  | max_by(.n) | .d;
 ($ARGS.positional | [range(0; length; 3) as $i | {k: .[$i][1:], n: .[$i + 1][1:], v: .[$i + 2][1:]}]) as $extra
 | (try fromjson catch null) as $doc
 | if ($doc | type) != "object" then {refused: ["the profile is not a JSON object"]}
@@ -67,7 +85,19 @@ def fresh($taken):
       | ($kept | map(.name)) as $names
       | ([$extra[] | select(.k != "shared-exception" and (.n as $n | $names | any(.[]; . == $n) | not))
           | "--\(.k) names domain \(.n), which the profile does not yield; its domains are \($names | join(", "))"]
-        + [$extra[] | select(.v | oneline | not) | "a --\(.k) value is not a non-empty one-line string"]) as $bad
+        + [$extra[] | select(.v | oneline | not) | "a --\(.k) value is not a non-empty one-line string"]
+        + [$extra[] | select(.k == "shared-exception") | .n as $n | .v as $p | ($n | split(":")) as $s
+            | if ($s | length) != 2 or $s[0] == "" or $s[1] == "" then "--shared-exception takes FROM[,FROM...]:TO=PATH, not \($n)=\($p)"
+              else ($s[0] | split(",")) as $from | $s[1] as $to
+              | [$from[], $to | select(. as $d | $names | any(.[]; . == $d) | not)] as $unknown
+              | if $unknown != [] then "--shared-exception names domain \($unknown[0]), which the profile does not yield; its domains are \($names | join(", "))"
+                elif any($from[]; . == $to) then "--shared-exception \($n): FROM lists TO"
+                elif ($p | oneline) and ($p | innermost([$kept[] | {d: .name, v: .tree}]
+                    + [$extra[] | select(.k == "owner") | .n as $d | .v as $o | $home | select(. != "")
+                        | {d: $d, v: "\(.)/src/github.com/\($o)"}, {d: $d, v: "\(.)/worktrees/github.com/\($o)"}]; $os) != $to)
+                then "--shared-exception \($n): \($p) is not the tree of domain \($to), below it, or below one of its owner directories, outside every domain nested there"
+                else empty end
+              end]) as $bad
       | def given($k; $n): [$extra[] | select(.k == $k and .n == $n) | .v];
         def ghset: .gh.verdict == "set" and (.gh.value | oneline);
         if ($kept | length) == 0 then {refused: (["no identity domain in the profile has an absolute tree with no wildcard"] + $bad), notes: [$rows[] | .note // empty]}
@@ -82,7 +112,9 @@ def fresh($taken):
                   + (if ghset then {gh_config_dir: .gh.value} else {} end)
                   + (given("az-config-dir"; $n) | if length > 0 then {az_config_dir: last} else {} end))})
             | from_entries) as $domains
-          | ([$extra[] | select(.k == "shared-exception") | .v] | if length > 0 then {shared_exceptions: .} else {} end) as $shared
+          | ([$extra[] | select(.k == "shared-exception") | (.n | split(":")) as $s
+                | {path: .v, from: ($s[0] | split(",")), to: $s[1]}]
+              | if length > 0 then {shared_exceptions: .} else {} end) as $shared
           | {map: ({domains: $domains} + $shared),
              notes: ([$rows[] | .note // empty]
                + [$kept[] | select(ghset | not)
@@ -118,7 +150,7 @@ while [[ $# -gt 0 ]]; do
     --owner) add_extra owner "$2" ;;
     --marker) add_extra marker "$2" ;;
     --az-config-dir) add_extra az-config-dir "$2" ;;
-    --shared-exception) EXTRA+=(":shared-exception" ":" ":$2") ;;
+    --shared-exception) add_extra shared-exception "$2" ;;
     *) ;;
     esac
     shift 2
@@ -146,7 +178,7 @@ else
 fi
 
 # MSYS_NO_PATHCONV=1 keeps Git Bash from rewriting the path values handed to jq.
-OUT="$(MSYS_NO_PATHCONV=1 jq -c -R -s "$BUILD_JQ" --args ${EXTRA[@]+"${EXTRA[@]}"} <<<"$RAW")" || die "jq could not build the map" 1
+OUT="$(MSYS_NO_PATHCONV=1 jq -c -R -s --arg home "${HOME:-}" "$BUILD_JQ" --args ${EXTRA[@]+"${EXTRA[@]}"} <<<"$RAW")" || die "jq could not build the map" 1
 OUT=${OUT//$'\r'/}
 jq -r '(.notes // [])[] | "note: \(.)"' <<<"$OUT" | tr -d '\r' >&2
 REFUSED="$(jq -r '(.refused // [])[]' <<<"$OUT" | tr -d '\r')"
