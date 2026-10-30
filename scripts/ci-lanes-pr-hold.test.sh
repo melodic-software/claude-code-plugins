@@ -328,7 +328,7 @@ for stub in '' 'export const holds = () => [];' 'export const switchHold = () =>
   'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
   if [[ -z "$stub" ]]; then rm -f "$held_module"; else printf '%s\n' "$stub" >"$held_module"; fi
   expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
-    "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #7; re-run this run."
+    "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #7; re-run this run."
 done
 cp "$MODULE" "$held_module"
 # shellcheck disable=SC2016 # a literal workflow expression, not shell
