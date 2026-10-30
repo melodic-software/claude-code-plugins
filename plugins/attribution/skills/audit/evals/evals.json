@@ -235,7 +235,7 @@
       "id": 13,
       "name": "distilling-files-are-cleared-on-their-own-attribution",
       "prompt": "/attribution:audit the four cases c21 through c24 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the file distills. Report what you find in each.",
-      "expected_output": "All four files state facts an external source owns, and each is a surface whose stated job is to distill that source. The panel clears each on the distilling-file carve-out by quoting the line of the file's own attribution that enumerates the fact: the Sources bullet naming the adaptive-thinking default for c21, the inline guide citation on the span for c22, the two inline citations for c23, and the opening line naming the guide for c24. No restated-fact finding is produced for any of them and each is reported as examined.",
+      "expected_output": "All four files state facts an external source owns, and each is a surface whose stated job is to distill that source. The panel clears c21 and c24 on the distilling-file carve-out by quoting the line of the file's own attribution that enumerates the fact: the Sources bullet naming the adaptive-thinking default for c21 and the opening line naming the guide for c24. c22 and c23 are each reported as a restated-fact finding starting at line 3: their inline citations name a guide section or a documentation page and carry no URL, as-of date or recheck trigger, and the 0.14.4 restated-fact panel was unanimous on both. Each file is reported as examined.",
       "files": [
         "evals/fixtures/golden/c21-negative-distilling-thinking-controls/case.md",
         "evals/fixtures/golden/c21-negative-distilling-thinking-controls/source.md",
@@ -251,8 +251,9 @@
         "evals/fixtures/golden/c24-negative-distilling-loops-taxonomy/expected.json"
       ],
       "expectations": [
-        "Produces no finding for c21 through c24 and clears each on the distilling-file carve-out rather than on a low similarity score",
-        "Quotes the enumerating line of each file's own attribution, which is the Sources bullet for c21, the inline guide citation for c22, the two inline citations for c23 and the opening line for c24",
+        "Produces no finding for c21 or c24 and clears each on the distilling-file carve-out rather than on a low similarity score",
+        "Quotes the enumerating line of each cleared file's own attribution, which is the Sources bullet for c21 and the opening line for c24",
+        "Reports c22 and c23 each as class restated-fact under the rule id attribution/audit/rule-restated-upstream-fact, with a span that includes line 3, and names the inline citations as carrying no URL, as-of date or recheck trigger",
         "States that the carve-out rests on the attribution line that enumerates the fact and not on the file's purpose alone, and that a fact the attribution does not enumerate would remain a candidate",
         "Does not report c21 as an unstamped restatement on the ground that the excerpt carries no four-part record",
         "Reports that all four files were examined, so a clean file is visible as coverage rather than absent from the report"
@@ -304,7 +305,7 @@
       "id": 15,
       "name": "matches-that-reach-judgment-are-cleared-on-their-own-record-or-citation",
       "prompt": "/attribution:audit the five cases c34 through c38 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the passage matches. Report what you find in each.",
-      "expected_output": "All five passages match their source closely enough to fire the separation rule, and none is a finding. c34 and c37 are cleared on the conforming stamped record carve-out, quoting the claim, basis, as-of date and recheck trigger that name the restated facts. c38 is cleared on the quotation-context carve-out, because the quoted span is attributed at the span. c35 is cleared because the matched text is the file's own Sources entry, which is the citation and not a copy. c36 is cleared because the record at the head of the file names the row's values and the row adds a local severity scheme. Each is reported as examined.",
+      "expected_output": "All five passages match their source closely enough to fire the separation rule, and four are not findings. c34 and c37 are cleared on the conforming stamped record carve-out, quoting the claim, basis, as-of date and recheck trigger that name the restated facts. c38 is cleared on the quotation-context carve-out, because the quoted span is attributed at the span. c35 is cleared because the matched text is the file's own Sources entry, which is the citation and not a copy. c36 is a near-verbatim finding on line 12: the record at the head of the file names the row's two values, and does not cover the source's sentences the row lifts beside them. Each is reported as examined.",
       "files": [
         "evals/fixtures/golden/c34-negative-record-names-the-restated-list/case.md",
         "evals/fixtures/golden/c34-negative-record-names-the-restated-list/source.md",
@@ -323,11 +324,11 @@
         "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/expected.json"
       ],
       "expectations": [
-        "Produces no finding for c34 through c38",
+        "Produces no finding for c34, c35, c37 or c38",
         "Clears c34 and c37 on the conforming stamped record carve-out and quotes the claim, the basis URL, the ISO as-of date and the recheck trigger from each",
         "Clears c38 on the quotation-context carve-out and quotes the sentence that names the guide, the section and the URL beside the quoted span",
         "Clears c35 on its failing criteria, stating that the matched text is the file's Sources entry and that the entry is the attribution its claims point at",
-        "Clears c36 on the record at the head of the file, stating that the record names the row's two values, and notes that the row also adds a local severity scheme",
+        "Reports c36 as class near-verbatim with a span that includes line 12, and states that the record at the head of the file names the row's two values and not the sentences lifted beside them",
         "Reports that all five files were examined, so a cleared file is visible as coverage rather than absent from the report"
       ]
     }
