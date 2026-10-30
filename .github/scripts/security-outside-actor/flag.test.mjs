@@ -356,6 +356,13 @@ test("removing any other label writes nothing", async () => {
   }
 });
 
+// Actions' `==` in the job gate ignores case, so a case-renamed label reaches the script.
+test("removing the label under another letter case still puts it back", async () => {
+  const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER, { name: "Security: Outside-Actor" }));
+  assert.equal(code, 0);
+  assert.ok(posts(calls).some((call) => call.apiPath === `/repos/${REPO}/issues/9/labels`));
+});
+
 test("a second removal by the same account re-adds the label and posts no second comment", async () => {
   const own = { user: ACTIONS_BOT, body: `${restoreMarker(OUTSIDER.id)}\n**Outside-actor label restored.**` };
   const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER), { comments: [own] });

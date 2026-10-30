@@ -184,7 +184,7 @@ async function handleRemoval({ env, github, log, payload }) {
   if (!remover) {
     throw new Error("the event names no issue or pull request this workflow handles");
   }
-  if (remover.label !== LABEL) {
+  if (remover.label?.toLowerCase() !== LABEL.toLowerCase()) {
     log(`security-outside-actor: #${remover.number} a label other than ${LABEL} was removed; nothing changed`);
     return 0;
   }
