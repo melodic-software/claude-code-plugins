@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: t4-apply-migrate
+context:
+  scaffold_script: scaffold.sh
+  history_file: turn-1.jsonl
+graders:
+  - name: conventions-created
+    type: file_exists
+    path: docs/conventions/developer-experience.md
+  - name: old-file-removed
+    type: tool_used
+    tool: Bash
+    input_match: '(?:"command":"|&&|\|\||[;|(]|\\n)\s*(?:sudo\s+)?(?:git\s+)?(?:rm|mv)\s(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])\.claude/developer-experience\.md(?![\w.-])'
+  - name: one-pointer-line
+    type: regex
+    pattern: '^- Before creating, changing or cleaning up CLIs'
+    flags: m
+    match: "count:1"
+    target: { source: file, path: AGENTS.md }
+  - name: pointer-names-new-path
+    type: regex
+    pattern: '^- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `docs/conventions/developer-experience\.md`\. Use /developer-experience:build-cli to create a tool or change its interface, and /developer-experience:audit-tools to take stock of or clean up tools; a bug fix inside one needs neither\.$'
+    flags: m
+    target: { source: file, path: AGENTS.md }
+  - name: claude-md-unchanged
+    type: regex
+    pattern: '^# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O\.\n- Release builds come from `main` only\.\n?$'
+    target: { source: file, path: CLAUDE.md }

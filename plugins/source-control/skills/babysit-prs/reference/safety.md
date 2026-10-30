@@ -1069,7 +1069,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 2. The kill switch, then a base that is the default branch, the only branch the post-merge check
    judges (`base-not-default:<ref>`; an unreadable default branch is `default-branch-unreadable`),
    then the post-merge check (`babysit_postmerge`) from the floor (the enabling
-   config commit, or the newest human close of a demotion record when later). A refusal here or
+   config commit, or the newest clear of a demotion record when later: a human close, or main's
+   green run past a red-main record). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
    identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
@@ -1191,7 +1192,9 @@ Named residuals:
   comment and a demotion record's close carry no such field, so an agent acting through an App on a
   human's token passes there. Lanes hold only the identity token (D9), which closes it for lanes.
 - A human close of any demotion record restarts the floor in full: earlier auto-merges that were
-  never verified are no longer judged.
+  never verified are no longer judged. A red-main record cleared by main's green run restarts it
+  at that run's creation: the earliest qualifying run of every green schedule and dispatch run
+  created since the record, so newer runs never move it.
 - A demotion record transferred out of the repository or deleted stops holding the rung. Only a
   person with write permission can do either; a failure the post-merge check still finds refuses on
   its own and files a new record.

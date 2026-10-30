@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -76,11 +77,16 @@ test("escalation-routes.json routes every reason the write runner accepts, each 
   for (const [reason, entry] of Object.entries(ROUTES)) {
     assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci"].includes(entry.activity), reason);
     assert.ok(["hold", "fail"].includes(entry.route), reason);
+    // Only a fail route names a label, the session-builder queue's.
+    assert.ok(!Object.hasOwn(entry, "label") || (entry.route === "fail" && entry.label === "needs-session"), reason);
     assert.equal(escalationActivity(reason), entry.activity);
     assert.equal(escalationRoute(reason), entry.route);
+    assert.equal(stopSkip(reason), entry.route === "fail" ? "lane-stopped" : "awaiting-human", reason);
   }
   assert.equal(escalationActivity("bogus"), null);
   assert.equal(escalationRoute("constructor"), null);
+  // Fail-safe: a reason the table does not list waits for a person.
+  assert.equal(stopSkip("bogus"), "awaiting-human");
 });
 
 test("address-feedback's own round records since the escalation leave it workable", () => {

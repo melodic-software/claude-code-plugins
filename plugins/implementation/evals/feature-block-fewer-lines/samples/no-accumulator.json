@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def active_emails(users):\n    return [\n        u[\"email\"].strip().lower()\n        for u in users\n        if u.get(\"active\") is True and u.get(\"email\") is not None\n    ]\n",
+      "why": "comprehension"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def active_emails(users):\n    result = []\n    for user in users:\n        if user.get(\"active\") is True:\n            email = user.get(\"email\")\n            if email is not None:\n                normalized = email.strip().lower()\n                result.append(normalized)\n            else:\n                pass\n    return result\n",
+      "why": "unchanged block"
+    },
+    {
+      "answer": "def active_emails(users):\n    result = []\n    for user in users:\n        if user.get(\"active\") is True and user.get(\"email\") is not None:\n            result.append(user[\"email\"].strip().lower())\n    return result\n",
+      "why": "accumulator loop kept"
+    }
+  ]
+}
