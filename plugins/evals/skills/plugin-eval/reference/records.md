@@ -33,6 +33,13 @@ re-read the page.
   lag: neither the plugin-evals page nor the sandboxing page covers the refusal as of 2026-10-10,
   and the current refusal wording is not captured here: it needs a macOS or WSL2 host. Recheck:
   re-run one `Bash`-granting case on a host with such a link.
+- Link swap (`scripts/docker-links.py`): it swaps every link the preflight's `find` lists, and the
+  store itself when that is a link, rather than only the links the CLI is thought to check, since
+  which names the CLI exempts was read from one 2.1.314 binary and failed independent
+  verification. Pointer: <https://code.claude.com/docs/en/changelog>, the release notes on sandbox
+  credential exclusion. As of 2026-10-30. Recheck: a docs page documents the check or its exempt
+  names, or a release note touches them. The fixture suite (`test_docker_links.py`) proves the
+  swap and restore on a temporary `HOME`; no host run on WSL2 has been recorded yet.
 
 - Read-only `.git` and session tmp directory under `--allow-tools Bash`: a `claude plugin eval` run
   saw the scratch repo's `.git` as read-only on Claude Code 2.1.310 and 2.1.314, Linux/WSL2,
