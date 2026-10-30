@@ -1114,7 +1114,12 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   const stop = steps.find((step) => step.name === "Stop on stale workflow files");
   assert.ok(index("workflow-current") < steps.indexOf(stop) && steps.indexOf(stop) < index("issue-prior"));
   const prior = steps[index("issue-prior")];
-  const issueSkill = { "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill" };
+  const issueSkill = {
+    "inputs.issue-number": "7",
+    "steps.config.outputs.applies": "true",
+    "steps.config.outputs.kind": "skill",
+    "needs.broker-check.outputs.lease": "held",
+  };
   for (const [stale, stops] of [["true", true], ["", false]]) {
     const context = { ...issueSkill, "steps.workflow-current.outputs.stale": stale };
     assert.equal(evaluate(stop.if, context), stops, `stop step, stale=${stale}`);
