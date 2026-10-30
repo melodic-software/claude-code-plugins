@@ -20,8 +20,8 @@ Collect these with **individual** Bash calls, one command per call, never combin
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 body Bash calls, not pre-compute lines: a worktree-isolated session refuses a compound command that
-contains git, and the pre-compute block runs as one. Record: the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+contains git, and the pre-compute block runs as one. Record: the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 
 ## Variables
