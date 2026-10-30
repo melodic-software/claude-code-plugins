@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add users/module.py tests/test_active_emails.py && git commit -m \"feat: add active_emails\""
+          }
+        }
+      ],
+      "why": "commits"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        }
+      ],
+      "why": "never commits"
+    }
+  ]
+}

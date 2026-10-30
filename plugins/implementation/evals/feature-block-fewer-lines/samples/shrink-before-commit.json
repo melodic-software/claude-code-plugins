@@ -1,0 +1,73 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/users/module.py",
+            "old_string": "    result = []\n",
+            "new_string": "    return [\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add users/module.py tests/test_active_emails.py && git commit -m \"feat: add active_emails\""
+          }
+        }
+      ],
+      "why": "shrinks, re-tests, then commits"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add users/module.py tests/test_active_emails.py && git commit -m \"feat: add active_emails\""
+          }
+        }
+      ],
+      "why": "commits without shrinking"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add users/module.py tests/test_active_emails.py && git commit -m \"feat: add active_emails\""
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/users/module.py",
+            "old_string": "    result = []\n",
+            "new_string": "    return [\n"
+          }
+        }
+      ],
+      "why": "shrinks only after the commit"
+    }
+  ]
+}

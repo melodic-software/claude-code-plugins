@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: feature-block-fewer-lines
+description: a finished feature block with an empty else branch and an accumulator loop is shrunk to fewer lines with identical behavior before the commit checkpoint
+tags: [feature, fewer-lines, implement, scaffold]
+expected_outcome: implement in feature mode runs the fewer-lines check on the finished active_emails block before committing, removes the empty else branch and replaces the accumulator loop (for example with a comprehension) while keeping the `is True` and `is not None` checks, leaves the tests unchanged and green, and commits users/module.py after the shrink.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /implementation:implement feature - phase 1 of the approved plan in .work/active-emails/PLAN.md adds `active_emails` (the normalized emails of active users) to the user module. The block is written in users/module.py and its tests in tests/test_active_emails.py pass. Finish the block and commit on the current branch. Do not push.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 480
+graders:
+  - name: no-empty-else
+    type: regex
+    pattern: '^\s*else\s*:\s*\n\s*pass\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: users/module.py }
+  - name: no-accumulator
+    type: regex
+    pattern: '\.append\('
+    match: not_contains
+    target: { source: file, path: users/module.py }
+  - name: keeps-active-email
+    type: regex
+    pattern: 'def active_emails\('
+    target: { source: file, path: users/module.py }
+  - name: tests-untouched
+    type: tool_used
+    tool: Edit
+    input_match: 'tests/test_active_emails\.py"'
+    min: 0
+    max: 0
+    arm: both
+  - name: commits
+    type: tool_used
+    tool: Bash
+    input_match: 'git\b[^|;&]*\bcommit\b'
+    min: 1
+    arm: both
+  - name: shrink-before-commit
+    type: tool_order
+    before: { tool: Edit, input_match: '"file_path":"[^"]*users/module\.py"' }
+    after: { tool: Bash, input_match: 'git\b[^|;&]*\bcommit\b' }
+    arm: both

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "def active_emails(users):\n    return [\n        u[\"email\"].strip().lower()\n        for u in users\n        if u.get(\"active\") is True and u.get(\"email\") is not None\n    ]\n",
+      "why": "function kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def display_name(user):\n    return user.get(\"name\", \"\").strip()\n",
+      "why": "function removed"
+    }
+  ]
+}

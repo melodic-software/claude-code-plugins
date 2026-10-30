@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | IMPORTANT | Plan mechanics | Phase 2 (response caching) serves neither acceptance criterion, and not being in Out-of-scope does not clear it | Cut Phase 2, or surface it as an Open Decision |\n",
+      "why": "findings table row"
+    },
+    {
+      "answer": "## Findings\n\n- Phase 2 does not trace to any criterion in the Brief. Recommend cutting it.\n",
+      "why": "does not trace"
+    },
+    {
+      "answer": "The caching layer is scope creep: no acceptance criterion needs it. Drop it or ask the user.\n",
+      "why": "names the cache, not the phase number"
+    },
+    {
+      "answer": "**Open Decision:** keep Phase 2's response cache? It is not tied to either criterion.\n",
+      "why": "surfaced as an Open Decision"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "Phase 2 isn't in the Out-of-scope list, so it is fine as planned.\n",
+      "why": "accepts Phase 2 on the Out-of-scope check"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | Plan mechanics | Phase 1 has no test for a malformed id | Add one |\n",
+      "why": "a different finding, about Phase 1"
+    },
+    {
+      "answer": "Phase 2 caching looks good; no cut needed.\n",
+      "why": "negated cut"
+    },
+    {
+      "answer": "I don't see a reason to drop Phase 2's cache.\n",
+      "why": "negated drop with n't"
+    }
+  ]
+}
