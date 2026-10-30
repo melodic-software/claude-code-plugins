@@ -156,6 +156,13 @@ context files with no shell; and `apply-conflict-patch` (a script, `mutate-branc
 merge with the head and the pinned base as parents
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-merge-base)).
 
+A trusted human may also dispatch `resolve-conflicts` for a PR GitHub reports as mergeable, to merge
+the default branch into a head whose stale base breaks a required check. The select job merges it
+the same way when the head is behind, and skips one that already holds the default branch tip,
+posting no check, so the dispatcher can still take that head if it later conflicts. The dispatcher
+itself still sends only `CONFLICTING` PRs. A PR whose base is not the default branch (a stacked
+layer) skips `not-applicable`, clean or conflicting, since every job merges the default branch tip.
+
 GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
 no CI. When `resolve-conflicts` stops on a reason routed to a failing status (below),
 `pr-unblock.yml`'s `report-stop-status` job (a script job with no model, the lane's only
@@ -2164,6 +2171,11 @@ is re-run this way once (attempt 2 is never re-run; a later edit or label starts
 run), and a changed closing set or a removed spec comment leaves no time to
 compare, so those heads still wait for a person.
 
+Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
+its own reads every run it would not judge: a head already judged or moved past, a draft, a run red
+for anything an approval does not lift, an author it does not judge. So the gate's reads go only to
+a run the resolver would judge, and nothing either writes reaches the model before both pass.
+
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
@@ -2856,7 +2868,7 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks, halving its cadence (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler and pr-unblock-dispatch read it), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
