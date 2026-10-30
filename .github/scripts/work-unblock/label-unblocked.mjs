@@ -195,8 +195,15 @@
 // open parent is closed that way, the App comments on the parent and closes
 // it as completed. Only a split parent counts (admit.mjs isSplitParent): one
 // whose split record the App posted, or one split by hand whose every
-// sub-issue the App or a listed human linked, not `recurring`, with no open
-// task-list item in its body.
+// sub-issue the App or a listed human linked, not `recurring`, each open
+// task-list item in its body being one of those sub-issues: its `#N` alone
+// or with that sub-issue's title.
+//
+// The App's admission comment on an open parent in no queue that waits on its
+// sub-issues alone (no blocker) is rewritten when it says only that the split
+// is pending or that sub-issues are open and its open sub-issues now differ
+// (refreshSplitWait): on each sub-issue close above, and on the sweep for the
+// open-sub-issue parents whose number is the UTC hour modulo 24.
 //
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
@@ -237,7 +244,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { clearedPastReport, retriageNote, doneReason, isSplitParent, judgedSince, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
@@ -842,8 +849,11 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // verdict within the gate's room gets agent-ready, past it admission-deferred;
 // a refusal parks at status: confirmed, or status: needs-decision when it
 // holds for a person; a wait on an open pull request adds admission-deferred.
-// Returns how many reads or writes failed.
-async function readmitReady({ github, repo, humans, bot, gate, appId, admission, cap }) {
+// Of the open-sub-issue issues left out, those whose number is the UTC hour of
+// `now` modulo 24 get refreshSplitWait: one comments read each, and a
+// sub-issues read only for a comment it may rewrite, so each is read once a
+// day whether or not a sub-issue closes. Returns how many reads or writes failed.
+async function readmitReady({ github, repo, humans, bot, gate, appId, admission, cap, now }) {
   let listed;
   try {
     listed = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(READY)}&sort=updated&direction=asc`)).filter(
@@ -856,23 +866,37 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
   const lower = (item) => labelNames(item).map((name) => name.toLowerCase());
   const queued = (labels) => labels.includes(LABEL) || labels.includes(DEFERRED_LABEL) || labels.some((label) => HOLDS.has(label));
   const waiting = (item) => item.issue_dependencies_summary?.blocked_by > 0 || (item.sub_issues_summary?.total ?? 0) > (item.sub_issues_summary?.completed ?? 0);
+  let failed = 0;
+  const hour = new Date(now).getUTCHours();
+  const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
+  for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
+    const base = `/repos/${repo}/issues/${item.number}`;
+    try {
+      const open = async () => (await paginate(github, `${base}/sub_issues`)).filter((child) => child?.state !== "closed");
+      if (await refreshSplitWait({ github, repo, parent: item, comments: await paginate(github, `${base}/comments`), open, bot })) {
+        console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
+      }
+    } catch (error) {
+      failed += 1;
+      reportError(item.number, error);
+    }
+  }
   let candidates = listed.filter((item) => !queued(lower(item)) && !waiting(item));
   if (candidates.length === 0) {
-    return 0;
+    return failed;
   }
   let refuseLabels;
   try {
     refuseLabels = new Set((await admission()).rules["refuse-labels"].map((label) => label.toLowerCase()));
   } catch (error) {
     reportError("ready", error);
-    return 1;
+    return failed + 1;
   }
   candidates = candidates.filter((item) => !lower(item).some((label) => refuseLabels.has(label)));
   console.log(`label-unblocked: ${candidates.length} ${READY} issue(s) in no queue; deciding up to ${cap} (limits.readmit-per-run)`);
   const isMark = (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId);
   const closes = new Map();
   const doneBy = mergedRefsReader({ github, repository: repo, numbers: candidates.map((item) => Number(item.number)), humans, appId });
-  let failed = 0;
   let decided = 0;
   for (const item of candidates) {
     if (decided >= cap) {
@@ -1878,6 +1902,15 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
   const children = await paginate(github, `${base}/sub_issues`);
+  // A failed refresh never holds back the close below; the sweep's rotation
+  // tries the comment again.
+  try {
+    if (await refreshSplitWait({ github, repo, parent, comments, open: async () => children.filter((child) => child?.state !== "closed"), bot })) {
+      console.log(`label-unblocked: #${parent.number} admission comment now names its open sub-issues`);
+    }
+  } catch (error) {
+    console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${escapeCommand(error?.message ?? error)}`);
+  }
   if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
     return;
   }
@@ -1894,6 +1927,38 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   }
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
   console.log(`label-unblocked: split parent #${parent.number} closed as completed`);
+}
+
+// The admission comment's text for a wait, before its reasons (sayWhy's callers).
+const WAIT_PREFIX = "Not admitted to the issue lane yet: ";
+
+// Rewrites the lanes App's admission comment on `parent` (an open issue as
+// read) to the text decide gives an issue waiting on its open sub-issues alone
+// (admit.mjs subIssueWait), when every reason it gives is the pending split or
+// an open sub-issue and `open()` (its open sub-issues, read only then) now
+// differ. Only for a parent with status: ready in no queue or hold, no
+// blocker and an open sub-issue, since decide's reasons there are those
+// sub-issues alone; never posts a comment. Returns whether it wrote.
+async function refreshSplitWait({ github, repo, parent, comments, open, bot }) {
+  const labels = labelNames(parent).map((name) => name.toLowerCase());
+  if (!labels.includes(READY) || labels.includes(LABEL) || labels.includes(DEFERRED_LABEL) || labels.some((label) => HOLDS.has(label)) || parent.issue_dependencies_summary?.blocked_by !== 0) {
+    return false;
+  }
+  const own = comments.find((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(`${ADMIT_MARKER}\n${WAIT_PREFIX}`));
+  const reasons = String(own?.body ?? "")
+    .slice(`${ADMIT_MARKER}\n${WAIT_PREFIX}`.length)
+    .replace(/\.$/, "")
+    .split("; ");
+  if (!own || !reasons.every((reason) => reason === SIZE_SPLIT_PENDING || /^sub-issue #\d+ is open$/.test(reason))) {
+    return false;
+  }
+  const children = await open();
+  const body = `${ADMIT_MARKER}\n${WAIT_PREFIX}${children.map((child) => subIssueWait(child.number)).join("; ")}.`;
+  if (children.length === 0 || own.body === body) {
+    return false;
+  }
+  await github("PATCH", `/repos/${repo}/issues/comments/${own.id}`, { body });
+  return true;
 }
 
 // What a marked issue's admission check reads from the default branch: the
@@ -1970,11 +2035,11 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission }) : 0;
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot) });
-    if (sweep) {
-      failed += await readmitReady({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"] });
-    }
+    // Before readmitReady, so a split parent whose last sub-issue closed is
+    // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
+      failed += await readmitReady({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now });
       failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
