@@ -90,8 +90,9 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
    --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
    the commit that enabled the unattended path, or the newest clear of a demotion record (a human
-   close, or main's green run past a red-main record) when later. It judges every merge since the floor that a human did not
-   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add
+   close, or main's green run past a red-main record) when later. It judges every merge since the
+   floor that a human did not enqueue or merge (Dependabot and sync-App merges included) and prints
+   a JSON verdict. Add
    `--remediate`, since this cycle's identity gate passed (a refusal would have stopped the lane
    before this step): it then triggers the one attribution
    re-run, dispatches one full run on the branch tip when an unverified merge has no identity

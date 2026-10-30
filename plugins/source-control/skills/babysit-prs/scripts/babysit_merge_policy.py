@@ -5193,8 +5193,8 @@ def merged_since_floor(
     """The post-merge floor: the later of the enabling commit of `authority`
     (`enabled_since`) and the newest clear of a demotion record (a human
     close, or main's recovery from a red-main record), so a clear restarts
-    the window and a deleted or transferred record moves nothing. Raises `PolicyReadError` when the enabling commit cannot be
-    read."""
+    the window and a deleted or transferred record moves nothing. Raises
+    `PolicyReadError` when the enabling commit cannot be read."""
     floor = enabled_since(repo, base_sha, authority)
     if demotion.cleared_at is not None:
         floor = max(floor, demotion.cleared_at)

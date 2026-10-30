@@ -1270,6 +1270,17 @@ class AutoClearOnGreen(unittest.TestCase):
         self.assertEqual(result.cleared_at, first)
         self.assertEqual(first, policy.datetime.fromisoformat("2026-10-12T11:00:00Z"))
 
+    def test_the_earliest_run_outside_the_newest_ten_is_the_floor(self) -> None:
+        newer = [
+            green_run(id=700 + i, created_at=f"2026-10-12T{12 + i:02d}:00:00Z")
+            for i in range(10)
+        ]
+        self.fake(runs={"workflow_runs": [*newer, green_run()]})
+        self.assertEqual(
+            read_demotion().cleared_at,
+            policy.datetime.fromisoformat("2026-10-12T11:00:00Z"),
+        )
+
     def test_other_events_never_take_the_listing(self) -> None:
         # Each listing names its event, so pull_request runs (a fork's main
         # included) are never read and cannot crowd out a qualifying run.
