@@ -814,6 +814,19 @@ function ownerPr(number, { updated = 25, committed = 25, committedDate = hoursAg
   return node;
 }
 
+// capped_close closes only the lanes App's pull requests: an adopted owner's
+// PR at the cap keeps its fix-ci round, and the cap is not read for it.
+test("an adopted owner PR at the verify cap still gets its fix-ci round", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW, verifyCapped });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [9]);
+  assert.deepEqual(asked, []);
+});
+
 // Owner decision 2026-10-22: a trusted App's PR (the release App here) does
 // not wait out the idle window; a person's still does.
 test("a listed bot's PR is adopted with no idle wait, a listed person's waits", () => {

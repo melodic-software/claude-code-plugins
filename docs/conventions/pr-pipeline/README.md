@@ -2351,7 +2351,8 @@ nor triage starts it again.
 names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first. One the close leaves open, or fails on, keeps
 the lane's refusal note and its `pr-merge/unarmed` status, with no person's label.
 `pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
-and post nothing, on a pull request the gate's reader refuses `verify:repeated-fail`
+and post nothing, on a lanes App pull request (the only kind the close takes; an adopted owner's is
+not read) the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
 dispatcher job's read token, last before each dispatch), or `verify:unreadable` because another
 pull request's FAIL run for the same issue cannot be read, which may hide the cap; that one is

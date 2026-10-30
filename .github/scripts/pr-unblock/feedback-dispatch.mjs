@@ -502,8 +502,9 @@ export async function dispatchFeedback({
   }
   // Last, as it costs a full verifier read, and on a pass-only dispatch too: a
   // later pass clears no cap, and a push past it could never merge, so
-  // pr-merge closes the pull request for a fresh attempt.
-  const capped = await verifyCapped({ number, head, base: pull.base?.sha });
+  // pr-merge closes the pull request for a fresh attempt. It closes only the
+  // lanes App's: an adopted owner's is never skipped.
+  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha });
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.

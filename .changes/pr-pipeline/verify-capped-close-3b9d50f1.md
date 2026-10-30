@@ -29,7 +29,7 @@ bump: patch
   `write-issue.mjs` passes the capped-close record to the next attempt as
   `author_kind: verify-findings`, the only other lanes App comment it keeps.
 - `pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci
-  round, and post nothing, on a pull request the gate's reader refuses `verify:repeated-fail`
+  round, and post nothing, on a lanes App pull request the gate's reader refuses `verify:repeated-fail`
   (`.github/scripts/pr-unblock/verify-cap.mjs`, with each dispatcher job's existing read token).
   The same goes for `verify:unreadable` from another pull request's unreadable FAIL run for the same
   issue, which may hide the cap; that one is read again next run.

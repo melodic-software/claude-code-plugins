@@ -665,7 +665,8 @@ export async function dispatchCiFixes({
     }
     // Last, as it costs a full verifier read: a push past the FAIL cap could
     // never merge, so pr-merge closes the pull request for a fresh attempt.
-    const verifyCap = await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid });
+    // It closes only the lanes App's: an adopted owner's is never skipped.
+    const verifyCap = node.author?.databaseId === appSenderId ? await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid }) : null;
     if (verifyCap) {
       log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap or cannot all be read (${verifyCap}); pr-merge closes it for a fresh attempt, so no fix-ci round`);
       // The cap never clears for the head: later runs skip it before any

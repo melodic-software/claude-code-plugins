@@ -1984,7 +1984,7 @@ const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
   };
   return api;
 };
-async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) {
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
   const lines = [];
   const result = await dispatchFeedback({
     api,
@@ -1996,11 +1996,26 @@ async function decideOwner(api, { adoption = ADOPTION, passOnly = false } = {}) 
     resolveSlot: async () => resolvedLane(),
     adoption,
     passOnly,
+    verifyCapped,
     now: NOW_MS,
     log: (line) => lines.push(line),
   });
   return { result, lines };
 }
+
+// capped_close closes only the lanes App's pull requests, so an adopted
+// owner's PR at the cap would sit with no round: the cap skip is the lanes
+// App's alone.
+test("an adopted owner PR at the verify cap still gets its round, the cap unread", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await decideOwner(ownerApi({ threads: [thread([CLAUDE])] }), { verifyCapped });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(asked, []);
+});
 
 test("an idle owner PR's lane-review thread dispatches address-feedback, so the lanes App answers it", async () => {
   for (const threads of [[thread([CLAUDE])], [LANE_FINDING]]) {

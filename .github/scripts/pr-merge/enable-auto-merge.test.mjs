@@ -725,6 +725,16 @@ test("a capped pull request the close leaves open or fails on gets the lane's no
   // A close that went through notes nothing.
   const closed = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: true, restarted: [7], parked: [] }) });
   assert.deepEqual(closed.notes, []);
+  // Its lane refusal, standing merge.risk-escalation-minutes at the head,
+  // gets the failing pr-merge/unarmed status either way.
+  const reason = verifyHold(capped, HEAD);
+  const standing = pull(3, { verdict: capped, discussion: { comments: [lanesSaid(laneNote(reason, "2026-10-23T10:00:00.000Z"))] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  const failingStatus = [{ sha: HEAD, state: "failure", description: reason }];
+  for (const closeAnswer of [() => ({ closed: false, reason: "it carries do-not-merge" }), () => { throw new Error("close: HTTP 500"); }]) {
+    assert.deepEqual((await run([standing], {}, { closeAnswer, now })).statuses, failingStatus);
+  }
+  assert.deepEqual((await run([standing], {}, { closeAnswer: () => ({ closed: true, restarted: [], parked: [] }), now })).statuses, []);
 });
 
 // Report-only closes nothing.
