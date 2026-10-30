@@ -41,6 +41,7 @@ cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 echo "affected-tests ran" >&2
 [[ -z "${STUB_ARGS_LOG:-}" ]] || printf '%s\n' "$*" >"$STUB_ARGS_LOG"
 [[ -z "${STUB_ENV_LOG:-}" ]] || printf '%s' "${CHECK_DATA_ROOT-unset}" >"$STUB_ENV_LOG"
+[[ -z "${STUB_SHARE_LOG:-}" ]] || printf '%s' "${PLUGIN_TEST_SHARE_WARN_ONLY-unset}" >"$STUB_SHARE_LOG"
 # The real selector diffs its own tree's work tree, so the stub logs that.
 [[ -z "${STUB_STATUS_LOG:-}" ]] || git -C "$(dirname "$0")/.." status --porcelain --untracked-files=all >"$STUB_STATUS_LOG"
 [[ -v CHECK_DATA_ROOT ]] && { echo "affected-tests saw CHECK_DATA_ROOT" >&2; exit 1; }
@@ -294,6 +295,9 @@ check "CHECK_AFFECTED_JOBS and CHECK_AFFECTED_BUDGET override the defaults" \
   '[[ $RC == 0 && $(cat "$args_log") == "--run --jobs 5 --budget 300 "* ]]'
 run STUB_ARGS_LOG="$args_log" -- --base base --tests --budget 45
 check "--budget sets the budget passed to affected-tests" '[[ $RC == 0 && $(cat "$args_log") == *" --budget 45 "* ]]'
+share_log="$tmp/affected-share.log"
+run -u PLUGIN_TEST_SHARE_WARN_ONLY STUB_SHARE_LOG="$share_log" -- --base base --tests
+check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites"'[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
