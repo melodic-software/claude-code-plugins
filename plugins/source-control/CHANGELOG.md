@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.2] - 2026-10-30
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now says the mode may run `chmod -x` on a file
+  whose executable bit the pull request added, when a finding asks to drop it.
+
 ## [4.1.1] - 2026-10-29
 
 ### Fixed
