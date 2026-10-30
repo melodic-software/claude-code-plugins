@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: fr-git-bash-publickey
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'uses-openssh-client'
     type: 'regex'

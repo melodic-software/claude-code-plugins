@@ -48,8 +48,10 @@ export async function writePlan({ plan, call, repo, labels, runUrl, wait = () =>
       done.failed.push({ target: family.signal, error: error.message });
     }
   }
-  // A body a person vetted for agent-ready is replaced, so agent-ready comes
-  // off before the PATCH (a 404 means it was not on the issue). The PATCH
+  // The rolling issue's author is github-actions[bot], outside the trusted
+  // list, so the issue lane never works from it: a person who wants a signal
+  // worked re-files it as a new issue. A stray agent-ready still comes off
+  // before the PATCH (a 404 means it was not on the issue). The PATCH
   // runs last and carries the marker, so a failed call before it leaves the
   // old state recorded and the write is retried on the next run.
   const writes = [

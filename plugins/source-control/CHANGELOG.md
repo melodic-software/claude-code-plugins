@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.2] - 2026-10-30
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now says the mode may run `chmod -x` on a file
+  whose executable bit the pull request added, when a finding asks to drop it.
+
+## [4.1.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-remote.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The `origin` lookup reads the remote list through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
 ## [4.1.0] - 2026-10-29
 
 ### Changed

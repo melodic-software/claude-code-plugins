@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: fr-expired-oauth-login
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'login-at-console'
     type: 'regex'

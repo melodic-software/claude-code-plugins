@@ -69,6 +69,12 @@
 //             (DIMENSION_SKIP): comments the next step with an
 //             outcome=<reason> marker, adds the human-gated label, removes
 //             agent-ready. No outcome file is read.
+//   outside  the admit job stopped the run because the issue's author is
+//             neither a listed human nor the lanes App (DIMENSION_SKIP
+//             outside-author): comments that a listed human re-files the work
+//             as a new issue (once: a re-run finds its own comment) and
+//             removes agent-ready, with no label, since a
+//             retry stops again. No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -100,8 +106,10 @@
 //                       when its scan job refused the run's output and so
 //                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
-//                       the issue dimensions skipped the run
-//                       (work-resolve-issue.yml report-skip), else empty
+//                       the issue dimensions skipped the run, or
+//                       outside-author when the admit job stopped it on the
+//                       issue's author (work-resolve-issue.yml report-skip),
+//                       else empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -569,6 +577,24 @@ export const DIMENSION_STEPS = {
 // Outcomes no run produces now that issue comments may still carry from runs
 // that ran nothing, so prior() passes them over like a dimension skip.
 const RETIRED_SKIPS = new Set(["not-assessed"]);
+
+// The admit job's stop on an issue neither a listed human nor the lanes App
+// wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
+export const OUTSIDE_AUTHOR = "outside-author";
+
+// A run the admit job stopped on the issue's author: agent-ready comes off and
+// one comment says a listed human re-files the work. No label: re-adding
+// agent-ready stops again, and the issue's text is never quoted.
+function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
+  const lines = [
+    `<!-- work-resolve-issue outcome=${OUTSIDE_AUTHOR}${runId ? ` run=${runId}` : ""} -->`,
+    "The work-resolve-issue lane did not start this issue (`outside-author`): its author is outside the trusted list, neither a listed human nor the lanes App, so the lane does not work from its text. A listed human re-files the work as a new issue in their own words.",
+  ];
+  if (runUrl) {
+    lines.push("", `Run: ${runUrl}`);
+  }
+  return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
+}
 
 // A run its issue dimensions skipped before any model turn: the issue goes to
 // a person with the next step, and agent-ready comes off.
@@ -1219,7 +1245,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
-  // so it is passed over, and so is a dimension skip, which ran nothing. The
+  // so it is passed over, and so is a dimension skip or an outside-author stop, which ran nothing. The
   // first other marker decides: a resumable one
   // whose run's branch still passes resumes it; anything else (a pushback, a
   // marker naming no run, or a branch deleted or failing a check) starts
@@ -1230,6 +1256,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       (marker) =>
         !(marker.onResumed && RESUMABLE.has(marker.outcome)) &&
         !Object.hasOwn(DIMENSION_STEPS, marker.outcome) &&
+        marker.outcome !== OUTSIDE_AUTHOR &&
         !RETIRED_SKIPS.has(marker.outcome),
     );
   const resume =
@@ -1561,8 +1588,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
 // label the issue has, or removing one it lacks (a 404 the catch logs), leaves
 // the same labels, so both are resent; the comment is not.
+// An empty plan.comment posts none: the comment is already on the issue.
 async function applyHandBack(github, repo, plan) {
-  const comment = () => github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
@@ -1613,7 +1641,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
-    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip)) {
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
     }
     const escalation = env.ESCALATION_REASON ?? "";
@@ -1630,7 +1658,17 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
-    // A dimension skip left no outcome to read: no model ran.
+    // A dimension skip or an outside-author stop left no outcome to read: no model ran.
+    if (dimensionSkip === OUTSIDE_AUTHOR) {
+      // A re-run finds the lanes App's own comment and posts none; the marker
+      // from anyone else does not count, since the outside author can write it.
+      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+      const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
+      const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
+      const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan);
+      return 0;
+    }
     if (dimensionSkip) {
       const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
       const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");

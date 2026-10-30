@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
-// body and labels go in as written (anyone can write them; the skill reads
-// them as data). Comments go in only when select-trusted-text's author and
+// body and labels go in as written: an issue neither a listed human nor the
+// lanes App wrote fails the run here, behind the admit job's own stop
+// (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
 // `**Decision recorded.**`, not posted through an App, and unedited or last
@@ -61,7 +62,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { authorAdmitted, carriesSplit, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -215,6 +216,11 @@ export async function main({ env = process.env, github, log = console.log, write
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
+    // The admit job stops this run first (check-blockers.mjs); this holds the
+    // line if a run gets past it.
+    if (!authorAdmitted(data, humans, lanesAppId)) {
+      throw new Error("the issue's author is neither a listed human nor the lanes App");
+    }
     const { kept, dropped } = await selectTrustedIssueComments({
       github: client,
       repository,
