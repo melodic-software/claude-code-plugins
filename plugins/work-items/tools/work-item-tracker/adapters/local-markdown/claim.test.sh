@@ -31,6 +31,12 @@ ITEM2="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "no ses
 RECORD2="$(WIT_STORAGE_DIR="$STORE" bash "$S" "$(jq -r '.id' <<<"$ITEM2")" --ttl-hours 24)"
 assert_eq "an absent --session-id reports as an explicit null" "null" "$(jq -r '.session_id' <<<"$RECORD2")"
 assert_eq "an absent --ttl-minutes is omitted, not zero" "null" "$(jq -r '.ttl_minutes // "null"' <<<"$RECORD2")"
+# A TTL over the lease cap is refused before the item file is written.
+ITEM3="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "over cap")"
+ITEM3_FILE="$(jq -r '.url' <<<"$ITEM3" | sed 's#^file://##')"
+BEFORE="$(cat "$ITEM3_FILE")"
+WIT_STORAGE_DIR="$STORE" assert_usage_error "$S" "$(jq -r '.id' <<<"$ITEM3")" --ttl-hours 169
+assert_eq "a refused over-cap claim leaves the item file unchanged" "$BEFORE" "$(cat "$ITEM3_FILE")"
 rm -rf "$STORE"
 
 [[ $FAILED -eq 0 ]] || exit 1

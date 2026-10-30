@@ -231,14 +231,21 @@ export function artifactName(verdict) {
   return name;
 }
 
-// How many days the verdict's artifact lasts. A PASS or PASS-NOTES counts
-// only at the head it names, so one that expires refuses as verify:missing
-// until pr-verify judges the head again. A FAIL, or anything else, keeps 90
-// days, the maximum: the merge gate counts an earlier FAIL until the pull
-// request is TOO_OLD_DAYS (80) old (babysit_verify_evidence.py), and
-// carry-run-cache.mjs RETENTION_DAYS matches it.
-export function retentionDays(verdict) {
-  return ["pass", "pass-notes"].includes(verdict) ? 30 : 90;
+// How many days the verdict's artifact lasts. A PASS or PASS-NOTES judged
+// after no body edit or issue connect or disconnect since the head commit
+// (resolve-pr.mjs relinkedSince, RELINK_SINCE_HEAD `false`) is read only at
+// the open pull request's current head, so one that expires refuses as
+// verify:missing until the next pr-require-checks run (a push, edit or label)
+// has pr-verify judge the head again; 7 days keeps a week of a held head.
+// Any other pass may supersede a FAIL at its head after a relink
+// (babysit_verify_evidence `_superseded`), which the merge gate still reads
+// at a later head of the same change, so it keeps a FAIL's 90 days. A FAIL,
+// or anything else, keeps 90 days, the maximum: the merge gate counts an
+// earlier FAIL until the pull request is TOO_OLD_DAYS (80) old
+// (babysit_verify_evidence.py), and carry-run-cache.mjs RETENTION_DAYS
+// matches it.
+export function retentionDays(verdict, mayRelink = true) {
+  return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
 export function main(env = process.env) {
@@ -299,7 +306,7 @@ export function main(env = process.env) {
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
-  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict)}\n`);
+  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n`);
   console.log(`write-verdict: ${name}`);
 }
 

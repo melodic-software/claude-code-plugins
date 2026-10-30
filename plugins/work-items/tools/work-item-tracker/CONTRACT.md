@@ -190,9 +190,9 @@ user-global layer.
 ```text
 work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id>
-work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
+work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
-work-item-tracker.sh release <id> --lease-comment-id <n>
+work-item-tracker.sh release <id> --lease-comment-id <n> [--holder <h>]
 work-item-tracker.sh reclaim <id>
 work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
@@ -528,7 +528,21 @@ coerce it into one. See work-loop finding #1381.
 ## Lease protocol
 
 Claim = **assignee (authenticated human user) + lease record**. The lease is a dedicated
-issue comment with a machine marker:
+issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
+
+- **Default:** the holder is the authenticated login (`gh api user`), and the claim assigns it
+  (steps 1 to 5 below). Local sessions use this mode.
+- **Lease-only (`--lease-only`):** the claim posts the lease comment and assigns no one. It skips
+  steps 1 and 2, and on a lost arbitration it supersedes its own comment and touches no assignee.
+  A failure after the comment is posted and before the emit also supersedes it.
+  `--holder <h>` names the holder instead of the authenticated login, for a caller whose token
+  cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
+  claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
+  The lane releases its lease when its report job ends; a lane run cancelled by hand before that,
+  or a release that fails, leaves the lease to its TTL, which is accepted behavior.
+
+Arbitration is the same in both modes (step 4), so a local claim made while a lane lease is live
+backs off, and a lane run that finds a live local lease backs off without starting its model.
 
 ```text
 <!-- work-item-lease v1 {"schema_version":"1.0","holder":"<gh login>","acquired_at":"<ISO>","renewed_at":"<ISO>","ttl_hours":24,"session_id":"<opt>"} -->
@@ -540,6 +554,11 @@ issue comment with a machine marker:
   (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
   `--ttl-minutes` or binding `config.lease_ttl_minutes`.
+- A lease with `renewed_at` more than 300 s after now is not live.
+- A lease whose TTL exceeds 168 h is not live, so the github and local-markdown `claim` refuse such a TTL (exit 2) before any write.
+- The GitHub adapter counts a lease comment only from an `OWNER`, `MEMBER` or `COLLABORATOR`
+  author, or from a bot (an App installed on the repository: the issue lane's `github-actions[bot]`
+  or a `gh-bot.sh` App).
 - `renew-lease` renews **only a live lease**. A lease that is still the active
   (non-superseded) lease but already **expired**, meaning `renewed_at + ttl_hours` elapsed with
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a
@@ -562,12 +581,15 @@ Claim sequence (race-safe, same-identity aware):
 4. Re-read all lease comments. If an EARLIER live lease exists that is not our own
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
+   The back-off message prints the winner's holder with control characters removed.
 5. Emit the claim object.
 
 Release (early end of the caller's own lease): `release` supersedes a lease before its TTL
 elapses, so a session that has finished with an item hands it back at once instead of blocking
 every later claim, same-login ones included (claim step 4), until expiry. It acts only on a lease
-that is all of: on the addressed item, held by the authenticated login, and the item's active
+that is all of: on the addressed item, held by the authenticated login (or the `--holder` value,
+which, like `claim`'s, replaces the `gh api user` lookup and is asserted by the caller; the comment
+edit still needs the token's write access), and the item's active
 (newest non-superseded) lease. Anything else is refused with exit `7` and nothing is written: a
 cross-item handle, another login's lease, or a stale handle under a newer claim. The login check
 exists because lease handles are public (a GitHub comment id), and within one login the handle
@@ -774,9 +796,9 @@ adapter checks `<repo root>/tools/github-auth/gh-bot.sh` first, independent of w
 adapter itself resolved from (so a shadowed consumer-local adapter still finds the consumer's wrapper),
 then falls back to `…/github-auth/gh-bot.sh` bundled beside the seam tree. A plugin install ships no
 wrapper at either path, so writes use bare `gh` by default (plugin-lift portability); a repo that wants
-bot-attributed writes provides the wrapper at its own project root, with zero vendoring. CLAIMS always
-assign the authenticated human user via bare `gh` (`@me` must resolve to the session identity, not the
-bot). Reads are bare `gh`.
+bot-attributed writes provides the wrapper at its own project root, with zero vendoring. A default-mode
+claim assigns the authenticated human user via bare `gh` (`@me` must resolve to the session identity,
+not the bot); a lease-only claim assigns no one. Reads are bare `gh`.
 
 ## local-markdown adapter
 

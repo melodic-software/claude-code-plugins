@@ -13,7 +13,7 @@
         "scripts/credential-sweep.sh --since defaults to 90 days ago, GitHub's default artifact retention"
       ],
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
-      "reason": "A FAIL verdict must outlive the 80-day FAIL look-back (babysit_verify_evidence.py TOO_OLD_DAYS = 80, ten days under 90): a shorter retention drops earlier FAILs, and the gate then stops refusing verify:earlier-fail and the FAIL cap. scripts/credential-sweep.sh also assumes 90-day artifacts. write-verdict.mjs retentionDays keeps FAIL at max and PASS or PASS-NOTES 30 days (an expired PASS fails closed as verify:missing); the row records the longest.",
+      "reason": "A FAIL verdict must outlive the 80-day FAIL look-back (babysit_verify_evidence.py TOO_OLD_DAYS = 80, ten days under 90): a shorter retention drops earlier FAILs, and the gate then stops refusing verify:earlier-fail and the FAIL cap. scripts/credential-sweep.sh also assumes 90-day artifacts. write-verdict.mjs retentionDays keeps FAIL at max, a PASS or PASS-NOTES judged after a body edit or issue link change since the head commit at max too (it may supersede a FAIL there, which the gate reads at later heads of the same change), and any other PASS or PASS-NOTES 7 days: it is read only at the open pull request's current head, and an expired one fails closed as verify:missing until the next pr-require-checks run (push, edit or label) has pr-verify judge the head again. The row records the longest.",
       "computed-by": ".github/scripts/pr-verify/write-verdict.mjs",
       "uploads": [
         ".github/workflows/pr-verify.yml#check-intent",
@@ -28,6 +28,7 @@
       ],
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
       "reason": "A verdict that reported findings must outlive a later clean review of the same tree, or its expiry would lower the count the gate reads; the gate counts the most findings any unexpired verdict of the tree reported.",
+      "pending-cut": "About 238 a day, 21,400 at 90 days. CRITICAL counts already carry on the record job's check runs (babysit_merge.py carried_critical), but the below-CRITICAL total security_review_clean reads does not; a short window needs that total read from the check runs first.",
       "uploads": [
         ".github/workflows/pr-review-main.yml#review",
         ".github/workflows/pr-review-main.yml#review-subscription",
