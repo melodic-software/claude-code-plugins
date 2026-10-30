@@ -127,7 +127,7 @@ const QUOTED = /^\s*(?:(?:[-*+]|\d+[.)])\s*)?>/;
 // The two canonical shapes, bare or in `**Label:**` bold.
 const COST_CANONICAL = /^(\*\*)?cost( decided)?:\1 (.+)$/i;
 const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
-const COST_LABEL = /^\W*costs?(?!-\w)\s*[:\u2014\u2013(-]/i;
+const COST_LABEL = /^\W*costs?(?!-(?:benefit|effective)\b)\s*[:\u2014\u2013(-]/i;
 const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -221,7 +221,8 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // that form: any other cost label (`**Cost**:`, `_Cost:_`, `Costs:`, `Cost —`,
   // `Cost (estimate):`) is a problem, which holds, unless its text is only a
   // no-charge phrase. A `>` quote, alone or after a list marker, is issue text;
-  // `Costing:`, `Cost-benefit:` or `Estimated cost:` is not a label.
+  // `Costing:`, `Cost-benefit:`, `Cost-effective:` or `Estimated cost:` is not a
+  // label; any other `Cost-<word>:` is.
   let cost = false;
   let costProblem = false;
   for (const line of lines) {

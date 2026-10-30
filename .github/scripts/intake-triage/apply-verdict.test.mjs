@@ -521,6 +521,8 @@ describe("planWrites", () => {
     ["Costs: a paid Azure plan", false],
     ["Cost - minimal, one-line change", false],
     ["Cost (hours): small", false],
+    ["Cost-estimate: a paid Azure plan", false],
+    ["Cost-per-month: $40", false],
   ]) {
     test(`a ${JSON.stringify(line)} line ${ready ? "does not stop" : "stops"} a verdict with no hold`, () => {
       const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] }), { labels: [] });
