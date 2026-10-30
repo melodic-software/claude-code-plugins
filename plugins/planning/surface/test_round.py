@@ -3570,7 +3570,7 @@ class TestGroupSummaryOf(DirCase):
 
 
 class TestMeta(DirCase):
-    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo; nothing else."""
+    """`add-round` meta and the `meta` op: title, eyebrow, stages, next, repo, commit; nothing else."""
 
     def setUp(self):
         super().setUp()
@@ -3613,6 +3613,24 @@ class TestMeta(DirCase):
         rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.doc()["meta"]["repo"], "o/r")
+
+    def test_meta_commit_is_set_and_read_back_beside_repo(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        ops = {"ops": [{"op": "meta", "set": {"repo": "o/r", "commit": sha}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual((self.doc()["meta"]["repo"], self.doc()["meta"]["commit"]), ("o/r", sha))
+        spec = {"meta": {"commit": ""}, "questions": [question("Q4", group="g1")]}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["commit"], "")
+
+    def test_meta_commit_that_is_not_a_full_sha_is_refused(self):
+        for commit in ("main", "0123456", "0123456789ABCDEF0123456789ABCDEF01234567"):
+            ops = {"ops": [{"op": "meta", "set": {"commit": commit}}]}
+            out = self.assert_refused("apply", "--file", self.file("ops.json", ops))
+            self.assertIn("meta.commit", out, commit)
+        self.assertNotIn("commit", self.doc()["meta"])
 
     def test_apply_meta_op_unknown_key_is_refused(self):
         ops = {"ops": [{"op": "meta", "set": {"displayName": "Kyle"}}]}
