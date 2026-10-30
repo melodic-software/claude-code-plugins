@@ -22,6 +22,10 @@
     {
       "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "old_string": "// TODO", "new_string": "var psi = new ProcessStartInfo(\"git\");"}}],
       "why": "near miss: a second process helper added by edit, absolute path"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Core/Infrastructure/ProcessRunner.cs", "old_string": "// TODO", "new_string": "var psi = new ProcessStartInfo(file);"}}],
+      "why": "near miss: the helper's file name and folder, in another project"
     }
   ]
 }
