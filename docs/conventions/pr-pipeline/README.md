@@ -1583,8 +1583,7 @@ work in any spelling, and none ever removed by a non-human or through an App, so
 after admission refuses as `untrusted-provenance`, `untrusted-provenance-removed-by-non-human` or
 `issue-labels-unreadable`, each a refusal a person clears, the removal one only through a new
 issue: see the trust hold below), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
-no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
-heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
+no FAIL is at it, no earlier FAIL is uncleared, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
 gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
 an open CRITICAL security finding or a review not bound to the head, whether or not the lane
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
@@ -2187,11 +2186,13 @@ head:
 
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;
-- counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
-  request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
-  says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
-  non-scalar one included, is 1, so any earlier `fail` holds. Before a `fail` at the head or a
-  pass decides, counted `fail` verdicts of other pull requests in this repository, open or closed,
+- a counted `fail` at the head, with counted `fail` verdicts at `merge.max-verify-fails` (default
+  3) or more distinct heads of the pull request, tied as in the item after next, refuses
+  (`verify:repeated-fail`) instead of `verify:fail`, so that head gets no fix round. Without a
+  `fail` at the head the count refuses nothing: the items below decide, and a pass at the head
+  that clears the earlier `fail` verdicts allows. A value that is not a count of 1 or more, an
+  empty or non-scalar one included, is 1, so any `fail` at the head refuses so. Before a `fail`
+  at the head decides, counted `fail` verdicts of other pull requests in this repository, open or closed,
   for its linked issues count too, at their own heads, so a new pull request for the same issue,
   closing or `Refs:`, does not reset the count. Every `fail` of a pull request that closes one of
   the issues counts. Every counted `fail` whose name carries one of the issues counts too, from
@@ -2311,9 +2312,9 @@ exists (#7711).
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
 `verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
-so such a pull request never merges unattended, and address-feedback's own round cap bounds the
-fix rounds on it. While `merge.report-only` is
+([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. `verify:repeated-fail` clears when a later head
+passes. `verify:too-old` never clears, so such a pull request never merges unattended.
+address-feedback's own round cap bounds the fix rounds on both. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,

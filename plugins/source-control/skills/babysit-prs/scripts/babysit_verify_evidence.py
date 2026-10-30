@@ -17,10 +17,12 @@ from a completed, successful one. Any other artifact is ignored.
 
 - the pull request was created more than `TOO_OLD_DAYS` ago:
   `verify:too-old`, since a verdict may already have expired;
-- counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the item after next): `verify:repeated-fail`, whatever a pass
-  says, a FAIL at the head included. Before a FAIL at the head or a pass
-  decides, FAILs of other pull requests in this repository, open or closed, that close one of its
+- a counted FAIL at the head, with counted FAILs at `max_fails` or more
+  distinct heads of this pull request (tied as in the item after next):
+  `verify:repeated-fail`, so a failing head past the cap gets no fix round.
+  Without a FAIL at the head the cap refuses nothing: the items below decide,
+  and a pass at the head that clears the earlier FAILs allows. Before a FAIL
+  at the head decides, FAILs of other pull requests in this repository, open or closed, that close one of its
   issues (its closing issues, or its `Refs:` issue) count too, at their own
   heads, and so does every FAIL whose name carries one of those issues, a
   `Refs:` pull request's FAILs among them (a FAIL among them whose run cannot
@@ -93,9 +95,10 @@ for the lanes (when a person is needed:
 https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
-waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear, so the gate never merges such a pull request
-unattended, and address-feedback's own round cap bounds the fix rounds. A
+waits for the lanes to judge the head again. `verify:repeated-fail` clears
+when a later head passes, and address-feedback's own round cap bounds the fix
+rounds. `verify:too-old` never clears, so the gate never merges such a pull
+request unattended. A
 `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
@@ -374,9 +377,8 @@ INTENT_PULL_REQUEST = "pull-request"
 # LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
 # The refusals no upload after the listing clears (`Reader.evidence`): a
-# counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them, and a pull request's age only
-# grows. A pass uploaded later can clear any other refusal, and a read may
+# counted FAIL at the head, which `verify:repeated-fail` also needs, stays
+# counted whatever is uploaded later, and a pull request's age only grows. A pass uploaded later can clear any other refusal, and a read may
 # answer otherwise.
 STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
 ISSUE_FIELDS = (
@@ -884,7 +886,8 @@ class Reader:
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
     )
-    # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
+    # `merge.max-verify-fails`: FAILed heads past which a FAIL at the head gets
+    # no fix round.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
     # `merge.agent-identity`, the lanes App's login: its trusted-list id is
     # the author a size split's sub-issue needs (`_split_child`); unset, no
@@ -1988,7 +1991,9 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
-        if len(failed) >= self.max_fails:
+        if head in failed and len(failed) >= self.max_fails:
+            # Past the cap a FAIL at the head gets no fix round; a pass at
+            # the head still decides below.
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
         elif head in failed and not superseded(head):
@@ -2022,24 +2027,17 @@ class Reader:
             # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(
+            live, _ = self._elsewhere(
                 number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
             )
-            if len(failed | elsewhere) >= self.max_fails:
-                refusal = REPEATED_FAIL
-                detail = (
-                    f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues, the cap is {self.max_fails}"
-                )
-            else:
-                refusals = {
-                    self._pass_refusal(run_id, name, number, head, live, pr, artifact)
-                    for run_id, name, artifact in self._newest(passes)
-                }
-                refusal = next(
-                    (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
-                    None,
-                )
+            refusals = {
+                self._pass_refusal(run_id, name, number, head, live, pr, artifact)
+                for run_id, name, artifact in self._newest(passes)
+            }
+            refusal = next(
+                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
+                None,
+            )
         else:
             refusal = MISSING
         return Evidence(refusal, head, tuple(verdicts), ignored, detail)

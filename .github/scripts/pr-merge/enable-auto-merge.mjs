@@ -43,8 +43,8 @@
 //   untrusted work in any spelling and none ever removed by a non-human, so
 //   one added after admission refuses for a person
 //   (`untrusted-provenance`). Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
-//   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
-//   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
+//   at it, no earlier FAIL is uncleared, and the spec is unchanged and
+//   trusted. A
 //   read that fails, or a line without the link's answer, refuses. Only the
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request

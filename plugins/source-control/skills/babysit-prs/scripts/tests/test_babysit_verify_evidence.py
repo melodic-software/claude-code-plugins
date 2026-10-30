@@ -494,6 +494,14 @@ def passing(*extra: dict[str, Any], runs: dict[int, Any] | None = None) -> FakeG
     )
 
 
+def fail_at_head(fake: FakeGitHub, run_id: int = 9) -> FakeGitHub:
+    """`fake` with a counted FAIL at the head, judged before its pass: past the
+    cap, only a FAIL at the head refuses `verify:repeated-fail`."""
+    fake.artifacts.append(artifact(named(HEAD, "fail"), run_id))
+    fake.runs[run_id] = judged(run_id, OLDER_START)
+    return fake
+
+
 def read(fake: FakeGitHub, pr: dict[str, Any] | None = None) -> ve.Evidence:
     # The single-page patch too, for modules that import this helper without
     # this module's setUpModule.
@@ -1332,16 +1340,16 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
         return fake
 
-    def test_three_fails_on_a_closed_pull_request_refuse(self) -> None:
-        evidence = read(self.sibling_fails(*SIBLING_HEADS))
+    def test_three_fails_on_a_closed_pull_request_and_a_pass_here_allow(self) -> None:
+        self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS)).refusal)
+
+    def test_two_there_one_earlier_here_and_a_fail_at_the_head_refuse(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(EARLIER, "fail"), 8))
+        fake.runs[8] = judged(8, OLDER_START)
+        evidence = read(fail_at_head(fake))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
-
-    def test_two_there_and_one_here_refuse(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS[:2])
-        fake.artifacts.append(artifact(named(EARLIER, "fail"), 9))
-        fake.runs[9] = judged(9, OLDER_START)
-        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         # Not verify:fail: a fix round whose push could never merge.
@@ -1410,12 +1418,16 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         fake.closers[7] = []
         return fake
 
-    def test_three_fails_on_another_refs_pull_request_refuse(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS)
+    def test_two_fails_on_another_refs_pull_request_and_one_here_refuse(self) -> None:
+        fake = fail_at_head(self.sibling_fails(*SIBLING_HEADS[:2]))
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
-        self.assertEqual(downloads(fake), 0)
+        # The other pull request's FAILs count by name: no download beyond
+        # what the head's own FAIL costs.
+        alone = fail_at_head(self.sibling_fails())
+        read(alone)
+        self.assertEqual(downloads(fake), downloads(alone))
 
     def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
@@ -1433,11 +1445,13 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         # writer named issues) counts only for its own pull request.
         for suffix, refusal in (
             ("-i7.8", "verify:repeated-fail"),
-            ("-i8", None),
-            ("", None),
+            ("-i8", "verify:fail"),
+            ("", "verify:fail"),
         ):
             with self.subTest(suffix):
-                fake = self.sibling_fails(*SIBLING_HEADS, suffix=suffix)
+                fake = fail_at_head(
+                    self.sibling_fails(*SIBLING_HEADS[:2], suffix=suffix)
+                )
                 self.assertEqual(read(fake).refusal, refusal)
 
     def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
@@ -1452,7 +1466,7 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
         fake.mentions[7], fake.mentions_total[7] = mentions, 101
         self.assertIsNone(read(fake).refusal)
-        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake = fail_at_head(self.sibling_fails(*SIBLING_HEADS[:2]))
         fake.mentions[7], fake.mentions_total[7] = mentions, 101
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
@@ -1480,11 +1494,16 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         fake.closers[7] = [(PR, REPO)]
         return fake
 
-    def test_three_named_fails_refuse(self) -> None:
-        evidence = read(self.named_fails(*SIBLING_HEADS))
+    def test_two_named_fails_and_a_fail_at_the_head_refuse(self) -> None:
+        evidence = read(fail_at_head(self.named_fails(*SIBLING_HEADS[:2])))
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
-        self.assertEqual(downloads(self.named_fails(*SIBLING_HEADS)), 0)
+        self.assertEqual(
+            downloads(fail_at_head(self.named_fails(*SIBLING_HEADS[:2]))), 0
+        )
+
+    def test_three_named_fails_and_a_pass_at_the_head_allow(self) -> None:
+        self.assertIsNone(read(self.named_fails(*SIBLING_HEADS)).refusal)
 
     def test_two_named_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         fake = self.named_fails(*SIBLING_HEADS[:2])
@@ -1501,7 +1520,7 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         ten = "-i" + ".".join(str(n) for n in range(1, 11))
         for suffix in ("-i7.12", "-i3.7", ten):
             with self.subTest(suffix):
-                fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
+                fake = fail_at_head(self.named_fails(*SIBLING_HEADS[:2], suffix=suffix))
                 self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_a_name_without_the_issue_does_not_count(self) -> None:
@@ -1606,9 +1625,9 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
 
 class RepeatedFailsHoldForTheLanes(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
-    pull request hold it, never to merge unattended, whatever a later pass
-    says (owner decision 2026-10-21), for the lanes with no label (owner rule
-    2026-10-27); fewer leave the pass to decide."""
+    pull request, one of them at the head, refuse it for the lanes with no
+    label; a pass at the head that clears the earlier FAILs allows, past the
+    cap or not."""
 
     @staticmethod
     def failed_at(*shas: str) -> FakeGitHub:
@@ -1620,11 +1639,16 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             runs=runs,
         )
 
-    def test_fails_at_three_heads_refuse_despite_a_later_pass(self) -> None:
-        evidence = read(self.failed_at(EARLIER, IN_PR, UNRELATED))
-        self.assertEqual(evidence.refusal, "verify:repeated-fail")
-        self.assertFalse(evidence.needs_human)
-        self.assertIn("3", evidence.detail or "")
+    def test_a_pass_at_the_head_clears_fails_at_three_earlier_heads(self) -> None:
+        # The cap stops fix rounds; it is not a hold no pass lifts, so a pass
+        # at the head after the cap was reached lets the pull request merge.
+        self.assertIsNone(read(self.failed_at(EARLIER, IN_PR, UNRELATED)).refusal)
+
+    def test_three_earlier_fails_and_no_verdict_at_the_head_wait(self) -> None:
+        # Past the cap, a head the verifier has not judged waits for it.
+        fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
+        fake.artifacts = [a for a in fake.artifacts if "-fail" in a["name"]]
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
         # A listing that does not read refuses rather than letting the pass
@@ -1677,11 +1701,11 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_the_reader_takes_its_cap_from_the_setting(self) -> None:
-        fake = self.failed_at(EARLIER, IN_PR)
+        fake = self.failed_at(EARLIER, HEAD)
         for cap, expected in (
             (2, "verify:repeated-fail"),
             (1, "verify:repeated-fail"),
-            (3, None),
+            (3, "verify:fail"),
         ):
             with self.subTest(cap=cap):
                 with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
@@ -4446,10 +4470,12 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         # Only the untied FAILs' records: the pass decides nothing.
         self.assertEqual(download_requests(fake), 2)
 
-    def test_a_third_failed_head_reaches_the_cap(self) -> None:
+    def test_a_third_failed_head_and_a_fail_at_the_head_reach_the_cap(self) -> None:
         fake = self.heads()
         fake.artifacts.append(artifact(named(IN_PR, "fail", 96), 5))
         fake.runs[5] = run(5)
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 6))
+        fake.runs[6] = run(6)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertFalse(evidence.needs_human)
@@ -4530,6 +4556,8 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
         third = heads()
         third.artifacts.append(artifact(named(IN_PR, "fail", 96), 5))
         third.runs[5] = run(5)
+        third.artifacts.append(artifact(named(HEAD, "fail"), 6))
+        third.runs[6] = run(6)
         unreadable = heads()
         del unreadable.records[named(UNRELATED, "fail", 98)]
         no_pass = heads()
@@ -4550,7 +4578,10 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
             "third failed head": (
                 third,
                 self.report(
-                    "verify:repeated-fail", ["pass"], [*both, IN_PR], detail=capped
+                    "verify:repeated-fail",
+                    ["fail", "pass"],
+                    [*both, IN_PR],
+                    detail="fails at 4 heads, the cap is 3",
                 ),
                 4,
                 2,
