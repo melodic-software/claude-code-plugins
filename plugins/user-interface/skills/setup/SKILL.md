@@ -112,7 +112,26 @@ source path it printed, keep any template actions, show `chezmoi diff <file>`, t
 documents its result for an unmanaged file.
 
 The userConfig layer is not a file this skill writes. To change a `css_*` option, send the user to
-the routes in the plugin README's Options section. Pointer:
+Claude Code's native flow, per the marketplace's plugin-reconfiguration convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
+which owns the verified-version record): interactive `/plugin configure user-interface@<marketplace>`
+any time. Headless, preferred (Claude Code 2.1.285 or later):
+`claude plugin configure user-interface@<marketplace> --values-stdin < values.json`, with
+`values.json` holding `{"css_important": "allow"}` (every value a string, booleans included; keys
+left out keep their saved values). Headless fallback (an older release):
+`claude plugin install user-interface@<marketplace> -s <scope> --config css_important=allow`
+(repeatable per key); against an already-installed plugin it prints `already installed` and still
+writes the value. Do **not** uninstall to reconfigure: that drops this plugin's stored
+`pluginConfigs` entry, resetting every option to its manifest default. Scope: the value always
+lands in user settings. Run either route from the project the plugin is installed in (`configure`
+has no scope flag). For the rerun, `-s` defaults to `user`, so pass the scope `claude plugin list`
+reports, or the rerun adds a second install record at the scope passed and enables the plugin
+there; from the home directory, where the list can label one settings file both `user` and
+`project`, pass `user`. Check each route's own failure signal: `configure` rejects a bad value with exit 1 and saves
+nothing, but stores an empty string as `""`; the rerun prints a warning for a rejected value yet
+exits 0, so read its output. The rendered `${user_config.*}` values are fixed when this skill loads,
+so rerun `check` in a **fresh session** and report the provenance it observes, never an unobserved
+change. The plugin README's Options section lists every option. Pointer:
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>. As of: 2026-10-11.
 Recheck: that section changes how an option is edited or where its value is stored.
 
