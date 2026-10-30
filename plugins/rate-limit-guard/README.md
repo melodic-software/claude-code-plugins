@@ -136,7 +136,8 @@ threshold and approach mark, whether the band row and the toast are on, the snap
 link to this README.
 
 The band row above the prompt is off by default. When on, it shows `rate-limit-guard: 5h <x>% | 7d <y>%`, with `-`
-for a window that has no reading yet. Context use is context-guard's row, not this one.
+for each window before the first reading. After it, a window the account does not report is left out: an account
+with no 5-hour limit shows only `7d <y>%`. Context use is context-guard's row, not this one.
 `rate_limit_guard_band` set to `true` turns it on for every session; `/rate-limit-guard band on`,
 `band off`, or a bare `band` (toggle) changes it for the current session. Claude can call
 `mcp__rate-limit-guard__status` for the exact figures from the last API response: every window the

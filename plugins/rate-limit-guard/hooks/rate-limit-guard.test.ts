@@ -637,10 +637,18 @@ test('command: no argument returns the status and details', async ($, on) => {
   )
 })
 
+test('band: a window the account does not report is left out once another window has a reading', BAND_ON, async ($, on) => {
+  world(on, { limits: limits(undefined, 41) })
+  await bash($)
+  expect(await drawn($, 'terminal')).toEqual(['rate-limit-guard: 7d 41%', 'drawn beneath'])
+})
+
 test('command: the status says when a window has no reading and when snapshot writes are off', { options: { rate_limit_guard_enabled: false, rate_limit_guard_toast: false } }, async ($, on) => {
-  world(on, { limits: limits(undefined) })
+  const { w } = world(on, { limits: [] })
+  expect((await command($, '')).text).toContain('5-hour window: no reading\n')
+  w.limits = limits(undefined)
   const text = (await command($, '')).text
-  expect(text).toContain('5-hour window: no reading\n')
+  expect(text).toContain('5-hour window: not in the last response\n')
   expect(text).toContain('window-change toast off')
   expect(text).toContain('Snapshot: off (rate_limit_guard_enabled is false)')
 })
