@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.0] - 2026-10-30
+
+### Changed
+
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
+- Shared `prerequisites.mjs` copy synced: its comments name the prerequisites and on-demand-dependencies contracts at `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- **A red-main demotion record clears once main is green at a later commit.** `read_demotion` no longer holds the rung off on a `schedule` or `dispatch` demotion record that no non-human edited, open or not, when a green `pr-require-checks` run on main (attempt 1, a schedule or a `github-actions[bot]` dispatch) was created after the record at a commit ahead of the record's SHA and on main's history. The earliest such run since the record, read in full, becomes the post-merge floor, so newer runs never move it. Canary and read-back records still clear only by a human close, and any failed read keeps the record holding (#11262).
+
+- The merge gate's hold floor now covers the code pr-unblock's adjudicator reads a linked issue's spec text through (`resolve-pr.mjs`, `write-verdict.mjs`, `admit.mjs`, `select-trusted-text.mjs`, `lib/publish-gate.mjs`, `.github/recurring-schedule.json`, `charge-words.json`), as enforcement paths a clean security review clears.
+
+- The merge gate runs the shared YAML reader once per config text and key list in a process, not once per commit: the post-merge check reads the pipeline config at every merge since its floor, and those reads spawned about 14,600 reader processes per candidate. A replayed gate run on one candidate drops from 138 to 44 seconds of local work, with the same verdict.
+- A gate candidate no longer re-runs a post-merge check that already came back unreadable at main's current head, from the same floor, identity and lane, within the shared answer's age: it is refused with that check's reason. The merge job's own exit-3 check counts as that one check, so an unreadable day costs one check per sweep instead of one per candidate (about 50 gh calls and 4 minutes each). A check that comes back unreadable is still a hold, never a pass.
+
 ## [4.3.4] - 2026-10-30
 
 ### Fixed

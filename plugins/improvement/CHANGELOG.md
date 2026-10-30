@@ -3,6 +3,18 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.8] - 2026-10-30
+
+### Changed
+
+- `/improvement:find` cites the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+### Fixed
+
+- The `already-built-disconnected-scan` eval case no longer asks the model to check for something already built. Its prompt asks what to work on next, and its scaffold adds an approved `docs/bulk-export-plan.md` claiming nothing exports orders today. The `-behavior-present` variant keeps its stated heuristic on the same prompt and fixture. Before this change, the base model ranked the disconnected export first in 3 of 3 runs in both arms of the [#10235](https://github.com/melodic-software/claude-code-plugins/issues/10235) run, so the case could not discriminate. ([#10291](https://github.com/melodic-software/claude-code-plugins/issues/10291))
+
 ## [0.3.7] - 2026-10-30
 
 ### Changed

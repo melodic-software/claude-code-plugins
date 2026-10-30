@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [2.0.0] - 2026-10-30
+
+### Changed
+
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- **`/session-flow:show-options` is now `/session-flow:recommend-skills`.** The old name no longer resolves; invoke the skill by its new name. Its Spotlight ledger moved with it, to `<memory_dir>/recommend-skills/spotlight-ledger.json`, so the rotation starts over once. Update anything that still names `session-flow:show-options`: saved prompts (routines, scheduled tasks, `/loop`), `Skill(...)` permission rules and `skillOverrides` entries. A deny rule or an off override on the old name does not cover the new one.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+### Fixed
+
+- `/session-flow:audit-sessions` flags `hooks.stop_ms` and `time.active_s` again: their thresholds are the p90 of a fresh derivation on their current definitions, 152 ms and 19372 s, and `time.active_s` routes to `/session-flow:retro` as it did before. The derivation (672 interactive sessions, Claude Code 2.1.283-2.1.312, 2026-10-30) ships as `reference/threshold-derivation.md` with n, median and p90 per metric, and the basis of every other rule now gives its figures beside the earlier spike's. Those other thresholds are unchanged ([#10271](https://github.com/melodic-software/claude-code-plugins/issues/10271)).
+
 ## [1.10.6] - 2026-10-30
 
 ### Changed
