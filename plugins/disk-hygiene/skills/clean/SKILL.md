@@ -439,7 +439,7 @@ Preview reports `execution-platform-unsupported` as a per-candidate blocker on W
 so `apply` never runs there and the default outcome is the report. When, and only when, an
 execution request was made on one of those platforms, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
 and follow it. On Windows it runs one `handoff-apply` per tier, re-verifying each path just before sending it to the Recycle Bin, and that call's hook `ask`, listing the tier and every path, is the tier's approval; on macOS the human first approves an exact single-tier path list in this session.
-It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
+It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and how long the hook belt holds. Do not improvise a manual deletion lane from the engine steps above.
 
 ## Gotchas
 
@@ -467,7 +467,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   ([Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill),
   as of 2026-10-11; recheck when that section changes what the field grants). Consumer permission
   policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
+- The belt holds only while a clean run is open. A `preview` opens the run, and it stays open through the gap before `apply` until the run's `apply` or `handoff-apply` writes its report, or until the preview itself ends in `manual-handoff-lane` or `blocked`. A `handoff-apply` with no preview before it holds the belt until its report is written, and each manual-lane `handoff-verify` holds it until an hour passes with no engine call, which also ends any other open run. A `scan` alone opens no run. Outside a run, the belt denies nothing that does not name the engine, unless the kill switch is off: in audit-only mode it keeps its deny on every lane, run or no run ([the safety model](reference/safety-model.md), "When a run is open").
+- While a run is open, the Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
   handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
   runtime's own absolute interpreter. The guard also admits literal-form read-only
   supporting commands whose heads are absolute paths under a trusted system directory: `[`,

@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -188,6 +188,15 @@ describe("decide", () => {
         assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
       }
     });
+  });
+
+  // flag.mjs can add the label after apply-verdict's last read, so admission's
+  // own fresh read holds on it, whatever the rules list.
+  test("security: outside-actor on the fresh read holds for a person, with no refuse-labels", () => {
+    const rules = { ...RULES, "refuse-labels": [] };
+    const issue = issueOf({ labels: [{ name: READY }, { name: "security: outside-actor" }] });
+    assert.deepEqual(decide(facts({ rules, issue })), { verdict: "refuse", reasons: ["it carries security: outside-actor, which a person lifts"], hold: true });
+    assert.deepEqual(decide(facts({ rules })), { verdict: "admit", reasons: [] });
   });
 
   // The work-unblock sweep re-admits a deferred issue on no verdict comment,
@@ -2038,6 +2047,17 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } }, subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
   });
 
+  // A Size Large parent split by hand whose sub-issues are all closed is split
+  // already: closeSplitParent closes a finished split, so the one it left open
+  // is refused (status: confirmed), never parked as split pending every sweep.
+  test("a Size Large issue whose sub-issues are all closed is refused, not parked as split pending; one with none still parks", () => {
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
+    assert.deepEqual(decide(facts({ issue: split, verdict: large })), { verdict: "refuse", reasons: [SIZE_SPLIT_DONE] });
+    const unsplit = issueOf({ sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } });
+    assert.deepEqual(decide(facts({ issue: unsplit, verdict: large })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
+  });
+
   test("a parent waiting on an open sub-issue keeps its open pull requests, so admission-deferred stays", () => {
     const result = decide(facts({ issue: issueOf({ body: "Make the README better." }), spec: humanSpec(issueOf({ body: "Make the README better." })), pulls: [41], subIssues: [{ number: 8, state: "open" }] }));
     assert.deepEqual(result, { verdict: "wait", reasons: ["open pull request #41 is for it", "sub-issue #8 is open"], pulls: [41] });
@@ -2429,4 +2449,45 @@ test("trustedSplitChild reads the issue and its native parent and applies splitC
   assert.equal(await trustedSplitChild(fake(node(childBody, human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "not the lanes App's");
   assert.equal(await trustedSplitChild(fake(node(childBody, app), null), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no parent");
   assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
+});
+
+// A split made by hand (no App split record): a listed human linked two
+// sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
+// item citing a sub-issue counts as covered; an uncited one may be more work.
+describe("isSplitParent, split by hand", () => {
+  const humans = new Set([HUMAN]);
+  const titles = { 31: "feat(io): the parser", 32: "The writer" };
+  const child = (number, repo = "o/r") => ({ number, title: titles[number], state: "closed", repository_url: `https://api.github.com/repos/${repo}` });
+  const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+  const github = async (method, path) => (path.includes("/events") ? [link(31), link(32)] : []);
+  const splitParent = (body, labels = []) =>
+    isSplitParent({ github, repository: "o/r", issue: { number: 30, body, labels }, comments: [], children: [child(31), child(32)], isApp: () => false, humans });
+
+  test("every unticked item citing one of its sub-issues makes it a split parent", async () => {
+    assert.equal(await splitParent("Parts:\n\n- [ ] The parser (#31)\n- [ ] The writer, #32\n- [x] Done already"), true);
+  });
+  test("one unticked item citing no sub-issue keeps it open", async () => {
+    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer\n"), false);
+  });
+  test("an item citing a number that is not one of its sub-issues, here or in another repository, keeps it open", async () => {
+    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#99)"), false);
+    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (other/repo#32)"), false);
+  });
+  test("a sub-issue named mid-item, or only in a link, does not cover the item", async () => {
+    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] after #32 lands, update the README"), false);
+    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] see [#32](https://github.com/other/repo/issues/32) for context"), false);
+    assert.equal(await splitParent("- [ ] #31\n- [ ] see https://example.com/?q=#32"), false);
+  });
+  test("an item whose text is not its sub-issue's title is the parent's own work, wherever the citation sits", async () => {
+    for (const item of ["Update the README after #32", "Write migration guide, blocked by #32", "#32 must land first, then update the README", "Test #32", "the #32", "Writer #32"]) {
+      assert.equal(await splitParent(`- [ ] #31\n- [ ] ${item}`), false, item);
+    }
+    assert.equal(await splitParent("- [ ] **#31** The parser.\n- [ ] #32"), true);
+  });
+  test("a line under a cited item is more work", async () => {
+    assert.equal(await splitParent("- [ ] #31\n- [ ] #32 The writer\n  - also update the README"), false);
+  });
+  test("a recurring issue is never a split parent, even with every item cited", async () => {
+    assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);
+  });
 });

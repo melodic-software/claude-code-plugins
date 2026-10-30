@@ -18,8 +18,9 @@ useDefault = true
 # `github-app-token` rule stops at the `_` after the app id and the default
 # `jwt` rule's `\b` cannot match between `_` and `eyJ`. GitHub's recommended
 # regex: https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# The leading `\b` keeps words that end in "ghs" (`highs_and_lows_...`) from matching.
 [[rules]]
 id = "github-app-installation-token"
 description = "GitHub App installation token, classic and stateless (ghs_<appid>_<jwt>) formats"
-regex = '''ghs_[A-Za-z0-9._-]{36,}'''
+regex = '''\bghs_[A-Za-z0-9._-]{36,}'''
 keywords = ["ghs_"]
