@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: confirmed\nF2: refuted\nF3: refuted\nF4: confirmed - True is an int, so runs: true passes as 1\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "4. F4: Confirmed - add `or isinstance(value, bool)`\n",
+      "why": "a numbered line"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F4: refuted - isinstance(True, int) is False\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F1: confirmed\nF4: refuted\n",
+      "why": "confirmed sits on another finding's line"
+    },
+    {
+      "answer": "F4: partly confirmed - runs: false is still reported\n",
+      "why": "a hedged verdict"
+    }
+  ]
+}

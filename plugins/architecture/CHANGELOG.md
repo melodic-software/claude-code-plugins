@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-10-30
+
+### Added
+
+- `/architecture:improve conventions` derives the building blocks, owners and feature blueprints the code already follows and proposes each as a rule, recording none without your yes. An accepted boundary rule goes into the `## Boundary rules` section of the architecture topic doc, a place that departs from a convention goes to `/corrections:codify`, and a paved-path entry goes to `/discipline:reuse-or-replace`.
+
 ## [1.1.5] - 2026-10-29
 
 ### Fixed

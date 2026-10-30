@@ -25,7 +25,7 @@ node_path="$(command -v node 2>/dev/null || true)"
 if [[ -n "$node_path" ]]; then
   row node PASS "$node_path $(node --version 2>&1)"
 else
-  row node FAIL "node is not on PATH; the fetch gate cannot start and fails open"
+  row node FAIL "node is not on PATH; the fetch gate cannot start, so Claude Code 2.1.295 or later denies every WebFetch and an older client lets it through"
 fi
 
 # With node, one hook entry must carry the event, matcher, command and script

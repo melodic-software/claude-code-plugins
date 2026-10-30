@@ -293,13 +293,13 @@ out of scope until such a signal exists.
 - **The Bash row fails open on a guard's crash.** An internal script error
   exits 0 so a defect on this hottest-path row cannot freeze the session, with
   the user notice so the allow is not silent. Stdin timeout and a NUL payload
-  still fail closed. The 60s `hooks.json`
-  `timeout` on this handler is a harness-level fail-open the plugin does not
-  override: we treat a guard killed at that bound as letting the tool call
-  proceed. Pointer: <https://code.claude.com/docs/en/hooks#timeouts>. As of:
-  2026-10-01. Recheck trigger: that section changes what a timed-out
-  `PreToolUse` command hook does to the tool call. What the
-  plugin does instead is keep the row far from that bound: the command
+  still fail closed. The row sets `"onFailure": "block"`, so on Claude Code
+  2.1.295 or later a handler killed at its 60s `hooks.json` `timeout` denies
+  the call; an older client lets it proceed. Pointer:
+  <https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails>.
+  As of: 2026-10-30. Recheck trigger: that section changes what a timed-out
+  `PreToolUse` command hook does to the tool call. The plugin also keeps the
+  row far from that bound, so a slow command gets the guard's own reason: the command
   tokenizer is linear in the command's length, one parse serves every guard,
   and a command over `MAX_COMMAND_LEN` is refused by the first guard that
   carries the ceiling before anything tokenizes it (#4528).
@@ -1302,9 +1302,11 @@ guards behave exactly as before.
   notice per session, never a silent disable.
 - **Node.js** on `PATH`. Every guard row starts through `hooks/exec-bash.mjs`, which finds bash
   and runs the guard; the script declares no minimum Node version. The exec-form row needs `node`
-  resolvable on `PATH`, and we treat a row that cannot start because `node` is missing as a guard
-  that enforced nothing, with no documented error to rely on. `/guardrails:check` reports a missing
-  `node` or `jq`. A `SessionStart` row in shell form
+  resolvable on `PATH`. Every `PreToolUse` guard row except `Workflow` sets `"onFailure": "block"`,
+  so on Claude Code 2.1.295 or later a row that cannot start, because `node` or bash is missing, or
+  that times out, denies the call. An older client ignores the key, and such a row enforces nothing
+  ([hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block)).
+  `/guardrails:check` reports a missing `node` or `jq`. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
   absent it exits 0 with a `systemMessage` that shows the user a warning once per session across

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: confirmed - the bound rejects the minimum\nF2: refuted - the message text is unchanged\nF3: refuted - the field is optional\nF4: confirmed - the default is out of range\n",
+      "why": "one verdict per finding"
+    },
+    {
+      "answer": "- **F1:** Confirmed.\n- **F2:** Refuted.\n- **F3:** Refuted.\n- **F4:** Confirmed.\n",
+      "why": "bold labels and capitals"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F1: confirmed\nF1: refuted\nF2: refuted\nF3: refuted\nF4: confirmed\n",
+      "why": "contradictory verdicts for F1"
+    },
+    {
+      "answer": "F1: confirmed\nF2: refuted\nF3: refuted\nF4: confirmed\nF4: not confirmed\n",
+      "why": "a negated second verdict for F4"
+    },
+    {
+      "answer": "F1: confirmed\nF2: refuted\nF4: confirmed\n",
+      "why": "a finding left without a verdict"
+    }
+  ]
+}

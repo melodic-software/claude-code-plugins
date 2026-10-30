@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "finding: scripts/resolve-roles.sh json_str - quotes are escaped before backslashes, so the backslash added before a quote is doubled and a note holding a quote prints invalid JSON\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "- **finding:** `scripts/resolve-roles.sh` `json_str()` - the escape order is swapped; `a\"b` becomes `\"a\\\\\"b\"`, which ends the string early\n",
+      "why": "bold label and code spans"
+    },
+    {
+      "answer": "Reviewed the diff.\n\n1. finding: scripts/resolve-roles.sh json_str - backslash escaping now runs second and re-escapes the backslashes the quote step added\n",
+      "why": "a numbered line after a preamble"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: none\n",
+      "why": "missed the defect"
+    },
+    {
+      "answer": "finding: scripts/resolve-roles.sh note - the new helper loses the label argument\n",
+      "why": "flags the decoy instead"
+    },
+    {
+      "answer": "The escape order in json_str is swapped, so quotes break the JSON.\n",
+      "why": "right defect, not on a finding line"
+    },
+    {
+      "answer": "finding: scripts/resolve-roles.sh join - the notes are joined with a comma\nThe json_str change looks fine.\n",
+      "why": "json_str named only on another line"
+    }
+  ]
+}
