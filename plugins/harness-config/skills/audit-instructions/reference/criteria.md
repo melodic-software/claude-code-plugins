@@ -305,7 +305,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
   removal changes behavior only on the occasion it was written for, which this criterion cannot
   observe.
-- **Source:** best-practices, "Write an effective CLAUDE.md" (the per-line removal test).
+- **Source:** best-practices, "Keep CLAUDE.md short" (the per-line removal test).
 
 ### I2: Length and skimmability
 
@@ -314,7 +314,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** a surface long or dense enough that its own rules start getting ignored; the tell is
   the model breaking a rule the file contains.
 - **Remediate:** prune, split into path-scoped rules or skills, tighten structure.
-- **Source:** best-practices, "Write an effective CLAUDE.md" (file length and ignored rules).
+- **Source:** best-practices, "Keep CLAUDE.md short" (file length and ignored rules).
 
 ### I3: Broad-applicability placement
 
@@ -362,7 +362,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality*, an instruction sitting
   away from the thing it governs, is I16, and an instruction can be correctly deferred here and
   still misplaced there.
-- **Source:** best-practices, "Write an effective CLAUDE.md" (broad applicability, skills for
+- **Source:** best-practices, "Keep CLAUDE.md short" (broad applicability, skills for
   sometimes-relevant content); memory, "Import additional files" (imports load at launch);
   context-window, "What survives compaction", for the per-destination cost; skills, "Frontmatter
   reference" (description loading, the listing truncation, whose value this check reads from
@@ -390,7 +390,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   the hold and its class; propose compression in place instead. The register is non-exhaustive, so
   a candidate absent from it is judged on this criterion's normal terms, never deleted *because* it
   is absent.
-- **Source:** best-practices, "Write an effective CLAUDE.md", the include/exclude table (its exclude
+- **Source:** best-practices, "Keep CLAUDE.md short", the include/exclude table (its exclude
   column).
 
 ### I5: Rule-to-hook or delete
@@ -408,7 +408,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   "The model already does this" is the weakest possible evidence against a rail whose absence is
   unrecoverable, and the hook conversion stays available: converting a protected rule to a
   deterministic mechanism is a remediation, deleting it is not.
-- **Source:** best-practices, "Avoid common failure patterns" (already-followed rules) and "Set up
+- **Source:** best-practices, "Keep CLAUDE.md short" (already-followed rules) and "Enforce steps with
   hooks".
 
 ### I6: Bare prohibition to positive reframing

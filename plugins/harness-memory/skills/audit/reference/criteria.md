@@ -11,7 +11,7 @@ Version: 1.7.0
 Last updated: 2026-10-11
 Source: official Claude Code docs, chiefly
 [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
-[Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md),
+[Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short),
 [Enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory) and
 [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). Each check
 cites the exact section it rests on beside it. As of 2026-10-11; recheck when any of those sections
@@ -83,7 +83,7 @@ The branch is prompt-conditioned, so it belongs to the judgment tier. Label it "
 candidate" in the report; steps 1-6 remain the deterministic spine, unaffected.
 
 - **Pointer**: for the ignored-rule symptom, see
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
 
 **Allowances**: Complex monorepos using `.claude/rules/` extensively may justify overages, and a repo
 may document a deliberate exemption in its own rules (see SKILL.md "Consumer-convention extension
@@ -112,7 +112,7 @@ seam"). Report overage and justification together.
 **Why**: This is the docs' per-line pruning test, applied line by line; we treat surplus lines as
 diluting the ones that matter.
 
-- **Pointer**: [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
+- **Pointer**: [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
 
 ### C3: Content Placement [WARN]
 
@@ -186,8 +186,8 @@ and never count an `@path` split as a saving. The per-destination compaction mod
 live in [official-guidance.md](official-guidance.md), not here.
 
 - **Pointer**: for skills and hooks as alternatives to CLAUDE.md, see
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md)
-  and [Set up hooks](https://code.claude.com/docs/en/best-practices#set-up-hooks); for imports, see
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short)
+  and [Enforce steps with hooks](https://code.claude.com/docs/en/best-practices#enforce-steps-with-hooks); for imports, see
   [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
 - **Pointer** (the listing-entry cost and the zero-cost rule): for the listing cap, invocation
   control and visibility overrides, see
@@ -240,8 +240,8 @@ overwrite it.
 **Why**: Steps 1-3 apply the exclude side of the docs' include/exclude table, in our words.
 
 - **Pointer**: for the include/exclude table, see
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
-- **As of**: 2026-08-17
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
+- **As of**: 2026-10-30
 - **Recheck trigger**: the table gains a navigation-pointer row, or drops an exclude row steps 1-3
   apply.
 
