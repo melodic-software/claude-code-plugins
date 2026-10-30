@@ -689,9 +689,11 @@ assert_contains "and says discovery did not report" "$OUT" "carries no DIR row"
 # exactly inside the window the ignore protects. A canary that then misses
 # means the restore has real work to do either way. Bash does not wait for a
 # process substitution, so `wait` holds the asserts until the restore is done.
+# The braces make this shell, not the forked `grep`, open the substitution, so
+# `$!` names it here.
 PIPED="$TMP/piped"
 build_ready_repo "$PIPED"
-grep -q 'removed svc/CLAUDE.md' < <(bash "$SCRIPT" --root "$PIPED" --confirm \
+{ grep -q 'removed svc/CLAUDE.md'; } < <(bash "$SCRIPT" --root "$PIPED" --confirm \
   --installed-plugins "$TMP/installed-current.json" \
   --claude-bin "$TMP/bin/claude-unmet" "${CHECK_ARGS[@]}" 2>/dev/null)
 wait "$!"
