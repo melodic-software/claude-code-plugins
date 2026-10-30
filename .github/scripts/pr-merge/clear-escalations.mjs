@@ -219,7 +219,9 @@ const AT_HEAD = / at head `([^`]*)`/g;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // report-escalation.sh's fix-ci stops, each judged by ciPasses. Not
-// ci-fix-protected-path: its fix needed a protected path, so a person decides it.
+// ci-fix-protected-path or ci-fix-weaken-required: a session builder makes
+// their fix (needs-session), so an older human-gated label on them clears only
+// once the head's checks read failed, the lane's failing status holding it.
 const CI_FIX = Object.freeze(["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-escalated"]);
 // The only conclusions a check's latest run at the head may have for a ci-fix
 // stop to clear; action_required, stale, null and any other keep it.
