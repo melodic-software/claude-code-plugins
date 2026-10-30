@@ -57,7 +57,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 
 TIERS = frozenset({"high", "medium", "low"})
 
@@ -101,32 +101,43 @@ def run_marker_filename(session_id: str) -> str:
     return f"{safe}.json"
 
 
+def _set_run_marker_lock(fd: int, take: bool) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK if take else msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX if take else fcntl.LOCK_UN)
+
+
 @contextmanager
 def run_marker_lock(runs: str | os.PathLike[str]) -> Iterator[None]:
     """Hold the exclusive run-marker lock in ``runs``, creating both if absent.
 
-    Raises ``OSError`` when the lock cannot be taken; callers treat that like
-    any other failed bookkeeping step.
+    Best effort: when the lock file cannot be opened or locked, the body runs
+    unlocked, so a lock failure never costs the marker write it guards.
     """
     os.makedirs(runs, exist_ok=True)
-    fd = os.open(os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600)
+    fd: int | None = None
     try:
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
-            try:
-                yield
-            finally:
-                os.lseek(fd, 0, os.SEEK_SET)
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            yield
+        fd = os.open(
+            os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600
+        )
+        _set_run_marker_lock(fd, True)
+    except OSError:
+        if fd is not None:
+            os.close(fd)
+        fd = None
+    try:
+        yield
     finally:
-        os.close(fd)
+        if fd is not None:
+            with suppress(OSError):
+                _set_run_marker_lock(fd, False)
+            os.close(fd)
 
 
 def is_engine_owned(relative: str) -> bool:

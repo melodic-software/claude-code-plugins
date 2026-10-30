@@ -11481,6 +11481,14 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(self._run_marker().is_file())
         self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
 
+    def test_a_lock_that_cannot_be_taken_still_opens_the_run(self) -> None:
+        lock = self._run_marker().parent / guard.engine_grammar.RUN_LOCK_FILENAME
+        lock.mkdir(parents=True)
+        self._open_run_by_preview()
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self.assertEqual(3, self._engine_preview("blocked"))
+        self.assertFalse(self._run_marker().exists())
+
     def test_run_end_leaves_other_sessions_markers_naming_the_same_file(
         self,
     ) -> None:
