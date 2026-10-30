@@ -566,13 +566,25 @@ jobs:
             echo "stop=$stop" >>"$GITHUB_OUTPUT"
             exit 1
           }
-          if ! attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt 2>"$err"); then
+          if ! run=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '"\(.run_attempt) \(.head_sha)"' 2>"$err"); then
             stopped "the read of run $RUN_ID"
             echo "::error::the read of run $RUN_ID failed; no re-run started or recorded"
             exit 1
           fi
+          read -r attempt head <<<"$run"
           if [ "$attempt" != 1 ]; then
             echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
+            exit 0
+          fi
+          # Only main's tip is re-run: a red run on a superseded head would
+          # judge code main no longer holds and can raise a stale MAIN-RED.
+          if ! tip=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha 2>"$err"); then
+            stopped "the read of main's tip"
+            echo "::warning::the read of main's tip failed; run $RUN_ID is not re-run"
+            exit 0
+          fi
+          if [ "$head" != "$tip" ]; then
+            echo "::notice::run $RUN_ID is on ${head:0:12}, not main's tip ${tip:0:12}: a superseded head is not re-run"
             exit 0
           fi
           # As the dispatch: at most three POSTs, sent again after a capped
