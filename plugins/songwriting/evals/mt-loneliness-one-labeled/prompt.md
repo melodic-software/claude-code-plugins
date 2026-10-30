@@ -1,5 +1,5 @@
 ---
-description: "A request for one best metaphor gets one metaphor labeled with its family distance, not a menu"
+description: "A request for one best metaphor gets one metaphor labeled with its family distance, not a menu, per the metaphor skill's 'A request for one gets one' handler"
 tags: [songwriting, metaphor, outcome, group-a]
 max_turns: 10
 timeout_seconds: 300
