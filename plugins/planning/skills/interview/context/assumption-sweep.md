@@ -52,7 +52,7 @@ why it was recommended.
   glossary has no line for it. An accepted answer does not settle it: an "accept all" accepts the
   choice, not a name the user never saw defined. Its class is `decision`.
 
-The acceptance-criteria coverage prompt is never a sweep item.
+The acceptance-criteria coverage prompt is never a sweep item ([`coverage-prompt.md`](coverage-prompt.md)).
 
 ## Item shape
 
