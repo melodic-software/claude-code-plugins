@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "export function CartDrawer({ open }: { open: boolean }) {\n  return <aside className={open ? \"drawer drawer--open\" : \"drawer\"}>{/* cart lines */}</aside>;\n}\n", "why": "the scaffold's file, untouched"}
+  ],
+  "fail": [
+    {"answer": "", "why": "deleted or emptied"},
+    {"answer": "export function CartDrawer({ open }: { open: boolean }) {\n  return null;\n}\n", "why": "rewritten"}
+  ]
+}
