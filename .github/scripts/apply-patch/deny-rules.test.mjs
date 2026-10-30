@@ -75,7 +75,7 @@ test("a row that refuses no path rule gets no rules", () => {
 test("the rules match only paths apply-patch refuses, plugins/ settings files included, and cover the common ones", () => {
   const dirs = execFileSync("git", ["-C", REPO_ROOT, "ls-tree", "-d", "--name-only", "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
   const rules = denyRules(ISSUE_REFUSE, dirs);
-  const tracked = execFileSync("git", ["-C", REPO_ROOT, "ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+  const tracked = execFileSync("git", ["-C", REPO_ROOT, "ls-files"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).split("\n").filter(Boolean);
   const accepted = [
     ...tracked,
     "plugins/x/settings.json",
