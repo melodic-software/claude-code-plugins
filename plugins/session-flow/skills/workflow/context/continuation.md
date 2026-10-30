@@ -163,7 +163,7 @@ anything carries over and clears when nothing does, work that leaves the session
   <https://code.claude.com/docs/en/best-practices#explore-first-then-plan-then-code>,
   <https://code.claude.com/docs/en/best-practices#let-claude-interview-you>,
   <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>,
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step> and
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec> and
   <https://code.claude.com/docs/en/best-practices#course-correct-early-and-often>; for the cache
   lifetime, see <https://code.claude.com/docs/en/prompt-caching#cache-lifetime>.
 - **As of**: 2026-10-02

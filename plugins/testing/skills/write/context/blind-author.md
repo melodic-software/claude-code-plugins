@@ -59,8 +59,8 @@ when the `planning` plugin is enabled).
 The split between the test author and the implementer, and the review that does not trust the
 implementer's own green run, follow Claude Code's best-practices page:
 [Run multiple Claude sessions](https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions)
-and [Add an adversarial review step](https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step).
-As of 2026-10-11. Recheck trigger: either section moves or drops the test-writer and code-writer
+and [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec).
+As of 2026-10-30. Recheck trigger: either section moves or drops the test-writer and code-writer
 split.
 
 The optional lock in step 4 rests on file-path deny rules:

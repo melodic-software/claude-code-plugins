@@ -1045,10 +1045,10 @@ invoker cannot be relied on to remember it.
 - **Pointer**: for what a fork inherits, see
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>; for
   fresh-context review, see
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>,
-  <https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work>, and
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>,
+  <https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run>, and
   <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
-- **As of**: 2026-08-10
+- **As of**: 2026-10-30
 - **Recheck trigger**: a fork stops inheriting the parent conversation, or those sections stop
   recommending a fresh-context reviewer.
 
@@ -1163,8 +1163,8 @@ A dispatch prompt at any rung:
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
-  2026-08-10. Recheck trigger: that section stops recommending a bounded review.
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>. As of:
+  2026-10-30. Recheck trigger: that section stops recommending a bounded review.
 
 ### Named-agent bar
 
