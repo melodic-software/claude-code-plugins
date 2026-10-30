@@ -137,15 +137,15 @@ detect_format() {
     printf 'go_cover\n'
     return 0
   fi
-  if head -n 200 "$artifact" | grep -q '^SF:' || head -n 200 "$artifact" | grep -q '^TN:'; then
+  if grep -q '^SF:' < <(head -n 200 "$artifact") || grep -q '^TN:' < <(head -n 200 "$artifact"); then
     printf 'lcov\n'
     return 0
   fi
-  if head -n 200 "$artifact" | grep -q '<coverage'; then
+  if grep -q '<coverage' < <(head -n 200 "$artifact"); then
     printf 'cobertura\n'
     return 0
   fi
-  if head -c 4096 "$artifact" | grep -q '"files"' && head -c 4096 "$artifact" | grep -q '"meta"'; then
+  if grep -q '"files"' < <(head -c 4096 "$artifact") && grep -q '"meta"' < <(head -c 4096 "$artifact"); then
     printf 'coverage_py_json\n'
     return 0
   fi

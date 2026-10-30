@@ -73,8 +73,11 @@ on:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
           (split-required, research-first or probe-first) that
-          kept the run from starting; report-outcome hands the issue to a
-          person with the next step. Empty otherwise.
+          kept the run from starting, where report-outcome hands the issue to a
+          person with the next step; or outside-author, the admit job's stop on
+          an issue neither a listed human nor the lanes App wrote, where it
+          removes agent-ready and asks a listed human to re-file the work.
+          Empty otherwise.
         required: false
         type: string
         default: ""
@@ -639,10 +642,11 @@ jobs:
               exit 1
             fi
           fi
-          # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
+          # A dimension skip is one of the issue-dimension reasons, or the admit
+          # job's outside-author stop, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
-            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first)$ ]]; }; then
-            echo "::error::dimension-skip must be an issue-dimension skip reason, in issue mode"
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author)$ ]]; }; then
+            echo "::error::dimension-skip must be an issue-dimension skip reason or outside-author, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -1956,7 +1960,7 @@ jobs:
           REUSE_SUMMARY_DIR: ${{ inputs.reuse-branch != '' && format('{0}/reuse-summary', runner.temp) || '' }}
           # Parsed and checked against the lane branch by report-outcome.
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
-          # Checked against the four reasons by the job's first step.
+          # Checked against the skip reasons by the job's first step.
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
           # Issue mode only; report-outcome counts only `true`.
           COLLECT_REFUSED: ${{ inputs.issue-number != '' && inputs.collect-refused || '' }}

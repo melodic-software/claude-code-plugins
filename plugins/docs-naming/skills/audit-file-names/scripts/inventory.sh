@@ -238,7 +238,7 @@ while IFS= read -r path; do
     esac
   fi
 
-  if printf '%s' "$base" | grep -Eq "$REGEX"; then
+  if grep -Eq "$REGEX" <<<"$base"; then
     continue
   fi
 
@@ -289,7 +289,7 @@ while IFS="$(printf '\t')" read -r old new; do
     continue
   fi
 
-  if printf '%s\n' "$folded_dirs" | grep -Fxq "$folded_new"; then
+  if grep -Fxq "$folded_new" <<<"$folded_dirs"; then
     printf 'COLLISION\t%s\t%s\n' "$new" "a directory already folds to this path"
     collisions=$((collisions + 1))
   fi

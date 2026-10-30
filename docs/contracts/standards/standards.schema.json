@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/standards/standards.schema.json",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/standards.schema.json",
   "title": "Standards concern file (.claude/standards.yaml)",
   "description": "Consumer-side single source of truth for the standards convention. Every key is optional; absent keys mean the documented defaults.",
   "type": "object",
