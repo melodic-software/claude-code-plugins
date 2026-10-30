@@ -97,8 +97,9 @@ const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = 
 // `blobs` is main's blob per file; `changed` lists the files each head SHA
 // changes against its merge base with main.
 // `compare` is the status of a run's head against main; `moved` is a PR as a
-// fresh GET /pulls/{n} answers it, when it changed since the listing.
-function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, mainTag = false, failOn } = {}) {
+// fresh GET /pulls/{n} answers it, when it changed since the listing; `refs`
+// is each branch's tip as GET git/ref/heads/{branch} answers it, null a 404.
+function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
@@ -135,6 +136,12 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
     }
     if (route === `/repos/${REPO}/git/ref/heads/main`) {
       return { ref: "refs/heads/main", object: { sha: MAIN_TIP } };
+    }
+    if ((match = new RegExp(`^/repos/${REPO}/git/ref/heads/(.+)$`).exec(route)) && match[1] in refs) {
+      if (refs[match[1]] === null) {
+        throw new GitHubError(404, `${method} ${path}`);
+      }
+      return { ref: `refs/heads/${match[1]}`, object: { sha: refs[match[1]] } };
     }
     // Every main-side read names main's tip, never the name main.
     if ((match = /\/contents\/(.+)$/.exec(route))) {
@@ -440,10 +447,12 @@ test("a marker at the current head means the push did not land: it retries the p
   assert.equal(pushes(w.calls).length, 1);
 });
 
-test("a push that has not landed an hour after its marker is not retried again", async () => {
+test("a push that has not landed an hour after its marker is not retried again, and warns so a person looks", async (t) => {
   const w = refusedWorld([pr(9)], { comments: { 9: [marker(UNBLOCK, BLOB, sha(9), { at: "2026-10-17T20:59:00Z" })] } });
-  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
   assert.deepEqual(pushes(w.calls), []);
+  assert.ok(lines.includes(`::warning title=refire-refused::#9 not re-fired: its push for ${UNBLOCK} at ${BLOB} did not land; a person looks`), lines.join("\n"));
 });
 
 test("a marker by anyone but the lanes App counts for nothing", async () => {
@@ -460,17 +469,16 @@ test("a failed marker comment pushes nothing and fails the run", async (t) => {
   assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/issues/9/comments failed with status 422`), lines.join("\n"));
 });
 
-// A 409 or 422 on the new commit or the ref update is that branch moving
-// under the push; any other answer (an auth refusal, a 5xx after retries)
-// would fail every PR the same way, so it fails the run.
-test("a 409 on the commit write is a warning for each PR it hits, and the run passes", async (t) => {
-  // Every commit write answers 409 here, so neither ref moves.
+// A new commit object names only its tree and parent, so no branch move can
+// refuse it: any error writing it would hit every PR the same way.
+test("a 409 on the commit write fails the run at the first PR instead of warning for each", async (t) => {
   const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `POST /repos/${REPO}/git/commits`, status: 409 } });
   const { code, lines } = await logged(t, w);
-  assert.equal(code, 0);
+  assert.equal(code, 1);
   assert.deepEqual(pushes(w.calls), []);
-  assert.equal(lines.filter((line) => line.startsWith("::warning title=refire-refused::#")).length, 2, lines.join("\n"));
-  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=0 failed=2 skipped-owned=0 deferred=0");
+  assert.equal(w.calls.filter((call) => call.startsWith(`POST /repos/${REPO}/git/commits `)).length, 1);
+  assert.ok(lines.includes(`::error title=refire-refused::#9: POST /repos/${REPO}/git/commits failed with status 409`), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
 });
 
 test("a 403 on the ref update fails the run at the first PR instead of warning for each", async (t) => {
@@ -502,8 +510,10 @@ test("a failed run listing for a lane fails the run and pushes nothing", async (
 
 // Run 41065454536: one PR's ref update answered 422, and the step failed the
 // whole merge job.
+// A 409 or 422 on the ref update is that branch moving under the push only
+// when a fresh read of the branch shows it moved or gone.
 test("one PR's failed ref update is a warning for that PR alone: the rest still re-fire and the run passes", async (t) => {
-  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30` });
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30`, refs: { "fix/30": sha(31) } });
   const { code, lines } = await logged(t, w);
   assert.equal(code, 0);
   assert.deepEqual(
@@ -513,6 +523,27 @@ test("one PR's failed ref update is a warning for that PR alone: the rest still 
   assert.ok(lines.includes(`::warning title=refire-refused::#30: PATCH /repos/${REPO}/git/refs/heads/fix/30 failed with status 422`), lines.join("\n"));
   assert.equal(lines.some((line) => line.startsWith("::error")), false, lines.join("\n"));
   assert.equal(lines.at(-1), "refire-refused: outcome re-fired=2 failed=1 skipped-owned=0 deferred=0");
+});
+
+test("a 409 on the ref update of a branch deleted under the push warns for that PR alone", async (t) => {
+  const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `PATCH /repos/${REPO}/git/refs/heads/fix/9`, status: 409 }, refs: { "fix/9": null } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 0);
+  assert.equal(pushes(w.calls).length, 2);
+  assert.ok(lines.includes(`::warning title=refire-refused::#9: PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 409`), lines.join("\n"));
+  assert.equal(lines.at(-1), "refire-refused: outcome re-fired=1 failed=1 skipped-owned=0 deferred=0");
+});
+
+test("a 422 on the ref update of a branch still at the head it was read at fails the run at that PR", async (t) => {
+  const w = refusedWorld([pr(9), pr(30), pr(41)], { failOn: `PATCH /repos/${REPO}/git/refs/heads/fix/30`, refs: { "fix/30": sha(30) } });
+  const { code, lines } = await logged(t, w);
+  assert.equal(code, 1);
+  assert.deepEqual(
+    pushes(w.calls).map((call) => /heads\/fix\/(\d+)/.exec(call)[1]),
+    ["9", "30"],
+  );
+  assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::#30: PATCH /repos/${REPO}/git/refs/heads/fix/30 failed with status 422`)), lines.join("\n"));
+  assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
 });
 
 test("a PR from a branch the config names as workflow-owned is never commented on or pushed to; the others still are", async (t) => {

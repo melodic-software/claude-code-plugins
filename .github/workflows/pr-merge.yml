@@ -1803,9 +1803,10 @@ jobs:
       # gate, which refuses a PR with a failing check, and not while the lane
       # is report-only or after the gate's rate-limit stop. A PR from a branch
       # merge.refire-skip-branches names (one a workflow rebuilds) is left
-      # alone. A PR that changed since the listing, or whose branch moved
-      # under the push (409 or 422), is a warning counted in the closing
-      # `outcome` line and fails nothing; any other failure fails the step.
+      # alone. A PR that changed since the listing, or whose branch a fresh
+      # read shows moved or gone after a 409 or 422 on the ref update, is a
+      # warning counted in the closing `outcome` line and fails nothing; any
+      # other failure fails the step.
       # Rules:
       # .github/scripts/pr-merge/refire-refused.mjs.
       - name: Re-fire lane runs refused as workflow-modified

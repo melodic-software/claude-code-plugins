@@ -112,10 +112,12 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (what, error) =>
   console.log(`::error title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
 // A failure that concerns one PR alone warns and leaves the others to go on:
-// the PR changed since the listing, or its branch moved under the push (409
-// or 422 on the commit or ref write; run 41065454536's 422 on
-// release/plugins). Any other failure would hit every PR the same way (an
-// auth refusal, a 5xx after retries), so it stops the run and fails the step.
+// the PR changed since the listing, or its branch moved or went away under
+// the push (a 409 or 422 on the ref update with the branch since read at
+// another SHA or gone; run 41065454536's 422 on release/plugins). Any other
+// failure would hit every PR the same way (an auth refusal, a 5xx after
+// retries, any error on the commit write), so it stops the run and fails the
+// step.
 const reportWarning = (what, error) =>
   console.log(`::warning title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
 class PullFailure extends Error {}
@@ -124,7 +126,6 @@ class Fatal extends Error {
     super(`${what}: ${error?.message ?? error}`);
   }
 }
-const branchMoved = (error) => error instanceof GitHubError && (error.status === 409 || error.status === 422);
 
 // merge.refire-skip-branches from resolve-config's output: the head refs a
 // workflow owns and rebuilds, where an empty commit would race its rebuild.
@@ -263,7 +264,7 @@ async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha
     return { reason: `already re-fired for ${path} at ${blob}` };
   }
   if (markers.some(({ at }) => !(now - at < RETRY_MS))) {
-    return { reason: `its push for ${path} at ${blob} did not land; a person looks` };
+    return { reason: `its push for ${path} at ${blob} did not land; a person looks`, warn: true };
   }
   return { reason: null, recorded: markers.length > 0 };
 }
@@ -285,14 +286,7 @@ async function headTree(github, repo, pull) {
 // An empty commit on the head, moved onto the branch only as a fast-forward,
 // so a push since the read fails it.
 async function pushEmptyCommit(github, repo, pull, path, tree) {
-  const write = async (...request) => {
-    try {
-      return await github(...request);
-    } catch (error) {
-      throw branchMoved(error) ? new PullFailure(error.message) : error;
-    }
-  };
-  const commit = await write("POST", `/repos/${repo}/git/commits`, {
+  const commit = await github("POST", `/repos/${repo}/git/commits`, {
     message: commitMessage(path),
     tree,
     parents: [pull.head.sha],
@@ -301,7 +295,31 @@ async function pushEmptyCommit(github, repo, pull, path, tree) {
     throw new Error("the new commit has no SHA");
   }
   const ref = pull.head.ref.split("/").map(encodeURIComponent).join("/");
-  await write("PATCH", `/repos/${repo}/git/refs/heads/${ref}`, { sha: commit.sha, force: false });
+  try {
+    await github("PATCH", `/repos/${repo}/git/refs/heads/${ref}`, { sha: commit.sha, force: false });
+  } catch (error) {
+    if (!(error instanceof GitHubError && (error.status === 409 || error.status === 422))) {
+      throw error;
+    }
+    // Only a branch since moved or gone is this PR's alone; one still at the
+    // head refused the fast-forward for a reason every PR would hit.
+    let tip;
+    try {
+      tip = (await github("GET", `/repos/${repo}/git/ref/heads/${ref}`))?.object?.sha;
+    } catch (reread) {
+      if (reread instanceof GitHubError && reread.status === 404) {
+        throw new PullFailure(error.message);
+      }
+      throw reread;
+    }
+    if (!SHA.test(String(tip))) {
+      throw new Error(`${error.message}; the branch's tip cannot be read`);
+    }
+    if (tip !== pull.head.sha) {
+      throw new PullFailure(error.message);
+    }
+    throw new Error(`${error.message}; the branch is still at ${tip}`);
+  }
   return commit.sha;
 }
 
@@ -413,9 +431,9 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       } catch (error) {
         throw new Fatal(`#${number}`, error);
       }
-      const { reason, recorded } = verdict;
+      const { reason, recorded, warn } = verdict;
       if (reason !== null) {
-        console.log(`refire-refused: #${number} not re-fired: ${reason}`);
+        console.log(`${warn ? "::warning title=refire-refused::" : "refire-refused: "}#${number} not re-fired: ${reason}`);
         continue;
       }
       ready.push({ pull, path, file, blob, recorded, run });
