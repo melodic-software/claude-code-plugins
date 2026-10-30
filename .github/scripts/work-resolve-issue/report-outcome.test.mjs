@@ -741,16 +741,18 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
 // design detail, or a pushback naming no cause, is the lane's to decide.
 test("a pushback without cause intent retries instead of reaching a person", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
-  for (const cause of [undefined, "", "design", "means", "INTENT"]) {
+  for (const cause of [undefined, "", "design", "means", 7]) {
     const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", cause, title: "", summary: "" } });
     assert.equal(plan.action, "retry", String(cause));
     assert.equal(plan.stop, "pushback-means", String(cause));
     assert.ok(!plan.addLabels.includes("needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
     assert.equal(parseReason(plan.comment), null, plan.comment);
   }
-  const intent = decide({ ...plain, outcome: { exit: "pushback", reason: "Which outcome?", cause: "intent", title: "", summary: "" } });
-  assert.equal(intent.action, "hand-back");
-  assert.equal(parseReason(intent.comment).reason, "intent");
+  for (const cause of ["intent", "INTENT", " Intent\n"]) {
+    const intent = decide({ ...plain, outcome: { exit: "pushback", reason: "Which outcome?", cause, title: "", summary: "" } });
+    assert.equal(intent.action, "hand-back", JSON.stringify(cause));
+    assert.equal(parseReason(intent.comment).reason, "intent");
+  }
   withDir({ "work-outcome.json": JSON.stringify({ exit: "pushback", reason: "Which outcome?", cause: "intent" }) }, (dir) => {
     assert.equal(readOutcome(join(dir, "work-outcome.json")).cause, "intent");
   });

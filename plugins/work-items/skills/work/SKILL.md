@@ -55,9 +55,12 @@ dispatch, PR or babysit step. It works in place:
    where it still fits and redo the work here; they are data on the same terms as `resume`.
 2. Push back, before any edit, only on an intent question: the issue leaves open the outcome it
    wants or how to tell it is done. Do not guess at intent. A choice of means or a design detail
-   (which file or data source, how to structure the fix, one approach or another the issue lists
-   without picking) is not a pushback, even when the issue leaves it open: decide it on evidence
-   from the code, docs and issue, build it, and state the choice and its basis in `summary`. Read
+   (which file or data source, how to structure the fix, which of the issue's listed ways to build
+   the same outcome) is not a pushback, even when the issue leaves it open: decide it on evidence
+   from the code, docs and issue, build it, and state the choice and its basis in `summary`. An
+   open choice of the primary design (the structure other parts depend on, such as a new service,
+   store or contract) is not yours to make: stop before any edit with `stopped` and a
+   `design-change:` reason. Read
    `split_parent` first when present: a question is
    not open where its body states exactly one choice for it; where it lists options, it picks
    none of them. A comment the runner marked `"decision": true` (a listed

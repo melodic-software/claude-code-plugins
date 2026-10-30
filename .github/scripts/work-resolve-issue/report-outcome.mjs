@@ -167,7 +167,7 @@ const PUSHBACK_CAUSE = "intent";
 // design-change), so a security or primary-design stop still reaches a
 // person; else pushback-means.
 const pushbackStop = (outcome) => {
-  if (outcome.cause === PUSHBACK_CAUSE) return "pushback";
+  if (String(outcome.cause ?? "").trim().toLowerCase() === PUSHBACK_CAUSE) return "pushback";
   const code = runCode(outcome.reason);
   return stopRoute(code) === "hold" ? code : "pushback-means";
 };
