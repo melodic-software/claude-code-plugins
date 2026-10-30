@@ -2303,6 +2303,8 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The default branch tip, then the run job's base SHA only when the
       # default branch holds it. The event's base SHA is never checked out:
@@ -2494,3 +2496,11 @@ jobs:
             exit 0
           fi
           node "$script"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

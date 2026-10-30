@@ -429,6 +429,8 @@ jobs:
       attempt: ${{ github.run_attempt }}
       lease: ${{ steps.lease.outputs.lease }}
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Assert the default branch is set
         env:
@@ -518,6 +520,14 @@ jobs:
           }
           echo "lease=held" >>"$GITHUB_OUTPUT"
           echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Job-level evidence of the broker's allow for a caller's handoff read
   # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
@@ -2175,6 +2185,8 @@ jobs:
       base-sha: ${{ steps.checked.outputs.base-sha }}
       start-sha: ${{ steps.checked.outputs.start-sha }}
       prune-branches: ${{ steps.checked.outputs.prune-branches }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # Each field through env. issue-run-started is set first, alone, so a
       # refused field still leaves it; claimed says a branch is named.
@@ -2308,6 +2320,14 @@ jobs:
             echo "start-sha=${RESUME_TIP:-$BASE_SHA}"
             echo "prune-branches=$prune"
           } >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Everything the run job hands on leaves here, on a fresh VM that ran no
   # model or head code, with no id-token, no cache and nothing from the run
@@ -3025,6 +3045,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # Code from the default branch tip the event names; the checked base
       # is only data the diff step fetches.
@@ -3267,6 +3289,14 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   report:
     needs: [broker-check, run, issue-fields, scan, summary]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
@@ -3299,6 +3329,8 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The default branch tip, never the run job's base-sha or the event's
       # base SHA: a hostile run job could forge the one, and a PR into another
@@ -3548,3 +3580,11 @@ jobs:
             exit 0
           fi
           node "$script"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
