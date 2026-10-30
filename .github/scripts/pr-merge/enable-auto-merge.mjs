@@ -105,8 +105,8 @@
 // comment is the record; only a cause a person must clear
 // (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
-// provenance or an untrusted spec, a security finding, a high path, a
-// trusted-actor widening, a real charge or a listing too long to check, see
+// provenance or an untrusted spec, a security finding, a trusted-actor
+// widening, a real charge or a listing too long to check, see
 // verifyClears; a hold path, a configured denied path
 // or the floor, which only a trusted approval lifts; and the lane's own hold
 // line, owner decision Q-HOLDLINE) also gets the human-gated label, put back

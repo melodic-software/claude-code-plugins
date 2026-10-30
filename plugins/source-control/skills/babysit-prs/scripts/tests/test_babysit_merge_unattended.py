@@ -4029,18 +4029,21 @@ class ReasonsComment(Unattended):
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_second_sweep_at_the_same_head_labels_only_a_person_hold(self) -> None:
-        # A refusal a person clears (a high path) on two sweeps at one head
-        # is labeled, the reasons comment first extended to say so. One the
-        # lanes clear (review evidence not bound, MED) keeps its comment and
-        # gets no label however long it stands (owner rule 2026-10-26).
-        for name, files, lanes, person in (
-            ("MED", ((LOW_FILE,), True), UNBOUND, False),
+        # A refusal a person clears (a security finding) on two sweeps at one
+        # head is labeled, the reasons comment first extended to say so. One
+        # the lanes clear (review evidence not bound, MED) keeps its comment
+        # and gets no label however long it stands (owner rule 2026-10-26),
+        # and so does a high path (owner decision 2026-10-30, #11020).
+        for name, want, files, lanes, person in (
+            ("unbound", "MED", ((LOW_FILE,), True), UNBOUND, False),
             (
+                "a high path",
                 "HIGH",
                 ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True),
                 BOUND,
-                True,
+                False,
             ),
+            ("a security finding", "HIGH", ((LOW_FILE,), True), PERSON_HELD, True),
         ):
             with self.subTest(name):
                 self.setUp()
@@ -4060,7 +4063,7 @@ class ReasonsComment(Unattended):
                 self.earlier_sweep(body)
                 self.now = self.WRITTEN + timedelta(minutes=61)
                 _, out = self.run_main()
-                self.assertEqual(out["unattended"]["risk"]["score"], name)
+                self.assertEqual(out["unattended"]["risk"]["score"], want)
                 if person:
                     self.assertEqual(self.log, ["risk-comment:POST", self.LABEL])
                     self.assertEqual(
@@ -4073,7 +4076,12 @@ class ReasonsComment(Unattended):
                         out["unattended"]["writes"]["riskComment"], "unchanged"
                     )
                     self.assertNotIn("riskEscalation", out["unattended"]["writes"])
-                    self.assertIn("The lanes clear its holding reasons", body)
+                    self.assertIn(
+                        "a human merges it in person"
+                        if name == "a high path"
+                        else "The lanes clear its holding reasons",
+                        body,
+                    )
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
