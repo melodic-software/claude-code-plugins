@@ -81,13 +81,39 @@ def _without_quoted_braces(command: str) -> str:
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": value,
             "permissionDecisionReason": reason,
         }
     }
+    notice = _unwritten_marker_notice()
+    if notice:
+        payload["systemMessage"] = notice
+    return payload
+
+
+# Set by `hooks/run-python-hook.sh` when this launch could neither remove the
+# guard-launch monitor's `<session>.seen` nor open its `<session>.launched`, so
+# the monitor's Stop row may skip a session this guard ran in.
+_UNWRITTEN_MARKER_ENV_VAR = "DISK_HYGIENE_UNWRITTEN_MARKER"
+
+
+def _unwritten_marker_notice() -> str | None:
+    """The ``systemMessage`` every output of this launch carries, or None.
+
+    Reads only the environment, so the watchdog thread may call it.
+    """
+    marker = os.environ.get(_UNWRITTEN_MARKER_ENV_VAR)
+    if not marker:
+        return None
+    return (
+        f"disk-hygiene: this guard launch could not be recorded in "
+        f"{_display_text(marker)}, so the end-of-turn check for a guard that "
+        "failed silently may skip it. Make that file writable; "
+        "/disk-hygiene:check diagnoses."
+    )
 
 
 def _telemetry_status_for_permission(value: str) -> str:
@@ -2645,6 +2671,13 @@ def _emit_decision(payload: dict[str, object]) -> bool:
         return True
 
 
+def _emit_notice_only() -> None:
+    """Carry ``_unwritten_marker_notice`` on a branch that issues no decision."""
+    notice = _unwritten_marker_notice()
+    if notice:
+        _emit_decision({"systemMessage": notice})
+
+
 def _publish_command_for_watchdog(command: str) -> None:
     global _COMMAND_UNDER_DECISION
     with _EMIT_LOCK:
@@ -3203,6 +3236,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
     ):
         # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
+        _emit_notice_only()
         return 0
 
     enabled = resolve_disk_hygiene_enabled()
@@ -3232,6 +3266,9 @@ def _decide(command: str, tool_name: str, start: float) -> int:
                 guard_decision_log.DECISION_NONE,
                 "powershell-no-flagged-spelling",
             )
+            # Last: the notice latches `_DECISION_EMITTED`, and a watchdog that
+            # finds it latched exits 0 where it would otherwise deny or ask.
+            _emit_notice_only()
         return 0
 
     authority = resolve_authorized_data_root()

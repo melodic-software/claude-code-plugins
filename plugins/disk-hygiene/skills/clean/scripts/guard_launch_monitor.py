@@ -78,7 +78,23 @@ with the same count, exactly as the whole-file read did.
 
 Once a warning has fired for a session, the once-per-session marker (see
 below) short-circuits *before* the read, so the amortized per-turn cost for
-the rest of a long session is a single stat() of a small marker file.
+the rest of a long session is a stat() of a small marker file plus a read of
+the session's launch marker.
+
+Seen launches
+=============
+Each guard launch writes a token unique to it into ``<session>.launched``
+(``hooks/run-python-hook.sh --launch-marker``), and the Stop row skips this
+module, before bash starts, when ``<session>.seen`` beside it holds the same
+bytes. So this module reads the tokens before it reads the transcript and,
+after a run with nothing more to report (a clean scan whose last line is
+complete, or a session already warned), copies each into ``<session>.seen``. A
+launch that lands during the run writes a new token, which the next ``Stop``
+does not find seen. A token less than ``_SEEN_MIN_AGE_SECONDS`` old is not
+copied: that launch's guard may still be running, as one from a background
+agent sharing the session id can be, and its failure record may not have
+reached the transcript yet. A run that warned copies nothing, so the next
+``Stop`` runs again and finds the warned marker.
 
 Once-per-session marker
 ========================
@@ -105,6 +121,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -129,6 +146,13 @@ _DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
 
 _MARKER_DIRNAME = "guard-launch-monitor"
 _STDERR_TRUNCATE_CHARS = 300
+
+# run-python-hook.sh's launch token: epoch seconds, bash PID and $RANDOM.
+_LAUNCH_TOKEN = re.compile(rb"([0-9]{1,15})-[0-9]{1,10}-[0-9]{1,5}\n?")
+# The engine-gate rows' 60-second hook timeout (hooks/hooks.json), since a
+# launch younger than that may still be running, plus a margin for the token's
+# whole-second floor and the transcript write that follows a timed-out guard.
+_SEEN_MIN_AGE_SECONDS = 60 + 10
 
 
 def _argv_flag_value(argv: list[str], flag: str) -> str | None:
@@ -218,6 +242,56 @@ def _write_cursor(cursor_paths: list[Path], offset: int, transcript_path: str) -
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"b{offset}\n{transcript_path}\n", encoding="utf-8")
             return
+        except OSError:
+            continue
+
+
+def _owned_dir(path: Path) -> bool:
+    """True when ``path`` is a real directory, not a symlink, this user owns.
+
+    The launcher's ``_owned_marker_dir`` test for the shared tmp fallback, where
+    another local user can create the directory first. Where ``os.getuid`` does
+    not exist (Windows) the directory test alone stays.
+    """
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    getuid = getattr(os, "getuid", None)
+    return stat.S_ISDIR(info.st_mode) and (getuid is None or info.st_uid == getuid())
+
+
+def _read_launches(
+    data_root: str | None, session_id: str
+) -> list[tuple[Path, bytes]]:
+    """Each ``.launched`` marker that holds a launch token, with that token."""
+    *rooted, tmp = _marker_path_candidates(data_root, session_id, ".launched")
+    launches: list[tuple[Path, bytes]] = []
+    for path in rooted + ([tmp] if _owned_dir(tmp.parent) else []):
+        try:
+            if not stat.S_ISREG(os.stat(path).st_mode):
+                continue
+            token = path.read_bytes()
+        except OSError:
+            continue
+        if _LAUNCH_TOKEN.fullmatch(token):
+            launches.append((path, token))
+    return launches
+
+
+def _record_seen(launches: list[tuple[Path, bytes]]) -> None:
+    """Best-effort: copy each token old enough into ``.seen`` beside its marker.
+
+    A write that fails, or a token too young to copy, only runs this module
+    again on the next ``Stop``.
+    """
+    now = time.time()
+    for path, token in launches:
+        match = _LAUNCH_TOKEN.fullmatch(token)
+        if match is None or now - int(match.group(1)) < _SEEN_MIN_AGE_SECONDS:
+            continue
+        try:
+            path.with_suffix(".seen").write_bytes(token)
         except OSError:
             continue
 
@@ -348,8 +422,10 @@ def _run(
     """
     transcript_path = hook_input.get("transcript_path")
     session_id = hook_input.get("session_id") or "unknown-session"
+    launches = _read_launches(data_root, str(session_id))
     marker_paths = _marker_path_candidates(data_root, str(session_id))
     if _already_warned(marker_paths):
+        _record_seen(launches)
         return None, None, None, {}, {}
     if not transcript_path or not isinstance(transcript_path, str):
         return None, None, None, {}, {}
@@ -362,6 +438,8 @@ def _run(
     failures = list(_iter_guard_failures(data))
     if not failures:
         _write_cursor(cursor_paths, resume_at, transcript_path)
+        if not data or data.endswith(b"\n"):
+            _record_seen(launches)
         return None, None, "ok", {}, {}
     return (
         _build_message(failures),

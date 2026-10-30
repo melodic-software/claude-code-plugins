@@ -107,7 +107,7 @@ assert_contains "carries the branch it was told" "$OUT" "branch: testbranch"
 assert_contains "carries a ## Findings section" "$OUT" "## Findings"
 assert_contains "carries a ## Surfaces section" "$OUT" "## Surfaces"
 DATE_LINE=$(printf '%s\n' "$OUT" | grep '^date:')
-if printf '%s\n' "$DATE_LINE" | grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+if grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' <<<"$DATE_LINE"; then
   pass "date: is a full ISO-8601 UTC instant the consumer can parse"
 else
   fail "date: is a full ISO-8601 UTC instant the consumer can parse" "got: $DATE_LINE"
