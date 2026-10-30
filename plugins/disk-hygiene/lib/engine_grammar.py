@@ -81,10 +81,9 @@ ENGINE_OWNED_DIRS = frozenset(
 )
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
-# Appended to a preview's --plan path: the engine writes this file when the
-# preview ends the run (a manual-handoff-lane or blocked outcome), and the belt
-# reads it to stand down.
-PREVIEW_RUN_END_SUFFIX = ".run-end.json"
+# A run marker this old reads as no open run: the belt stands down, and the
+# engine deletes the marker on its next call.
+RUN_IDLE_TIMEOUT_SECONDS = 3600.0
 
 
 def is_engine_owned(relative: str) -> bool:

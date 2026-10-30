@@ -11098,13 +11098,89 @@ class GuardTests(unittest.TestCase):
             "permissionDecision"
         ]
 
-    def _run_marker(self) -> Path:
-        return guard._run_marker_path(os.fspath(self._data_root), "s")
+    def _run_marker(self, session: str = "s") -> Path:
+        return guard._run_marker_path(os.fspath(self._data_root), session)
 
     def _run_file(self, name: str) -> Path:
         run = self._data_root.resolve() / "runs" / "r"
         run.mkdir(parents=True, exist_ok=True)
         return run / name
+
+    def _engine(self, *argv: str, **stubs: object) -> int:
+        """Run the engine CLI on this data root with its file and lane steps stubbed.
+
+        The stubs stand in for the snapshot, plan and deletion work, so what
+        runs for real is the CLI's own run-end bookkeeping after each step.
+        """
+        root = os.fspath(self._data_root.resolve())
+        with ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(
+                    hygiene, "load_input_json", return_value={"tier": "high"}
+                )
+            )
+            for name, value in stubs.items():
+                stack.enter_context(mock.patch.object(hygiene, name, value))
+            stack.enter_context(redirect_stdout(io.StringIO()))
+            return hygiene.main([*argv, "--data-root", root])
+
+    def _engine_preview(self, outcome: str) -> int:
+        status = {"explicit-approval": "ready-for-explicit-approval"}
+        result = {"outcome": outcome, "status": status.get(outcome, "blocked")}
+        return self._engine(
+            "preview",
+            "--snapshot",
+            os.fspath(self._run_file("snapshot.json")),
+            "--plan",
+            os.fspath(self._run_file("plan.json")),
+            preview=mock.Mock(return_value=result),
+        )
+
+    def _engine_apply(self) -> int:
+        checked = {
+            "status": "ready-for-explicit-approval",
+            "outcome": "explicit-approval",
+            "approval_token": "a" * 24,
+        }
+        return self._engine(
+            "apply",
+            "--execute",
+            "--snapshot",
+            os.fspath(self._run_file("snapshot.json")),
+            "--plan",
+            os.fspath(self._run_file("plan.json")),
+            "--confirm-tier",
+            "high",
+            "--approval-token",
+            "a" * 24,
+            "--report",
+            os.fspath(self._run_file("report.json")),
+            preview=mock.Mock(return_value=checked),
+            apply_plan=mock.Mock(return_value={"skipped": []}),
+        )
+
+    def _engine_handoff_apply(self) -> int:
+        return self._engine(
+            "handoff-apply",
+            "--execute",
+            "--snapshot",
+            os.fspath(self._run_file("snapshot.json")),
+            "--tier",
+            "medium",
+            "--report",
+            os.fspath(self._run_file("report.json")),
+            "--path",
+            "rel/junk",
+            entry_map=mock.Mock(return_value={}),
+            validate_handoff_paths=mock.Mock(return_value=["rel/junk"]),
+            handoff_apply=mock.Mock(return_value={"status": "completed"}),
+        )
+
+    def _other_session_marker(self, ends_with: str) -> Path:
+        other = self._run_marker("other")
+        other.parent.mkdir(parents=True, exist_ok=True)
+        other.write_text(json.dumps({"version": 1, "ends_with": ends_with}), "utf-8")
+        return other
 
     def _scan(self) -> None:
         self.authorize_data_root()
@@ -11153,7 +11229,9 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual("ask", self._belt(apply))
         self.assertEqual("deny", self._belt("gh issue list"))
-        self._run_file("report.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(0, self._engine_apply())
+        self.assertTrue(self._run_file("report.json").is_file())
+        self.assertFalse(self._run_marker().exists())
         self.assertIsNone(self._belt("gh issue list"))
 
     def test_scan_during_an_open_run_keeps_the_belt(self) -> None:
@@ -11161,15 +11239,18 @@ class GuardTests(unittest.TestCase):
         self._scan()
         self.assertEqual("deny", self._belt("gh issue list"))
 
-    def test_engine_call_after_the_report_still_ends_the_run(self) -> None:
+    def test_engine_call_after_the_report_does_not_reopen_the_run(self) -> None:
         self._open_run_by_preview()
         apply = self._engine_words(
             f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} "
             f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
         self.assertEqual("ask", self._belt(apply))
-        self._run_file("report.json").write_text("{}", encoding="utf-8")
-        self.assertEqual("allow", self._belt(self._engine_words("inventory --target t")))
+        self.assertEqual(0, self._engine_apply())
+        self.assertEqual(
+            "allow", self._belt(self._engine_words("inventory --target t"))
+        )
+        self.assertFalse(self._run_marker().exists())
         self.assertIsNone(self._belt("gh issue list"))
 
     def test_handoff_apply_completion_ends_the_run(self) -> None:
@@ -11180,22 +11261,65 @@ class GuardTests(unittest.TestCase):
         )
         self.assertEqual("ask", self._belt(handoff))
         self.assertEqual("deny", self._belt("gh issue list"))
-        self._run_file("report.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(0, self._engine_handoff_apply())
+        self.assertTrue(self._run_file("report.json").is_file())
+        self.assertFalse(self._run_marker().exists())
         self.assertIsNone(self._belt("gh issue list"))
 
     def test_terminal_preview_outcome_ends_the_run(self) -> None:
+        for outcome, code in (("manual-handoff-lane", 0), ("blocked", 3)):
+            with self.subTest(outcome=outcome):
+                self._open_run_by_preview()
+                self.assertEqual("deny", self._belt("gh issue list"))
+                self.assertEqual(code, self._engine_preview(outcome))
+                self.assertFalse(self._run_marker().exists())
+                self.assertIsNone(self._belt("gh issue list"))
+
+    def test_approvable_preview_keeps_the_run_open_for_its_apply(self) -> None:
         self._open_run_by_preview()
+        self.assertEqual(0, self._engine_preview("explicit-approval"))
+        self.assertTrue(self._run_marker().is_file())
         self.assertEqual("deny", self._belt("gh issue list"))
-        plan = self._run_file("plan.json").as_posix()
-        with mock.patch.object(hygiene, "DATA_ROOT_OVERRIDE", os.fspath(self._data_root)):
-            hygiene.record_run_end(plan, "manual-handoff-lane")
-        self.assertEqual(
-            {"outcome": "manual-handoff-lane"},
-            json.loads(
-                Path(plan + guard.engine_grammar.PREVIEW_RUN_END_SUFFIX).read_text()
-            ),
+
+    def test_run_end_deletes_only_the_marker_of_the_run_it_ends(self) -> None:
+        self._open_run_by_preview()
+        apply = self._engine_words(
+            f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} "
+            f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
         )
+        self.assertEqual("ask", self._belt(apply))
+        other = self._other_session_marker(
+            os.fspath(self._run_file("other-report.json"))
+        )
+        self.assertEqual(0, self._engine_apply())
+        self.assertFalse(self._run_marker().exists())
+        self.assertTrue(other.is_file())
+
+    def test_run_closer_leaves_every_other_aged_file(self) -> None:
+        self._open_run_by_preview()
+        old = time.time() - guard._RUN_IDLE_TIMEOUT_SECONDS - 1
+        kept = (
+            self._run_file("aged.json"),
+            self._run_marker().with_suffix(".txt"),
+            self._data_root / "aged.json",
+        )
+        for path in (self._run_marker(), *kept):
+            path.write_text("{}", encoding="utf-8")
+            os.utime(path, (old, old))
+        self.assertEqual(3, self._engine_preview("blocked"))
+        self.assertFalse(self._run_marker().exists())
+        for path in kept:
+            self.assertTrue(path.is_file(), path)
+
+    def test_engine_deletes_a_marker_past_the_idle_timeout(self) -> None:
+        self._open_run_by_preview()
+        self._age_run_marker()
+        other = self._other_session_marker(os.fspath(self._run_file("other-plan.json")))
         self.assertIsNone(self._belt("gh issue list"))
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual(0, self._engine_preview("explicit-approval"))
+        self.assertFalse(self._run_marker().exists())
+        self.assertTrue(other.is_file())
 
     def test_manual_lane_verify_holds_the_belt_for_its_deletes(self) -> None:
         self._scan()

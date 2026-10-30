@@ -614,18 +614,18 @@ its `hooks` stay registered for the rest of the process, so the belt decides for
 
 **When a run is open.** The belt keeps one marker per session id, `clean-runs/<session_id>.json` under
 the plugin data directory. Admitting a `preview` writes it, and so does admitting an `apply` or
-`handoff-apply`. Each records the file that ends that step: `<plan>.run-end.json`, which the engine writes
-when the preview's outcome is `manual-handoff-lane` or `blocked`, or the mutation's `--report`. Admitting
-a `handoff-verify` writes it too, with no end file: a manual-lane delete follows each verify, and its
-PowerShell spelling gets its `ask` only from the belt, so only the idle timeout ends that step. Any other
-admitted engine call, a `scan` included, only restarts an open run's idle clock, so a completed or
-refused scan with no preview after it is an audit-only outcome. With no marker, the belt denies no
-command that does not name the engine (the read-only supporting allowlist keeps its `allow`); a command
-that names the engine gets the same verdict as during a run. The belt stands down once the step's end
-file appears, or once the marker goes an hour without an engine call. It never deletes the marker (only
-the engine's lanes delete); an ended marker reads as no run, a later engine call does not refresh it, and
-the next step that opens a run overwrites it. `clean-runs/` is engine-owned state, so no engine
-`--output` or `--report` can land on a marker.
+`handoff-apply`. Each records the file whose writing ends that step: the preview's `--plan`, or the
+mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
+follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
+timeout ends that step. Any other admitted engine call, a `scan` included, only restarts an open run's
+idle clock, so a completed or refused scan with no preview after it is an audit-only outcome. With no
+marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
+keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
+deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
+names, and when a `preview` of the plan it names ends in `manual-handoff-lane` or `blocked`. A marker
+that goes an hour without an engine call reads as no run, and the engine deletes it on its next call.
+The guard never deletes a marker. `clean-runs/` is engine-owned state, so no engine `--output` or
+`--report` can land on a marker.
 It fails closed: a marker it cannot parse holds the belt until that hour passes, and a payload with no
 session id, or a session with no authorized data root, keeps the belt on. Releasing the belt opens no
 engine delete path, because the engine gate and the approval token still gate every engine mutation.
@@ -635,9 +635,9 @@ report there too.
 
 **Accepted residual: the session can end its own run.** The belt's hook matches only Bash and
 PowerShell, and while a run is open it holds Bash to the engine shapes but lets a PowerShell command
-that spells no deletion through. So a file write the belt does not see (the Write or Edit tool, or a
-PowerShell `Set-Content`) can create the step's end file, or overwrite the marker with an end file that
-already exists, and release the belt before the run's real end. Nothing on disk can be made a signal the
+that spells no deletion through. So a PowerShell command the belt does not read as a delete (one that
+sets the marker's write time an hour back, say) can make the marker read as timed out and release the
+belt before the run's real end. Nothing on disk can be made a signal the
 session cannot write without widening the belt to every file-writing tool, which the run-scoped design
 does not do. What a forged end buys is the state a natural run end gives anyway: the engine gate and the
 approval token still gate every engine mutation, and other deletes answer to the session's own

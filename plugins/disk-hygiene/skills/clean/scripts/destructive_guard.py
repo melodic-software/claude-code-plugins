@@ -2601,18 +2601,21 @@ def _bash_denial_guidance(
 # Claude Code keeps a skill-frontmatter hook registered for the rest of the
 # session, so the belt itself decides when it applies: only while this
 # session's clean run is open. A run opens when the belt admits a preview, an
-# apply or a handoff-apply, each recording the file whose appearance ends that
-# step (the preview's run-end file, or the --report the mutation writes), and
-# when it admits a handoff-verify, which only the idle timeout ends. Any other
-# admitted engine call, a scan included, only restarts the idle clock of an
-# open run, so a completed or refused scan with no preview after it is an
-# audit-only outcome. Releasing the belt opens no engine delete path: the
-# engine gate and the approval token still gate every engine mutation, and the
-# manual lane's PowerShell deletes follow a handoff-verify, which holds it.
-# Outside a run, other Bash and PowerShell deletes answer to the session's own
-# permission rules.
+# apply or a handoff-apply, each naming in the session's marker the file whose
+# writing ends that step (the preview's plan, or the --report the mutation
+# writes), and when it admits a handoff-verify, which only the idle timeout
+# ends. The engine deletes the marker when the step ends the run (the report
+# is written, or the preview ends in manual-handoff-lane or blocked) and, on
+# any call, once the marker is past the idle timeout; the guard never deletes
+# one. Any other admitted engine call, a scan included, only restarts the idle
+# clock of an open run, so a completed or refused scan with no preview after
+# it is an audit-only outcome. Releasing the belt opens no engine delete path:
+# the engine gate and the approval token still gate every engine mutation,
+# and the manual lane's PowerShell deletes follow a handoff-verify, which
+# holds it. Outside a run, other Bash and PowerShell deletes answer to the
+# session's own permission rules.
 _RUN_MARKER_DIRNAME = engine_grammar.RUN_MARKER_DIRNAME
-_RUN_IDLE_TIMEOUT_SECONDS = 3600.0
+_RUN_IDLE_TIMEOUT_SECONDS = engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
 
 
 def _run_marker_path(authority: str, session_id: str) -> Path:
@@ -2634,10 +2637,9 @@ def _record_run_step(
         words = _literal_shell_words(command) or []
         ends_with: str | None
         if command_kind == "preview":
-            plan = _argv_flag_value(words, "--plan")
-            if not plan:
+            ends_with = _argv_flag_value(words, "--plan")
+            if not ends_with:
                 return
-            ends_with = plan + engine_grammar.PREVIEW_RUN_END_SUFFIX
         elif command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
             ends_with = _argv_flag_value(words, "--report")
             if not ends_with:
@@ -2648,18 +2650,16 @@ def _record_run_step(
             # writes marks the lane's end, so only the idle timeout ends it.
             ends_with = None
         else:
-            # Refresh only an open run: touching an ended or timed-out marker
-            # would reopen it.
+            # Refresh only an open run: touching a timed-out marker would
+            # reopen it.
             if _run_open(authority, session_id):
                 os.utime(marker)
             return
-        # Two seconds early, so an end file on a filesystem with coarse
-        # timestamps (FAT keeps two-second mtimes) never predates its step.
-        opened_at = float(math.floor(time.time()) - 2)
+        if ends_with is not None:
+            ends_with = os.path.abspath(os.path.expanduser(ends_with))
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text(
-            json.dumps({"version": 1, "opened_at": opened_at, "ends_with": ends_with}),
-            encoding="utf-8",
+            json.dumps({"version": 1, "ends_with": ends_with}), encoding="utf-8"
         )
     except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
         # Residual: an unwritable data root leaves no marker, so the belt
@@ -2671,37 +2671,19 @@ def _run_open(authority: str | None, session_id: str | None) -> bool:
     """Whether this session has an open clean run, so the belt holds.
 
     Fails closed: with no data root or session id the run cannot be looked up,
-    and a marker that cannot be read holds the belt until the idle timeout,
-    counted from the marker's mtime. A marker past the timeout, or whose step's
-    end file has appeared since the step opened, reads as no run. The guard
-    never deletes it (only the engine's lanes delete); the next step that opens
-    a run overwrites it.
+    and a marker that cannot be read holds the belt like any other. A marker
+    holds it until the idle timeout, counted from its mtime; the engine
+    deletes it when the run ends, and once it is past the timeout.
     """
     if not authority or not session_id:
         return True
-    marker = _run_marker_path(authority, session_id)
     try:
-        written = marker.stat().st_mtime
+        written = _run_marker_path(authority, session_id).stat().st_mtime
     except FileNotFoundError:
         return False
     except Exception:  # noqa: BLE001 - an unreadable marker holds the belt
         return True
-    try:
-        if time.time() - written >= _RUN_IDLE_TIMEOUT_SECONDS:
-            ended = True
-        else:
-            state = json.loads(marker.read_text(encoding="utf-8"))
-            ends_with, opened_at = state["ends_with"], state["opened_at"]
-            if not isinstance(ends_with, str) or not isinstance(opened_at, float):
-                # A manual-lane step (null), or a corrupt value.
-                return True
-            try:
-                ended = os.stat(ends_with).st_mtime >= opened_at
-            except FileNotFoundError:
-                ended = False
-    except Exception:  # noqa: BLE001 - a corrupt marker younger than the timeout
-        return True
-    return not ended
+    return time.time() - written < _RUN_IDLE_TIMEOUT_SECONDS
 
 
 def _belt_released(command: str, tool_name: str, session_id: str | None) -> bool:

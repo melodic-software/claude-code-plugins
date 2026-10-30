@@ -453,18 +453,43 @@ def model_output_path(value: str) -> Path:
     return refuse_engine_owned(path, data_root)
 
 
-def record_run_end(plan: str, outcome: str) -> None:
-    """Tell the clean skill's belt that a preview ended the run.
+def close_clean_runs(ended: Path | None = None) -> None:
+    """Delete the clean skill's run markers this step ends, and timed-out ones.
 
-    Best effort: a write that fails leaves the belt holding until its idle
-    timeout, the fail-closed direction, and never changes the preview's result.
+    The belt writes one marker per session under ``clean-runs`` when it admits
+    a step, naming the file whose writing ends the run (``ends_with``). A step
+    that writes that file, or a preview that ends the run on its plan, passes
+    it as ``ended``. Best effort: a marker left in place holds the belt until
+    its idle timeout, the fail-closed direction, and never changes a result.
     """
+    if not DATA_ROOT_OVERRIDE:
+        return
+    runs = (
+        Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
+        / engine_grammar.RUN_MARKER_DIRNAME
+    )
     try:
-        write_json(
-            Path(plan + engine_grammar.PREVIEW_RUN_END_SUFFIX), {"outcome": outcome}
-        )
-    except (HygieneError, OSError):
-        pass
+        if runs.is_symlink() or not runs.is_dir():
+            return
+        markers = sorted(runs.glob("*.json"))
+    except OSError:
+        return
+    now = time.time()
+    for marker in markers:
+        try:
+            info = marker.lstat()
+            if not stat.S_ISREG(info.st_mode):
+                continue
+            close = now - info.st_mtime >= engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
+            if not close and ended is not None:
+                recorded = json.loads(marker.read_text(encoding="utf-8"))["ends_with"]
+                close = isinstance(recorded, str) and os.path.normcase(
+                    Path(recorded).resolve(strict=False)
+                ) == os.path.normcase(ended)
+            if close:
+                marker.unlink(missing_ok=True)
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
 
 
 def load_input_json(value: str) -> dict[str, Any]:
@@ -6025,6 +6050,7 @@ def main(argv: list[str] | None = None) -> int:
         if sys.version_info < MIN_PYTHON:
             floor = ".".join(str(part) for part in MIN_PYTHON)
             raise HygieneError(f"disk-hygiene requires Python {floor} or newer")
+        close_clean_runs()
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if (
@@ -6454,6 +6480,7 @@ def main(argv: list[str] | None = None) -> int:
             report_path = model_output_path(args.report)
             report = handoff_apply(snapshot, approved, args.tier, vcs_evidence)
             write_json(report_path, report)
+            close_clean_runs(report_path)
             return emit(
                 report,
                 {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
@@ -6462,7 +6489,7 @@ def main(argv: list[str] | None = None) -> int:
         checked = preview(snapshot, plan)
         if args.command == "preview":
             if checked["outcome"] != "explicit-approval":
-                record_run_end(args.plan, checked["outcome"])
+                close_clean_runs(Path(args.plan).expanduser().resolve(strict=False))
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
@@ -6475,6 +6502,7 @@ def main(argv: list[str] | None = None) -> int:
         report_path = model_output_path(args.report)
         report = apply_plan(snapshot, plan)
         write_json(report_path, report)
+        close_clean_runs(report_path)
         return emit(report, 4 if report["skipped"] else 0)
     except HygieneError as exc:
         return emit({"status": "invalid-or-blocked", "error": str(exc)}, 2)
