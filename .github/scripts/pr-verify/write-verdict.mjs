@@ -231,14 +231,16 @@ export function artifactName(verdict) {
   return name;
 }
 
-// How many days the verdict's artifact lasts. A PASS or PASS-NOTES counts
-// only at the head it names, so one that expires refuses as verify:missing
-// until pr-verify judges the head again. A FAIL, or anything else, keeps 90
-// days, the maximum: the merge gate counts an earlier FAIL until the pull
-// request is TOO_OLD_DAYS (80) old (babysit_verify_evidence.py), and
+// How many days the verdict's artifact lasts. Every reader takes a PASS or
+// PASS-NOTES only at the open pull request's current head, so one that
+// expires refuses as verify:missing until the next pr-require-checks run
+// (a push, edit or label) has pr-verify judge the head again; 7 days keeps
+// a week of a held head. A FAIL, or anything else, keeps 90 days, the
+// maximum: the merge gate counts an earlier FAIL until the pull request is
+// TOO_OLD_DAYS (80) old (babysit_verify_evidence.py), and
 // carry-run-cache.mjs RETENTION_DAYS matches it.
 export function retentionDays(verdict) {
-  return ["pass", "pass-notes"].includes(verdict) ? 30 : 90;
+  return ["pass", "pass-notes"].includes(verdict) ? 7 : 90;
 }
 
 export function main(env = process.env) {

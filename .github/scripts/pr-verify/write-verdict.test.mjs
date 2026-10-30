@@ -53,9 +53,9 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
   }
 });
 
-test("a PASS or PASS-NOTES lasts 30 days and a FAIL, or anything else, 90", () => {
-  assert.equal(retentionDays("pass"), 30);
-  assert.equal(retentionDays("pass-notes"), 30);
+test("a PASS or PASS-NOTES lasts 7 days and a FAIL, or anything else, 90", () => {
+  assert.equal(retentionDays("pass"), 7);
+  assert.equal(retentionDays("pass-notes"), 7);
   for (const verdict of ["fail", "", undefined, "PASS", "pass-notes-x"]) {
     assert.equal(retentionDays(verdict), 90, String(verdict));
   }
@@ -314,7 +314,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   const passed = { ...env, VERDICT_DIR: path.join(dir, "verdict-ok"), GITHUB_OUTPUT: path.join(dir, "out-ok"), EXECUTION_FILE: okFile };
   main(passed);
   const okVerdict = JSON.parse(ok).verdict;
-  assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=30\n`);
+  assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=7\n`);
   const unparsable = path.join(dir, "unparsable.json");
   writeFileSync(unparsable, "{not json");
   for (const [label, extra] of [
