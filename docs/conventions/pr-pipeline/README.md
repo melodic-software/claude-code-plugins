@@ -1029,8 +1029,11 @@ the rules that only tighten in
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary and
-  read-back records stay human-close. The wrapper finds these issues by author (the agent identity
+  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  revert and read-back records stay human-close. A push to main whose squash message names a pull
+  request it reverts on a body line (`Reverts #N`, `Reverts <owner>/<repo>#N`, or `This reverts
+  commit <sha>` of a `(#N)` merge) files a `revert` record when the lanes App enqueued that pull
+  request or its enqueuer cannot be read; a revert of one a person enqueued files nothing. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,

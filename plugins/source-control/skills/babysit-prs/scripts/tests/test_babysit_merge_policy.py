@@ -59,6 +59,10 @@ PR_CREATED = "2026-10-12T12:00:00Z"
 DEMOTION_BODY = (
     "<!-- babysit-merge-demotion sha=" + "b" * 40 + " signal=dispatch -->\nPR #5"
 )
+REVERT_BODY = (
+    "<!-- babysit-merge-demotion sha=" + "b" * 40 + " signal=revert -->\n"
+    "- Reverted pull request: https://github.com/o/r/pull/5"
+)
 
 PIPELINE = """\
 merge:
@@ -1188,6 +1192,7 @@ class AutoClearOnGreen(unittest.TestCase):
         for name, body in (
             ("canary", DEMOTION_BODY.replace("dispatch", "canary")),
             ("read-back", DEMOTION_BODY.replace("dispatch", "read-back")),
+            ("revert", REVERT_BODY),
             ("marker not first", "note\n" + DEMOTION_BODY),
             ("short sha", DEMOTION_BODY.replace("b" * 40, "b" * 12)),
         ):
@@ -1296,6 +1301,43 @@ class AutoClearOnGreen(unittest.TestCase):
             gh.rest[green_runs("schedule", page)] = full
         result = read_demotion()
         self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+
+class RevertRecord(unittest.TestCase):
+    """A `revert` record, which post-merge-demotion-alert.yml files when a
+    push to main reverts a pull request the lanes App enqueued, holds the
+    rung off until a person closes it directly."""
+
+    def test_open_holds_the_rung_off(self) -> None:
+        demotion_fake(
+            self, body=REVERT_BODY, state="OPEN", timelineItems={"nodes": []}
+        )
+        result = read_demotion()
+        self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+    def test_a_person_closing_it_re_enables_the_lane(self) -> None:
+        demotion_fake(self, body=REVERT_BODY)
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-12T12:00:00Z")
+        )
+
+    def test_a_close_by_no_person_keeps_it_holding(self) -> None:
+        for name, close in (
+            ("the identity", {"actor": bot("agent-lanes"), "closer": None}),
+            (
+                "a pull request's closing keyword",
+                {"actor": user(OPERATOR), "closer": {"__typename": "PullRequest"}},
+            ),
+        ):
+            with self.subTest(name):
+                demotion_fake(
+                    self,
+                    body=REVERT_BODY,
+                    timelineItems={"nodes": [close | {"createdAt": PR_CREATED}]},
+                )
+                self.assertTrue(read_demotion().active)
 
 
 class RecordsFake:
