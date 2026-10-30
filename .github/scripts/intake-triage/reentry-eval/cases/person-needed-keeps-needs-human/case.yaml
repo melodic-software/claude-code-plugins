@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: person-needed-keeps-needs-human
+description: 'The decision settles both questions but the first report waits on the owner''s attended run on their own workstation: triage quotes it and applies needs-human with needs_human false'
+tags: [intake, reentry]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Filled by build-suite.mjs from the ci-workflows reusable."
+  allowed_tools: [Read, Grep, Glob]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: reads-decision-comment
+    type: tool_used
+    tool: Read
+    input_match: 'comment-1\.md'
+    min: 1
+    arm: both
+  - name: quotes-decision-marker
+    type: regex
+    pattern: '(?:^|\\n|\n)> \*\*Decision recorded\.\*\*'
+    target: last_message
+    arm: both
+  - name: quotes-decision-verbatim
+    type: regex
+    pattern: '(?:^|\\n|\n)> Before the report goes on the weekly schedule, I will run the first one by hand on my own workstation and check its output\. The schedule waits for that run\.'
+    target: last_message
+    arm: both
+  - name: links-decision
+    type: regex
+    pattern: 'issuecomment-100000003'
+    target: last_message
+    arm: both
+  - name: keeps-needs-human-false
+    type: regex
+    pattern: '"needs_human"\s*:\s*false'
+    target: last_message
+    arm: both
+  - name: applies-needs-human-label
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-human"'
+    target: last_message
+    arm: both
+  - name: no-needs-decision
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"status: needs-decision"'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: judges-open-questions
+    type: llm
+    criteria: 'PASS only if the reply''s comment treats both numbered questions as settled by the quoted decision and says the remaining work waits on a person (the owner''s hand run on their own workstation). FAIL if it re-asks question 1 or 2, invents new open questions about settled points, or says no person is needed.'
+    focus: last_message
+    arm: both

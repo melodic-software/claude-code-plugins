@@ -1,5 +1,73 @@
 # Changelog for the PR pipeline convention
 
+## [8.13.0] - 2026-10-30
+
+### Added
+
+- The log-api-budget action has a `calls` output, `<name>-calls=N` for each named token, taken from
+  its api-calls line: the job's own requests.
+- These jobs now end with the log-api-budget step and name `API_BUDGET_TOKEN: github-token`, so each
+  run carries an api-calls line:
+  - pr-unblock.yml: the not-run jobs, `conflict-scan-refusal`, `fix-ci-unreported` and
+    `report-stop-status`.
+  - pr-review-hosted.yml and pr-review-security-hosted.yml: `resolve-model` and `kill-switch`.
+  - pr-run-activity-read.yml: `broker-check`, `issue-fields`, `summary` and `report`.
+  - pr-run-activity-write.yml: `report`.
+
+### Changed
+
+- pr-merge's sweep line reports the job's own request counts,
+  `sweep-calls=N github-token-calls=M candidates=… reached=… skipped=…`, in place of
+  `sweep-cost=… github-token-cost=…`. That was the rise in a counter every concurrent job shares,
+  which the action documents as not the job's cost.
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml restore the artifact listing pr-merge's last
+  scheduled or hand-started run on main saved (`listing-carry.mjs`, its provenance checks unchanged)
+  and set `BABYSIT_VERIFY_LISTING` and `BABYSIT_VERIFY_LISTING_CARRY` for the FAIL-cap reader, as
+  pr-merge.yml's gate does. The first pull request's read lists only the pages since the carried
+  listing, and later ones reuse or extend the job's saved listing, instead of each read listing every
+  artifact of the repository. A listing that does not hold GitHub's live artifact count is still
+  dropped for a full read.
+
+### Fixed
+
+- verify-cap.mjs runs the FAIL-cap reader with `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1`. Before this,
+  the 15 s and 30 s waits after a missed incremental read, plus the whole listing after them, could
+  run past the reader's 2-minute kill. verify-cap reads a killed reader as not the cap, so a round
+  could start on a pull request that was already at `verify:repeated-fail`.
+- The log-api-budget action's `calls` output reports `unknown` in place of an empty count when the
+  job has no api-calls line to read (no `RUNNER_TEMP`).
+
+## [8.12.0] - 2026-10-30
+
+### Added
+
+- The report jobs of `pr-run-activity-read.yml` and `pr-run-activity-write.yml` post one comment
+  per lane run on the PR, edited in place on a re-run, listing the activity, its outcome, the
+  commits pushed and each GitHub API call the run job's scripts saw fail, by path and status.
+
+## [8.11.0] - 2026-10-30
+
+### Changed
+
+- **A red-main demotion record clears once main is green at a later commit.** The Demotion issue section now states that a `schedule` or `dispatch` record no non-human edited stops holding the rung once a newer attempt-1 green `pr-require-checks` run on main sits at a commit ahead of its SHA and on main's history; canary and read-back records stay human-close (#11262).
+
+- pr-unblock holds a pull request for a person only for the owner's three reasons, and queues the rest for a session builder
+
+  `escalation-routes.json` now routes `hold` (`needs-human`) only for an intent or design question, a person's own thread or hold, and a HIGH or CRITICAL security risk: `feedback-question-*`, `feedback-uncertain`, `feedback-disputed`, `feedback-round-cap`, `dependency-security-close`, `dependency-escalate` and `dependency-fix-refused`. The protected-path stops (`protected-path-conflict`, `conflict-patch-protected-path`, `feedback-protected-path`, `ci-fix-protected-path`), `ci-fix-weaken-required` after its fresh fixer round, `ci-fix-escalated` (a check the `fix-ci` rung-up retry could not fix), and the other review-dependency stops route `fail` with `"label": "needs-session"`: `report-escalation.sh` adds that label before its lane-stopped comment and posts the failing status, and no merge gate reads the label. `review-dependency` and `apply-dependency-patch` do not apply while `needs-session` is on, so a dependency stop gets no same-head model re-run and no fresh round budget on a rebased head until a session removes the label. A well-formed reason the table does not list now holds for a person instead of failing the job.
+
+- pr-unblock's adjudicator settles an intent or design question for the reviewer from the work item contract
+
+  The adjudicate-feedback job stages the linked issues' spec text that pr-verify reads (`resolve-pr.mjs` `linkedIssues`, now exported) as `contract.json`. A reviewer verdict on an intent or design question must carry a `quote`; the script keeps it only when it is an exact substring of that text, at least 20 characters, and the reply quotes it with the issue's URL, so the finding stands for the next fix round. A quote never dismisses a finding: a lane verdict on such a question goes to a person. Any other quote, or no spec text, leaves `feedback-question-intent` or `feedback-question-design` a person's. A security question, a CRITICAL finding and a security-review finding rated `IMPORTANT` or above never settle by quote. The job gains `issues: read` and `pull-requests: read`.
+
+### Fixed
+
+- `collect-patch.sh` writes an exact rename (100% similarity) as a rename header, so a moved file
+  no longer counts its whole content twice against the 256 KiB patch cap; a rename with edits is
+  still a deletion and an addition. `apply-patch.mjs` already checks the tree the patch builds with
+  rename detection off, so a rename's old and new path each meet every refusal, the path
+  predicates, `max-files` and the blob size and credential checks.
+
 ## [8.10.0] - 2026-10-30
 
 ### Added

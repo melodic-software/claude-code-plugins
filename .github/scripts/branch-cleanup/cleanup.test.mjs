@@ -343,6 +343,32 @@ test("493 kept branches ahead of 8 deletable: successive runs reach and delete a
   assert.equal(branches.length, 493);
 });
 
+// A branch count that divides the stride gave every run the same start, so
+// costly kept branches early in the listing hid the later ones from every run.
+// 118 branches under a 600-call budget (stride 118): the first 100 link four
+// closed issues and an open one, six reads each.
+test("118 branches when the count divides the stride: successive runs evaluate every branch", async (t) => {
+  const branches = [];
+  const pulls = {};
+  const issues = { 7000: openIssue };
+  for (let n = 7001; n <= 7004; n += 1) issues[n] = closedIssue(OLD);
+  for (let i = 1; i <= 118; i += 1) {
+    const name = `feat/c-${i}`;
+    const tip = i.toString(16).padStart(40, "0");
+    branches.push({ name, sha: tip });
+    pulls[name] = [mergedPull(i, tip, OLD, i <= 100 ? "Refs #7001 #7002\nRefs #7003\nRefs #7004\nCloses #7000" : "")];
+  }
+  const w = world({ branches, pulls, issues });
+  stubFetch(t, w);
+  const evaluated = new Set();
+  for (let runNumber = 1; runNumber <= 118; runNumber += 1) {
+    const env = { REPOSITORY: REPO, DRY_RUN: "true", CALL_BUDGET: "600", GITHUB_API_URL: "https://api.test", GITHUB_RUN_NUMBER: String(runNumber) };
+    const planned = await plan(env, { call: client(env, { pace: async () => {}, dryRun: true }), loadConfig: () => ({}), log: () => {} });
+    for (const r of planned.results) evaluated.add(r.name);
+  }
+  assert.equal(evaluated.size, 118);
+});
+
 test("the delete sends one updateRefs per branch, beforeOid the listed tip and afterOid all zeros", async () => {
   const w = world({ branches: [{ name: "feat/merged", sha: sha("2") }], pulls: { "feat/merged": [mergedPull(4, sha("2"), OLD)] } });
   const r = await run(w);

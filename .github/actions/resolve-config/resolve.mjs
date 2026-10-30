@@ -949,6 +949,7 @@ function resolveMerge(merge = {}) {
     "diff-check": { ...diffCheck, "denied-paths": [...new Set(diffCheck["denied-paths"] ?? [])] },
     "stack-landing": merge["stack-landing"] ?? "manual",
     "lane-prs": merge["lane-prs"] ?? "native",
+    "refire-skip-branches": merge["refire-skip-branches"] ?? [],
   };
 }
 

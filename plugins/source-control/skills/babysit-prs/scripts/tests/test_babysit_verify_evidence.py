@@ -3550,6 +3550,32 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), (3 + 1, 1))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
+    def test_a_caller_that_skips_the_waits_lists_every_page_after_one_miss(
+        self,
+    ) -> None:
+        # The same forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1
+        # (verify-cap.mjs): one incremental first page, no wait, then the
+        # whole listing, which still holds the dropped FAIL.
+        fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
+        self.write_carry(self.base)
+        fake = self.fake(fail)
+        with mock.patch.dict(
+            "os.environ", {"BABYSIT_VERIFY_NO_INCREMENTAL_WAITS": "1"}
+        ):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((fake.pages(), fake.full_listings()), (1 + 1, 1))
+        self.sleep.assert_not_called()
+        # Any other value keeps the waits (with no listing saved by the first).
+        self.saved.unlink()
+        self.sleep.reset_mock()
+        with mock.patch.dict(
+            "os.environ", {"BABYSIT_VERIFY_NO_INCREMENTAL_WAITS": "true"}
+        ):
+            self.judge(self.fake(fail))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
         # A 429, a rate-limit 403 or a timeout on the first incremental page
         # is never read again (`_read_listing`'s rule): the whole listing

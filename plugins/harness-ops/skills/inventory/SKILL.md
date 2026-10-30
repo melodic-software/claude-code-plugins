@@ -277,6 +277,44 @@ files match. Save each run with `--out`, then compare them with
 changed `sha256` or an added or removed entry is a real difference between the hosts. Other
 blocks (`disk.config_dir`, `project.root`) carry absolute paths and differ by design.
 
+## Skills index
+
+`--skills-index` prints only a JSON array, one record per skill, read from disk; the binary is
+not read. It is the index a skill router shortlists from. `--config-dir`, `--project-dir` and
+`--out` apply; `--exclude disabled,not-installed` drops records in those states.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --skills-index --exclude not-installed
+```
+
+Each record carries `plugin` (`<plugin>@<marketplace>`, or `user` / `project` for a skill in
+`~/.claude/skills/` or the project's `.claude/skills/`), `skill` (the skill's directory name),
+`name`, `description` and `when_to_use` from the SKILL.md frontmatter (null when absent), `state`
+and `source`:
+
+| `source` | Where the record came from | `state` |
+|---|---|---|
+| `cache` | The plugin's live copy under `plugins/cache/<marketplace>/<plugin>/` | `enabled` or `disabled` |
+| `checkout` | A relative-path entry with no cached copy, resolved against the marketplace's `installLocation` | `not-installed` |
+| `marketplace-manifest` | A remote-source entry with no cached copy: one plugin-level row, `skill: null`, the description from `marketplace.json` | `not-installed` |
+| `config-scope` | A personal or project skill | `disabled` when `skillOverrides` sets it `"off"`, else `enabled` |
+
+An installed plugin's state is its `enabledPlugins` value (local, then project, then user, skipping
+a scope that holds a non-Boolean value), else the marketplace entry's `defaultEnabled`, then
+plugin.json's, then `true`. Managed settings are not read. `skillOverrides` is merged key by key in
+the same order and applies only to personal and project skills. The script makes no network fetch,
+so read a remote plugin's SKILL.md files only after shortlisting it. A relative-path plugin that
+loads in place from a marketplace added from a local path has no cached copy, so it reads
+`not-installed` here.
+
+Sources, read 2026-10-30: the
+[loading reference](https://code.claude.com/docs/en/plugins/loading.md) (cache layout, in-place
+plugins, `enabledPlugins` precedence), the
+[manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference.md)
+(`defaultEnabled`, the `skills` key, the entry's `defaultEnabled` overriding plugin.json's), and
+[skills](https://code.claude.com/docs/en/skills.md) (`when_to_use`, `skillOverrides` not affecting
+plugin skills). Recheck when the cache layout or `defaultEnabled` precedence changes.
+
 ## MCP servers
 
 When `/mcp-tools:audit-posture` is among the available skills, invoke it through the Skill tool
