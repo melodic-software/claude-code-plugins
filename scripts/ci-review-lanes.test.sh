@@ -50,6 +50,13 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its ready pull_request condition"
 fi
+# The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
+# request by PR_NUMBER, so the step's env must set it from the event.
+if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n'* ]]; then
+  ok "step env sets PR_NUMBER from the pull_request event"
+else
+  fail "step env does not set PR_NUMBER from github.event.pull_request.number"
+fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
 else
@@ -392,6 +399,7 @@ expect "a merge-only push after a full review carries that review" 0 "'$CODE_CHE
 NOTES_33="$(skip_rec "$HEAD" "$T1" " account=fallback")"
 expect "a fallback-account skip record carries the review too" 0 "as unchanged since $T1, whose review counts" "::error::"
 # Two clean merges: the first merge's own run is a no-change skip too.
+PR_NUMBER='' expect "an empty pull request number fails closed before any skip is followed" 1 "::error::the pull request number '' is not a number."
 NOTES_33="$(skip_rec "$HEAD" "$T1")"
 JOBS_12="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 34 "$SKIPPED_HOLD")")" NOTES_34="$(skip_rec "$T1" "$T2")"
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")" "$(run 13 $CODE completed "$T2")")" JOBS_13="$PASS_CODE"
