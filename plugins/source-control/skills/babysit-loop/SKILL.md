@@ -28,7 +28,7 @@ Every shared cross-lane concern, topology, the autonomy merge ladder, the escala
 capability tiers, stop shapes, telemetry and durable loop state, the no-progress detector's counter
 semantics, the headless-config floor, the subagent discipline preamble, is owned by the loop-lane
 convention,
-[`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md),
+[`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md),
 and held here **by citation**. Where this document says "per the convention", that file is the contract.
 Three of its rules bite hardest here and are never re-derived locally: the C4/C5 floor bounds every
 rung including the explicit-`autopilot` exception, capability tiers resolve by model alias and never
@@ -224,7 +224,7 @@ Stripping it happens only behind the explicit `--strip-do-not-merge` invocation 
 ## Escalation
 
 Escalation is the convention's contract
-([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 §2), held by
 citation: a tracker item carrying the human-gated role label. Resolved from the consumer's
 `.work-item-tracker.json` `config.role_labels` map, never compared as a literal; when that file is
@@ -249,7 +249,7 @@ and the target's tracked hook is never consulted (§2 owns why): **launching fro
 repository's own checkout is required, not preferred, whenever that repository's endpoint is the
 one that must hear.** Launch a background lane from inside an isolated linked worktree to keep
 the record; the convention's
-[Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
+[Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
 Verification record for the launch advice. Claim: a background session launched inside a linked git

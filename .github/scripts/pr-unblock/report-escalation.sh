@@ -10,7 +10,9 @@
 #   one machine-marked comment holding the reason, the resume key and how to
 #   resume, plus the human-gated role label.
 # - route `fail` (a defect the lane's own bounded retries did not mend): no
-#   label. One lanes App comment per activity, marked LANE_STOPPED, is posted
+#   human-gated label; the entry's `label` (needs-session), when it names one,
+#   puts the PR in the session-builder queue for a change the lane cannot
+#   make, written before the comment. One lanes App comment per activity, marked LANE_STOPPED, is posted
 #   once and edited in place after, naming the reason and the head; status
 #   mode (below) puts a failing commit status on that head. A new head carries
 #   no status, so the lane's next run there starts clean.
@@ -86,6 +88,9 @@ entry=$(jq -ce --arg r "$ESCALATION_REASON" 'if has($r) then .[$r] else null end
 why=$(jq -er '.why | strings' <<<"$entry") || die "no why for $ESCALATION_REASON in $routes"
 activity=$(jq -er '.activity | strings' <<<"$entry") || die "no activity for $ESCALATION_REASON in $routes"
 route=$(jq -er '.route | select(. == "hold" or . == "fail")' <<<"$entry") || die "no route for $ESCALATION_REASON in $routes"
+# The session-builder queue label a fail-routed reason may name.
+session_label=$(jq -er --arg route "$route" 'if has("label") then .label | strings | select(test("^[a-z]+(-[a-z]+)*$") and $route == "fail") else "" end' <<<"$entry") ||
+  die "the label for $ESCALATION_REASON in $routes is not a label name on a fail route"
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
 [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
@@ -232,13 +237,17 @@ if [[ $route == fail ]]; then
   if [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]]; then
     run_line="- Run: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"$'\n'
   fi
+  labels_line='The lane sets no label: the run'
+  if [[ -n $session_label ]]; then
+    labels_line="The lane labels it \`$session_label\` for a session builder, who makes the change this lane cannot, and the run"
+  fi
   more=''
   if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     more=" A reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\` grants one more round on that thread."
   fi
   cat >"$body" <<EOF
 $marker
-The pr-unblock lane stopped \`$activity\` on this pull request: $why. The lane sets no label: the run ends in a failing \`$context\` status on the head the lane gated.
+The pr-unblock lane stopped \`$activity\` on this pull request: $why. $labels_line ends in a failing \`$context\` status on the head the lane gated.
 
 - Reason: \`$ESCALATION_REASON\`
 - Head: \`$HEAD_SHA\`
@@ -251,12 +260,17 @@ To run it again on this head now, dispatch the \`pr-unblock\` workflow:
 $dispatch
 \`\`\`
 EOF
+  # The session-builder queue label goes on before the comment that explains it, and back on when
+  # a session removed it and the lane stops again with the same comment.
+  if [[ -n $session_label ]] && [[ $(gh api "$issue" | jq --arg l "$session_label" '[.labels[].name] | index($l) != null') != true ]]; then
+    gh api -X POST "$issue/labels" -f "labels[]=$session_label" >/dev/null
+  fi
   id=$(jq -r '.id // empty' <<<"$existing")
+  if [[ -n $id && $(jq -r '.body // ""' <<<"$existing" | tr -d '\r') == "$(cat "$body")" ]]; then
+    echo "already reported $ESCALATION_REASON on $HEAD_SHA"
+    exit 0
+  fi
   if [[ -n $id ]]; then
-    if [[ $(jq -r '.body // ""' <<<"$existing" | tr -d '\r') == "$(cat "$body")" ]]; then
-      echo "already reported $ESCALATION_REASON on $HEAD_SHA"
-      exit 0
-    fi
     [[ $id =~ ^[1-9][0-9]*$ ]] || die "the lane-stopped comment id is not a number"
     gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$body" >/dev/null
     echo "stopped: $ESCALATION_REASON on $HEAD_SHA, comment $id edited"
@@ -267,7 +281,7 @@ EOF
     ((attempt < 3)) || die "cannot post the lane-stopped comment after $attempt attempts"
     sleep $((attempt * 5))
   done
-  echo "stopped: $ESCALATION_REASON on $HEAD_SHA, no label"
+  echo "stopped: $ESCALATION_REASON on $HEAD_SHA, ${session_label:-no} label"
   exit 0
 fi
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "Bundled defaults for the docs-naming file-name skills. Copy into .claude/docs-naming.json and edit. Every key is documented in plugins/docs-naming/reference/config.md. The values below are modeled on this marketplace's own: docs/ is the scope root, ADR and upstream trees are the historical tier, and released changelog entries are frozen. A consuming repository adds its own historical paths, its own sweep exclusions and its own generated files; this marketplace's team layer carries several that are specific to it, its generated landscape record among them.",
+  "_comment": "Bundled defaults for the docs-naming file-name skills. The team layer is docs/conventions/docs-naming.yaml, which setup apply writes from these values. Every key is documented in plugins/docs-naming/reference/config.md. The values below are modeled on this marketplace's own: docs/ is the scope root, ADR and upstream trees are the historical tier, and released changelog entries are frozen. A consuming repository adds its own historical paths, its own sweep exclusions and its own generated files; this marketplace's team layer carries several that are specific to it, its generated landscape record among them.",
   "file_names": {
     "roots": ["docs"],
     "rule": "lower-kebab",

@@ -1509,8 +1509,14 @@ export function humanGatedLabel(tracker) {
 // removal lifts it (ci-status's `Fail a human-merge hold` step).
 export const HUMAN_MERGE_HOLD = "human-merge-hold";
 
+// The label security-outside-actor.yml puts on an item someone outside the
+// organization wrote on. It holds wherever the human-gated label holds, and
+// only a person removes it: no lane or sweep takes it off.
+export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
+
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label, `pr-verify-failed` and HUMAN_MERGE_HOLD, one reason each. `labels` are
+// human-gated label, `pr-verify-failed`, HUMAN_MERGE_HOLD and
+// OUTSIDE_ACTOR_LABEL, one reason each. `labels` are
 // names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
@@ -1525,6 +1531,8 @@ export function labelHolds(labels, tracker, number) {
       `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
     names.has(HUMAN_MERGE_HOLD) &&
       `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
+    names.has(OUTSIDE_ACTOR_LABEL) &&
+      `#${number} carries '${OUTSIDE_ACTOR_LABEL}': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off.`,
   ].filter(Boolean);
 }
 

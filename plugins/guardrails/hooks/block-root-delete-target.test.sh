@@ -2031,6 +2031,140 @@ assert_contains 'find: the refusal names the start point' "$GUARD_ERR" "the oper
 guard_invoke "${RDT_CWD[@]}" --command "find . -name '*.pyc' -delete"
 assert_contains 'find: the toplevel refusal names the .git it holds' "$GUARD_ERR" 'a directory holding a .git'
 
+# --- 2g. pipeline-fed deletes (#9754) -----------------------------------------
+# xargs or parallel running a recursive delete takes its targets from the items
+# it reads. A confined listing (a find without -printf or -exec, git ls-files),
+# through line filters at most, has its targets judged as a recursive rm's; any
+# other source is refused. Every form runs against a root, HOME, a path outside
+# the allowed roots and a path strictly inside the tree.
+RDT_PIPE_FORMS=(
+  'find TGT -type f | xargs rm -rf'
+  'find TGT -print0 | xargs -0 rm -rf --'
+  "find TGT -name '*.o' | grep -v keep | sort -u | xargs -n 1 rm -rf"
+  'find TGT -type d | head -n 5 | xargs -I{} rm -rf {}'
+  'find TGT | xargs sudo rm -rf'
+  'find TGT | parallel rm -rf'
+  "find TGT | parallel -j 4 'rm -rf {}'"
+)
+rdt_pipe() { # <label> <want> <start point> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_PIPE_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "pipe: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_pipe 'a root blocks' 2 /
+rdt_pipe 'HOME blocks' 2 '$HOME'
+rdt_pipe 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_pipe 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'pipe: find ~ blocks' 2 --command 'find ~ -type f | xargs rm -rf'
+expect_both 'pipe: a find under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'find /tmp/rdt-x -type f | xargs rm -rf'
+expect_both 'pipe: a find under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "find '$RDT_SPT/x' -type f | xargs rm -rf" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'pipe: a find of the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "find '$RDT_SPT' -name x | xargs rm -rf" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'pipe: unset key, a find under the root blocks' 2 "find '$RDT_AR/child' -type f | xargs rm -rf"
+rdt_ar 'pipe: a find under the root allowed' 0 "find '$RDT_AR/child' -type f | xargs rm -rf" "$RDT_AR"
+rdt_ar 'pipe: a find of the root itself blocks' 2 "find '$RDT_AR' -name x | xargs rm -rf" "$RDT_AR"
+expect_both 'pipe: a find from the toplevel blocks' 2 "${RDT_CWD[@]}" --command "find . -name '*.pyc' | xargs rm -rf"
+expect_both 'pipe: a find run from another directory is judged from there' 2 "${RDT_CWD[@]}" \
+  --command 'find build -type f | env -C /opt xargs rm -rf'
+# git ls-files lists names strictly under the directory it runs from.
+expect_both 'pipe: git ls-files inside the tree allowed' 0 "${RDT_CWD[@]}" --command 'git ls-files -z | xargs -0 rm -rf'
+expect_both 'pipe: git ls-files from a subdirectory allowed' 0 --cwd "$RDT_TOP/plugins" \
+  --command 'git ls-files --others --exclude-standard | grep -v keep | xargs rm -rf'
+expect_both 'pipe: git ls-files with no tree blocks' 2 --cwd / --command 'git ls-files | xargs rm -rf'
+expect_both 'pipe: git ls-files after a cd outside blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cd /opt && git ls-files | xargs rm -rf'
+# parallel's ::: items are its targets.
+expect_both 'pipe: parallel items inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command 'parallel rm -rf {} ::: plugins/rdt-nonexistent build/rdt-x'
+expect_both 'pipe: parallel items outside the tree block' 2 "${RDT_CWD[@]}" \
+  --command 'parallel rm -rf {} ::: build/rdt-x /opt/nonexistent-rdt/x'
+# Items on the line replace stdin; a file source beside them does not.
+expect_both 'pipe: parallel items with an unread pipe allowed' 0 "${RDT_CWD[@]}" \
+  --command 'cat list | parallel rm -rf {} ::: build/rdt-x'
+expect_both 'pipe: parallel items beside a file source block' 2 "${RDT_CWD[@]}" \
+  --command 'parallel rm -rf {} ::: build/rdt-x :::: list'
+
+# A listing that is not confined, a file or a stdin no listing feeds, a filter
+# that can rewrite a line, and a listing the tokenizer splits out of order.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "pipe: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+  expect_both "pipe: $rdt_cmd blocks with a cwd" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+cat list | xargs rm -rf
+cat list | xargs -0 rm -r
+xargs rm -rf
+xargs rm -rf < list
+find build | xargs rm -rf < list
+xargs -a list rm -rf
+xargs --arg-file=list rm -rf
+xargs -0a list rm -rf
+grep -l x src | xargs rm -rf
+find build | sed 's,^,/,' | xargs rm -rf
+find build | grep -o x | xargs rm -rf
+find build | cut -c1 | xargs rm -rf
+find build -printf '/\n' | xargs rm -rf
+find build -fprintf /dev/stdout '/\n' | xargs rm -rf
+find build -ls | xargs rm -rf
+find build -exec echo / \; | xargs rm -rf
+git ls-files --format=/ | xargs rm -rf
+git ls-files --form=/ | xargs rm -rf
+git -C /opt ls-files | xargs rm -rf
+sudo find build | xargs rm -rf
+find build; cat list | xargs rm -rf
+{ cat list; find build; } | xargs rm -rf
+cat list $(find build) | xargs rm -rf
+find build | (cat list; cat) | xargs rm -rf
+find build | xargs -I{} sh -c 'rm -rf {}' < list
+cat list | xargs -I{} sh -c 'rm -rf {}'
+cat list | sudo xargs rm -rf
+cat list | bash -c 'xargs rm -rf'
+cat list | bash -c 'find build; xargs rm -rf'
+echo "$(cat list | xargs rm -rf)"
+find build | xargs rm -rf /
+cat list | parallel rm -rf
+parallel rm -rf
+parallel rm -rf :::: list
+parallel -a list rm -rf
+find build | parallel --arg-sep ,, rm -rf ,, x
+parallel rm -rf ::: /
+parallel 'rm -rf {}' ::: /
+parallel -j 2 rm -rf ::: /
+parallel ::: 'rm -rf /'
+parallel -j 2 ::: 'rm -rf /'
+EOF
+
+# A command that does not delete recursively, and the mechanism as quoted prose.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "pipe: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "pipe: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "cat list | xargs rm -rf"
+git commit -m "find / | xargs rm -rf"
+echo 'parallel rm -rf ::: /'
+cat list | xargs grep -l rm
+cat list | xargs rm -f
+find / -name x | xargs echo rm -rf /
+parallel echo ::: rm-rf-nothing
+EOF
+
+guard_invoke --command 'cat list | xargs rm -rf'
+assert_exit 'pipe: an unconfined listing exits 2' 2 "$GUARD_RC"
+assert_contains 'pipe: the refusal names the cause' "$GUARD_ERR" 'no confined listing produced'
+guard_invoke "${RDT_CWD[@]}" --command 'find /opt/nonexistent-rdt/x -type f | xargs rm -rf'
+assert_contains 'pipe: the refusal names the start point' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+guard_invoke --cwd / --command 'git ls-files | xargs rm -rf'
+assert_contains 'pipe: the refusal names the git ls-files entry' "$GUARD_ERR" "the operand '(a file git ls-files lists)'"
+expect 'pipe: attended, an unconfined listing asks' 0 --command 'cat list | xargs rm -rf' \
+  -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq 'pipe: attended, the decision is ask' ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"

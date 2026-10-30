@@ -53,6 +53,9 @@ jobs:
       group: selection-audit-trace
       cancel-in-progress: false
     env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
     steps:
@@ -82,7 +85,7 @@ jobs:
             .github/requirements-ci.txt
             plugins/animation/requirements.txt
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
@@ -97,6 +100,7 @@ jobs:
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
       - name: Install locked test toolchains
+        timeout-minutes: 5
         run: |
           npm ci
           # The yaml package scripts/check-read-caller-keys.test.sh and

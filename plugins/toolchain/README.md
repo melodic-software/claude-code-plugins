@@ -19,7 +19,7 @@ restatement here.
 ## Works in any repo
 
 Command resolution follows the marketplace-wide ecosystem-commands convention
-(`docs/conventions/ecosystem-commands/README.md`; schema `ecosystem.schema.json`):
+(`docs/contracts/ecosystem-commands/README.md`; schema `ecosystem.schema.json`):
 your repo's tracked `.claude/ecosystems/<ecosystem>.yaml` files are authoritative
 when present, and the plugin's bundled portable defaults are the last resort.
 Testing structure and commit conventions still come from your own `CLAUDE.md` and

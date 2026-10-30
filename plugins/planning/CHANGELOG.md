@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.10] - 2026-10-30
+
+### Changed
+
+- `/planning:interview` now runs a scope-cut round before it recommends `/planning:wayfind` for an effort plainly too big for its budget. For each capability it asks or applies the Must test (if this is not delivered, is the effort cancelled or worked around?) and recommends a MoSCoW bucket, keeping Must to about 60% of the effort or less. The rest goes to later work, or to wayfind once the fog trigger holds. The rule lives in the interview's `context/composition.md`, with a pointer from `context/routing.md`, and the eval case `interview-scope-cut-moscow` covers it. ([#11192](https://github.com/melodic-software/claude-code-plugins/issues/11192))
+
+## [0.126.9] - 2026-10-30
+
+### Fixed
+
+- `/planning:interview` now ends the Step 3 restatement by asking the user to confirm it or to name the `Q<N>` numbers of the items to change. A yes/no check such as "Sound good?" no longer closes it. When the recap command or the procedure check cannot be run, the restatement still goes out with that gap named, in place of setup questions.
+
+## [0.126.8] - 2026-10-30
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:design` resolve their authoring-formats keys through one shared ladder in `context/authoring-formats.md` instead of three restated copies; no behavior change. New eval cases cover the `ears` path in interview and prd and the `dbml` path in design.
+
 ## [0.126.7] - 2026-10-30
 
 ### Fixed

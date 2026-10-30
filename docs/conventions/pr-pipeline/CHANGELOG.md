@@ -1,5 +1,97 @@
 # Changelog for the PR pipeline convention
 
+## [8.9.0] - 2026-10-30
+
+### Added
+
+- `security-outside-actor.yml` flags an issue or pull request when someone outside the
+  organization opens or edits it, comments, or reviews on it: it adds `security: outside-actor` and
+  `needs-human` and posts one comment per outside actor naming the login, without a mention, and the
+  event, quoting none of their text. Members, owners and Bot senders start no job, except a Bot on a
+  fork pull request, which is checked on any action; everyone else is trusted only by numeric id on
+  the default branch's trusted-actor list, and an unreadable list flags. The labels are written on
+  every flagged event, whatever the payload shows. No model, secret or kill switch; the job token holds `contents: read`, `issues: write` and
+  `pull-requests: write`.
+- `security: outside-actor` is a hold of its own, defined in `merge-holds.mjs`: the merge queue,
+  auto-merge arming, intake triage, the work-unblock sweep, ci-status on a pull request and
+  every pull request activity (including the write runner) skip it. Only a person on the
+  trusted-actor list removes it: any other removal, a Bot's or a member's not on the list included,
+  puts it and `needs-human` back and posts one comment naming the remover without a mention.
+
+## [8.8.0] - 2026-10-30
+
+### Added
+
+- A target-subset size split: sub-issues hold every trusted line plus a `Scope:` line naming verbatim targets. `admission-rules.json` `size-split` sets `on-decline` (`subset` or `park`) and `max-parts`.
+- `models.issue-dimensions.split-child-size` (`medium`): a trusted size-split sub-issue rated Large runs at that size instead of skipping with `split-required`.
+
+### Changed
+
+- A size split that cannot be made posts its reason on the issue (codes `not-human`, `few-lines`, `no-split`, `bad-split`, `bad-subset`, `no-type`) instead of only a step summary, with no hold label. An issue with fewer than 2 trusted task-list lines gets the thin refinement first.
+
+## [8.7.1] - 2026-10-30
+
+### Fixed
+
+- A work-resolve-issue stop whose code ends the lane's work (close, host-run or attended) and whose reason names a secret only as a capability the run needs, such as "a host with model credentials", "needs an API key" or "tokens per task", now keeps its route instead of holding for a person, when the rest of the reason holds only listed capability words. Any other word beside a credential, secret, token, password or key after such a code still holds as `security-risk`, so an exposure in any wording does, as do takeover, stolen, attacker, stranger and outsider wording.
+
+## [8.7.0] - 2026-10-30
+
+### Changed
+
+- pr-review-main reviews a diff over its 300000-byte cap in chunks instead of stopping. The diff
+  splits into at most 4 chunks of at most 300000 bytes, cut at file boundaries with each file
+  whole, and each chunk is reviewed by its own run. The lane's one verdict sums the chunks'
+  findings, takes the most CRITICAL ones any one chunk found, and binds as a single-pass verdict
+  does. A `pr-review-main chunks` notice gives the chunk count and each chunk's bytes, and a
+  `pr-review-main chunk` notice per chunk its bytes, findings and CRITICAL ones. A diff that holds
+  a single file over 300000 bytes, or needs more than 4 chunks (a multi-file diff over about
+  1.2 MB), still stops as `too-large`; lifting that needs a dynamic chunk count
+  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). Each listed
+  finding names its chunk, so the listed CRITICAL findings can outnumber the `critical` count. A
+  chunk that fails, leaves no result or skips a part writes no verdict: the record job posts
+  `verdict=none reason=chunk-failed` on the head and the leg fails.
+
+## [8.6.2] - 2026-10-30
+
+### Fixed
+
+- The fix-docs dispatcher no longer dispatches a PR again after a `pr-refine fix-docs #<n>` run for it completed without posting a check. Before, a run that stopped at its trigger gate, emitted an empty head or failed before its report was dispatched again on every push to main, and a same-repository PR stopped at the trigger gate took a dispatch slot each time. A PR whose only run was lost (`cancelled`, `timed_out` or `startup_failure`) gets one more dispatch, and none after a second lost run. The dispatcher reads this from the run listing it already reads for its in-flight guard, so it makes no new call (`.github/scripts/pr-unblock/fix-docs-dispatch.mjs`). ([#8890](https://github.com/melodic-software/claude-code-plugins/issues/8890))
+
+- A `ci-fix-escalated` stop now queues the pull request for a session builder, so it no longer
+  has no next actor once the dispatcher's same-head retry is spent. The label goes on at each such
+  stop while that retry still runs, and the session that finds the head green or lands the fix
+  removes it; no lane removes it. `escalation-routes.json` gives the reason
+  `"label": "needs-session"`, and `report-escalation.sh` adds that label, on a fail route only and
+  only a well-formed label name, before the lane-stopped comment that names it. It puts the label
+  back when a session removed it and the lane stops again on the same head.
+
+## [8.6.1] - 2026-10-30
+
+### Changed
+
+- The agent App trust-path hold is off (owner decision Q21, 2026-10-29: path holds stay off until
+  open issues and pull requests reach zero). `merge.trust-path-hold-apps` names only
+  `trust-path-hold-off[bot]`, a login no App holds, in place of `melodic-agent[bot]`, so neither
+  ci-status's inline hold nor ci-workflows' `pr-require-checks-trust-paths` (through the regenerated
+  `.github/trust-path-hold.json`) holds an agent App pull request for a person, except that both
+  still fail closed on a read they cannot finish: a pull request past 250 commits or 3000 files, or
+  a branch history past 2000 entries. The list keeps one entry because the shared workflow fails on
+  an empty one. Restoring both holds takes three steps: list `melodic-agent[bot]` again, set
+  `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`. Listing the App alone
+  restores only ci-workflows' hold, since ci-status's inline hold runs only while `path-holds` is
+  true.
+- ci-status no longer holds a release-App or standards-sync-App pull request for changing a
+  trust-gate path, and still holds a Dependabot one, whose action-pin bumps bring in third-party
+  code (owner decisions Q21 and Q24). While `merge.diff-check.path-holds` is false, as this
+  repository sets the new key, `scripts/sync-hold-floor.py` writes a guard after ci-status's
+  exempt-author `hold_patterns` that empties the list for every author but Dependabot. Setting
+  it true holds all three again. These authors still get no review lane.
+
+### Fixed
+
+- ci-status and the auto-merge arming step no longer read a member writing "the `do-not-merge` label" as a veto. Any other `do-not-merge`, a comma list included, and a sentence that says not to merge still hold the merge.
+
 ## [8.6.0] - 2026-10-30
 
 ### Added

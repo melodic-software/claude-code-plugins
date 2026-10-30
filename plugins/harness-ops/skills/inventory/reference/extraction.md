@@ -414,7 +414,7 @@ an export of it.
 name reads, whether anything writes or changes it). `regex`, the default, is the text reader the
 sections above describe. `parser` parses each module with acorn and resolves names with
 eslint-scope, installed on first use from the committed lockfile (`scripts/js/`, under
-[on-demand dependencies](../../../../../docs/conventions/on-demand-dependencies/README.md)); it
+[on-demand dependencies](../../../../../docs/contracts/on-demand-dependencies/README.md)); it
 needs node and npm, and without them the binary source is broken with the repair command, never a
 regex answer. `compare` runs both and breaks the report on any value that differs between them;
 the changelog skill's native-drift pass reads each new build that way.
