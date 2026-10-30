@@ -153,7 +153,7 @@ Alternatives to consider:
 - (c) <option> — <one-line tradeoff>
 ```
 
-`Q<N>` numbering runs continuously across rounds (Q1…Q4 in round one, Q5… in round two; visible depth). Close the round with one probe inviting a constraint that breaks the recommendations, and the note that the user may answer in any order. Wait for the answers before computing the next round. The recommendation+basis discipline holds per question. Inline prose carries the recommendation, its reasoning, AND the probe in one readable block; a card cannot.
+`Q<N>` numbering runs continuously across rounds (Q1…Q4 in round one, Q5… in round two; visible depth). Close the round with one probe inviting a constraint that breaks the recommendations, worded "something else", never "anything else": "Is there something else that would change these recommendations?" (eval case `interview-closing-probe-something-else`). Add the note that the user may answer in any order. Wait for the answers before computing the next round. The recommendation+basis discipline holds per question. Inline prose carries the recommendation, its reasoning, AND the probe in one readable block; a card cannot.
 
 **One verdict marker, at most one context line.** The `My recommendation:` line is the *single* verdict marker for the question. Never stack a second one: no standalone `**(RECOMMENDED)**` badge line above it, and no `(recommended)` tag repeated in the Alternatives list; the recommended answer is named once, on that line. The alternatives exclude the recommendation: none restates it. Per-question context is at most ONE line and usually absent. The round-header restate carries shared context, so add a line only when it doesn't reach this question or the session just resumed after a gap.
 
