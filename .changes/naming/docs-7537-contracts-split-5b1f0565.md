@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The shared libraries and their copies in this plugin now cite `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+- This plugin's copy of the shared recommendation-basis context now cites `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
