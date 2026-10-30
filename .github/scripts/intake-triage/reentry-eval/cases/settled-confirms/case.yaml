@@ -1,0 +1,61 @@
+schema_version: "1.1"
+name: settled-confirms
+description: 'The decision settles both questions and no person is needed: triage quotes it, applies no status label or needs-human, and asks nothing again'
+tags: [intake, reentry]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Filled by build-suite.mjs from the ci-workflows reusable."
+  allowed_tools: [Read, Grep, Glob]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: reads-decision-comment
+    type: tool_used
+    tool: Read
+    input_match: 'comment-1\.md'
+    min: 1
+    arm: both
+  - name: quotes-decision-marker
+    type: regex
+    pattern: '(?:^|\\n|\n)> \*\*Decision recorded\.\*\*'
+    target: last_message
+    arm: both
+  - name: quotes-decision-verbatim
+    type: regex
+    pattern: '(?:^|\\n|\n)> 2\. 90 days without a commit\.'
+    target: last_message
+    arm: both
+  - name: links-decision
+    type: regex
+    pattern: 'issuecomment-100000004'
+    target: last_message
+    arm: both
+  - name: keeps-needs-human-false
+    type: regex
+    pattern: '"needs_human"\s*:\s*false'
+    target: last_message
+    arm: both
+  - name: no-needs-decision
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"status: needs-decision"'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-needs-human-label
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-human"'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: asks-nothing-again
+    type: regex
+    pattern: 'RECOMMENDED:|To answer, post a comment'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: judges-open-questions
+    type: llm
+    criteria: 'PASS only if the reply''s comment says the quoted decision settles the open questions and asks the owner nothing further. FAIL if it asks any question, re-asks a settled point, or raises a new open question.'
+    focus: last_message
+    arm: both

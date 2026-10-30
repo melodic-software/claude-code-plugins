@@ -24,6 +24,9 @@ outputs:
   costs:
     description: "`<name>-cost=N` for each named token with a reading, `unknown` when its cost is na."
     value: ${{ steps.log.outputs.costs }}
+  calls:
+    description: "`<name>-calls=N` for each named token, N its api-calls count: this job's own requests."
+    value: ${{ steps.log.outputs.calls }}
 
 runs:
   using: composite
@@ -36,7 +39,7 @@ runs:
       run: |
         # shellcheck source=/dev/null
         . "$GITHUB_ACTION_PATH/api-budget.bash" || exit 0
-        costs=()
+        costs=() counts=()
         for name in $TOKENS; do
           [[ $name =~ ^[a-z][a-z0-9-]{0,39}$ ]] || { echo "::warning::api-budget: skipped a token name that is not lower-case kebab case"; continue; }
           lines=$(api_budget_emit "$name")
@@ -49,6 +52,11 @@ runs:
           calls=$(api_budget_emit_calls "$name")
           printf '%s\n' "$calls"
           echo "api-calls ${calls#*title=api-calls::}" >>"$GITHUB_STEP_SUMMARY"
+          # With no RUNNER_TEMP the emitter writes no line: unknown, never empty.
+          n=${calls#*title=api-calls::"$name"=}
+          n=${n%% *}
+          [[ $n =~ ^[0-9]+$ ]] || n=unknown
+          counts+=("$name-calls=$n")
           [[ -n $lines ]] || continue
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
@@ -58,6 +66,7 @@ runs:
           printf '%s\n' "$lines"
           sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
         fi
+        ((${#counts[@]} == 0)) || echo "calls=${counts[*]}" >>"$GITHUB_OUTPUT"
         if ((${#costs[@]} > 0)); then
           echo "${costs[*]}" >>"$GITHUB_STEP_SUMMARY"
           echo "costs=${costs[*]}" >>"$GITHUB_OUTPUT"
