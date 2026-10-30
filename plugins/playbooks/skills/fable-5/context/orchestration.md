@@ -4,7 +4,7 @@ Delegation spends a worker's context window instead of your own. This chapter go
 
 ## When to delegate, when to stay inline
 
-`/multi-agent:assess` owns the delegation verdict: one context, subagents or a workflow, set by the task's size and whether its steps form one dependent chain, with its pointer to the subagent docs for verbose side output, tool restrictions and quick, targeted changes. Take the verdict from it. This section adds only what assess does not decide.
+`/multi-agent:assess` owns the delegation verdict: one context, subagents or a workflow, set by the task's size and whether its steps form one dependent chain, with its pointer to the subagent docs for verbose side output, tool restrictions and quick, targeted changes. Take the verdict from it. The core's delegation triggers (fan-out, context-flooding side work, isolation) and the context-economy chapter's delegation precedence name when to ask assess; its verdict decides. This section adds only what assess does not decide.
 
 Stay inline even when that verdict says delegate, if either holds:
 
