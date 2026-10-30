@@ -49,17 +49,21 @@ specific that must be current, check the source page instead.
   quality: <the specific behavior measured, and the user need it serves>
   measure: <the metric: a rate, a count or a defined scale>
   trials: <the trial set and its size, for example "500 conversations">
-  target: <the threshold, taken from the basis>
+  target: <one threshold, taken from the basis>
   basis: <measured baseline | prior result | benchmark | expert review | baseline-relative>
   ```
 
-  The `basis:` slot takes one of those five values, and the target must follow from it. The
-  first four count only when the user supplied the figure or agreement; name it. When none
-  applies, the basis is `baseline-relative` and the target is written relative to the current
-  rate without inventing its value (for example "at most half the current rate over 500
-  trials"), never as a placeholder (X/Y/Z, "set the target later") or a bare direction ("lower
-  than the baseline"). Severity, or that a grader can check the number, is not a basis. Never
-  present a made-up baseline figure or expert agreement as fact.
+  Each threshold gets its own block: a second bar on the same quality, such as a stricter one for
+  its worst failures, is a second block with its own `basis:`. The `basis:` slot takes one of
+  those five values, and the target must follow from it. The first four count only when the user
+  supplied the figure or agreement; name it. When none applies, the basis is `baseline-relative`
+  and the target is a fraction of the current rate, written without inventing its value (for
+  example "at most half the current rate over 500 trials"). An absolute number, zero included,
+  has no place in a `baseline-relative` block, so a "never" bar is written relative too ("at most
+  a tenth of the current rate of refunds sent to the wrong account"). Never write a target as a
+  placeholder (X/Y/Z, "set the target later") or a bare direction ("lower than the baseline").
+  Severity, or that a grader can check the number, is not a basis. Never present a made-up
+  baseline figure or expert agreement as fact.
 - "Which grading method?" The fastest, most reliable, most scalable that fits: code-based if the
   output can be constrained to allow it; LLM-graded for judgment; human only as a last resort.
 - "Can I automate this seemingly subjective eval?" Usually. Constrain the output format,

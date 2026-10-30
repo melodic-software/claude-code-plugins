@@ -156,15 +156,29 @@ Not `apply` surface: Claude Code owns the storage, and this contract forbids set
 Claude Code's native flow, per the marketplace's
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md)
 (which owns the verified-version record): interactive `/plugin configure code-tidying@<marketplace>`
-any time, or headless:
+any time. Headless, preferred on Claude Code 2.1.285 or later, run from the project the plugin is
+installed in (it has no scope flag):
+
+```shell
+claude plugin configure code-tidying@<marketplace> --values-stdin < values.json
+```
+
+with `values.json` holding `{"hard_exclusions": "advisory"}` (every value a string; keys left out
+keep their saved values). It rejects a bad value with exit 1 and saves nothing, but stores an empty
+string as `""`. Headless fallback, before 2.1.285:
 
 ```shell
 claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=advisory
 ```
 
 Against an installed plugin this prints `already installed` and still writes the value. Pass the
-scope `claude plugin list` reports. The running session is not re-read, so start a fresh session
-before expecting the new behavior. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
+scope `claude plugin list` reports, or the rerun adds an install record at the scope passed and
+enables the plugin there; from the home directory pass `user`. A rejected value prints a warning
+yet exits 0, so read the output. Either route stores the value in user settings. Do not uninstall
+to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting every
+option in the README's Options reference to its manifest default. The running
+session is not re-read, so rerun `check` in a fresh session before expecting the new behavior, and
+report the observed value. `hard_exclusions` takes `enforce` (default, every GLOBAL HARD path
 entry blocks) or `advisory` (every one is reported and none blocks); any other value is read as
 `enforce`. The full option table is in the plugin README.
 

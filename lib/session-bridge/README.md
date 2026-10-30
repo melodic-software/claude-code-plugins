@@ -226,6 +226,13 @@ The checks and their order are ours. Where the upstream facts they test live, as
 - Which auth channels need and which providers lack them: the opening note of the
   [channels page](https://code.claude.com/docs/en/channels), which has no section anchor. The
   provider variable names in the table are ours, not taken from that note.
+- Which credential a session uses when a cloud provider variable is set: cloud provider
+  credentials head the list when `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX` or
+  `CLAUDE_CODE_USE_FOUNDRY` is set, and a signed-in Claude apps gateway session outranks them:
+  [authentication precedence](https://code.claude.com/docs/en/authentication#authentication-precedence),
+  as of 2026-10-30. The page names those three variables only; the table's `_MANTLE` and
+  `_ANTHROPIC_AWS` are ours. Recheck when that list reorders its sources or changes the provider
+  variables it names.
 - Which plans block channels until enabled, and the two policy keys:
   [enterprise controls](https://code.claude.com/docs/en/channels#enterprise-controls).
 - What a session sees when a policy blocks a channel:

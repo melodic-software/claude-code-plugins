@@ -12,7 +12,10 @@
 #       arbitration), which claim.test.sh does not reach;
 #   (4) release ends the caller's own live lease, so a same-login claim that
 #       backed off on it succeeds afterwards, and refuses any lease that is not
-#       the caller's active one.
+#       the caller's active one;
+#   (5) a lane's lease-only claim and release under a --holder override: a local
+#       claim backs off while the lane lease is live and holds once it is
+#       released, and a lane claim backs off on a live local lease.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
@@ -98,6 +101,7 @@ gh() {
     *)
       n=$(($(cat "$d/lease-comments.count" 2>/dev/null || printf '0') + 1))
       printf '%s\n' "$n" >"$d/lease-comments.count"
+      [[ ! -f "$d/list-fails-$n" ]] || exit 1
       if [[ -f "$d/lease-comments-$n" ]]; then cat "$d/lease-comments-$n"; else cat "$d/lease-comments"; fi
       ;;
     esac
@@ -114,14 +118,17 @@ gh() {
     ;;
   # claim resolves the session identity before assigning; $d/login lets a scenario
   # choose whose claim it is.
-  *"api user"*) cat "$d/login" 2>/dev/null || printf 'alice\n' ;;
+  *"api user"*)
+    printf 'API_USER\n' >>"$d/calls.log"
+    cat "$d/login" 2>/dev/null || printf 'alice\n'
+    ;;
   *"-f body="*)
     printf 'POST_COMMENT\n' >>"$d/calls.log"
     if [[ -f "$d/stateful" ]]; then
       cid="$(jq -r '(map(.id) | max // 0) + 1' "$d/lease-comments")"
       body="$(stub_body_arg "$@")"
       jq -c --argjson id "$cid" --arg b "$body" \
-        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z"}]' \
+        '. + [{id: $id, node_id: "MDEx", body: $b, created_at: "2020-01-01T00:00:00Z", author_association: "MEMBER"}]' \
         "$d/lease-comments" >"$d/lease-comments.tmp" && mv "$d/lease-comments.tmp" "$d/lease-comments"
       printf '%s\n' "$cid"
     else
@@ -144,7 +151,7 @@ marker() {
   printf '<!-- work-item-lease v1 %s -->' "$json"
 }
 
-lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z"}]'; }
+lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]'; }
 
 new_scenario() {
   GH_STUB_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -155,7 +162,7 @@ calls() { cat "$GH_STUB_DIR/calls.log"; }
 cleanup_scenario() { rm -rf "$GH_STUB_DIR"; }
 
 PAST="2020-01-01T00:00:00Z"   # renewed_at + ttl long elapsed → expired
-FUTURE="2099-01-01T00:00:00Z" # renewed_at in the future → unambiguously live
+FUTURE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" # renewed now → live for its TTL
 
 # ===========================================================================
 # Finding 1 — renew-lease must refuse an expired active lease (no revive).
@@ -352,8 +359,8 @@ printf 'alice\n' >"$GH_STUB_DIR/login"
 OLD_MARKER="$(marker alice "$FUTURE" 24)"
 NEW_MARKER="$(marker alice "$FUTURE" 24)"
 jq -cn --arg o "$OLD_MARKER" --arg n "$NEW_MARKER" \
-  '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z"},
-    {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z"}]' >"$GH_STUB_DIR/lease-comments"
+  '[{id:100, node_id:"MDEx", body:$o, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+    {id:200, node_id:"MDEx", body:$n, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$OLD_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
 rc=0
 bash "$RELEASE" "$ID" --lease-comment-id 100 >/dev/null 2>&1 || rc=$?
@@ -383,5 +390,135 @@ assert_eq "release on an expired lease is a no-op (0)" "0" "$rc"
 assert_eq "expired release reports released:false" "false" "$(jq -r '.released' <<<"$out")"
 assert_not_contains "release writes nothing for an expired lease" "$(calls)" "PATCH"
 cleanup_scenario
+
+# ===========================================================================
+# Finding 5 — a lane claims lease-only under a --holder override (an
+# installation token cannot call `gh api user`), and arbitration is by
+# lease-comment order against local claims.
+# ===========================================================================
+LANE=987654
+
+# [lane lease live, then released] the lane posts its lease with no assignment;
+# a local claim made while it is live backs off and drops its own assignment;
+# after the lane's release the same local claim holds.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+out="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" 2>/dev/null)"
+rc=$?
+assert_eq "lane lease-only claim succeeds (0)" "0" "$rc"
+assert_eq "lane claim names the override holder" "$LANE" "$(jq -r '.holder' <<<"$out")"
+LANE_CID="$(jq -r '.lease_comment_id' <<<"$out")"
+assert_not_contains "lane claim assigns no one" "$(calls)" "ADD_ASSIGNEE"
+assert_not_contains "lane claim never calls gh api user" "$(calls)" "API_USER"
+assert_eq "lane lease names the holder in its comment" "$LANE" \
+  "$(jq -r '.[0].body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | .holder' "$GH_STUB_DIR/lease-comments")"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+assert_eq "a local claim backs off (7) while the lane lease is live" "7" "$rc"
+assert_contains "the backed-off local claim drops its own assignment" "$(calls)" "REMOVE_ASSIGNEE alice"
+assert_eq "no assignee is left after the back-off" "[]" "$(jq -c . "$GH_STUB_DIR/assignees")"
+: >"$GH_STUB_DIR/calls.log"
+out="$(bash "$RELEASE" "$ID" --lease-comment-id "$LANE_CID" --holder "$LANE" 2>/dev/null)"
+rc=$?
+assert_eq "lane release under --holder succeeds (0)" "0" "$rc"
+assert_eq "lane release reports released:true" "true" "$(jq -r '.released' <<<"$out")"
+assert_not_contains "lane release never calls gh api user" "$(calls)" "API_USER"
+out="$(bash "$CLAIM" "$ID" --ttl-hours 24 2>/dev/null)"
+rc=$?
+assert_eq "after the lane release, the local claim succeeds (0)" "0" "$rc"
+assert_eq "the local claim holds as alice" "alice" "$(jq -r '.holder' <<<"$out")"
+cleanup_scenario
+
+# [live local lease] a lane run finding a live local lease backs off (7), touches
+# no assignee, and supersedes its own lease so it blocks nobody.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '["alice"]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" >/dev/null 2>&1 || rc=$?
+assert_eq "a lane claim backs off (7) on a live local lease" "7" "$rc"
+assert_not_contains "the lane back-off touches no assignee" "$(calls)" "ASSIGNEE"
+assert_eq "the lane's own lease is superseded" "true" \
+  "$(jq -r '.[] | select(.id == 2) | .body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | has("superseded_at")' "$GH_STUB_DIR/lease-comments")"
+cleanup_scenario
+
+# [foreign holder under override] --holder does not let a lane release a local lease.
+new_scenario
+LOCAL_MARKER="$(marker alice "$FUTURE" 24)"
+lease_array 123 "$LOCAL_MARKER" >"$GH_STUB_DIR/lease-comments"
+jq -cn --arg b "$LOCAL_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
+rc=0
+bash "$RELEASE" "$ID" --lease-comment-id 123 --holder "$LANE" >/dev/null 2>&1 || rc=$?
+assert_eq "release under --holder refuses (7) another holder's lease" "7" "$rc"
+assert_not_contains "release under --holder does not supersede a local lease" "$(calls)" "PATCH"
+cleanup_scenario
+
+# [lease author] a lease comment counts only from a member, collaborator or owner,
+# or from a bot (an App installed on the repository, association NONE): the lane's
+# github-actions[bot] or a consumer's gh-bot.sh App. author_case <label> <association>
+# <login> <expected-rc> [user-type]
+author_case() {
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'alice\n' >"$GH_STUB_DIR/login"
+  printf '[]\n' >"$GH_STUB_DIR/assignees"
+  jq -cn --arg b "$(marker "$3" "$FUTURE" 24)" --arg a "$2" --arg u "$3" --arg t "${5:-User}" \
+    '[{id:1, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:$a, user:{login:$u, type:$t}}]' \
+    >"$GH_STUB_DIR/lease-comments"
+  rc=0
+  bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
+  assert_eq "$1" "$4" "$rc"
+  cleanup_scenario
+}
+author_case "an outsider-planted lease is ignored: the local claim succeeds (0)" NONE mallory 0
+author_case "a github-actions[bot] lease wins: the local claim backs off (7)" NONE "github-actions[bot]" 7 Bot
+author_case "a gh-bot.sh App's lease wins: the local claim backs off (7)" NONE "acme-agent[bot]" 7 Bot
+author_case "a member's lease wins: the local claim backs off (7)" MEMBER bob 7
+author_case "a collaborator's lease wins: the local claim backs off (7)" COLLABORATOR bob 7
+
+# [lease-only failure after the POST] a failed re-list supersedes the comment just
+# posted, so no lease nobody holds a handle to blocks the item for its TTL.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+: >"$GH_STUB_DIR/list-fails-1"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" >/dev/null 2>&1 || rc=$?
+assert_eq "a lease-only claim whose re-list fails exits non-zero" "true" "$([[ $rc -ne 0 ]] && echo true || echo false)"
+assert_eq "the lease-only claim supersedes its own comment on that failure" "true" \
+  "$(jq -r '.[0].body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | has("superseded_at")' "$GH_STUB_DIR/lease-comments")"
+cleanup_scenario
+
+# [log injection] a winner's holder is printed with its control characters removed.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+lease_array 1 "$(marker "$(printf 'bob\n::error::forged')" "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
+err="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" 2>&1 >/dev/null)"
+assert_eq "the backed-off claim prints no line break from the holder" "false" \
+  "$(grep -q '^::error::forged' <<<"$err" && echo true || echo false)"
+assert_contains "the backed-off claim still names the holder" "$err" "bob::error::forged"
+cleanup_scenario
+
+# [TTL cap] a TTL over the lease cap is refused before any write, since every
+# reader treats such a lease as not live; the cap itself is accepted.
+ttl_case() {
+  local label="$1" want_rc="$2" want_posts="$3" rc=0
+  shift 3
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --lease-only --holder "$LANE" "$@" >/dev/null 2>&1 || rc=$?
+  assert_eq "$label: exit" "$want_rc" "$rc"
+  assert_eq "$label: lease comments posted" "$want_posts" "$(grep -c POST_COMMENT "$GH_STUB_DIR/calls.log" 2>/dev/null)"
+  cleanup_scenario
+}
+ttl_case "a 169 h claim is refused" 2 0 --ttl-hours 169
+ttl_case "a 168 h 1 m claim is refused" 2 0 --ttl-hours 168 --ttl-minutes 1
+ttl_case "a 168 h claim is accepted" 0 1 --ttl-hours 168
 
 [[ $FAILED -eq 0 ]] || exit 1

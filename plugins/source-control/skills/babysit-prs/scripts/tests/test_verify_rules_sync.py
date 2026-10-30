@@ -1,4 +1,4 @@
-# test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs
+# test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/scripts/pr-verify/write-verdict.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs
 """The verifier's two shared rules agree across languages: the gate's
 (`babysit_verify_evidence`, `babysit_classify`) and the resolver's
 (`.github/scripts/pr-verify/resolve-pr.mjs`, run here under node).
@@ -210,6 +210,32 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
         # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
+
+    def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
+        # A FAIL the gate still counts must not expire before the pull
+        # request turns too old (TOO_OLD_DAYS), or verify:earlier-fail and the
+        # FAIL cap stop refusing. So must a pass judged after a relink: it may
+        # supersede a FAIL at its head (`_superseded`), which a later head of
+        # the same change still reads. Any other pass is read only at the open
+        # head, and 7 days is the window .github/artifact-retention.json records.
+        writer = RESOLVER.parent / "write-verdict.mjs"
+        script = (
+            f"import {{ retentionDays }} from {json.dumps(writer.as_uri())};"
+            " console.log(JSON.stringify(["
+            ' retentionDays("fail", false), retentionDays("pass", true),'
+            ' retentionDays("pass-notes", true), retentionDays("pass", false),'
+            ' retentionDays("pass-notes", false)]));'
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        fail, relinked, relinked_notes, passed, notes = json.loads(proc.stdout)
+        for days in (fail, relinked, relinked_notes):
+            self.assertGreater(days, ve.TOO_OLD_DAYS)
+        self.assertEqual((passed, notes), (7, 7))
 
     # Each FAIL-shaped name, and the issues its name carries read off by hand,
     # or None for a name no reader takes. One verdict has one name: a PASS

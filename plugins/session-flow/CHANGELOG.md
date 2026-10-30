@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [2.0.1] - 2026-10-30
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
 ## [2.0.0] - 2026-10-30
 
 ### Changed
