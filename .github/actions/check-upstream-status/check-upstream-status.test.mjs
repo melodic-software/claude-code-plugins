@@ -1,6 +1,9 @@
 // Expected values come from the gate's contract (action.yml): degraded is
-// true only for a degraded Actions or npm Package installation component, and
-// a page that cannot be read or lists no such component fails open. Pages are
+// true only while the Actions or npm Package installation component lists
+// partial_outage or major_outage, the two Statuspage statuses that mean the
+// component is broken for some or all customers
+// (https://support.atlassian.com/statuspage/docs/what-is-a-component); a
+// page that cannot be read or lists no such component fails open. Pages are
 // built in the Statuspage components.json shape component-status.mjs reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -67,19 +70,42 @@ test("fails open when a page lists no such component", async () => {
   assert.equal(result.reason, "unknown");
 });
 
-test("a degraded component still skips when the other page cannot be read", async () => {
+test("an outage still skips when the other page cannot be read", async () => {
   const result = await checkUpstreamStatus({
-    fetchStatus: reader(pages(new Error("timeout"), page("Package installation", "degraded_performance"))),
+    fetchStatus: reader(pages(new Error("timeout"), page("Package installation", "partial_outage"))),
   });
   assert.equal(result.degraded, "true");
   assert.equal(result.notes.length, 2);
+});
+
+// Incident pwxsjgnvrk6b listed Actions as degraded_performance while Actions
+// jobs kept succeeding; a slow or maintained component still runs.
+for (const status of ["degraded_performance", "under_maintenance"]) {
+  test(`runs, with a logged note, while a component lists ${status}`, async () => {
+    const result = await checkUpstreamStatus({
+      fetchStatus: reader(pages(page("Actions", status), page("Package installation", "operational"))),
+    });
+    assert.deepEqual(result, {
+      degraded: "false",
+      reason: "ok",
+      notes: [`www.githubstatus.com lists Actions as ${status}; the gate lets this run proceed`],
+    });
+  });
+}
+
+test("a status the gate does not know runs, fail open", async () => {
+  const result = await checkUpstreamStatus({
+    fetchStatus: reader(pages(page("Actions", "operational"), page("Package installation", "something_new"))),
+  });
+  assert.equal(result.degraded, "false");
 });
 
 test("page text cannot start a workflow command or a second log line", async () => {
   const result = await checkUpstreamStatus({
     fetchStatus: reader(pages(page("Actions", "x\n::error::injected"), page("Package installation", "operational"))),
   });
-  assert.equal(result.degraded, "true");
+  assert.equal(result.degraded, "false");
+  assert.equal(result.notes.length, 1);
   for (const text of [result.reason, ...result.notes]) {
     assert.ok(!text.includes("\n") && !text.includes("::"), text);
   }
