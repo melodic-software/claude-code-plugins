@@ -2609,7 +2609,7 @@ def _bash_denial_guidance(
 # any call, once the marker is past the idle timeout; the guard never deletes
 # one. Any other admitted engine call, a scan included, only restarts the idle
 # clock of an open run, so a completed or refused scan with no preview after
-# it is an audit-only outcome. Releasing the belt opens no engine delete path:
+# it is a scan-only outcome. Releasing the belt opens no engine delete path:
 # the engine gate and the approval token still gate every engine mutation,
 # and the manual lane's PowerShell deletes follow a handoff-verify, which
 # holds it. Outside a run, other Bash and PowerShell deletes answer to the

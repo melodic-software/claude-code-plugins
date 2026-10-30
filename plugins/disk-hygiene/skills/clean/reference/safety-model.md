@@ -618,7 +618,7 @@ the plugin data directory. Admitting a `preview` writes it, and so does admittin
 mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
 follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
 timeout ends that step. Any other admitted engine call, a `scan` included, only restarts an open run's
-idle clock, so a completed or refused scan with no preview after it is an audit-only outcome. With no
+idle clock, so a completed or refused scan with no preview after it is a scan-only outcome. With no
 marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
 keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
 deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
@@ -643,7 +643,7 @@ belt before the run's real end. Nothing on disk can be made a signal the
 session cannot write without widening the belt to every file-writing tool, which the run-scoped design
 does not do. What a forged end buys is the state a natural run end gives anyway: the engine gate and the
 approval token still gate every engine mutation, and other deletes answer to the session's own
-permission rules, the same as after an audit-only run. The difference is timing, chiefly in the manual
+permission rules, the same as after a scan-only run. The difference is timing, chiefly in the manual
 lane, where the belt's `ask` is the only prompt on a PowerShell delete; a forged end there drops that
 prompt for the rest of the verify's hour.
 
