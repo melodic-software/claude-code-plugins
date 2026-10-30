@@ -349,6 +349,33 @@ class ReadConfigAt(unittest.TestCase):
                     any("max-verify-fails" in n for n in config.notes), noted
                 )
 
+    def test_verify_cap_attempts_defaults_to_one_and_a_bad_value_is_zero(
+        self,
+    ) -> None:
+        # Owner decision 2026-10-29: one fresh attempt per issue by default; a
+        # value that is not a whole number fails closed, so no attempt starts.
+        def with_attempts(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  verify-cap-attempts: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 1, False),
+            (with_attempts("0"), 0, False),
+            (with_attempts("2"), 2, False),
+            (with_attempts("-1"), 0, True),
+            (with_attempts("one"), 0, True),
+            (with_attempts("''"), 0, True),
+            (with_attempts("[1]"), 0, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.verify_cap_attempts, expected)
+                self.assertEqual(
+                    any("verify-cap-attempts" in n for n in config.notes), noted
+                )
+
     def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
         # The shared reader's subset rejects any flow mapping, empty or not,
         # so the whole config is unread and the lane is off.
@@ -1890,6 +1917,41 @@ class ChangedFiles(unittest.TestCase):
             ],
         )
 
+    def test_blob_ids_come_from_the_head_and_base_trees(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "docs/b.md",
+                "previous_filename": "docs/old.md",
+                "status": "renamed",
+                "additions": 0,
+                "deletions": 0,
+            },
+            {"filename": "docs/e.md", "status": "added", "additions": 0, "deletions": 0},
+        ]
+        gh.rest[f"repos/{REPO}/git/trees/{self.HEAD}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": "docs/b.md", "mode": "100644", "sha": "b" * 40},
+                {"path": "docs/e.md", "mode": "100644", "sha": "e" * 40},
+            ],
+        }
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [{"path": "docs/old.md", "mode": "100644", "sha": "a" * 40}],
+        }
+        pr = {
+            "number": 7,
+            "changed_files": 2,
+            "head": {"sha": self.HEAD},
+            "base": {"sha": SHA},
+        }
+        files, _ = policy.changed_files(REPO, pr)
+        self.assertEqual(
+            [(f.path, f.blob, f.previous_blob) for f in files],
+            [("docs/b.md", "b" * 40, "a" * 40), ("docs/e.md", "e" * 40, None)],
+        )
+
     def test_a_truncated_tree_is_incomplete(self) -> None:
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = []
@@ -2463,6 +2525,28 @@ class EntryHold(unittest.TestCase):
     def test_an_unreadable_entry_is_a_hold(self) -> None:
         self.fake(timelineItems={"nodes": []})
         self.assertEqual(self.hold(), "unreadable")
+
+    def test_a_pull_request_never_queued_is_judged_without_queue_events(self) -> None:
+        # The gate's capped close (babysit_merge.close_capped): a capped lane
+        # pull request was never enqueued, so no queue event and no opt-in
+        # comparison; its labels, body and people still hold it.
+        self.fake(timelineItems={"nodes": []})
+        self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
+        self.fake(
+            timelineItems={"nodes": []},
+            labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]},
+        )
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "do-not-merge"
+        )
+        self.fake(timelineItems={"nodes": []}, body="Hold: waiting on a decision")
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "body-hold"
+        )
+        self.fake(timelineItems={"nodes": []}, labels={"totalCount": 2, "nodes": []})
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "unreadable"
+        )
 
 
 def queue_fake(
@@ -3683,6 +3767,8 @@ class LocalEnabledSince(unittest.TestCase):
             [(f.path, f.mode, f.previous_mode) for f in files],
             [("tool.sh", "100755", "100644")],
         )
+        blob = self.git(self.clone, "rev-parse", f"{head}:tool.sh")
+        self.assertEqual([(f.blob, f.previous_blob) for f in files], [(blob, blob)])
         self.assertEqual(
             gh.calls,
             [
@@ -6353,6 +6439,7 @@ merge:
   require-verifier-verdict: false
   max-queue-ejections: 5
   max-verify-fails: 4
+  verify-cap-attempts: 3
   risk-escalation-minutes: 90
   check-inputs: ["x/**"]
   dependabot:
@@ -6373,6 +6460,7 @@ merge:
   require-verifier-verdict: true
   max-queue-ejections: 1
   max-verify-fails: 2
+  verify-cap-attempts: 0
   risk-escalation-minutes: 10
   check-inputs: ["y/**"]
   dependabot:
@@ -6452,6 +6540,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "dependabot_majors": "hold",
             "max_queue_ejections": 1,
             "max_verify_fails": 2,
+            "verify_cap_attempts": 0,
             "agent_identity": IDENTITY,
             # Timing only: the base's, whichever side is stricter.
             "risk_escalation_minutes": escalation_minutes,
