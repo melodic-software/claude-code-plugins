@@ -142,6 +142,12 @@ dispatch, PR or babysit step. It works in place:
    }
    ```
 
+   A pushback names its cause:
+
+   ```json
+   {"exit": "pushback", "cause": "intent", "reason": "Which reader is the report for, and how is better checked?", "title": "", "summary": ""}
+   ```
+
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the intent question a
    person must answer, and add `"cause": "intent"`; a pushback with any other `cause`, or none,
    reaches a person only when its `reason` names a security concern or opens with a code below
