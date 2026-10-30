@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.11] - 2026-10-30
+
+### Changed
+
+- The setup skill's reconfiguration short form names `claude plugin configure discipline@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention.
+
 ## [0.22.10] - 2026-10-30
 
 ### Changed
