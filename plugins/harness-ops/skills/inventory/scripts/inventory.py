@@ -6178,6 +6178,35 @@ BUILTIN_STATE_CAVEATS = (
 _SETTINGS_PRECEDENCE = ("local", "project", "user")
 
 
+def _settings_scopes(root: Path, project_root: Path) -> dict[str, Path]:
+    """The user, project and local settings files; managed settings are not read."""
+    return {
+        "user": root / "settings.json",
+        "project": project_root / ".claude" / "settings.json",
+        "local": project_root / ".claude" / "settings.local.json",
+    }
+
+
+def _enabled_plugin_maps(
+    scopes: dict[str, Path],
+) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:
+    """Each scope's `enabledPlugins` map, and each scope's non-Boolean keys."""
+    enabled: dict[str, dict[str, Any]] = {}
+    rejected: dict[str, list[str]] = {}
+    for scope, path in scopes.items():
+        data = _load_json(path)
+        found = data.get("enabledPlugins") if isinstance(data, dict) else None
+        found = found if isinstance(found, dict) else {}
+        # Claude Code drops every enabledPlugins entry of a file holding one
+        # non-Boolean value, so that scope decides nothing.
+        bad = sorted(k for k, v in found.items() if not isinstance(v, bool))
+        if bad:
+            rejected[scope] = bad
+            found = {}
+        enabled[scope] = found
+    return enabled, rejected
+
+
 def global_config_path(root: Path, custom: bool) -> Path:
     """`${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: inside a custom config dir,
     in the home directory for the default one. Never the custom dir's parent."""
@@ -6207,24 +6236,8 @@ def builtin_plugin_state(
             return {"cached": None, "cached_present": None}
         return {"cached": cache.get(flag), "cached_present": flag in cache}
 
-    scopes = {
-        "user": root / "settings.json",
-        "project": project_root / ".claude" / "settings.json",
-        "local": project_root / ".claude" / "settings.local.json",
-    }
-    enabled: dict[str, dict[str, Any]] = {}
-    rejected: dict[str, list[str]] = {}
-    for scope, path in scopes.items():
-        data = _load_json(path)
-        found = data.get("enabledPlugins") if isinstance(data, dict) else None
-        found = found if isinstance(found, dict) else {}
-        # Claude Code drops every enabledPlugins entry of a file holding one
-        # non-Boolean value, so that scope decides nothing.
-        bad = sorted(k for k, v in found.items() if not isinstance(v, bool))
-        if bad:
-            rejected[scope] = bad
-            found = {}
-        enabled[scope] = found
+    scopes = _settings_scopes(root, project_root)
+    enabled, rejected = _enabled_plugin_maps(scopes)
 
     out: dict[str, Any] = {}
     for name, rec in sorted(plugins.items()):
@@ -6255,6 +6268,195 @@ def builtin_plugin_state(
         "plugins": out,
         "caveats": list(BUILTIN_STATE_CAVEATS),
     }
+
+
+# --------------------------------------------------------------------------
+# Skills index
+# --------------------------------------------------------------------------
+
+SKILL_STATES = ("enabled", "disabled", "not-installed")
+
+
+def _skill_overrides(scopes: dict[str, Path]) -> dict[str, Any]:
+    """`skillOverrides` merged key by key, local over project over user."""
+    merged: dict[str, Any] = {}
+    for scope in reversed(_SETTINGS_PRECEDENCE):
+        data = _load_json(scopes[scope])
+        found = data.get("skillOverrides") if isinstance(data, dict) else None
+        if isinstance(found, dict):
+            merged.update(found)
+    return merged
+
+
+def _cached_plugin_root(entry: Path) -> Path | None:
+    """The live copy under `cache/<marketplace>/<plugin>/`: the entry itself when
+    it holds the plugin, else its newest version directory with no
+    `.orphaned_at` marker, which an update or uninstall leaves on the old one."""
+    if not entry.is_dir():
+        return None
+    if (entry / ".claude-plugin").is_dir() or (entry / "skills").is_dir():
+        return entry
+    live = [
+        d
+        for d in entry.iterdir()
+        if d.is_dir() and not (d / ".orphaned_at").exists()
+    ]
+    return max(live, key=lambda d: (d.stat().st_mtime, d.name), default=None)
+
+
+def _skill_files(root: Path, manifest: dict[str, Any]) -> list[Path]:
+    """Each SKILL.md the plugin at `root` loads: `skills/` plus each directory
+    the manifest's `skills` adds (a folder of `<name>/SKILL.md`, or one holding
+    `SKILL.md` itself), else a root `SKILL.md` when neither exists."""
+    declared = _manifest_paths(manifest, "skills")
+    found: dict[Path, Path] = {}
+    for d in [root / "skills", *(root / p for p in declared or [])]:
+        if (d / "SKILL.md").is_file():
+            found.setdefault(d.resolve(), d / "SKILL.md")
+        elif d.is_dir():
+            for sub in sorted(d.iterdir()):
+                if (sub / "SKILL.md").is_file():
+                    found.setdefault(sub.resolve(), sub / "SKILL.md")
+    if declared is None and not (root / "skills").exists():
+        if (root / "SKILL.md").is_file():
+            found.setdefault(root.resolve(), root / "SKILL.md")
+    return sorted(found.values())
+
+
+def _index_record(
+    plugin: str, skill_md: Path, state: str, source: str
+) -> dict[str, Any]:
+    try:
+        text = skill_md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    fm = _frontmatter(text)
+    skill = skill_md.parent.name
+    return {
+        "plugin": plugin,
+        "skill": skill,
+        "name": fm.get("name") or skill,
+        "description": fm.get("description"),
+        "when_to_use": fm.get("when_to_use"),
+        "state": state,
+        "source": source,
+    }
+
+
+def _plugin_state(
+    pid: str,
+    enabled: dict[str, dict[str, Any]],
+    entry: dict[str, Any],
+    manifest: dict[str, Any],
+) -> str:
+    """The winning `enabledPlugins` value for `pid`, else `defaultEnabled` from
+    the marketplace entry, then plugin.json, then true."""
+    for scope in _SETTINGS_PRECEDENCE:
+        if pid in enabled[scope]:
+            return "enabled" if enabled[scope][pid] else "disabled"
+    for declared in (entry, manifest):
+        if isinstance(declared.get("defaultEnabled"), bool):
+            return "enabled" if declared["defaultEnabled"] else "disabled"
+    return "enabled"
+
+
+def _plugin_records(
+    pid: str,
+    root: Path,
+    source: str,
+    enabled: dict[str, dict[str, Any]] | None,
+    entry: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """One record per skill of the plugin at `root`; `enabled` is None for a
+    plugin that is not installed."""
+    manifest = _load_json(root / ".claude-plugin" / "plugin.json")
+    manifest = manifest if isinstance(manifest, dict) else {}
+    state = (
+        "not-installed"
+        if enabled is None
+        else _plugin_state(pid, enabled, entry, manifest)
+    )
+    return [_index_record(pid, md, state, source) for md in _skill_files(root, manifest)]
+
+
+def skills_index(root: Path, project_root: Path) -> list[dict[str, Any]]:
+    """One record per skill: installed plugins from the cache, the rest of each
+    known marketplace from its checkout, and personal and project skills.
+
+    A marketplace entry with a remote source and no cached copy becomes one
+    plugin-level row with `skill: null`: its SKILL.md files are not on this
+    machine, and the index makes no network fetch.
+    """
+    scopes = _settings_scopes(root, project_root)
+    enabled, _ = _enabled_plugin_maps(scopes)
+    cache = root / "plugins" / "cache"
+    records: list[dict[str, Any]] = []
+    catalogued: set[tuple[str, str]] = set()
+
+    known = _load_json(root / "plugins" / "known_marketplaces.json")
+    for market, meta in sorted((known if isinstance(known, dict) else {}).items()):
+        loc = meta.get("installLocation") if isinstance(meta, dict) else None
+        catalog = (
+            _load_json(Path(loc) / ".claude-plugin" / "marketplace.json")
+            if isinstance(loc, str)
+            else None
+        )
+        entries = catalog.get("plugins") if isinstance(catalog, dict) else None
+        for entry in entries if isinstance(entries, list) else []:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if not isinstance(name, str) or not name:
+                continue
+            catalogued.add((market, name))
+            pid = f"{name}@{market}"
+            cached = _cached_plugin_root(cache / market / name)
+            if cached is not None:
+                records += _plugin_records(pid, cached, "cache", enabled, entry)
+            elif isinstance(entry.get("source"), str):
+                records += _plugin_records(
+                    pid, Path(loc) / entry["source"], "checkout", None, entry
+                )
+            else:
+                description = entry.get("description")
+                records.append(
+                    {
+                        "plugin": pid,
+                        "skill": None,
+                        "name": name,
+                        "description": description
+                        if isinstance(description, str)
+                        else None,
+                        "when_to_use": None,
+                        "state": "not-installed",
+                        "source": "marketplace-manifest",
+                    }
+                )
+
+    # A cached plugin whose marketplace is no longer known still loads.
+    if cache.is_dir():
+        for market_dir in sorted(p for p in cache.iterdir() if p.is_dir()):
+            for plugin_dir in sorted(p for p in market_dir.iterdir() if p.is_dir()):
+                if (market_dir.name, plugin_dir.name) in catalogued:
+                    continue
+                cached = _cached_plugin_root(plugin_dir)
+                if cached is not None:
+                    pid = f"{plugin_dir.name}@{market_dir.name}"
+                    records += _plugin_records(pid, cached, "cache", enabled, {})
+
+    overrides = _skill_overrides(scopes)
+    for plugin, base in (
+        ("user", root / "skills"),
+        ("project", project_root / ".claude" / "skills"),
+    ):
+        if not base.is_dir():
+            continue
+        for sub in sorted(base.iterdir()):
+            if not (sub / "SKILL.md").is_file():
+                continue
+            rec = _index_record(plugin, sub / "SKILL.md", "enabled", "config-scope")
+            if "off" in (overrides.get(rec["name"]), overrides.get(rec["skill"])):
+                rec["state"] = "disabled"
+            records.append(rec)
+    return records
 
 
 # --------------------------------------------------------------------------
@@ -6551,7 +6753,34 @@ def main(argv: list[str] | None = None) -> int:
         help="install base for the parser's npm packages (default: "
         "$CLAUDE_PLUGIN_DATA, a checkout's .work/, or the plugin data directory)",
     )
+    ap.add_argument(
+        "--skills-index",
+        action="store_true",
+        help="print only a JSON array with one record per skill (installed, "
+        "disabled and not installed), read from disk; the binary is not read",
+    )
+    ap.add_argument(
+        "--exclude",
+        help="with --skills-index, drop records in these comma-separated states: "
+        + ", ".join(SKILL_STATES),
+    )
     args = ap.parse_args(argv)
+
+    if args.exclude is not None and not args.skills_index:
+        print("--exclude requires --skills-index", file=sys.stderr)
+        return 2
+    if args.skills_index:
+        excluded = {s.strip() for s in (args.exclude or "").split(",") if s.strip()}
+        unknown = sorted(excluded - set(SKILL_STATES))
+        if unknown:
+            print(f"--exclude: unknown state {', '.join(unknown)}", file=sys.stderr)
+            return 2
+        root = Path(args.config_dir) if args.config_dir else config_dir()
+        project_root = Path(args.project_dir) if args.project_dir else Path.cwd()
+        records = [
+            r for r in skills_index(root, project_root) if r["state"] not in excluded
+        ]
+        return _emit(json.dumps(records, indent=1, sort_keys=True), args.out)
 
     if args.binary_only and args.disk_only:
         print("--binary-only and --disk-only are mutually exclusive", file=sys.stderr)
@@ -6597,14 +6826,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  advisory: {a}")
         return {"ok": 0, "broken": 1, "degraded": 3}[integrity["status"]]
 
-    text = json.dumps(report, indent=1, sort_keys=True)
-    if args.out:
+    return _emit(json.dumps(report, indent=1, sort_keys=True), args.out)
+
+
+def _emit(text: str, out: str | None) -> int:
+    """Write `text` to `out`, or to stdout without one."""
+    if out:
         try:
-            Path(args.out).write_text(text, encoding="utf-8")
+            Path(out).write_text(text, encoding="utf-8")
         except OSError as exc:
-            print(f"error: cannot write --out {args.out}: {exc}", file=sys.stderr)
+            print(f"error: cannot write --out {out}: {exc}", file=sys.stderr)
             return 2
-        print(f"wrote {args.out}", file=sys.stderr)
+        print(f"wrote {out}", file=sys.stderr)
     else:
         print(text)
     return 0
