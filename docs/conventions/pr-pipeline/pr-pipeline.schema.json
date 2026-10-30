@@ -1141,8 +1141,8 @@
           "type": "array",
           "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
           "uniqueItems": true,
-          "default": [],
-          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
+          "minItems": 1,
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. It needs at least one entry, because the shared ci-workflows hold fails on an empty list; a login no App holds turns the hold off."
         },
         "diff-check": {
           "type": "object",
