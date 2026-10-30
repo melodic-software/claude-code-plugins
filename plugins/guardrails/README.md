@@ -508,7 +508,7 @@ document is built with builtins, and the owner directories come from the same `j
 that compiles the map, so k stays 0 and the strace census pins 0 creations for a call
 that names another domain's root. A map with owners gives each call more paths to test:
 two per owner, each in up to twelve spellings, the same count a root below `HOME` has.
-Measured on the WSL2 host of the find-delete entry, guardrails at `3ba1f77a8` against its parent,
+Measured on the WSL2 host of the find-delete entry, guardrails at the #10870 merge against its parent,
 with a placeholder map holding the cwd's domain and one other: with the fan-out harness, 21
 interleaved rounds of `--runs 15`, the `Bash` row's paired median moved +1 ms and the `$(…)`
 sample +1 ms, against +0 ms for the untouched `Write` and `Edit` rows. With `hyperfine` (300
