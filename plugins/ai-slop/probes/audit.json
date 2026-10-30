@@ -1,0 +1,130 @@
+{
+  "skill": "ai-slop:audit",
+  "plugin": "ai-slop",
+  "skill_dir": "plugins/ai-slop/skills/audit",
+  "ranking_note": "Authored from the before description at merge-base 222041a038, frozen before the after-version run; protocol per /playbooks:skill-authoring ## Measurement. Every query keeps its polarity under the before and after descriptions: no commit-message, pull-request-body or interface-copy requests, which the after version adds. Competitors: ai-slop:setup in the same plugin, plus the near-miss skills for concision, compression, docs noise, code comments and copied upstream text.",
+  "competitors": [
+    "ai-slop:setup",
+    "writing:be-concise",
+    "docs-hygiene:compress",
+    "docs-hygiene:audit-noise",
+    "code-tidying:audit-comment-residue",
+    "attribution:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Scan docs/architecture.md and tell me which sentences sound like a chatbot wrote them."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our README is full of em dashes. List every one, but don't change anything yet."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I publish posts/launch.md, check it for the usual machine-writing giveaways."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through every markdown file in the repo and flag GPT-flavored words like delve and tapestry."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rewrite the AI-sounding lines in CONTRIBUTING.md and make sure none of the rewrites changes what a sentence says."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does docs/onboarding.md read like an LLM produced it? Point at the specific phrases."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "An agent drafted guides/setup.md. Review it for robotic tells: stacked hedges, filler, sign-offs like 'hope this helps'."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Audit my personal Claude Code markdown (CLAUDE.md, my rules and skills) for AI-writing patterns."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find the overused metaphors across the docs folder, the load-bearing and north star kind."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "RELEASE_NOTES.md reads like marketing copy written by a bot. Clean up the puffery and chat residue, keeping every fact."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn off the em-dash rule for docs/upstream/ in our slop config and raise the vocabulary threshold."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This README section rambles. Cut it down and lead with the point."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Shrink CLAUDE.md so it costs fewer tokens, without dropping any directive."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit the code comments in src/ for leftover agent chatter and narration."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether docs/hooks.md copies paragraphs from the vendor docs without linking them."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up the house-style config for the slop checker in this repo so our docs folder is exempt."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find ghost references and stale historical citations in our rule files."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the skipped heading levels and the duplicate H1 in docs/guide.md."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Spell-check README.md and fix the typos."
+    }
+  ]
+}

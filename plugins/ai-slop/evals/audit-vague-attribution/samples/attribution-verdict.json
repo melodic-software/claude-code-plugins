@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/queue.md:3 rule-vague-attribution: \"Experts argue that a log-based queue is always the safer choice ... widely regarded as the modern default\". No source named. The load-test paragraph cites its numbers and quotes the Kafka docs, so it is not a finding.",
+      "why": "weasel sentence reported, sourced paragraph left alone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/queue.md:6 rule-vague-attribution: \"The Kafka documentation states\" is vague.",
+      "why": "flags the sourced paragraph and misses the weasel sentence"
+    },
+    {
+      "answer": "No findings in docs/queue.md.",
+      "why": "misses the weasel sentence"
+    }
+  ]
+}

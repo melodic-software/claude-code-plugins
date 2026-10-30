@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Cache helper\n\nTo use the shared cache, each worker opens one connection at startup.\n\nThe helper can help retries when the cache is cold.\n\nBecause many jobs share the cache, its size limit is 512 MB.\n",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Cache helper\n\nTo leverage the shared cache, each worker opens one connection at startup.\n",
+      "why": "misses the outcome"
+    }
+  ]
+}
