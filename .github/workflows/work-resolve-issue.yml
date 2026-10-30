@@ -583,7 +583,7 @@ jobs:
           RESUME_BRANCH: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-resume-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-resume-branch || '' }}
           RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.result || needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.result || needs.resolve-issue.result }}
-          REPORT_RESULT: ${{ needs.report-outcome.result }}
+          REPORT_RESULT: ${{ needs.report-outcome.outputs.skip-reason == 'kill-switch' && 'stopped' || needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
       - name: Log the API budget at the end
@@ -813,9 +813,12 @@ jobs:
     # summary pass described the branch, and this opens the PR from it.
     # Needing resolve-issue waits for every job of that call, the summary job
     # included; !cancelled() runs this whether that job failed or skipped.
+    # A kill switch that stopped apply-issue-patch dropped this run's patch,
+    # so this skips and work-unblock re-fires the issue as a breaker trip.
     if: >-
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
-      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
+      || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '')
+      && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch' }}
     permissions:
       contents: read
       pull-requests: read
