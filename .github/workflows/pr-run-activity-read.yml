@@ -2167,7 +2167,7 @@ jobs:
           PRUNE_BRANCHES: ${{ steps.issue.outputs.prune-branches }}
           PRIOR_OUT: ${{ runner.temp }}/issue-prior
         run: |
-          prior() { [ -f "$PRIOR_OUT" ] && sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
+          prior() { [ ! -f "$PRIOR_OUT" ] || sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
           if [ "$CLAIMED" = true ]; then
             if [ "$(prior reuse-branch)" != "$REUSE_BRANCH" ] || [ "$(prior resume-branch)" != "$RESUME_BRANCH" ] ||
               [ "$(prior resume-tip)" != "$RESUME_TIP" ]; then

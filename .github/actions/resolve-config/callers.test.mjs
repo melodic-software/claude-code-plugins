@@ -4071,10 +4071,24 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   assert.deepEqual([pruning.status, pruning.outputs["prune-branches"]], [0, older]);
   const underived = publish({ CLAIMED: "false", PRUNE_BRANCHES: older }, "");
   assert.deepEqual([underived.status, underived.outputs.checked, underived.outputs["prune-branches"]], [0, "true", ""]);
+  // A plain fresh run skips the re-derive, so its file is never written.
+  for (const prune of ["", older]) {
+    const output = join(root, "output");
+    writeFileSync(output, "");
+    const result = runStep(checked, root, { CLAIMED: "false", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, PRUNE_BRANCHES: prune, PRIOR_OUT: join(root, "missing"), GITHUB_OUTPUT: output });
+    const outputs = outputLines(output);
+    assert.deepEqual([result.status, outputs.checked, outputs["prune-branches"]], [0, "true", ""], `no re-derive file, prune list "${prune}"`);
+  }
   const baseStep = job.steps.find((s) => s.id === "base");
   const ctx = (claimed, prune) => ({ "steps.issue.outcome": "success", "steps.issue.outputs.claimed": claimed, "steps.issue.outputs.prune-branches": prune, "github.event.repository.default_branch": "main" });
   assert.equal(evaluate(baseStep.if, ctx("false", older)), true, "a prune list is re-derived");
   assert.equal(evaluate(baseStep.if, ctx("false", "")), false, "nothing to re-derive");
+  // The re-derive runs whenever the base checkout did.
+  const node = job.steps.find((s) => s.id === "node");
+  for (const outcome of ["success", "failure", "skipped"]) {
+    assert.equal(evaluate(node.if, { "steps.base.outcome": outcome }), outcome === "success", `node after a ${outcome} checkout`);
+    assert.equal(evaluate(prior.if, { "steps.node.outcome": outcome }), outcome === "success", `re-derive after a ${outcome} node setup`);
+  }
 });
 
 // lane.json is the runner's record: an issue run that started carries it,
