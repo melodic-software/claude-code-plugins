@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: ho-todowrite-renders-list
+description: 'Handoff TodoWrite branch: in a session whose tool set holds TodoWrite in place of the Task tools, /session-flow:handoff renders the list from its latest TodoWrite call in the save-point''s environment section. The case env cannot set the tool set, so launch the run with CLAUDE_CODE_ENABLE_TASKS=0 exported; without it TodoWrite is not offered and both graders fail. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [handoff, task-tools, todowrite]
+plugins: ["../.."]
+expected_outcome: 'The session puts two items on its list with TodoWrite, then the handoff writes a save-point under .work/handoffs/ whose Environment to re-establish section renders those items as glyph lines ([ ] pending, [~] in progress, [x] done), not a list rebuilt from memory, and ends with the railed resume prompt.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'First put two items on your todo list with TodoWrite: "Cap retry delay at 30 seconds" and "Run ./test.sh". Then run /session-flow:handoff file retry-backoff'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, TodoWrite]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: todo-list-rendered
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.work/handoffs/[^"]*"[\s\S]*\[[ x~!]\][ ]+[^\\]{0,80}?(?:30 seconds|test\.sh)'
+    min: 1
+    arm: with-only
+  - name: todowrite-offered
+    type: tool_used
+    tool: TodoWrite
+    min: 1
+    arm: both

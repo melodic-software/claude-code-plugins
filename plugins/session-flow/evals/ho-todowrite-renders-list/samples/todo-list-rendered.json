@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261030T090000Z-handoff-retry-backoff.md", "content": "### Environment to re-establish\n\n- [~] Cap retry delay at 30 seconds\n- [ ] Run ./test.sh\n\nRecreate before resuming."}}
+      ],
+      "why": "save-point renders the TodoWrite items as glyph lines"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261030T090000Z-handoff-retry-backoff.md", "content": "Task list (from the latest TodoWrite call):\n- [ ] Run ./test.sh"}}
+      ],
+      "why": "one rendered item is enough"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261030T090000Z-handoff-retry-backoff.md", "content": "### Environment to re-establish\n\nThis session has no task tools."}}
+      ],
+      "why": "the neither branch's line, list not rendered"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/notes.md", "content": "- [ ] Cap retry delay at 30 seconds"}}
+      ],
+      "why": "list written outside the save-point"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261030T090000Z-handoff-retry-backoff.md", "content": "- [ ] Refactor logging"}}
+      ],
+      "why": "item the session never had"
+    }
+  ]
+}
