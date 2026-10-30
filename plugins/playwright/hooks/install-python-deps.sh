@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook: install the demo-video skill's hash-locked Python packages
 # (skills/demo-video/requirements.txt) into ${CLAUDE_PLUGIN_DATA} on demand, so the skill runs against them and
-# nothing fetches a package while it runs (docs/conventions/on-demand-dependencies, Python). A no-op once the set
+# nothing fetches a package while it runs (docs/contracts/on-demand-dependencies, Python). A no-op once the set
 # loads. A failed install is a user notice with the repair line, never a silent skip; the model hears nothing here,
 # since pydeps.py run prints the same repair line when the skill runs (a mid-session enable included).
 # Always exits 0: a failed install must not block the session.

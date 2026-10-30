@@ -12,7 +12,7 @@ changes.) Readers are loop-lane session
 bodies; an installed plugin cannot read a sibling plugin's files at runtime, so **consumers inline
 the operable floor below verbatim** and cite this file for provenance only. The inline-floor rule,
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
-loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketplace repository).
+loop-lane convention (`docs/contracts/loop-lane/README.md` §6 in the marketplace repository).
 
 **Recheck trigger:** re-verify the `rate_limits` source under "Snapshot file shape" below if the
 `SessionRateLimit` entries `$.session.usage()` returns change their `kind`, `percentUsed` or
