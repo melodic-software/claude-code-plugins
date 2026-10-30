@@ -82,6 +82,46 @@ const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
+// GitHub refuses a comment body over 65536 characters; leave room for the
+// framing (judgment).
+const BODY_MAX = 60000;
+
+// GitHub scrolls a long line in a code block instead of wrapping it, so each
+// quoted line is broken at a space to fit WRAP columns, its continuations
+// indented two spaces; a word longer than that (a URL, a path) stays whole. A
+// quote over FOLD_LINES lines folds into a <details> block (judgment).
+export const WRAP = 100;
+const FOLD_LINES = 20;
+
+export function wrapLine(line, width = WRAP) {
+  const out = [];
+  let lead = "";
+  let rest = line;
+  while (lead.length + rest.length > width) {
+    const room = width - lead.length;
+    let cut = rest.lastIndexOf(" ", room);
+    if (cut <= 0) cut = rest.indexOf(" ", room);
+    if (cut <= 0) break;
+    out.push(lead + rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut + 1).trimStart();
+    lead = "  ";
+  }
+  out.push(lead + rest);
+  return out;
+}
+
+// One fenced quote, with no fence inside it and no control character. The
+// fence keeps the quoted text inert: no mention, reference, link or HTML
+// renders, and no line of it reads as a lane footer, rating or fix request.
+// `summary` labels the <details> block a long quote folds into.
+export function quote(lines, summary = (count) => `What it wrote (${count} lines)`) {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it removes
+  const text = lines.join("\n").replace(/\r\n/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
+  const wrapped = (text.length > BODY_MAX ? `${text.slice(0, BODY_MAX)} [cut]` : text).split("\n").flatMap((line) => wrapLine(line));
+  const fence = ["```text", ...wrapped, "```"].join("\n");
+  return wrapped.length > FOLD_LINES ? [`<details><summary>${summary(wrapped.length)}</summary>`, "", fence, "", "</details>"].join("\n") : fence;
+}
+
 // The ids of the unresolved threads (listThreads) a pr-verify FAIL's notes
 // opened on a head other than `head`: the first comment is
 // github-actions[bot]'s, opens with VERIFY_NOTE_MARKER, and was posted on

@@ -780,6 +780,39 @@ test("enable-auto-merge's label at the current head comes off once the gate's re
   assert.deepEqual(removal, DELETE);
 });
 
+// The person refusal written out by hand, its reason lines as given: one line
+// per reason before reasons wrapped, or a reason wrapped at 100 columns with
+// two-space continuations. LONG_UNBOUND's ";" is its 99th column (the risk
+// prefix is 44, then 17 + 37 + 1), so the wrap cuts right after "; " and the
+// lane code after it is on the next line.
+const handRefusal = (reasonLines, head = HEAD) =>
+  [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
+    "",
+    "```text",
+    ...reasonLines,
+    "```",
+  ].join("\n");
+const LONG_UNBOUND = `pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)}; files-incomplete)`;
+const LONG_SECURITY = `pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)}; security-finding: 1 open CRITICAL finding)`;
+const wrapAfterSemicolon = (reason) => [reason.slice(0, 99), `  ${reason.slice(100)}`];
+
+test("enable-auto-merge's long refusal comes off in the old one-line format and the wrapped one", async () => {
+  for (const body of [handRefusal([LONG_UNBOUND]), handRefusal(wrapAfterSemicolon(LONG_UNBOUND))]) {
+    const w = world({ timeline: mergeEscalated(body), author: BOT, evidence: clean });
+    const { logs } = await run(w, NATIVE);
+    assert.deepEqual(w.writes().at(-1), DELETE, `${body}\n${logs.join("\n")}`);
+  }
+  // A person's code on the wrapped line still keeps the label.
+  for (const body of [handRefusal([LONG_SECURITY]), handRefusal(wrapAfterSemicolon(LONG_SECURITY))]) {
+    const w = world({ timeline: mergeEscalated(body), author: BOT, evidence: clean });
+    await run(w, NATIVE);
+    assert.deepEqual(w.writes(), [], body);
+  }
+});
+
 test("enable-auto-merge's label comes off when the reader now reads a refusal the lanes clear for the same cause", async () => {
   for (const [reason, evidence] of [
     // A lane-class verifier label: any verdict the lanes clear, read whole.
