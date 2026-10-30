@@ -25,16 +25,16 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
 
 - Write `disable-model-invocation` explicitly on every skill (`/skill-quality:check` enforces the
   key) and decide it against the
-  [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
+  [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
   Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
 - Shape arguments and `argument-hint` per the
-  [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
-  and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/argument-hint/README.md);
+  [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
+  and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/argument-hint/README.md);
   a skill with no arguments omits the key.
 - Set `model` only for work that needs it for the rest of the invoking turn; the hub's Skill
   `model` section carries the record.
 - Default to inline execution. Set `context: fork` only when the
-  [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-context/README.md)
+  [invocation-context rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-context/README.md)
   says it pays, and give a forked skill `background: false` unless a skill-specific confirmation
   chooses async.
 - Grant an exact command through `allowed-tools` with a matching Bash rule, never a broad
@@ -74,7 +74,7 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   to do, not a step script. A fragile or mandatory sequence gets the exact command (a bundled
   script) and an instruction not to alter it; only such a sequence earns a copyable checklist.
   Decide per section. When a skipped gate is costly, a hook is the escalation, charged to the
-  hook budget (`docs/conventions/hook-budget/README.md`).
+  hook budget (`docs/contracts/hook-budget/README.md`).
 - **State the action.** At every level, write the instruction as the action. A reason earns a
   place beside it in two cases: a required step that reads as optional without one, and a narrow
   rule that would otherwise be applied everywhere. Background that changes no action (how the rule
@@ -138,7 +138,7 @@ reads it. A key nothing reads is cut.
 - No PR or issue numbers, "added in" notes, incident narratives or date-conditional guidance in a
   skill. Git, the CHANGELOG, issues and ADRs hold history.
 - Exempt: pointer records (pointer, as-of date, recheck trigger, per the
-  [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#required-parts))
+  [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts))
   and cross-repo `owner/repo#N` pointers to an upstream bug.
 - A skill whose users still meet renamed names may keep a names-only "Old patterns" table, within
   the upstream-drift convention's limits.

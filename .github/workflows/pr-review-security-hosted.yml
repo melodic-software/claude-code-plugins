@@ -127,7 +127,7 @@ jobs:
     permissions:
       contents: read # check out the default branch for the kill-switch action
     outputs:
-      proceed: ${{ steps.kill.outputs.proceed == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
+      proceed: ${{ steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -137,6 +137,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/check-upstream-status/
+            /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
             /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
@@ -152,6 +154,15 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED == 'true'

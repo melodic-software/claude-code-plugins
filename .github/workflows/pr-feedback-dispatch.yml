@@ -323,6 +323,15 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
@@ -336,7 +345,7 @@ jobs:
       # enabled and the slot applies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
-        if: steps.kill.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       # The newest record an earlier run at this head saved, if any. The key
@@ -344,7 +353,7 @@ jobs:
       # every entry it reads (dispatch-record.mjs). A sweep keeps no record.
       - name: Restore the dispatch record for this head
         if: >-
-          steps.kill.outputs.proceed == 'true'
+          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
           && github.event.workflow_run.path != '.github/workflows/pr-unblock-dispatch.yml'
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -358,13 +367,13 @@ jobs:
       # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
       # A failed install warns; the reader then fails and the round runs.
       - name: Set up Python
-        if: steps.kill.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .base/.python-version
 
       - name: Install the pinned YAML reader
-        if: steps.kill.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         continue-on-error: true
         run: |
           awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
@@ -377,7 +386,7 @@ jobs:
 
       - name: Dispatch address-feedback
         id: dispatch
-        if: steps.kill.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py

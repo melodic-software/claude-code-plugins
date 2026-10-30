@@ -136,15 +136,28 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Skips the review while Actions or npm installs report a degraded
+      # component, with a logged reason; fails open
+      # (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
       - name: Report the kill switch
         id: switch
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
+          UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
-          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
+          elif [ "$UPSTREAM_DEGRADED" = true ]; then
+            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
@@ -894,15 +907,28 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Skips the review while Actions or npm installs report a degraded
+      # component, with a logged reason; fails open
+      # (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
       - name: Report the kill switch
         id: switch
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
+          UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
-          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
+          elif [ "$UPSTREAM_DEGRADED" = true ]; then
+            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
@@ -1656,15 +1682,28 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Skips the review while Actions or npm installs report a degraded
+      # component, with a logged reason; fails open
+      # (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
       - name: Report the kill switch
         id: switch
         env:
           PROCEED: ${{ steps.kill.outputs.proceed }}
           REASON: ${{ steps.kill.outputs.reason }}
           LANE_SWITCH: ${{ vars[matrix.switch] }}
+          UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
         run: |
-          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ]; then
+          if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
+          elif [ "$UPSTREAM_DEGRADED" = true ]; then
+            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi

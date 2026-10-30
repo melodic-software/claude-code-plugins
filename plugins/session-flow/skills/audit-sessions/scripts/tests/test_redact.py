@@ -71,7 +71,7 @@ USER = "al" + "ice"
 BS = "\\"
 
 
-# The home-path spellings docs/conventions/windows-path-emit names, plus WSL and JSON-escaped forms.
+# The home-path spellings docs/contracts/windows-path-emit names, plus WSL and JSON-escaped forms.
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
