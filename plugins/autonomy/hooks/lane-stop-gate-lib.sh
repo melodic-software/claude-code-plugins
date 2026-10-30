@@ -4,7 +4,7 @@
 # executed.
 #
 # Everything here exists to keep the gate's configuration off the bare
-# environment (channel B), which docs/conventions/hook-config-delivery forbids
+# environment (channel B), which docs/contracts/hook-config-delivery forbids
 # for a safety-critical toggle: for an unconfigured key, a watched repository's
 # own `.claude/settings.json` `env` block populates `CLAUDE_PLUGIN_OPTION_*`
 # freely, and env carries no provenance a hook could check. The trusted sources

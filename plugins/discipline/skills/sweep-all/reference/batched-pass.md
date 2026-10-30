@@ -80,7 +80,7 @@ unchanged and bind every member.
    <https://code.claude.com/docs/en/env-vars>, and
    <https://code.claude.com/docs/en/whats-new/2026-w32>, read verbatim end to
    end through the `.md` fetch route
-   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route))
+   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route))
    on 2026-08-10. For the current rows of `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`,
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` and `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`,
    fetch [env-vars](https://code.claude.com/docs/en/env-vars) live (as of

@@ -437,7 +437,7 @@ const noticeShows = (st: State, surface: string) => st.notice !== undefined && (
 
 // The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
 // One fire of a hook, for its telemetry envelope: the event, when it started, and the optional
-// correlation keys (docs/conventions/hook-telemetry, "Correlation keys").
+// correlation keys (docs/contracts/hook-telemetry, "Correlation keys").
 type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unknown }
 const PLAIN_ID = /^[A-Za-z0-9._-]+$/
 const RANK_WORD = ['smart', 'acceptable', 'dumb'] as const

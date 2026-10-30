@@ -74,7 +74,7 @@ infrastructure, irreversible, or security); or **withheld**, where the source ra
 consequential choice as an open question. A withheld item shows "withheld" in the Recommendation
 cell and the evidence that would settle it in the Basis cell, never an invented recommendation. A
 recommendation the source re-stated as old → new → why keeps all three parts. Full convention:
-[recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label).
+[recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 
 ## Rendering
 
@@ -115,7 +115,7 @@ In every medium the table has numbered rows and these columns.
   too long for a cell, quote its operative clause and point to the original by its `Item`; never
   a lossy summary.
 - **The rendered-views security baseline governs the artifact and local-file media.** It is owned
-  by `docs/conventions/rendered-views/README.md` ("Security baseline") in the marketplace
+  by `docs/contracts/rendered-views/README.md` ("Security baseline") in the marketplace
   repository and repeated here because this skill runs where that file is not on disk. Everything copied <!-- contract-restatement-begin: rendered-views-security-baseline -->
   into the page is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text
   and attribute positions; never interpolate unescaped content into `<script>`

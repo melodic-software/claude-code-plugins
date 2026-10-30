@@ -79,7 +79,7 @@ the pull request that carries this change.
 
 The hook is partial by design. It has no length rule, so a page WebFetch summarized with no marker
 or placeholder gets no note; the captured CHANGELOG fetch is one. The routing rule in the
-[upstream-drift convention](../../docs/conventions/upstream-drift/README.md#the-rungs) covers that
+[upstream-drift convention](../../docs/contracts/upstream-drift/README.md#the-rungs) covers that
 case: a verification, absence or completeness read goes through `/discovery:read-docs`, whatever
 WebFetch returned.
 

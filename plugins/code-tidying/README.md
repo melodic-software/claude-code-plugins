@@ -91,7 +91,7 @@ exclusions, and verification commands. This surface does not resolve user-global
 or `*.local.*` overlay layers. The bundled lane is the portable baseline, and
 personal variation is limited to lane names the team does not track: an uncommitted
 `.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
-[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md)).
+[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md)).
 
 ## Safety model
 

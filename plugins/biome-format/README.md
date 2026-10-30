@@ -95,7 +95,7 @@ The hook scripts run on Bash 3.2+.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
 session. Measured on WSL2 Ubuntu (bash 5.3.9, Biome 2.5.15 behind a `node` launcher script like
 npm's, node 24) on 2026-10-15, with the row launched as `hooks.json` registers it, ten fires per
