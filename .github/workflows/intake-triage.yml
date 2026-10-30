@@ -333,7 +333,10 @@ jobs:
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
         author whose login does not end in `[bot]`, already covers that charge; then name it on one
         `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line,
-        which holds the issue for the owner.
+        which holds the issue for the owner. Write a Cost line exactly as
+        `Cost: <what bills, where; the owner decision it lacks>` or
+        `Cost decided: <what bills; the decision that covers it>`, with no bold, list marker or
+        other label: any other shape holds the issue. Work with no charge gets no Cost line.
         A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.
@@ -361,7 +364,7 @@ jobs:
         - Unclear scope or an approach you are unsure of is Uncertainty Knowable or Unknown, not an
           escalation; work too big for one change is Size Large.
         - An intent question the issue cannot answer (its intended outcome or done-when is not
-          exact): set `Flags: intent`, apply `status: needs-decision`, and ask each open question
+          exact, or it leaves a primary-design choice open): set `Flags: intent`, apply `status: needs-decision`, and ask each open question
           as a numbered question with a `RECOMMENDED:` answer and its basis. A choice among
           implementation means that leaves the primary design (architecture, cross-module
           contracts, data ownership, public interfaces) unchanged is not an intent question: the

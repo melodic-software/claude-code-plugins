@@ -457,26 +457,51 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
   });
 
-  for (const line of ["**Cost:** a paid plan upgrade", "- Cost: a paid plan upgrade", " Cost: a paid plan upgrade", "COST: a paid plan upgrade", "Cost:a paid plan upgrade"]) {
-    test(`a Cost line written as ${JSON.stringify(line)} keeps the needs-human`, () => {
+  // The strict Cost parse: a canonical `Cost: ` line holds, a no-charge or
+  // `Cost decided: ` one or quoted issue text refuses, and any other cost label
+  // is a problem that holds.
+  const COST_CASES = [
+    ["Cost: x", "hold"],
+    ["**Cost:** x", "hold"],
+    ["- Cost: x", "hold"],
+    ["1. Cost: x", "hold"],
+    ["COST: x", "hold"],
+    [" Cost: a paid plan upgrade", "hold"],
+    ["Cost: none", "refuse"],
+    ["- **Cost:** none (prepaid keys)", "refuse"],
+    ["Cost: n/a", "refuse"],
+    ["Cost: No charge", "refuse"],
+    ["Cost: no cost", "refuse"],
+    ["Cost decided: x", "refuse"],
+    ["**Cost decided:** x", "refuse"],
+    ["> Cost: q", "refuse"],
+    ["- > Cost: q", "refuse"],
+    ["  > COST: quoted", "refuse"],
+    ["Costing: x", "refuse"],
+    ["Cost/benefit: x", "refuse"],
+    ["Estimated cost: x", "refuse"],
+    ["**Cost**: x", "problem"],
+    ["*Cost*: x", "problem"],
+    ["_Cost:_ x", "problem"],
+    ["Costs: x", "problem"],
+    ["Cost \u2014 x", "problem"],
+    ["Cost \u2013 x", "problem"],
+    ["Cost - x", "problem"],
+    ["Cost (estimate): x", "problem"],
+    ["Cost:x", "problem"],
+  ];
+  for (const [line, outcome] of COST_CASES) {
+    test(`a ${JSON.stringify(line)} line ${outcome === "refuse" ? "refuses" : "keeps"} a needs-human this run's triage applied (${outcome})`, () => {
       const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
+      const verdict = parseVerdict(body, DIMS, CLASSES);
       const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
-      assert.deepEqual(result.refused, []);
-      assert.equal(result.ready, false);
+      assert.equal(verdict.cost, outcome === "hold");
+      assert.equal(verdict.problems.includes("a Cost line is not in the `Cost: ` / `Cost decided: ` form"), outcome === "problem");
+      assert.deepEqual(result.refused, outcome === "refuse" ? ["needs-human"] : []);
+      assert.equal(result.ready, outcome === "refuse");
+      assert.equal(result.remove.includes("needs-human"), outcome === "refuse");
     });
   }
-
-  for (const line of ["Cost decided: a plan upgrade; decided", "**Cost decided:** a plan upgrade; decided", "> **Cost:** quoted", "  > COST: quoted"]) {
-    test(`a ${JSON.stringify(line)} line still refuses a needs-human this run's triage applied`, () => {
-      const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
-      assert.deepEqual(plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] }).refused, ["needs-human"]);
-    });
-  }
-
-  test("a quoted Cost line is issue text and refuses nothing it would not", () => {
-    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "> Cost: quoted"] });
-    assert.deepEqual(plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] }).refused, ["needs-human"]);
-  });
 
   // Only a person lifts the outside-actor flag: a clean verdict neither removes it nor reaches ready.
   test("security: outside-actor the lanes App set stays on a clean verdict and holds", () => {
@@ -1995,7 +2020,7 @@ const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.
   .map((line) => line.trim())
   .join(" ");
 
-// Owner's standing direction §2: a choice of means is never a person stop.
+// Owner's standing direction §2: a choice of implementation means is never a person stop.
 describe("the triage prompt", () => {
   test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
     assert.doesNotMatch(PROMPT, /lists options and picks none/);
@@ -2019,5 +2044,10 @@ describe("the triage prompt", () => {
 
   test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
     assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
+  });
+
+  test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
+    assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
+    assert.match(PROMPT, /Work with no charge gets no Cost line/);
   });
 });
