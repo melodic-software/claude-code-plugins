@@ -21,6 +21,7 @@
 .github/scripts/branch-cleanup
 .github/scripts/intake-reenter
 .github/scripts/intake-triage
+.github/scripts/lane-run-report
 .github/scripts/lib
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals

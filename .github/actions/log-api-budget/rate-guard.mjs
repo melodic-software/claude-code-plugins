@@ -164,6 +164,23 @@ export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = proc
   }
 }
 
+// A 4xx or 5xx answer adds one {method, path, status} line to
+// $RUNNER_TEMP/lane-run-report/api-failures.jsonl for the lane run report
+// comment (pr-run-activity-read.yml and -write.yml): the URL's path only,
+// never its query, headers or body. retry-fetch.mjs records the same way.
+export function recordFailure({ method, url, status, dir = process.env.RUNNER_TEMP }) {
+  if (!dir) {
+    return;
+  }
+  try {
+    const path = new URL(String(url?.url ?? url), "https://api.github.com").pathname;
+    mkdirSync(join(dir, "lane-run-report"), { recursive: true });
+    appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
+  } catch {
+    // A report row is never worth failing the job.
+  }
+}
+
 // This process's share of the job-end api-calls notice: the readings it
 // appended, counted as api_budget_emit_calls counts the file (N its non-304
 // lines per token, M its 304s, K its graphql-resource lines). When
@@ -234,6 +251,9 @@ export function countRequests(fetchImpl, { token } = {}) {
   return countsRequests(async function counted(url, init = {}) {
     const response = await fetchImpl(url, init);
     recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers });
+    if (response.status >= 400) {
+      recordFailure({ method: init.method, url, status: response.status });
+    }
     return response;
   });
 }
