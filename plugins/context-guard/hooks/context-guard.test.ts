@@ -10,6 +10,9 @@ const T0 = 1_791_050_400_000
 const HOME = '/srv/u'
 const CTX = '/srv/u/.claude/context-guard/context'
 const ZONES = '/srv/u/.claude/context-guard/zones.json'
+// The engine hands fs hooks the resolved path, which on Windows gains a drive and backslashes
+// (D:\srv\u\.claude.json); the fake fs keys files by the POSIX path the mod built.
+const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 // Each zone with its rank of three, as the lines name it.
 const VERDICT = {
   smart: 'smart zone (1 of 3)',
@@ -104,14 +107,14 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('session.model', () => ({ value: 'Opus 5.5' }))
   on('session.turns', () => ({ value: w.turns }))
   on('session.root', () => ({ value: '/repo' }))
-  on('fs.exists', ($: unknown, e: { path: string }) => ({ value: w.files[e.path] !== undefined }))
+  on('fs.exists', ($: unknown, e: { path: string }) => ({ value: w.files[key(e.path)] !== undefined }))
   on('fs.read', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
   on('fs.stat', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: { kind: 'file', size: file.text.length, mtimeMs: file.mtimeMs, isLink: false } }
   })

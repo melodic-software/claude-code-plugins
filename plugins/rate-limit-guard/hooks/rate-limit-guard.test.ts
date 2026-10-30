@@ -13,6 +13,9 @@ const SEVEN_RESET = '2026-10-08T09:00:00Z'
 const HOME = '/srv/u'
 const TARGET = '/srv/u/.claude/rate-limit-guard/rate-limits.json'
 const STATE_FILE = '/srv/u/.claude.json'
+// The engine hands fs hooks the resolved path, which on Windows gains a drive and backslashes
+// (D:\srv\u\.claude.json); the fake fs keys files by the POSIX path the mod built.
+const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
 type World = {
@@ -61,12 +64,12 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('session.surfaces', () => ({ value: w.surfaces }))
   on('session.turns', () => ({ value: w.turns }))
   on('fs.read', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
   on('fs.stat', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: { kind: 'file', size: file.text.length, mtimeMs: file.mtimeMs, isLink: false } }
   })
@@ -1121,8 +1124,8 @@ test('account: an unchanged state file is read once, and read again when its mti
   const reads: string[] = []
   const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
   on('fs.read', ($: unknown, e: { path: string }) => {
-    reads.push(e.path)
-    const file = w.files[e.path]
+    reads.push(key(e.path))
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
@@ -1501,8 +1504,8 @@ test('account: a state file rewritten at the same size with another identity and
   const reads: string[] = []
   const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
   on('fs.read', ($: unknown, e: { path: string }) => {
-    reads.push(e.path)
-    const file = w.files[e.path]
+    reads.push(key(e.path))
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
