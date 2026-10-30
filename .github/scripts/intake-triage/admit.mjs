@@ -1513,7 +1513,7 @@ export function splitChildBody(spec, humans, taskList) {
   const exact = [...trustedTaskLines(parent.spec, humans, taskList), ...refinement];
   const allowed = new Set(edited ? exact.flatMap((line) => [line, ...tickedForms(line, taskList)]) : exact);
   const lines = body.slice(header.length).split("\n");
-  const scope = lines.at(-1)?.startsWith(SCOPE_PREFIX) ? scopeTargets(lines.pop(), exact) : [];
+  const scope = lines.at(-1)?.startsWith(SCOPE_PREFIX) ? scopeTargets(lines.pop(), exact.map((line) => taskText(line, taskList))) : [];
   return scope !== null && lines.length > 0 && lines.every((line) => allowed.has(line)) ? body : null;
 }
 
@@ -1522,12 +1522,17 @@ export function splitChildBody(spec, humans, taskList) {
 // the line, and each target must be verbatim text of a trusted parent line.
 export const SCOPE_PREFIX = "Scope: ";
 
-// Whether `name` can be a Scope target over the task lines `lines`: 2 to
-// 100 characters with no comma, angle bracket, backtick, at sign, number
-// sign or line break (a new mention or issue link in the child), no
-// outer space, and a verbatim substring of one of `lines`. Pure.
-export const scopeTarget = (name, lines) =>
-  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`@#\r\n]/.test(name) && lines.some((line) => line.includes(name));
+// A task line's text: `line` without its indent and the `taskList` marker
+// it starts with, so a Scope target names text, never the marker every
+// line holds. Pure.
+export const taskText = (line, taskList) => line.trimStart().slice(taskList.length);
+
+// Whether `name` can be a Scope target over the task texts `texts`
+// (taskText): 2 to 100 characters with no comma, angle bracket, backtick,
+// at sign, number sign or line break (a new mention or issue link in the
+// child), no outer space, and a verbatim substring of one of `texts`. Pure.
+export const scopeTarget = (name, texts) =>
+  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`@#\r\n]/.test(name) && texts.some((text) => text.includes(name));
 
 // The targets the Scope line of `body`, a size-split sub-issue's body that
 // splitChildBody returned, names, or null when it has none: every done-when
@@ -1541,10 +1546,10 @@ export function splitScope(body) {
 }
 
 // The targets a Scope line names, or null when one is no scopeTarget over
-// `lines` or repeats. Pure.
-function scopeTargets(line, lines) {
+// `texts` or repeats. Pure.
+function scopeTargets(line, texts) {
   const names = line.slice(SCOPE_PREFIX.length).split(", ");
-  return new Set(names).size === names.length && names.every((name) => scopeTarget(name, lines)) ? names : null;
+  return new Set(names).size === names.length && names.every((name) => scopeTarget(name, texts)) ? names : null;
 }
 
 // `line`, a task-list line, with its box ticked: the one `[ ]` in `taskList`

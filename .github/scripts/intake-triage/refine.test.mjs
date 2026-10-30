@@ -924,7 +924,7 @@ describe("size split", () => {
   });
 
   test("subsetProblem takes only 2 or more groups of distinct targets that are verbatim task-line text, with an acyclic order", () => {
-    assert.equal(subsetProblem({ groups: [["L1"], ["L2", "L3"]], order: [[1, 2]] }, LINES, 10), null);
+    assert.equal(subsetProblem({ groups: [["L1"], ["L2", "L3"]], order: [[1, 2]] }, LINES, 10, rules["task-list"]), null);
     const bad = {
       "one group": { groups: [["L1"]], order: [] },
       "an empty group": { groups: [["L1"], []], order: [] },
@@ -935,17 +935,18 @@ describe("size split", () => {
       "a cycle": { groups: [["L1"], ["L2"]], order: [[1, 2], [2, 1]] },
       "too many groups": { groups: [["L1"], ["L2"], ["L3"]], order: [], max: 2 },
       "a task line no target covers": { groups: [["L1"], ["L2"]], order: [] },
+      "the task-list marker as a target": { groups: [["- [ ]"], ["L1"]], order: [] },
     };
     for (const [name, { max = 10, ...output }] of Object.entries(bad)) {
-      assert.notEqual(subsetProblem(output, LINES, max), null, name);
+      assert.notEqual(subsetProblem(output, LINES, max, rules["task-list"]), null, name);
     }
     // Groups the split record cannot hold would leave it unreadable, and
     // the next triage would file the parts again (splitRecord round trip).
     const long = Array.from({ length: 80 }, (_, i) => `target-${String(i).padStart(2, "0")}-${"x".repeat(90)}`);
     const wide = long.map((name) => `- [ ] Update ${name}.`);
     const fits = [long.slice(0, 2), long.slice(2, 4)];
-    assert.equal(subsetProblem({ groups: fits, order: [] }, wide.slice(0, 4), 10), null);
-    assert.match(subsetProblem({ groups: [long.slice(0, 40), long.slice(40)], order: [] }, wide, 10) ?? "", /split record/);
+    assert.equal(subsetProblem({ groups: fits, order: [] }, wide.slice(0, 4), 10, rules["task-list"]), null);
+    assert.match(subsetProblem({ groups: [long.slice(0, 40), long.slice(40)], order: [] }, wide, 10, rules["task-list"]) ?? "", /split record/);
     {
     }
   });

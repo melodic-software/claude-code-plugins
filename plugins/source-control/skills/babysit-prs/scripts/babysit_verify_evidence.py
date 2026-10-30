@@ -606,8 +606,9 @@ def split_child_body(
     lines = body[len(header) :].split("\n")
     if lines[-1].startswith(SCOPE_PREFIX):
         names = lines.pop()[len(SCOPE_PREFIX) :].split(", ")
+        texts = {task_text(line, task_list) for line in exact}
         if len(set(names)) != len(names) or not all(
-            scope_target(name, exact) for name in names
+            scope_target(name, texts) for name in names
         ):
             return None
     return body if lines and all(line in allowed for line in lines) else None
@@ -619,10 +620,15 @@ SCOPE_PREFIX = "Scope: "
 SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
 
 
-def scope_target(name: str, lines: set[str]) -> bool:
+def task_text(line: str, task_list: str) -> str:
+    """admit.mjs taskText: `line` without its indent and task-list marker."""
+    return line.lstrip(JS_SPACE)[len(task_list) :]
+
+
+def scope_target(name: str, texts: set[str]) -> bool:
     """2 to 100 characters, no comma, angle bracket, backtick, at sign,
     number sign or line break, no outer space, and verbatim text of one of
-    `lines`. Length and outer space are JavaScript's (UTF-16 code units,
+    `texts` (task_text). Length and outer space are JavaScript's (UTF-16 code units,
     and the JS_SPACE String.prototype.trim strips), since admit.mjs
     scopeTarget is the rule's one home."""
     units = len(name.encode("utf-16-le", "surrogatepass")) // 2
@@ -630,7 +636,7 @@ def scope_target(name: str, lines: set[str]) -> bool:
         2 <= units <= 100
         and name.strip(JS_SPACE) == name
         and not SCOPE_BANNED.search(name)
-        and any(name in line for line in lines)
+        and any(name in text for text in texts)
     )
 
 

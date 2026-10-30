@@ -1,5 +1,5 @@
 {
-  "description": "Cases for the size-split sub-issue trust rule (admit.mjs splitChildBody, owner Q93 with the Q9 extension): a body counts as the listed human's text only when the lanes App wrote it, its native parent was filed by a listed human, its header names that parent, and either nobody edited it and every line after the header is one of the parent's trusted task-list lines (lines starting with the admission rules' `task-list`, `- [ ] `), or a listed human last edited it and every line after the header is one of those lines or that line with its box ticked (`- [ ] ` written `- [x] ` or `- [X] `, the rest unchanged). GitHub names only the last editor, so that edit vouches only for ticked boxes. An edit by any other account leaves it untrusted. A header whose third line is `<!-- size-split refinement=<id> updated_at=<time> -->` (its part line then reads \"copied from #N and intake's refinement comment on it as written\") also allows that comment's task-list lines, never its other lines, on both paths and with the same ticked forms after a listed human's edit, and counts at all only while that comment is still the parent's newest refinement (the lanes App's comment opening with `<!-- intake-triage refinement -->`), never edited (last_edited_at null), with updated_at equal to its created_at or to the recorded time, on a parent body a listed human wrote; this holds even when a listed human edited the child. A target-subset split's part line reads \"The done-when lines below are copied from #N[ and intake's refinement comment on it] as written, and the Scope line names the targets this part covers.\", and then, and only then, the last line is one `Scope: ` line: its targets, separated by `, `, each hold 2 to 100 characters with no comma, angle bracket, backtick, at sign, number sign or line break, appear once, and are each a verbatim substring of one of the allowed task-list lines; any other line stays an allowed line. Actors are {type, id} with type User or Bot; parent is the child's native parent number or null; size is the triage Size. admit.test.mjs and resolve-pr.test.mjs read this file. child.parent is null or {number, repo}, repo as owner/name and absent for this repository; a parent elsewhere never counts. A parent's comments, oldest first, are {id, author, body, created_at, updated_at, last_edited_at, editor}, id the REST and GraphQL databaseId. A case-level app_id overrides the top-level one, and null means the reader has no lanes App id, so nothing counts.",
+  "description": "Cases for the size-split sub-issue trust rule (admit.mjs splitChildBody, owner Q93 with the Q9 extension): a body counts as the listed human's text only when the lanes App wrote it, its native parent was filed by a listed human, its header names that parent, and either nobody edited it and every line after the header is one of the parent's trusted task-list lines (lines starting with the admission rules' `task-list`, `- [ ] `), or a listed human last edited it and every line after the header is one of those lines or that line with its box ticked (`- [ ] ` written `- [x] ` or `- [X] `, the rest unchanged). GitHub names only the last editor, so that edit vouches only for ticked boxes. An edit by any other account leaves it untrusted. A header whose third line is `<!-- size-split refinement=<id> updated_at=<time> -->` (its part line then reads \"copied from #N and intake's refinement comment on it as written\") also allows that comment's task-list lines, never its other lines, on both paths and with the same ticked forms after a listed human's edit, and counts at all only while that comment is still the parent's newest refinement (the lanes App's comment opening with `<!-- intake-triage refinement -->`), never edited (last_edited_at null), with updated_at equal to its created_at or to the recorded time, on a parent body a listed human wrote; this holds even when a listed human edited the child. A target-subset split's part line reads \"The done-when lines below are copied from #N[ and intake's refinement comment on it] as written, and the Scope line names the targets this part covers.\", and then, and only then, the last line is one `Scope: ` line: its targets, separated by `, `, each hold 2 to 100 characters with no comma, angle bracket, backtick, at sign, number sign or line break, appear once, and are each a verbatim substring of the text after the task-list marker of one of the allowed task-list lines; any other line stays an allowed line. Actors are {type, id} with type User or Bot; parent is the child's native parent number or null; size is the triage Size. admit.test.mjs and resolve-pr.test.mjs read this file. child.parent is null or {number, repo}, repo as owner/name and absent for this repository; a parent elsewhere never counts. A parent's comments, oldest first, are {id, author, body, created_at, updated_at, last_edited_at, editor}, id the REST and GraphQL databaseId. A case-level app_id overrides the top-level one, and null means the reader has no lanes App id, so nothing counts.",
   "app_id": 337595936,
   "humans": [
     153232337
@@ -1394,6 +1394,27 @@
       "expect": {
         "trusted": false,
         "reason": "a number sign in a Scope target would write a new issue link into the child body"
+      }
+    },
+    {
+      "name": "a Scope target that is only the task-list marker",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when lines below are copied from #5 as written, and the Scope line names the targets this part covers.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Line 4 says twenty.\nScope: - [ ]",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "trusted",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a Scope target is text after a line's task-list marker, so the marker every line holds names no target"
       }
     }
   ]

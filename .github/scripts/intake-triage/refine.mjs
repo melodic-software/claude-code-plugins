@@ -94,7 +94,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines } from "./admit.mjs";
+import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -383,12 +383,14 @@ export function partitionProblem(output, count, maxParts = 10) {
 
 // Why `groups` and `order` are no target-subset split over task lines
 // `lines`, or null: 2 to `maxParts` non-empty groups, each target an
-// admit.mjs scopeTarget over `lines` and named once, every line holding
-// one of the targets (none left out of every part), an order as
+// admit.mjs scopeTarget over the lines' texts after their `taskList`
+// marker and named once, every line's text holding one of the targets
+// (none left out of every part), an order as
 // partitionProblem takes it, and groups the split record holds: they must
 // come back from renderSplitRecord through splitRecord, so the record's
 // cap and its parser stay one source. Pure.
-export function subsetProblem({ groups, order }, lines, maxParts) {
+export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
+  const texts = lines.map((line) => taskText(line, taskList));
   if (!Array.isArray(groups) || groups.length < 2 || groups.length > maxParts) {
     return `groups must be a list of 2 to ${maxParts} groups`;
   }
@@ -398,13 +400,13 @@ export function subsetProblem({ groups, order }, lines, maxParts) {
       return "each group must be a non-empty list";
     }
     for (const name of group) {
-      if (!scopeTarget(name, lines) || seen.has(name)) {
+      if (!scopeTarget(name, texts) || seen.has(name)) {
         return "each target must be text copied from one task-list line, named once";
       }
       seen.add(name);
     }
   }
-  if (!lines.every((line) => [...seen].some((name) => line.includes(name)))) {
+  if (!texts.every((text) => [...seen].some((name) => text.includes(name)))) {
     return "the targets must cover every task-list line";
   }
   const problem = orderProblem(order, groups.length);
@@ -927,7 +929,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     if (record.filed.length > 0) {
       return skip("is already split");
     }
-    const problem = record.groups === undefined ? partitionProblem({ parts: record.parts, order: record.order }, lines.length, settings.maxParts) : subsetProblem({ groups: record.groups, order: record.order }, lines, settings.maxParts);
+    const problem = record.groups === undefined ? partitionProblem({ parts: record.parts, order: record.order }, lines.length, settings.maxParts) : subsetProblem({ groups: record.groups, order: record.order }, lines, settings.maxParts, rules["task-list"]);
     if (record.items !== digest || problem !== null) {
       return skip("its split record no longer matches its trusted task-list lines");
     }
@@ -940,7 +942,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
       if (settings.onDecline !== "subset") {
         return skip("the lines split only by target, and size-split on-decline is park", "no-split");
       }
-      const problem = subsetProblem({ groups, order: output.order }, lines, settings.maxParts);
+      const problem = subsetProblem({ groups, order: output.order }, lines, settings.maxParts, rules["task-list"]);
       if (problem !== null) {
         return skip(`the model's target split is not one: ${problem}`, "bad-subset");
       }
