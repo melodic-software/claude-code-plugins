@@ -1,5 +1,43 @@
 # Changelog for the PR pipeline convention
 
+## [8.13.0] - 2026-10-30
+
+### Added
+
+- The log-api-budget action has a `calls` output, `<name>-calls=N` for each named token, taken from
+  its api-calls line: the job's own requests.
+- These jobs now end with the log-api-budget step and name `API_BUDGET_TOKEN: github-token`, so each
+  run carries an api-calls line:
+  - pr-unblock.yml: the not-run jobs, `conflict-scan-refusal`, `fix-ci-unreported` and
+    `report-stop-status`.
+  - pr-review-hosted.yml and pr-review-security-hosted.yml: `resolve-model` and `kill-switch`.
+  - pr-run-activity-read.yml: `broker-check`, `issue-fields`, `summary` and `report`.
+  - pr-run-activity-write.yml: `report`.
+
+### Changed
+
+- pr-merge's sweep line reports the job's own request counts,
+  `sweep-calls=N github-token-calls=M candidates=… reached=… skipped=…`, in place of
+  `sweep-cost=… github-token-cost=…`. That was the rise in a counter every concurrent job shares,
+  which the action documents as not the job's cost.
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml restore the artifact listing pr-merge's last
+  scheduled or hand-started run on main saved (`listing-carry.mjs`, its provenance checks unchanged)
+  and set `BABYSIT_VERIFY_LISTING` and `BABYSIT_VERIFY_LISTING_CARRY` for the FAIL-cap reader, as
+  pr-merge.yml's gate does. The first pull request's read lists only the pages since the carried
+  listing, and later ones reuse or extend the job's saved listing, instead of each read listing every
+  artifact of the repository. A listing that does not hold GitHub's live artifact count is still
+  dropped for a full read.
+
+### Fixed
+
+- verify-cap.mjs runs the FAIL-cap reader with `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1`. Before this,
+  the 15 s and 30 s waits after a missed incremental read, plus the whole listing after them, could
+  run past the reader's 2-minute kill. verify-cap reads a killed reader as not the cap, so a round
+  could start on a pull request that was already at `verify:repeated-fail`.
+- The log-api-budget action's `calls` output reports `unknown` in place of an empty count when the
+  job has no api-calls line to read (no `RUNNER_TEMP`).
+
 ## [8.12.0] - 2026-10-30
 
 ### Added
