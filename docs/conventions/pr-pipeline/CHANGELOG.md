@@ -1,5 +1,35 @@
 # Changelog for the PR pipeline convention
 
+## [8.4.0] - 2026-10-30
+
+### Added
+
+- `limits.api` github-token `pace` (default 0.2, in rate-limits.json; set it in pr-pipeline.yaml,
+  0 turns pacing off): the lost-run reconciler
+  and pr-unblock-dispatch skip every other scheduled tick (the even run numbers) while the
+  GITHUB_TOKEN pool's remaining at its reset, projected from the window's burn rate so far, is
+  under that share of the header's limit, so the timer lanes slow to half cadence before the
+  breaker stops every lane. Any other event, or a failed read, runs as before.
+
+### Changed
+
+- pr-verify runs its read-only resolver before its trigger gate, so a run the resolver skips (a
+  head already judged or moved past, a draft, a run red for anything an approval does not lift,
+  an author it does not judge) no longer spends the gate's reads. A judged run makes the same
+  reads as before.
+
+### Fixed
+
+- enable-auto-merge's refusal comment wraps each reason line to 100 columns at a space, its
+  continuations indented two spaces, and folds more than 20 lines into a `<details>` block, so
+  GitHub no longer scrolls a long reason sideways. The marker lines and the line naming the head
+  are unchanged. Every reader joins a wrapped reason back into one line and still reads a comment
+  posted before the change, and a refusal whose reason is unchanged writes nothing new, so a
+  person-removed label stays off. clear-escalations reads the whole reason, so a person's code
+  after a wrapped "; " still keeps the label.
+- `quote` and `wrapLine` move from verify-notes.mjs into address-feedback.mjs; verify-notes'
+  comments are unchanged.
+
 ## [8.3.0] - 2026-10-30
 
 ### Changed
