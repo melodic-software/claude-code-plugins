@@ -90,7 +90,7 @@ subagent return, redacted):
 
 Route a skill-fit gap as **Skill change** (the owning skill should change) or **New-skill
 candidate** (no existing skill owns a recurring pattern). The session-start listing of likely
-skills is `/session-flow:show-options`, not a detector here.
+skills is `/session-flow:recommend-skills`, not a detector here.
 
 ## Suggested resolution route (classify, do not apply)
 

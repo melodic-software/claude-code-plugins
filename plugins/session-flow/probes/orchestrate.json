@@ -2,10 +2,10 @@
   "skill": "session-flow:orchestrate",
   "plugin": "session-flow",
   "skill_dir": "plugins/session-flow/skills/orchestrate",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the workflow and show-options routers, planning:plan, the dispatch skill and the multi-agent assess skill.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the workflow and recommend-skills routers, planning:plan, the dispatch skill and the multi-agent assess skill.",
   "competitors": [
     "session-flow:workflow",
-    "session-flow:show-options",
+    "session-flow:recommend-skills",
     "planning:plan",
     "implementation:implement-dispatch",
     "multi-agent:assess"

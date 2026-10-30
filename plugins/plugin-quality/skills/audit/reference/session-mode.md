@@ -112,7 +112,7 @@ its states differently, use its equivalent for each and keep the rule.
 
 Step 5's role seams are named by what they do, never by a fixed list. Resolve each at run time by
 matching the role against the skills this session actually lists (the in-context listing, or
-`/session-flow:show-options` for the untruncated catalog). Report the resolved skill, or the
+`/session-flow:recommend-skills` for the untruncated catalog). Report the resolved skill, or the
 fallback, in the step 5 seam-resolution line. A skill that fills a role by a different name still
 fills it.
 
