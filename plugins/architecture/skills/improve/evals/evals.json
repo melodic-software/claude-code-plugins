@@ -147,6 +147,64 @@
         "Names the remedy as one owner per piece of state, with the others reading it or asking the owner",
         "Uses ONLY deepening vocabulary — never component, service, or boundary — apart from the identifiers in the code"
       ]
+    },
+    {
+      "id": 11,
+      "name": "conventions-proposes-and-writes-nothing-without-yes",
+      "prompt": "/architecture:improve conventions. The repository has no paved-path index and no recorded boundary rules. Under src/Orders/Handlers there are five classes, each implementing IRequestHandler<TRequest> and registered in src/Orders/Startup.cs. Show me what conventions you find; I have not decided which to keep yet.",
+      "expected_output": "Reads the recorded sources first and says none hold a rule or paved path. Derives the request-handler building block from the five handlers, reproduces it against the cited files, and presents it as a proposed rule with its instances, its kind and its route (a paved-path entry to /discipline:reuse-or-replace). It asks which proposals to record and, with no yes given, writes no file and invokes no other skill.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Checks the boundary-rule sources from the enforcement ladder's 'Where boundary rules live' list and the standards index for a paved-path row before deriving anything, and names what it checked",
+        "Presents the request-handler building block as a proposal citing the handler files as path:line instances",
+        "Names the proposal's route as a paved-path entry for /discipline:reuse-or-replace",
+        "Asks which proposals to record",
+        "Writes no file and invokes no other skill, because the user has not said yes to any proposal"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "conventions-boundary-rule-to-architecture-concern-file",
+      "prompt": "/architecture:improve conventions. The convention home resolves to docs/conventions and docs/conventions/architecture/README.md exists with an architecture_dir key and no Boundary rules section. Billing.Ledger.Data is referenced only by Billing.Ledger: Billing.Ledger.csproj line 9 and no other project manifest references it. When you propose a rule for it, I say yes.",
+      "expected_output": "Proposes the owner rule as a boundary rule in the forbidden-reference form (every project other than Billing.Ledger must not reference Billing.Ledger.Data), with its manifest evidence. On the yes it announces the path, appends a ## Boundary rules section to docs/conventions/architecture/README.md holding one entry with the rule, its evidence and the date, leaves the YAML block and other prose unchanged, reads the file back and reports the line, and points at /architecture:improve boundaries.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Classifies the rule as a boundary rule and states it in the forbidden-reference form: no project other than Billing.Ledger references Billing.Ledger.Data",
+        "Writes only after the user's yes, announcing docs/conventions/architecture/README.md before the write",
+        "Appends a '## Boundary rules' section with one entry carrying the rule, its evidence and the date",
+        "Changes nothing outside that section: the architecture_dir key and the surrounding prose are untouched",
+        "Reads the file back, reports the line the rule landed on, and names /architecture:improve boundaries as the next step"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "conventions-divergence-routed-to-codify",
+      "prompt": "/architecture:improve conventions. docs/standards/paved-paths.md, the file the standards index's paved-path row points at, records that OrderStore in src/Orders/OrderStore.cs is the one writer of order.status. src/Shipping/ShipmentJob.cs:42 and src/Billing/RefundService.cs:77 also assign order.status. /corrections:codify is available. When you propose handing this on, I say yes.",
+      "expected_output": "Lists the recorded OrderStore entry as already recorded and does not propose it again. Reports the two other writers as a divergence from it, citing both lines and the entry's source, and on the yes invokes /corrections:codify through the Skill tool with a description naming the convention and the departing places. It writes no check, no rule and no paved-path entry itself.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Lists the OrderStore owner entry as already recorded, citing docs/standards/paved-paths.md, and does not propose it again",
+        "Reports ShipmentJob.cs:42 and RefundService.cs:77 as a divergence from the recorded owner",
+        "On the yes, invokes /corrections:codify through the Skill tool with a description naming the convention, its source and both departing places",
+        "Writes no check, no boundary rule and no paved-path entry itself"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "conventions-paved-path-routed-to-reuse-or-replace",
+      "prompt": "/architecture:improve conventions. History shows three feature commits, a1b2c3d 'feat: add refunds', d4e5f6a 'feat: add returns' and 0789abc 'feat: add exchanges', each adding a request, a handler, a validator and a migration in one commit. /discipline:reuse-or-replace is available. When you propose the feature blueprint, I say yes.",
+      "expected_output": "Derives the feature blueprint from the three commits, cited by hash and subject, and proposes it as a paved-path entry. On the yes it drafts the entry (the concern, the chosen way as a pointer to the commit that best shows it, the four building blocks, unordered since each feature came in one commit, and the enforcing check or none) and hands it to /discipline:reuse-or-replace through the Skill tool, writing no paved-path entry itself.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Cites the three commits by hash and subject as the blueprint's evidence",
+        "Classifies the blueprint as a paved-path entry, not a boundary rule",
+        "Drafts the entry with the concern, a pointer to the chosen way, the four building blocks without claiming an order, and the enforcing check or none",
+        "Hands the draft to /discipline:reuse-or-replace through the Skill tool and writes no paved-path entry or standards file itself"
+      ]
     }
   ]
 }
