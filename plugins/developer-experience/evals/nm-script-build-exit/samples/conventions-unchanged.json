@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.1.0\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).\n- `tq env check`: checks required tools.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.\n\n## CLI contract\n<!-- developer-experience: source=default -->\n- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.\n\n## Secrets\n<!-- developer-experience: source=chosen -->\n- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.\n\n## Platforms\n<!-- developer-experience: source=chosen -->\n- Linux and macOS (bash), Windows (pwsh).\n\n## Not yet\n- `--json` on `tq commit`.\n",
+      "why": "the seeded file"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "---\nwritten_against: developer-experience@0.1.0\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).\n- `tq env check`: checks required tools.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh. Both exit non-zero on a failed build.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.\n\n## CLI contract\n<!-- developer-experience: source=default -->\n- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.\n\n## Secrets\n<!-- developer-experience: source=chosen -->\n- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.\n\n## Platforms\n<!-- developer-experience: source=chosen -->\n- Linux and macOS (bash), Windows (pwsh).\n\n## Not yet\n- `--json` on `tq commit`.\n",
+      "why": "near miss: recorded the script fix in the conventions file"
+    },
+    {
+      "answer": "---\nwritten_against: developer-experience@0.2.2\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).\n- `tq env check`: checks required tools.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.\n\n## CLI contract\n<!-- developer-experience: source=default -->\n- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.\n\n## Secrets\n<!-- developer-experience: source=chosen -->\n- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.\n\n## Platforms\n<!-- developer-experience: source=chosen -->\n- Linux and macOS (bash), Windows (pwsh).\n\n## Not yet\n- `--json` on `tq commit`.\n",
+      "why": "near miss: only written_against bumped"
+    }
+  ]
+}
