@@ -237,7 +237,7 @@ for c in c c2 c3; do
 done
 printf 'log = "%s"\n' "$FAKE_WIN" >"$REPO/d.ps1"
 printf 'log = "%s"\nsrc = "%s"\n' "$FAKE_WIN" "$FAKE_LINUX" >"$REPO/e.ps1"
-printf 'caf\303\251 dev notes\n' >"$REPO/f.md"
+printf '\303\251t\303\251 dev notes\n' >"$REPO/f.md"
 printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/n.bin"
 want="1|a.md:1: secret or credential pattern: GitHub PAT
 b.md:1: machine-specific path (Linux user path detected)
