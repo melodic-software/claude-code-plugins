@@ -216,9 +216,10 @@ jobs:
       # name and upload time are the record; the file is a placeholder.
       - name: Name the deferred verdict
         id: deferred
-        if: >-
-          github.run_attempt != '1' && github.triggering_actor == 'github-actions[bot]'
-          && (steps.post.outputs.head-sha != '' || steps.post.outputs.pass-head-sha != '')
+        # The actor test here only saves a write: recoverDeferred re-reads the
+        # uploading run through the API and drops a record whose triggering
+        # actor is not github-actions[bot], so a spoofed name records nothing.
+        if: github.run_attempt != '1' && github.triggering_actor == 'github-actions[bot]' && (steps.post.outputs.head-sha != '' || steps.post.outputs.pass-head-sha != '') # zizmor: ignore[bot-conditions]
         env:
           FAIL_HEAD: ${{ steps.post.outputs.head-sha }}
           PASS_HEAD: ${{ steps.post.outputs.pass-head-sha }}
