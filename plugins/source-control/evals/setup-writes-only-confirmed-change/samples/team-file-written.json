@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": ["docs/conventions/source-control.yaml"], "why": "only the confirmed team file"},
+    {"answer": ["docs/conventions/source-control.yaml", "docs/conventions/source-control.md"], "why": "the team file beside a companion doc"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": ["docs/conventions/source-control.yml"], "why": "near miss: .yml, not the confirmed .yaml"},
+    {"answer": [".claude/source-control.local.md"], "why": "the declined overlay instead of the team file"},
+    {"answer": ["docs/conventions/source-control/commit-convention.yml"], "why": "the declined neutral file instead of the team file"}
+  ]
+}

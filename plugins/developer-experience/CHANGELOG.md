@@ -3,6 +3,16 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.8] - 2026-10-30
+
+### Added
+
+- Eval case `t4-apply-migrate`, turn 2 of setup scenario T4 on the legacy `tarnquill` copy. It resumes a recorded `/developer-experience:setup check` turn that reports the `.claude/` conventions file as an old location, then runs `/developer-experience:setup apply`. Its free graders check that `docs/conventions/developer-experience.md` is created, that a shell call removes or moves `.claude/developer-experience.md`, that `AGENTS.md` holds exactly one pointer line and it names the new path, and that `CLAUDE.md` stays byte for byte as seeded. ([#9993](https://github.com/melodic-software/claude-code-plugins/issues/9993))
+
+### Changed
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [0.2.7] - 2026-10-30
 
 ### Changed

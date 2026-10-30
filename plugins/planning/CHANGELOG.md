@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.127.1] - 2026-10-30
+
+### Changed
+
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- `/planning:interview` evals: a new rubric case, `person-deferred-routes-to-questionnaire`, grades that a question owned by another person is deferred with an arbiter tag, no row is resolved on that person's behalf, and the handoff recommends `/planning:questionnaire`. SKILL.md Step 5 already states that routing, and the case passes on the current text, so no instruction was added.
+
 ## [0.127.0] - 2026-10-30
 
 ### Added
