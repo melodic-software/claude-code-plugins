@@ -150,7 +150,8 @@ function commitAll(repo, message) {
   return git(repo, ["rev-parse", "HEAD"]);
 }
 
-// A repository at a head commit, and a patch the model's edits make against it.
+// A repository at a head commit, and a patch the model's edits make against it;
+// `renames: "exact"` writes renames as collect-patch.sh does.
 function repoWithPatch(t, edit, { renames = false, head: seed = () => {} } = {}) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
@@ -164,7 +165,7 @@ function repoWithPatch(t, edit, { renames = false, head: seed = () => {} } = {})
   const head = commitAll(repo, "head");
   edit(repo);
   git(repo, ["add", "-A"]);
-  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", renames ? "-M" : "--no-renames", head], { cwd: repo, encoding: "utf8" });
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", { true: "-M", exact: "-M100%" }[renames] ?? "--no-renames", head], { cwd: repo, encoding: "utf8" });
   git(repo, ["reset", "-q", "--hard", head]);
   const patchFile = join(scratch(t), "patch.diff");
   writeFileSync(patchFile, text);
@@ -1683,6 +1684,56 @@ test("issue target: the issue row refuses the universal set, each refusal before
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
     assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+// collect-patch.sh writes an exact move as a rename header; the refusals read
+// the tree the patch builds, so the old and the new path each face them.
+test("issue target: an exact move pushes, the old path gone and the new one in place", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      mkdirSync(join(repo, "docs"));
+      renameSync(join(repo, "notes.md"), join(repo, "docs/notes.md"));
+    },
+    { renames: "exact" },
+  );
+  assert.match(readFileSync(fix.patchFile, "utf8"), /^similarity index 100%\nrename from notes\.md\nrename to docs\/notes\.md$/m);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.equal((await pushIssue(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:docs/notes.md`]), "notes");
+  assert.equal(git(fix.repo, ["ls-tree", "--name-only", createCommit.tree, "--", "notes.md"]), "");
+});
+
+test("issue target: an exact move out of or into a refused path is refused before any API call", async (t) => {
+  const workflow = (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n"));
+  const cases = [
+    ["out of .github/workflows/", workflow, (repo) => renameSync(join(repo, ".github/workflows/x.yml"), join(repo, "x.yml")), /^rename from \.github\/workflows\/x\.yml$/m, "refused (github-workflows): .github/workflows/x.yml"],
+    ["out of CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), (repo) => renameSync(join(repo, "CODEOWNERS"), join(repo, "owners.txt")), /^rename from CODEOWNERS$/m, "refused (codeowners): CODEOWNERS"],
+    [
+      "into .github/workflows/",
+      () => {},
+      (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), renameSync(join(repo, "notes.md"), join(repo, ".github/workflows/notes.md"))),
+      /^rename to \.github\/workflows\/notes\.md$/m,
+      "refused (rename-into-refused): .github/workflows/notes.md",
+    ],
+    [
+      "into the central lane grant file",
+      () => {},
+      (repo) => (mkdirSync(join(repo, ".github/actions/resolve-config"), { recursive: true }), renameSync(join(repo, "notes.md"), join(repo, ".github/actions/resolve-config/lane-grants.json"))),
+      /^rename to \.github\/actions\/resolve-config\/lane-grants\.json$/m,
+      "refused (rename-into-refused): .github/actions/resolve-config/lane-grants.json",
+    ],
+  ];
+  for (const [what, seed, edit, header, refusal] of cases) {
+    const fix = repoWithPatch(t, edit, { renames: "exact", head: seed });
+    assert.match(readFileSync(fix.patchFile, "utf8"), header, what);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    const lines = [];
+    assert.deepEqual(await pushIssue(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" }, what);
+    assert.deepEqual(lines, [refusal], what);
     assert.deepEqual(api.calls, [], what);
   }
 });

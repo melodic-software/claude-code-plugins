@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Writes everything a read activity changed against the gated head, committed,
 # staged, unstaged or untracked, as one `git diff --binary` patch, for the
-# patch output mode of pr-run-activity-read.yml. Runs from the checkout after
+# patch output mode of pr-run-activity-read.yml. An exact rename (100%
+# similarity) is a rename header with no content, so a moved file costs a few
+# lines of the patch cap; a rename with edits is a deletion and an addition.
+# The apply side checks each rename's old and new path as a deletion and an
+# addition of the tree it builds, whatever the patch's form. Runs from the checkout after
 # the activity, through a temporary index, so the checkout's own index is
 # untouched. Ignored files, .lane/ and the CLI's empty scrub stubs are left
 # out.
@@ -82,7 +86,7 @@ done
 "${g[@]}" read-tree "$from" || fail 'could not read the start tree into a scratch index'
 "${g[@]}" add -A -- "${paths[@]}" || fail 'could not stage the working tree in the scratch index'
 "${g[@]}" diff --cached --binary --full-index --no-color --no-ext-diff --no-textconv \
-  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$from" -- "${paths[@]}" >"$patch" ||
+  -M100% --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$from" -- "${paths[@]}" >"$patch" ||
   fail 'could not write the patch'
 
 if [[ ! -s $patch ]]; then
