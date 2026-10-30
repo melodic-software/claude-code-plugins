@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: rv-json-escape-order
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-defect'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?finding\W*:[^\n]*\bjson_str\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'one-finding'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?finding\W*:'
+    flags: 'im'
+    match: 'count:1'
+    target: 'last_message'

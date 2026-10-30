@@ -127,6 +127,9 @@ jobs:
       pull-requests: read # check-trusted-trigger reads the pull request
       actions: read # check-trusted-trigger reads this run's re-runner
     env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -151,12 +154,29 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
       - name: Stop when the kill switch is on
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: |
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      - name: Stop while upstream is degraded
+        if: steps.upstream.outputs.degraded == 'true'
+        env:
+          REASON: ${{ steps.upstream.outputs.reason }}
+        run: |
+          echo "::error::upstream-degraded: ${REASON} on its status page stops this run; dispatch it again once it recovers"
           exit 1
 
       # check-trusted-trigger needs a PR, and a dispatch names none, so the
@@ -401,6 +421,7 @@ jobs:
       # Every binary this job runs comes from the locked root toolchain. Its
       # install scripts run here, after sudo and docker access are gone.
       - name: Install the locked root toolchain
+        timeout-minutes: 5
         if: steps.stage.outputs.go == 'true'
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/

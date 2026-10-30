@@ -21,7 +21,7 @@
 # suite's own lines are a contract its readers and this repo's lanes rely on.
 #
 # Duplicated across plugins by design, not drift - see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 # test_helpers::drift_lane - phrase-drift assertion shape.
 # shellcheck disable=SC2329  # the primitives below are invoked by the suite that sources this file, never here

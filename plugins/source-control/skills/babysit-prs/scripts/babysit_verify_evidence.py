@@ -90,12 +90,15 @@ from a completed, successful one. Any other artifact is ignored.
 Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
 person: the spec's provenance is a trust boundary. Every other refusal holds
 for the lanes (when a person is needed:
-https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner),
+https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
 waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear, so the gate never merges such a pull request
-unattended, and address-feedback's own round cap bounds the fix rounds. A
+`verify:too-old` never clear (`VERIFY_FINAL`), so the gate never merges such
+a pull request unattended: the pr-merge lane closes a lanes App one for a
+fresh attempt (`capped_close`), and address-feedback and fix-ci start no
+round on a pull request at `verify:repeated-fail` (pr-unblock
+verify-cap.mjs). A
 `verify:fail` or `verify:earlier-fail` only waits:
 pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
@@ -196,6 +199,7 @@ import re
 import sys
 import tempfile
 import time
+import urllib.parse
 import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
@@ -366,13 +370,32 @@ INELIGIBLE = "verify:ineligible"
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
 # The refusals only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
-# with trust holds kept): an untrusted spec (provenance). Every other refusal,
-# the repeated-FAIL cap and an old pull request included, holds for the
-# lanes: it still refuses the merge, with no label. The one list the merge
-# gate and enable-auto-merge.mjs (`needsHuman`) read; clear-escalations.mjs
-# LANE_CAUSES.verdict shares nothing with it (lane-causes-person-codes.test.mjs).
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
+# with trust holds kept): an untrusted spec (provenance). Every other refusal
+# holds for the lanes: it still refuses the merge, with no label. The one
+# list the merge gate and enable-auto-merge.mjs (`needsHuman`) read;
+# clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
+# (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
+# The refusals that never clear for the pull request: the FAIL cap and an
+# old pull request. The pr-merge lane closes a lanes App pull request at one
+# of them for a fresh attempt at its issue (`capped_close`, owner decision
+# 2026-10-29), never adding a person's label.
+VERIFY_FINAL = (REPEATED_FAIL, TOO_OLD)
+# `_elsewhere`'s refusal detail when a FAIL run of another pull request for
+# the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
+# cap, failing closed.
+SIBLING_UNREADABLE = "a FAIL run of a pull request for the same issue"
+# The lanes App's capped-close record (`capped_close`): first line of the
+# comment on the closed pull request and on its issue. On the issue it names
+# the fresh attempt it started, or ` parked` when `merge.verify-cap-attempts`
+# were spent. `_elsewhere` leaves the named pull request's FAILs out of the
+# cap's count once it is closed; label-unblocked.mjs skips its closed-PR
+# hand-off for it; write-issue.mjs passes it to the next attempt as data.
+CAPPED_CLOSE_RE = re.compile(
+    r"<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=((?:[0-9a-f]{40},)*(?:[0-9a-f]{40})?)"
+    r"(?: attempt=([0-9]+) of=([0-9]+)( parked)?)? -->"
+)
 # The refusals no upload after the listing clears (`Reader.evidence`): a
 # counted FAIL at the head or the cap's FAILs stay counted whatever is
 # uploaded later, as no pass clears them, and a pull request's age only
@@ -383,9 +406,9 @@ ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
-    "author{...actor} editor{...actor}}} "
+    "body author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}"
+    "nodes{number state repository{nameWithOwner}}}"
 )
 # The issue parts `_closing_issues` reads whole: a cut list refuses.
 ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
@@ -442,16 +465,26 @@ JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
 def split_child_header(
-    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+    parent: int,
+    part: int,
+    parts: int,
+    source: tuple[int, str] | None = None,
+    scoped: bool = False,
 ) -> str:
     """admit.mjs splitChildHeader: the fixed header of part `part` of
     `parts` a size split files from issue `parent`, with admit.mjs
-    splitSourceLine when `source` (id, updated_at) is given."""
+    splitSourceLine when `source` (id, updated_at) is given, and the
+    target-subset wording when `scoped`."""
     also = " and intake's refinement comment on it" if source else ""
+    copied = (
+        f"The done-when lines below are copied from #{parent}{also} as written, "
+        "and the Scope line names the targets this part covers."
+        if scoped
+        else f"The done-when below is copied from #{parent}{also} as written."
+    )
     rows = [
         SPLIT_CHILD_MARKER,
-        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
-        f"The done-when below is copied from #{parent}{also} as written.",
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). {copied}",
     ]
     if source:
         rows.append(
@@ -550,7 +583,8 @@ def split_child_body(
     source = (
         (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
     )
-    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    scoped = rows[-1].startswith(SCOPE_PREFIX)
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source, scoped)}\n"
     if not body.startswith(header):
         return None
     refinement: list[str] = []
@@ -593,7 +627,40 @@ def split_child_body(
         else exact
     )
     lines = body[len(header) :].split("\n")
-    return body if all(line in allowed for line in lines) else None
+    if lines[-1].startswith(SCOPE_PREFIX):
+        names = lines.pop()[len(SCOPE_PREFIX) :].split(", ")
+        texts = {task_text(line, task_list) for line in exact}
+        if len(set(names)) != len(names) or not all(
+            scope_target(name, texts) for name in names
+        ):
+            return None
+    return body if lines and all(line in allowed for line in lines) else None
+
+
+# admit.mjs SCOPE_PREFIX and scopeTarget: a target-subset split's last child
+# line, and whether `name` can be one of its targets over the task lines.
+SCOPE_PREFIX = "Scope: "
+SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
+
+
+def task_text(line: str, task_list: str) -> str:
+    """admit.mjs taskText: `line` without its indent and task-list marker."""
+    return line.lstrip(JS_SPACE)[len(task_list) :]
+
+
+def scope_target(name: str, texts: set[str]) -> bool:
+    """2 to 100 characters, no comma, angle bracket, backtick, at sign,
+    number sign or line break, no outer space, and verbatim text of one of
+    `texts` (task_text). Length and outer space are JavaScript's (UTF-16 code units,
+    and the JS_SPACE String.prototype.trim strips), since admit.mjs
+    scopeTarget is the rule's one home."""
+    units = len(name.encode("utf-16-le", "surrogatepass")) // 2
+    return (
+        2 <= units <= 100
+        and name.strip(JS_SPACE) == name
+        and not SCOPE_BANNED.search(name)
+        and any(name in text for text in texts)
+    )
 
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -690,6 +757,73 @@ def dependency_bot(user: Any) -> bool:
     return user.get("type") == "Bot" and is_dependency_author(
         str(user.get("login") or "")
     )
+
+
+def _heads(shas: set[str]) -> str:
+    """The FAILed heads the cap counted, sorted, for the refusal to name."""
+    return ", ".join(sorted(shas))
+
+
+def _bot_login(identity: str | None) -> str:
+    """`merge.agent-identity` as GraphQL names a Bot author: no `[bot]`."""
+    return (identity or "").strip().lower().removesuffix("[bot]")
+
+
+def _started_attempt(body: Any) -> int | None:
+    """The pull request a capped-close record names when its first line is one
+    that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
+    parked); a parked or attempt-less record, None. `capped_closed` and
+    `_spent` both count by it, so the cap's excuse and the attempts spent
+    agree."""
+    first = str(body or "").split("\n", 1)[0].rstrip("\r")
+    match = CAPPED_CLOSE_RE.fullmatch(first)
+    if match is None or match[3] is None or match[5]:
+        return None
+    return int(match[1])
+
+
+def capped_closed(
+    live: dict[Any, Any], identity: str | None, attempts: int
+) -> set[int]:
+    """The pull requests a capped-close record on one of the `live` issues
+    names (`CAPPED_CLOSE_RE`, first line), counting only a comment the lanes
+    App (`identity`) wrote and nobody else edited: anyone can write the
+    marker, and one that excused FAILs would buy re-rolls. Per issue only the
+    oldest `attempts` (`merge.verify-cap-attempts`) records that started a
+    fresh attempt count (one naming an attempt, not parked), so a further
+    one, or one written before the setting was lowered, excuses nothing. No
+    identity, none."""
+    bot = _bot_login(identity)
+    if not bot:
+        return set()
+    named: set[int] = set()
+    for issue in live.values():
+        started: list[int] = []
+        for node in map(
+            json_object,
+            json_object(json_object(issue).get("comments")).get("nodes") or [],
+        ):
+            author, editor = (
+                json_object(node.get("author")),
+                json_object(node.get("editor")),
+            )
+            if (
+                author.get("__typename") == "Bot"
+                and str(author.get("login") or "").lower() == bot
+                and (
+                    not editor
+                    or (
+                        editor.get("__typename") == "Bot"
+                        and str(editor.get("login") or "").lower() == bot
+                    )
+                )
+                and (pr := _started_attempt(node.get("body"))) is not None
+                and pr not in started
+            ):
+                # The comments are read oldest first.
+                started.append(pr)
+        named.update(started[: max(attempts, 0)])
+    return named
 
 
 @dataclass(frozen=True)
@@ -890,6 +1024,9 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    # `merge.verify-cap-attempts`: the capped-close records per issue whose
+    # pull requests the cross-pull-request cap excuses (`capped_closed`).
+    cap_attempts: int = merge_policy.VERIFY_CAP_ATTEMPTS
     # The oldest listing a judgment uses; None (`evidence --shared-listing`)
     # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
@@ -917,6 +1054,11 @@ class Reader:
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
+    # Each judged pull request's counted FAILs by head: run id, artifact name
+    # and id, for `fail_findings`.
+    fail_artifacts: dict[int, dict[str, list[tuple[int, str, Any]]]] = field(
+        default_factory=dict
+    )
     _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
@@ -1761,6 +1903,62 @@ class Reader:
                     )
         return live
 
+    def fail_findings(self, number: int) -> list[dict[str, Any]]:
+        """What each counted FAIL of the pull request the last judgment of it
+        counted wrote: head, run, and the verdict file's summary and notes
+        (`_record`), one entry per artifact, heads sorted. A record that
+        cannot be read (an expired artifact, a failed download) is named by
+        its run with `unreadable`, never skipped. A judgment that never
+        reached the listing (`verify:too-old`) left none, so the pull
+        request's own FAILs are read from the listing here (`_own_fails`)."""
+        if number not in self.fail_artifacts:
+            self.fail_artifacts[number] = self._own_fails(number)
+        found: list[dict[str, Any]] = []
+        for sha, artifacts in sorted(self.fail_artifacts[number].items()):
+            for run_id, name, artifact_id in artifacts:
+                entry: dict[str, Any] = {"head": sha, "run": run_id}
+                # Only a run of verified origin has its record read: any
+                # other could carry anyone's text.
+                if self._run_state(run_id, shared=True) not in (ORIGIN, COUNTED):
+                    entry["unreadable"] = "run origin not verified"
+                    found.append(entry)
+                    continue
+                try:
+                    record = self._record(run_id, name, artifact_id)
+                except _Unreadable as exc:
+                    entry["unreadable"] = str(exc)
+                else:
+                    notes = record.get("notes")
+                    entry["summary"] = str(record.get("summary") or "")
+                    entry["notes"] = (
+                        [str(n) for n in notes] if is_json_array(notes) else []
+                    )
+                found.append(entry)
+        return found
+
+    def _own_fails(self, number: int) -> dict[str, list[tuple[int, str, Any]]]:
+        """The pull request's own FAIL artifacts in the listing, by head,
+        whose runs are not of another origin; one whose run cannot be read
+        is kept, so `fail_findings` names it unreadable."""
+        own: dict[str, list[tuple[int, str, Any]]] = {}
+        for item in map(json_object, self._listing()):
+            match = verdict_name(str(item.get("name") or ""))
+            run_id = json_object(item.get("workflow_run")).get("id")
+            if (
+                item.get("expired") is not False
+                or not match
+                or int(match[1]) != number
+                or match[3] in PASSES
+                or not isinstance(run_id, int)
+                or isinstance(run_id, bool)
+                or self._run_state(run_id, shared=True) == FOREIGN
+            ):
+                continue
+            own.setdefault(match[2], []).append(
+                (run_id, str(item.get("name")), item.get("id"))
+            )
+        return own
+
     def link_refusal(self, number: int) -> str | None:
         """Why the pull request's issue link is not one the pr-merge lane
         takes from a pull request the lane opened, or None when it is: the
@@ -1802,9 +2000,10 @@ class Reader:
             self.linked_issue[number] = issue.get("number")
         return refusal
 
-    def _closers(self, live: dict[Any, Any]) -> set[int]:
-        """The pull requests in this repository, open or closed, that close
-        any of the closing issues `live` holds."""
+    def _closers(self, live: dict[Any, Any], *, closed: bool = False) -> set[int]:
+        """The pull requests in this repository, open or closed (only the
+        ones not open with `closed`), that close any of the closing issues
+        `live` holds."""
         return {
             node.get("number")
             for issue in live.values()
@@ -1814,6 +2013,7 @@ class Reader:
             )
             if json_object(node.get("repository")).get("nameWithOwner") == self.repo
             and type(node.get("number")) is int
+            and (not closed or node.get("state") in ("CLOSED", "MERGED"))
         }
 
     def _commits(self, number: int, head: str) -> set[str]:
@@ -1899,8 +2099,8 @@ class Reader:
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: set[int] = set()
         # The same by each issue a FAIL's name carries (`named_issues`).
-        failed_by_issue: dict[int, set[str]] = {}
-        unread_issues: set[int] = set()
+        failed_by_issue: dict[int, set[tuple[int, str]]] = {}
+        unread_issues: dict[int, set[int]] = {}
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
             match = verdict_name(name)
@@ -1947,7 +2147,8 @@ class Reader:
                 continue
             if state == UNREAD:
                 unread_prs.add(pr_n)
-                unread_issues.update(named_issues(match))
+                for issue in named_issues(match):
+                    unread_issues.setdefault(issue, set()).add(pr_n)
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
@@ -1955,7 +2156,7 @@ class Reader:
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
             for issue in named_issues(match):
-                failed_by_issue.setdefault(issue, set()).add(sha)
+                failed_by_issue.setdefault(issue, set()).add((pr_n, sha))
             if not tied and match[4] is not None:
                 # The name, which the run authenticates, carries the head
                 # branch the verdict records: no download.
@@ -1973,6 +2174,7 @@ class Reader:
             fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
         fails = [v for v in verdicts if v.verdict == "fail"]
         failed = {v.sha for v in fails}
+        self.fail_artifacts[number] = fail_artifacts
 
         def superseded(sha: str) -> bool:
             at = (
@@ -1990,7 +2192,7 @@ class Reader:
         detail = unreadable
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
-            detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
+            detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
         elif head in failed and not superseded(head):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
@@ -2002,7 +2204,8 @@ class Reader:
                 refusal = REPEATED_FAIL
                 detail = (
                     f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues, the cap is {self.max_fails}"
+                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
+                    f"the cap is {self.max_fails}"
                 )
         elif fails and (
             not self._passes_follow(fails, passes)
@@ -2029,7 +2232,8 @@ class Reader:
                 refusal = REPEATED_FAIL
                 detail = (
                     f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues, the cap is {self.max_fails}"
+                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
+                    f"the cap is {self.max_fails}"
                 )
             else:
                 refusals = {
@@ -2068,22 +2272,49 @@ class Reader:
         number: int,
         failed_by_pr: dict[int, set[str]],
         unread_prs: set[int],
-        failed_by_issue: dict[int, set[str]],
-        unread_issues: set[int],
+        failed_by_issue: dict[int, set[tuple[int, str]]],
+        unread_issues: dict[int, set[int]],
     ) -> tuple[dict[Any, Any], set[str]]:
         """The live issues (`_closing_issues`: closing, or the `Refs:` one),
         and the heads of counted FAILs of the other pull requests that close
         one of them, and of every counted FAIL whose name carries one of them
         (`named_issues`: a `Refs:` pull request's FAILs count only so), from
-        the listing already read. A FAIL among those whose run cannot be read
-        raises `_Unreadable`."""
+        the listing already read. A pull request the pr-merge lane closed at
+        the cap for a fresh attempt (`capped_closed`) counts no more once it
+        is closed, so each fresh attempt starts its own count;
+        the record goes on before the close, so one whose close failed still
+        counts. A named pull request no issue lists (a `Refs:` one) has its
+        own state read, a failed read raising `_Unreadable`.
+        `merge.verify-cap-attempts` bounds how many there are. A FAIL among those whose run cannot be
+        read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
         live = self._closing_issues(number)
-        others = self._closers(live) - {number}
-        if others & unread_prs or unread_issues & set(live):
-            raise _Unreadable("a FAIL run of a pull request for the same issue")
+        named = capped_closed(live, self.agent_identity, self.cap_attempts) - {
+            number
+        }
+        listed = self._closers(live)
+        capped = named & self._closers(live, closed=True)
+        # A `Refs:` pull request is in no closing list: its own state decides.
+        for other in sorted(named - listed):
+            try:
+                state = merge_policy.pull_request(self.repo, other).get("state")
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(f"#{other} state: {exc}") from exc
+            if state == "closed":
+                capped.add(other)
+        others = listed - {number} - capped
+        unread = set().union(*(unread_issues.get(n, set()) for n in live)) - capped
+        if others & unread_prs or unread:
+            raise _Unreadable(SIBLING_UNREADABLE)
         return live, set().union(
             *(failed_by_pr.get(n, set()) for n in others),
-            *(failed_by_issue.get(n, set()) for n in live),
+            *(
+                {
+                    sha
+                    for pr_n, sha in failed_by_issue.get(n, set())
+                    if pr_n not in capped
+                }
+                for n in live
+            ),
         )
 
     def _fresh_created(self, run_id: int) -> datetime | None:
@@ -3156,6 +3387,479 @@ def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     return 0 if reason is None else 1
 
 
+# GitHub refuses a comment body over 65536 characters; the findings are cut
+# to leave room for the framing (judgment).
+FINDINGS_MAX = 60000
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+AGENT_READY = "agent-ready"
+STATUS_READY = "status: ready"
+STATUS_CONFIRMED = "status: confirmed"
+
+
+def _inert(text: str) -> str:
+    """Model text as a fenced block keeps it: no control character and no
+    fence of its own, so nothing in it renders or reads as a command."""
+    return _CONTROL.sub("?", text).replace("```", "'''")
+
+
+def capped_close_marker(
+    number: int,
+    heads: list[str],
+    attempt: tuple[int, int] | None = None,
+    parked: bool = False,
+) -> str:
+    """The capped-close record's first line (`CAPPED_CLOSE_RE`)."""
+    tail = (
+        f" attempt={attempt[0]} of={attempt[1]}{' parked' if parked else ''}"
+        if attempt
+        else ""
+    )
+    return f"<!-- verify-capped-close pr={number} heads={','.join(heads)}{tail} -->"
+
+
+def findings_text(findings: list[dict[str, Any]]) -> str:
+    """Each FAILed head's verdict summary and notes as one fenced block,
+    the verifier's words quoted as data."""
+    if not findings:
+        return "No FAIL findings were counted for this pull request."
+    lines: list[str] = []
+    for entry in findings:
+        lines.append(f"head {entry['head']} (pr-verify run {entry['run']})")
+        if "unreadable" in entry:
+            lines.append(f"  unreadable: {entry['unreadable']}")
+        else:
+            lines.append(f"  summary: {entry.get('summary', '')}")
+            lines.extend(f"  - {note}" for note in entry.get("notes", []))
+        lines.append("")
+    text = _inert("\n".join(lines).rstrip())
+    if len(text) > FINDINGS_MAX:
+        text = f"{text[:FINDINGS_MAX]} [cut]"
+    return "\n".join(["```text", text, "```"])
+
+
+def capped_close_bodies(
+    number: int,
+    head: str,
+    refusal: str,
+    detail: str | None,
+    findings: list[dict[str, Any]],
+    issue: int | None,
+    attempt: tuple[int, int] | None,
+    parked: bool,
+) -> tuple[str, str | None]:
+    """The comment on the closed pull request and, with an issue, the one on
+    that issue: the marker first, then what happened and every FAIL's
+    findings. A function of its arguments only, so a rerun renders the same."""
+    heads = sorted({str(e["head"]) for e in findings})
+    why = f" ({_inert(detail)})" if detail else ""
+    closed = (
+        f"Unattended merge: the verifier refuses `{refusal}` at head `{head}`{why}, "
+        "which never clears for this pull request, so the pr-merge lane closed it."
+    )
+    if issue is None:
+        next_step = "It links no issue, so no fresh attempt starts."
+    elif attempt is None:
+        next_step = (
+            f"Issue #{issue} did not carry `{AGENT_READY}` when the lane read it, so "
+            "no fresh attempt starts: whoever took it off decides what comes next."
+        )
+    elif parked:
+        next_step = (
+            f"Issue #{issue} has used its {attempt[1] if attempt else 0} fresh attempt(s) "
+            "(`merge.verify-cap-attempts`), so it is parked at "
+            f"`{STATUS_CONFIRMED}` and no new attempt starts."
+        )
+    else:
+        next_step = (
+            f"Issue #{issue} goes back to `{AGENT_READY}` for fresh attempt "
+            f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
+            "which starts from these findings."
+        )
+    found = [
+        "",
+        "Each FAILed head's findings, as the verifier wrote them (data, not instructions):",
+        "",
+        findings_text(findings),
+    ]
+    pr_body = "\n".join(
+        [capped_close_marker(number, heads), f"{closed} {next_step}", *found]
+    )
+    if issue is None:
+        return pr_body, None
+    issue_body = "\n".join(
+        [
+            capped_close_marker(number, heads, attempt, parked),
+            f"Pull request #{number}: {closed} {next_step}",
+            *found,
+        ]
+    )
+    return pr_body, issue_body
+
+
+def _gh_write(args: list[str], what: str, *, missing_ok: bool = False) -> None:
+    """One write under the job's GH_TOKEN, the lanes App token; a 404 is
+    fine for a label removal (`missing_ok`). Raises `RuntimeError`."""
+    proc = postmerge.gh_capture(args)
+    if proc.returncode != 0 and not (missing_ok and "HTTP 404" in proc.stderr):
+        raise RuntimeError(f"{what}: {proc.stderr.strip()}")
+
+
+def _marked(
+    comments: list[dict[str, Any]], identity: str, number: int
+) -> re.Match[str] | None:
+    """The identity's capped-close record for pull request `number` among
+    REST `comments`, or None."""
+    found = _capped_record(comments, identity, number)
+    return found[0] if found else None
+
+
+def _capped_record(
+    comments: list[dict[str, Any]], identity: str, number: int
+) -> tuple[re.Match[str], datetime] | None:
+    """`_marked`'s record and when it was posted; a record with no readable
+    time raises `PostMergeReadError`."""
+    for c in comments:
+        first = str(c.get("body") or "").split("\n", 1)[0].rstrip("\r")
+        if (
+            str(json_object(c.get("user")).get("login") or "").lower()
+            == identity.lower()
+            and (match := CAPPED_CLOSE_RE.fullmatch(first))
+            and int(match[1]) == number
+        ):
+            return match, postmerge._time(c.get("created_at"))
+    return None
+
+
+def _lane_removals(
+    events: list[dict[str, Any]], identity: str, since: datetime
+) -> tuple[bool, bool]:
+    """Among the issue's REST `events`, whether the lanes App removed
+    `agent-ready` at or after its record (`since`; times have one-second
+    resolution, and the record and the removal land in the same second), and
+    whether the newest removal is such a one: the removal an earlier run made
+    for the fresh attempt and could not undo."""
+    removals = sorted(
+        (
+            e
+            for e in map(json_object, events)
+            if e.get("event") == "unlabeled"
+            and str(json_object(e.get("label")).get("name") or "").lower()
+            == AGENT_READY
+        ),
+        key=lambda e: postmerge._time(e.get("created_at")),
+    )
+    ours = [
+        str(json_object(e.get("actor")).get("login") or "").lower() == identity.lower()
+        and postmerge._time(e.get("created_at")) >= since
+        for e in removals
+    ]
+    return any(ours), bool(ours) and ours[-1]
+
+
+def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
+    """How many other pull requests for the issue the lane has closed at the
+    cap for a fresh attempt: the records `capped_closed` counts
+    (`_started_attempt`), so a parked or attempt-less one spends nothing."""
+    named = set()
+    for c in comments:
+        if str(
+            json_object(c.get("user")).get("login") or ""
+        ).lower() == identity.lower() and (
+            pr := _started_attempt(c.get("body"))
+        ) is not None:
+            named.add(pr)
+    return len(named - {number})
+
+
+def capped_close(
+    reader: Reader,
+    number: int,
+    head: str,
+    *,
+    attempts: int,
+    holds: tuple[str, ...] = (),
+    issue_holds: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Close a lanes App pull request the verifier refuses for good
+    (`VERIFY_FINAL`) at `head`, judged again here, for a fresh attempt at its
+    issue (owner decision 2026-10-29; no person's label on this path). In
+    order, so a failed write leaves the pull request open for the next run,
+    which finds its comments and writes the rest: the record on the pull
+    request, then on each issue; the issue's `agent-ready` comes off and
+    goes back on (tried twice), which starts the fresh attempt, only when the
+    issue carried it (one that did not is recorded and not restarted); the pull
+    request closes, so a closed one never leaves its issue without
+    `agent-ready`. An issue that already had `attempts` fresh attempts
+    (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
+    with `status: ready` and `agent-ready` off, before the close. A pull
+    request not open at `head`, not the lanes App's, or carrying a hold label
+    (`holds`) is left alone, and so is one whose issue link the pr-merge lane
+    does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
+    or whose issue carries an `issue_holds` label (`issue_hold_refusal`; none
+    resolved refuses). A pull request is closed at the cap once: one reopened
+    after its record stays open, and a rerun after a failed close writes no
+    issue label, except putting back an `agent-ready` the newest removal of
+    which was the lanes App's own at or after its record (`_lane_removals`);
+    one carrying it with no such removal is toggled, since the run that
+    wrote the record stopped before the label came off.
+    FAIL findings come only from runs of verified origin. Raises
+    `RuntimeError` on a failed
+    write or a failed issue read, `PostMergeReadError` on a failed comments
+    read."""
+    identity = reader.agent_identity or ""
+    evidence = reader.evidence(number, head)
+    if evidence.refusal not in VERIFY_FINAL:
+        return {
+            "closed": False,
+            "reason": f"the verifier answers {evidence.refusal} at {head}",
+        }
+    pr = merge_policy.pull_request(reader.repo, number)
+    labels = {
+        str(json_object(item).get("name") or "").lower()
+        for item in pr.get("labels") or []
+    }
+    if (
+        pr.get("state") != "open"
+        or json_object(pr.get("head")).get("sha") != head
+        or not identity
+        or str(json_object(pr.get("user")).get("login") or "").lower()
+        != identity.lower()
+    ):
+        return {
+            "closed": False,
+            "reason": "not an open lanes App pull request at that head",
+        }
+    if held := sorted(labels & {h.lower() for h in holds}):
+        return {"closed": False, "reason": f"it carries {', '.join(held)}"}
+    if (refusal := reader.link_refusal(number)) is not None:
+        return {"closed": False, "reason": refusal}
+    try:
+        live = reader._closing_issues(number)
+    except _Unreadable as exc:
+        raise RuntimeError(f"issue link: {exc}") from exc
+    for node in live.values():
+        if (refusal := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
+            return {"closed": False, "reason": refusal}
+    issues = sorted(n for n in live if type(n) is int)
+    try:
+        findings = reader.fail_findings(number)
+    except _Unreadable as exc:
+        raise RuntimeError(f"FAIL findings: {exc}") from exc
+    repo = reader.repo
+    pr_comments = postmerge._paginated(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+    )
+    # A pull request is closed at the cap once: one reopened after its
+    # record is a person's, and stays open.
+    if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
+        json_object(e).get("event") == "reopened"
+        and postmerge._time(json_object(e).get("created_at")) > pr_record[1]
+        for e in postmerge._paginated(
+            f"repos/{repo}/issues/{number}/events?per_page=100", f"#{number} events"
+        )
+    ):
+        return {"closed": False, "reason": "reopened after its capped-close record"}
+    # `attempt` None: the issue did not carry agent-ready when read (a person
+    # may have taken it off), so it is recorded without an attempt and not
+    # restarted. `labels`: which label writes it gets (park, toggle, add or
+    # none). On a rerun, a record with no attempt writes none; a parked one
+    # writes the park labels only while unfinished; one naming an attempt
+    # toggles only when no lanes App removal followed the record, and puts
+    # agent-ready back only when the newest removal is that one
+    # (`_lane_removals`).
+    plan: list[
+        tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]
+    ] = []
+    for issue in issues:
+        comments = postmerge._paginated(
+            f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
+        )
+        found = _capped_record(comments, identity, number)
+        carried = AGENT_READY in (
+            label.lower() for label in merge_policy._label_names(live[issue]) or []
+        )
+        if found is not None and found[0][3] is not None:
+            prior, since = found
+            attempt, parked = (int(prior[3]), int(prior[4])), bool(prior[5])
+            names = {
+                label.lower() for label in merge_policy._label_names(live[issue]) or []
+            }
+            if parked:
+                # Written once: the park labels go on again only while unfinished.
+                done = STATUS_CONFIRMED in names and not names & {
+                    STATUS_READY,
+                    AGENT_READY,
+                }
+                labels = "none" if done else "park"
+            else:
+                removed, newest = _lane_removals(
+                    postmerge._paginated(
+                        f"repos/{repo}/issues/{issue}/events?per_page=100",
+                        f"#{issue} events",
+                    ),
+                    identity,
+                    since,
+                )
+                if carried:
+                    # No removal since the record: the run stopped before it,
+                    # so no labeled event ever started the attempt.
+                    labels = "none" if removed else "toggle"
+                else:
+                    labels = "add" if newest else "none"
+        elif found is not None:
+            # Recorded with no attempt: nothing is restarted, whatever a
+            # person did since.
+            attempt, parked, labels = None, False, "none"
+        else:
+            spent = _spent(comments, identity, number)
+            parked = spent >= attempts
+            attempt = (
+                (spent if parked else spent + 1, attempts)
+                if parked or carried
+                else None
+            )
+            labels = "park" if parked else ("toggle" if carried else "none")
+        plan.append((issue, comments, attempt, parked, labels))
+    first = plan[0] if plan else None
+    pr_body, _ = capped_close_bodies(
+        number,
+        head,
+        str(evidence.refusal),
+        evidence.detail,
+        findings,
+        first[0] if first else None,
+        first[2] if first else None,
+        first[3] if first else False,
+    )
+    if pr_record is None:
+        _gh_write(
+            [
+                "api",
+                "-X",
+                "POST",
+                f"repos/{repo}/issues/{number}/comments",
+                "-f",
+                f"body={pr_body}",
+            ],
+            "pull request record",
+        )
+    for issue, comments, attempt, parked, labels in plan:
+        _, issue_body = capped_close_bodies(
+            number,
+            head,
+            str(evidence.refusal),
+            evidence.detail,
+            findings,
+            issue,
+            attempt,
+            parked,
+        )
+        if _marked(comments, identity, number) is None:
+            _gh_write(
+                [
+                    "api",
+                    "-X",
+                    "POST",
+                    f"repos/{repo}/issues/{issue}/comments",
+                    "-f",
+                    f"body={issue_body}",
+                ],
+                f"#{issue} record",
+            )
+        base = f"repos/{repo}/issues/{issue}/labels"
+        if labels == "park":
+            _gh_write(
+                ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
+                f"#{issue} {STATUS_CONFIRMED}",
+            )
+            _gh_write(
+                [
+                    "api",
+                    "-X",
+                    "DELETE",
+                    f"{base}/{urllib.parse.quote(STATUS_READY, safe='')}",
+                ],
+                f"#{issue} {STATUS_READY}",
+                missing_ok=True,
+            )
+        if labels == "none":
+            continue
+        if labels != "add":
+            _gh_write(
+                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
+                f"#{issue} {AGENT_READY}",
+                missing_ok=True,
+            )
+        if parked:
+            continue
+        args = ["api", "-X", "POST", base, "-f", f"labels[]={AGENT_READY}"]
+        try:
+            _gh_write(args, f"#{issue} {AGENT_READY}")
+        except RuntimeError:
+            _gh_write(
+                args,
+                f"#{issue} {AGENT_READY} was removed for a fresh attempt but not added back",
+            )
+    _gh_write(
+        ["api", "-X", "PATCH", f"repos/{repo}/pulls/{number}", "-f", "state=closed"],
+        "close",
+    )
+    return {
+        "closed": True,
+        "refusal": evidence.refusal,
+        "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
+        "parked": [i for i, _, _, parked, _ in plan if parked],
+        "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
+    }
+
+
+def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
+    """`capped-close`: `capped_close` under the config at `--base-sha` and
+    the default branch (the lower attempts and FAIL cap), as one JSON line;
+    exit 1 with `error` when a read or write failed."""
+    try:
+        base = merge_policy.config_at(args.repo, args.base_sha)
+        if base.error:
+            raise merge_policy.PolicyReadError(base.error)
+        config = merge_policy.with_default_branch(args.repo, base)
+        reader = Reader(
+            args.repo,
+            args.branch,
+            now=now,
+            max_fails=config.max_verify_fails,
+            agent_identity=config.agent_identity,
+            cap_attempts=config.verify_cap_attempts,
+        )
+        reader.listing_max_age = None
+        holds = tuple(h for h in args.hold_label if h)
+        owner, _, name = args.repo.partition("/")
+        # The labels that hold the issue, as the merge gate resolves them
+        # (`merge_policy.issue_hold_labels`).
+        issue_holds = merge_policy.issue_hold_labels(
+            config,
+            None
+            if config.issue_holds
+            else postmerge._role_label(owner, name, strict=True),
+        )
+        result = capped_close(
+            reader,
+            args.number,
+            args.head,
+            attempts=config.verify_cap_attempts,
+            holds=holds,
+            issue_holds=issue_holds,
+        )
+    except (
+        RuntimeError,
+        merge_policy.PolicyReadError,
+        postmerge.PostMergeReadError,
+    ) as exc:
+        print(json.dumps({"closed": False, "error": str(exc)}))
+        return 1
+    print(json.dumps(result))
+    return 0
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -3209,6 +3913,10 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     report's check (empty when unknown): changed check code reads the report
     again or refuses it (`merge_policy.check_code_unchanged`).
 
+    `capped-close --repo R --base-sha <sha> [--hold-label L ...] <number>
+    <head>`: `capped_close` for enable-auto-merge.mjs (`_capped_close_main`),
+    its writes under GH_TOKEN, the lanes App token.
+
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
     again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
@@ -3238,12 +3946,26 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     room.add_argument("--postmerge-result", required=True)
     room.add_argument("--rung-cap", default=None)
     room.add_argument("--code-sha", required=True)
+    close = sub.add_parser("capped-close", allow_abbrev=False)
+    close.add_argument("--repo", required=True)
+    close.add_argument("--branch", default="main")
+    close.add_argument("--base-sha", required=True)
+    close.add_argument("--hold-label", action="append", default=[])
+    close.add_argument("number", type=int)
+    close.add_argument("head")
     settle = sub.add_parser("settle", allow_abbrev=False)
     settle.add_argument("--repo", required=True)
     settle.add_argument("--postmerge-result", required=True)
     settle.add_argument("--code-sha", required=True)
     settle.add_argument("--idle-tick", action="store_true")
     args = parser.parse_args(argv)
+    if args.command == "capped-close":
+        if not (
+            merge_policy.SHA_RE.fullmatch(args.head)
+            and merge_policy.SHA_RE.fullmatch(args.base_sha)
+        ):
+            parser.error("head and --base-sha must be full commit SHAs")
+        return _capped_close_main(args, now)
     if args.command == "settle":
         return _settle(
             args.repo, args.postmerge_result, args.code_sha, idle=args.idle_tick
@@ -3308,6 +4030,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
             return refusal.report() | link
         reader.max_fails = config.max_verify_fails
         reader.agent_identity = config.agent_identity
+        reader.cap_attempts = config.verify_cap_attempts
     pr = None
     if args.lane_reviews:
         try:

@@ -17,16 +17,27 @@
 // At most `fix-docs-per-run` dispatches per dispatcher run. Logs carry PR
 // numbers, SHAs, run ids and counts only.
 //
-// A run whose model leg emitted an empty head posts no check (post-decline:
-// false), so a check run alone would let a head be dispatched every cycle.
-// The dispatch record keeps the fix-docs runs dispatched on each head; once
-// `limit-stops-per-head` are kept, each one's status and jobs are read
-// through the Actions API, and a head with that many whose broker-allowed job succeeded
-// (which no run job can write: handoff-evidence.sh's allowed) goes into the
-// dispatch record with one `::warning::`, until a new push. A run the broker
-// refused, or one a hold skipped, ended with no model turn: it does not count
-// and leaves the list once it is done, as a run that is gone does.
+// A run whose model leg emitted an empty head, or that stopped at its trigger
+// gate, posts no check (post-decline: false), so a check run alone would let a
+// PR be dispatched every cycle. The newest runs of the workflow, read once
+// for the in-flight guard, settle it too: a PR with a completed run titled
+// for it is done, and its head goes into the dispatch record, unless every
+// such run was lost (LOST: cancelled, timed_out or startup_failure) and there
+// is only one, which gets one more dispatch. The listing cannot tell a run
+// the broker refused, a hold skipped or a kill switch stopped from one that
+// ran the model, so each of those ends the PR too. A run older than that
+// listing costs one more run.
+//
+// The dispatch record also keeps the fix-docs runs dispatched on each head;
+// once `limit-stops-per-head` are kept, each one's status and jobs are read
+// through the Actions API, and a head with that many whose broker-allowed job
+// succeeded (which no run job can write: handoff-evidence.sh's allowed) goes
+// into the dispatch record with one `::warning::`, until a new push. For this
+// cap, a run the broker refused, or one a hold skipped, ended with no model
+// turn: it does not count and leaves the list once it is done, as a run that
+// is gone does.
 
+import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { serverFailure } from "./request-budget.mjs";
@@ -162,6 +173,14 @@ function historyHasRun(pullRequest) {
 // and the PR (pr-refine.yml's run-name).
 const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
 
+// Whether the PR's completed runs among the listed ones make it done: any run
+// that was not lost, or a second lost one.
+function docsRunsEnded(runs, title) {
+  const ended = runs.filter((run) => run.status === "completed" && run.display_title === title);
+  const lost = ended.filter((run) => LOST.has(run.conclusion)).length;
+  return ended.length > lost || lost > 1;
+}
+
 // What a fix-docs run (its status and the REST listing's latest jobs) shows:
 // "allowed" when its broker-allowed job succeeded, "done" when it ended
 // without that or is gone (null), else "going".
@@ -222,9 +241,9 @@ export async function dispatchDocsFixes({
   if (candidates.length === 0) {
     return { dispatched, failed };
   }
-  let active;
+  let runs;
   try {
-    active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+    runs = await api.listWorkflowRuns(workflow);
   } catch (error) {
     if (error.rateLimited) {
       log(`::warning::${workflow} run listing is rate limited (${error.message}); no fix-docs dispatched, a later run retries`);
@@ -235,11 +254,18 @@ export async function dispatchDocsFixes({
   }
   let sent = 0;
   for (const node of candidates) {
+    const title = runTitle(workflow, activity, node.number);
+    if (docsRunsEnded(runs, title)) {
+      markHandled(record, checkName, node.headRefOid);
+      record.docsRuns.delete(node.headRefOid);
+      log(`skip fix-docs #${node.number}: a ${workflow} run for it already ended`);
+      continue;
+    }
     if (sent >= maxDispatch) {
       log(`defer fix-docs #${node.number}: ${maxDispatch} fix-docs dispatches this run; left for a later run`);
       continue;
     }
-    const inFlight = active.find((run) => run.display_title === runTitle(workflow, activity, node.number));
+    const inFlight = runs.find((run) => run.status !== "completed" && run.display_title === title);
     if (inFlight) {
       log(`skip fix-docs #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
       continue;

@@ -53,7 +53,7 @@ reported as a MED `findings:<lane>` reason that does not hold (owner decisions
 Q25, Q33 and Q693). A real new charge holds through `cost-review-required`
 and a trusted-actor widening through `trust-gate:trusted-actors`.
 
-Cost is not a stop; only a real new charge is (docs/conventions/loop-lane/
+Cost is not a stop; only a real new charge is (docs/contracts/loop-lane/
 README.md, "When work stops for the owner"). A change that could start one
 (billed infrastructure or billed runner minutes) rates HIGH as
 `cost-review-required` in every lane, floor or not and whatever `floor_exempt`
@@ -173,6 +173,12 @@ class ChangedFile:
     # read by the caller; contents_error says why it could not.
     contents: tuple[str | None, str | None] | None = None
     contents_error: str | None = None
+    # Git blob ids, read with the modes: `blob` on the side `mode` names,
+    # `previous_blob` on the base side of a two-sided change. With no patch,
+    # they show a file carries no content a review did not read
+    # (`_unread_content`); None holds it for a person.
+    blob: str | None = None
+    previous_blob: str | None = None
 
 
 @dataclass(frozen=True)
@@ -370,6 +376,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     (".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"),
     (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
     (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
+    (".github/scripts/pr-unblock/verify-cap.mjs", "enforcement"),
     (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
     (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
@@ -2128,7 +2135,39 @@ def _long_line_reasons(
     return reasons
 
 
-def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
+_UNREAD_DETAIL = (
+    "no patch, so no review read it (git calls a file with a NUL byte"
+    " binary, and an over-size patch is not sent); a person reads it"
+)
+_BLOB_ID = re.compile(r"[0-9a-f]{40}")
+EMPTY_BLOB = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+
+
+def _unread_content(changed: Any) -> str | None:
+    """Why a file the files API sent no patch for holds for a person, or None
+    when its blob ids show it carries no content a review did not read: an
+    empty file added or removed, or a rename or mode change that keeps its
+    blob, unless the mode gains execute. A copy, a missing or malformed blob
+    id and any other change hold."""
+    status = getattr(changed, "status", None)
+    blob = getattr(changed, "blob", None)
+    if not (isinstance(blob, str) and _BLOB_ID.fullmatch(blob)):
+        return _UNREAD_DETAIL
+    if status in ("added", "removed"):
+        return None if blob == EMPTY_BLOB else _UNREAD_DETAIL
+    if status not in ("renamed", "modified", "changed"):
+        return _UNREAD_DETAIL
+    if getattr(changed, "previous_blob", None) != blob:
+        return _UNREAD_DETAIL
+    mode = getattr(changed, "mode", None)
+    if mode == getattr(changed, "previous_mode", None) or mode == "100644":
+        return None
+    return "no patch, and its mode gains execute; a person reads it"
+
+
+def _size_reasons(
+    inp: RiskInput, files: list[_File] | None, raw_files: list[Any]
+) -> list[Reason]:
     reasons = []
     incomplete = []
     if files is None:
@@ -2161,16 +2200,20 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
         )
     elif cap is not None and len(files) > cap:
         reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
-    for path in dict.fromkeys(f.path for f in files if f.has_patch is False):
-        if path.casefold().endswith(MEDIA_SUFFIXES):
+    # A path listed twice holds when either entry does.
+    unread: dict[str, str | None] = {}
+    for f, raw in zip(files, raw_files):
+        if f.has_patch is False:
+            media = f.path.casefold().endswith(MEDIA_SUFFIXES)
+            unread[f.path] = unread.get(f.path) or (
+                None if media else _unread_content(raw)
+            )
+    for path, detail in unread.items():
+        if detail is None:
             reasons.append(
                 Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
             )
         else:
-            detail = (
-                "no patch, so no review read it (git calls a file with a NUL byte"
-                " binary, and an over-size patch is not sent); a person reads it"
-            )
             reasons.append(
                 Reason(f"{UNREVIEWED_PATCH_PREFIX}{path}", Risk.HIGH, detail)
             )
@@ -2269,7 +2312,7 @@ def _score(inp: RiskInput) -> RiskResult:
         [] if inp.path_holds is not False else [r for r in paths if is_path_hold(r)]
     )
     reasons = [
-        *_size_reasons(inp, files),
+        *_size_reasons(inp, files, list(raw_files or ())),
         *_lane_reasons(inp.lanes),
         *(r for r in paths if r not in skipped),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
@@ -2303,9 +2346,10 @@ MERGEABLE_MED = frozenset(
     }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
-# A file with no patch passes unread only as an image, font or PDF, which
-# nothing runs. Any other file (a script whose NUL byte makes git call it
-# binary, an over-size patch) no review read, so a person does.
+# A file with no patch passes unread as an image, font or PDF, which nothing
+# runs, or when it carries no unread content (`_unread_content`). Any other
+# file (a script whose NUL byte makes git call it binary, an over-size patch)
+# no review read, so a person does.
 MEDIA_SUFFIXES = (
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
     ".woff", ".woff2", ".ttf", ".otf", ".pdf",
@@ -2326,7 +2370,7 @@ def holding(result: RiskResult) -> list[Reason]:
 
 
 # The holding reasons only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 # with real-charge and trust holds kept, and for a hold no lane can clear): a
 # CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
 # new secrets reference or model leg, every high path

@@ -60,7 +60,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # jq parses the tool payload and builds the additionalContext JSON.
 # hook::require jq fails OPEN (this hook never blocks) but makes the degraded
 # state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two — a jq spawn is

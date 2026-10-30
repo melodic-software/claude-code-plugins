@@ -78,7 +78,7 @@ the enabled plugins.
 
 ## Routing
 
-The plugin adopts the routing-as-data convention (`docs/conventions/routing-as-data/README.md` in
+The plugin adopts the routing-as-data convention (`docs/contracts/routing-as-data/README.md` in
 the marketplace repository). Routes live in [`reference/routing.json`](reference/routing.json),
 grouped by `job` and validated by [`reference/routing.schema.json`](reference/routing.schema.json).
 `scripts/detect.mjs` marks each row present or not and applies the team file's `routing` changes:

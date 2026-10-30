@@ -345,7 +345,7 @@ fi
 # suite by its EXIT CODE alone, so `report`'s return is the whole pass/fail signal
 # for all 17 of them. Nothing self-tested it. The repo-wide harness pins its
 # equivalent at scripts/lib/test-harness.test.sh, but guardrails-test-helpers.sh is
-# a separate, deliberately duplicated file (docs/conventions/shell-test-helpers/)
+# a separate, deliberately duplicated file (docs/contracts/shell-test-helpers/)
 # that no suite and no CI script covers. Measured, with `report` forced to
 # `return 0` and one failure seeded into every suite: 0 of the 17 went red, each
 # printing its own `FAIL:` line and then exiting 0. This case takes that to 1.

@@ -42,7 +42,7 @@
 #   passes the rendered ${user_config.*} values through --scope / --dir. The
 #   data-dir root arrives the same way, through --data-root: a skill
 #   subprocess was observed carrying an UNRELATED plugin's CLAUDE_PLUGIN_DATA
-#   (docs/conventions/plugin-data-report-keying/README.md rule 2), so this
+#   (docs/contracts/plugin-data-report-keying/README.md rule 2), so this
 #   script never reads that variable and the sibling pruner
 #   (skills/observability/scripts/clean.sh) refuses to either.
 #

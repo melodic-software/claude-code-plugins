@@ -3,6 +3,18 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.9] - 2026-10-30
+
+### Fixed
+
+- `/app-control:drive` now keeps the per-run count of the control-skill contract's Sign-in floor, which the CLI cannot keep because it holds no count between calls. Drive calls `cli/ sign-in <account>` at most once per account in a run, unless committed config allows more. A failed sign-in ends every step that is not a finally step, and drive tries no other account in its place.
+
+## [0.17.8] - 2026-10-30
+
+### Changed
+
+- **The control-skill contract states five more rules for a generated control skill** ([#11127](https://github.com/melodic-software/claude-code-plugins/issues/11127)). A feature is a user's goal and a sub-feature is a state or branch inside it. A `not driven: <reason>` entry point names what would make it drivable. UI that differs by tenant or configuration is a named precondition in `## Drive` or a step whose selector matches every variant. A project's auth bootstrap, when it has one, runs the mapped sign-in steps from `shared/` or from the integrated app that owns sign-in, so sign-in selectors live in one place. A feature that signs out runs in a throwaway browser session, never in the saved one, and signs in there within the Sign-in floor's one attempt per account.
+
 ## [0.17.7] - 2026-10-30
 
 ### Fixed

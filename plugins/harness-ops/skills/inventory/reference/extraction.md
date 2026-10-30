@@ -414,7 +414,7 @@ an export of it.
 name reads, whether anything writes or changes it). `regex`, the default, is the text reader the
 sections above describe. `parser` parses each module with acorn and resolves names with
 eslint-scope, installed on first use from the committed lockfile (`scripts/js/`, under
-[on-demand dependencies](../../../../../docs/conventions/on-demand-dependencies/README.md)); it
+[on-demand dependencies](../../../../../docs/contracts/on-demand-dependencies/README.md)); it
 needs node and npm, and without them the binary source is broken with the repair command, never a
 regex answer. `compare` runs both and breaks the report on any value that differs between them;
 the changelog skill's native-drift pass reads each new build that way.
@@ -502,7 +502,13 @@ call, the global `Function` used other
 than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
-of `instanceof`) or a build cleared below, any member named `eval` or `Function`, and node:vm,
+of `instanceof`) or a build cleared below, any member named `eval` or `Function`, a read of
+`constructor` (by name, by a computed key that may spell it, as an unknown key does while a loop
+counter does not, or as a destructured key; every
+function's `constructor` is `Function`, as in `(()=>0).constructor("...")()`) other than one that
+is discarded, tested, compared with `===` or `!==`, the right of `instanceof`, or followed by a
+`.name` read or a plain `.prototype` write, since coercing it or writing a key it lacks runs a
+method with it as `this`; and node:vm,
 since code in a new context still reaches this realm (`this.constructor.constructor("...")()`
 inside `runInNewContext`): any load of `vm` or `node:vm` except an import naming only
 `isContext`, and a runner's name
@@ -517,8 +523,9 @@ workflow runtime, the plugin loader, a test kit). A load the scan cannot name (b
 
 `Function(...)` and `new Function(...)` build a function from strings and run none of its body;
 only a call runs it. So a use of the global `Function` is no sink when the function it builds is
-discarded (an expression statement, or a sequence operand other than the last, as in
-`try{return new Function(""),!0}catch(e){return!1}`), nor when it is called directly
+discarded (an expression statement, a sequence operand other than the last, as in
+`try{return new Function(""),!0}catch(e){return!1}`, or a conditional branch or the right
+operand of a logical expression whose own value is discarded), nor when it is called directly
 (`Function("return this")()`) with every argument a string literal or a template without
 substitutions and the code those spell, parsed with acorn as an unnamed function expression in a
 module, holds no sink by this same rule (followed up to 4 folds deep). The module goal rejects
@@ -594,8 +601,9 @@ Stated assumptions, not checked:
   `Object.getOwnPropertyDescriptor(Object.prototype,"__pro"+"to__").set` hands out the
   `__proto__` setter, which swaps any object's prototype when called, and the same read of
   `__defineGetter__` hands out a definer that takes any key. Neither read is counted.
-- Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
-  read of it: `(()=>0).constructor("...")()` builds code no rule counts.
+- `Function` and its `constructor` reached only reflectively are not counted: a key handed to a
+  call (`Reflect.get(f,"constructor")`), a property descriptor, or an enumeration of a
+  prototype's keys.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not

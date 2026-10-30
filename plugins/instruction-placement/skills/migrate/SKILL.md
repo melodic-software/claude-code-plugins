@@ -44,7 +44,7 @@ during `plan` or `apply`, however unnecessary it looks.
 ## Invocation mode
 
 `disable-model-invocation: false`, the fleet default. No exception class in the
-[invocation-mode rubric](../../../../docs/conventions/invocation-mode/README.md) fits: this is not a
+[invocation-mode rubric](../../../../docs/contracts/invocation-mode/README.md) fits: this is not a
 `setup` skill (class ii), not maintainer-only (class iii), and not class (i) either, since the human
 already decides every write at the gate below rather than deciding the *timing* of an unattended
 mutation. It is also a chain target: `/harness-memory:audit`'s N1 fix route and this plugin's own

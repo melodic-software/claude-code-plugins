@@ -957,7 +957,7 @@ jobs:
       # resolve-config resolved it (absent: native).
       - name: Read report-only
         id: mode
-        if: steps.config.outcome == 'success'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml
@@ -997,9 +997,18 @@ jobs:
       # newer run checks every PR. A kill switch turned on after this run read
       # its variables is refused `kill-switch`; it ends green with a notice and
       # no token the same way, and the next scheduled run checks every PR.
+      # A merge-pr slot the config turns off (`enabled: false`, or an
+      # `applies-when` that does not match) mints no token, so no step after
+      # this one uses the lane token, and the job ends green.
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::merge-pr does not apply (${REASON:-no reason}); no lane token requested, nothing read or merged"
+
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
@@ -2044,6 +2053,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: who
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
@@ -2065,6 +2075,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: superseded
           ACTIONS_TOKEN: ${{ github.token }}
           SUPERSEDED_JOB: enable-auto-merge
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -2105,6 +2116,7 @@ jobs:
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: head-ref-map
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2115,6 +2127,7 @@ jobs:
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: listing-carry
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2126,6 +2139,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: carry-run-cache
           ACTIONS_TOKEN: ${{ github.token }}
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2152,6 +2166,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: verify-answers
           ACTIONS_TOKEN: ${{ github.token }}
           VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
           # The arm step's skip records, from the same artifact.
@@ -2191,6 +2206,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: lane-records
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2235,6 +2251,7 @@ jobs:
           # the Actions reads that carry it.
           API_BUDGET_TOKEN: lanes-app
           API_BUDGET_OVERRIDE_TOKEN: github-token
+          API_BUDGET_SCRIPT: enable-auto-merge
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml

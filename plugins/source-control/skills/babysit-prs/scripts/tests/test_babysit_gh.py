@@ -1369,6 +1369,15 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
             },
         )
 
+    def test_a_failed_chunk_reads_as_a_stop_that_counts_no_critical(self) -> None:
+        # A chunked main-run review whose chunk left no verdict records
+        # `verdict=none reason=chunk-failed`, a designed stop like the others.
+        title = "verdict=none reason=chunk-failed"
+        counts = self.counts({"a" * 40: [self.check("claude-review", title)]})
+        self.assertEqual(counts["a" * 40]["claude-review"], [("stop", "chunk-failed")])
+        found = self.collect({"a" * 40: [self.check("claude-review", title)]})
+        self.assertEqual(found["claude-review"], 0)
+
     def test_a_stop_counts_no_critical_and_an_unknown_reason_counts_one(self) -> None:
         found = self.collect(
             {

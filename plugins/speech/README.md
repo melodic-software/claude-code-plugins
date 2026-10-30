@@ -76,7 +76,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 one. `/speech:check` reads it.
 
 The Python packages follow the
-[on-demand dependencies convention](../../docs/conventions/on-demand-dependencies/README.md#python).
+[on-demand dependencies convention](../../docs/contracts/on-demand-dependencies/README.md#python).
 `requirements.in` pins them, `requirements.txt` hash-locks every wheel, and the SessionStart hook
 installs them into `${CLAUDE_PLUGIN_DATA}/python/<lock hash>-<interpreter>/` with
 `pip install --require-hashes --only-binary :all:`. Nothing else installs a package. A failed

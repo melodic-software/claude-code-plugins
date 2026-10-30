@@ -6,7 +6,7 @@ next. Use the consuming repo's own commands and review criteria at each gate.
 The **order** below is owned by the marketplace's `pre-pr-ordering` convention, not by this file.
 More than one plugin routes into this sequence, so the order lives where every routing surface can
 cite the same one. This file owns what each step *does*. When this repo's
-`docs/conventions/pre-pr-ordering/README.md` is available, it is the authority on the ordering and
+`docs/contracts/pre-pr-ordering/README.md` is available, it is the authority on the ordering and
 on why outcome verification sits after the simplify pass.
 
 1. **Test thoroughly.** Run all affected tests, smoke test new functionality, verify edge cases.

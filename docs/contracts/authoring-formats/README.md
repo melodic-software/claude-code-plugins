@@ -154,8 +154,9 @@ dedicated file:
 
 ## Resolution ladder
 
-This is the text a consuming skill **restates in its own body**. It is written to be copied
-verbatim, with only the key name and the emitting behavior substituted:
+This is the text a consuming plugin **restates in a file it bundles**, which each of its reading
+skills points at. It is written to be copied verbatim, with only the key name and the emitting
+behavior substituted:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -187,16 +188,16 @@ verbatim, with only the key name and the emitting behavior substituted:
 
 An installed plugin never sees this repository's `docs/conventions/`. A consuming skill therefore
 cannot defer to this document at runtime, and a path citation to it would make this publisher a
-runtime dependency of the consumer's session. The instruction surface a session loads is the skill
-body, so the rules have to be in it. Identical prose across two consuming skills is a
-coincidence of scope rather than a shared artifact to hoist.
+runtime dependency of the consumer's session. The rules have to ship inside the consuming plugin;
+one bundled copy per plugin, read by each of its skills that consumes a key, keeps them from
+drifting apart within that plugin.
 
 This doc owns the text; the consuming slices carry the restating work.
 
 ## Consumers
 
 Which skill reads which key, by slash invocation. Each skill named below resolves the convention
-home through the resolver its own plugin bundles and restates the ladder in its own body.
+home through the resolver its own plugin bundles and follows the ladder its own plugin restates.
 
 | Key | Reading skill |
 |---|---|

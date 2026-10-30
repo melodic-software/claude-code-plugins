@@ -37,7 +37,7 @@
 # A bare stderr write (`>&2`) is NOT a sanctioned visibility call: every site
 # this gate inspects is, by construction, an exit-0 skip path, and per the
 # official Claude Code hooks reference (re-fetched 2026-08-10,
-# docs/conventions/hook-observability/) "Stderr from a hook that exits 0 goes
+# docs/contracts/hook-observability/) "Stderr from a hook that exits 0 goes
 # to the debug log only, never the transcript, and Claude never sees it" — so
 # it reaches neither the user nor the agent on any path this gate inspects.
 # A `>&2`-only notice on such a path is invisible regardless of intent.
@@ -204,7 +204,7 @@ if ((errors > 0)); then
     echo "or carry a documented quiet classification:"
     echo "'# silent-skip-ok: <reason>' at the site. A bare stderr write is"
     echo "NOT sufficient — stderr on exit 0 is never shown to the user or"
-    echo "the agent (docs/conventions/hook-observability/)."
+    echo "the agent (docs/contracts/hook-observability/)."
     echo
     echo "A scripts/*.test.sh that cannot run an assertion must fail closed"
     echo "(or annotate with '# silent-skip-ok: <reason>'), never score the"

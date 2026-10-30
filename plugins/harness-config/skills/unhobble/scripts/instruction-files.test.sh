@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-contained tests for instruction-files.sh (skill-script shape, per
-# docs/conventions/shell-test-helpers/README.md: per-plugin assertion
+# docs/contracts/shell-test-helpers/README.md: per-plugin assertion
 # primitives are duplicated on purpose, never shared across plugins).
 #
 # Every fixture is a throwaway git repository built under mktemp and torn down

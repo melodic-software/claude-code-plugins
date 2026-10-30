@@ -61,7 +61,7 @@ comparison can run varies. It is terminal, not a finding reported beside the oth
 - Return a **failure** verdict naming every unrestored path and the recovery command. The failure is
   the whole report; nothing may push it off the screen.
 
-Stopping rather than reporting is what `docs/conventions/liveness-assertion/README.md` "Core
+Stopping rather than reporting is what `docs/contracts/liveness-assertion/README.md` "Core
 contract" item 1 requires of a surface that cannot vouch for its own outcome, and continuing would
 produce both false-green shapes that doc names at once. The ranked report would read exactly like a
 normal run while tracked source sits mutated; and under `--persist-findings` the run would hand an
