@@ -130,6 +130,23 @@ It is not the approval-marker publish gate (#7956), and it does not cover
   `sonnet` at `medium`. The reviewer agents, slices included, keep the model and effort pinned in
   their own definitions.
 
+## Recall cases
+
+The `evals/recall-*` cases measure whether `/review:code-review` finds bugs the review lanes
+missed in this repository. Each case's scaffold rebuilds a reverted or fixed pull request's
+affected files offline from `evals/fixtures/`, and its regex grader reports the bug found or
+missed at the file and line of the rebuilt files. Each `case.yaml` records the pull request, its
+base commit, the bug's `file:line`, the fix and who confirmed the location. The lane's other
+findings on that pull request stay in the run output and are not graded.
+
+A pull request that changes a review lane's prompt, model or effort cites the recall score before
+and after the change: the number of `recall-*` cases found, from the same command run on the base
+and on the change:
+
+```bash
+claude plugin eval plugins/review --case 'recall-*' --scaffold --ablation none --runs 1 --max-cost-usd <usd>
+```
+
 ## Requirements
 
 - **git**. Every reviewer works from diffs, branches, and history.
@@ -226,19 +243,33 @@ Three supported routes:
 
 1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
    `/plugin configure review@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure review@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"connected_page_guard_enabled": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install review@<marketplace> -s <scope> --config connected_page_guard_enabled=<value>
    ```
-
-   Rerun the same command to change a value on an installed plugin, passing the scope
-   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
-   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
-   value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -264,6 +295,7 @@ of the routes above.
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

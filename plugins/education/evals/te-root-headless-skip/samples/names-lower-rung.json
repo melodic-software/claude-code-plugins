@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Resolved root: the plugin data directory (`${CLAUDE_PLUGIN_DATA}`), rung 5.",
+      "why": "plugin data fallback"
+    },
+    {
+      "answer": "Resolved root: `~/Documents/Claude Learning`, the OS Documents default.",
+      "why": "Documents default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't pick a root until you tell me where you want it.",
+      "why": "names no rung or root"
+    }
+  ]
+}

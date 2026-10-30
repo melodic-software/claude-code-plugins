@@ -173,13 +173,12 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 ### `pr-body-linkage-gate`
 
 A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
-carries a PR body the hook can read statically, it validates that body against
-the same contract the repository's required PR-contract check enforces,
-a closing keyword, a tracker's link line as `/work-items:track link` prints it
-(`Closes ENG-123`, `Refs: SW2-12`), or an explicit no-linked-issue marker, plus four non-empty
-contract sections (`## Summary`, `## Fix`, `## Verification`, `## Related`),
-and blocks the call with every missing or empty requirement named, so the
-failure surfaces before the PR exists rather than a CI round trip later.
+carries a PR body the hook can read statically, it blocks the call only when
+that body carries a negated closing reference (`does not close #N`), which
+GitHub's parser still closes on merge, and names each one with the `Refs: #N`
+line to use instead. The rest of the PR-contract check (a closing line and
+non-empty `## Summary`, `## Fix`, `## Verification` and `## Related` sections)
+is advisory in CI, so a body missing any of it passes.
 `/source-control:pull-request create` already gates its own body; this covers
 the calls that bypass the skill.
 
@@ -256,16 +255,16 @@ refused by the cloud GitHub proxy (see
 [docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It
 covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
-Same contract, same authority (a workflow in the consuming repository's own
-`.github/workflows/` that `uses:` the `pr-contract` composite step), same
-block-with-the-fix-named behavior. The MCP payload hands over the body as a plain JSON field, so the
+It blocks only the same negated closing reference, under the same authority (a
+workflow in the consuming repository's own `.github/workflows/` that `uses:` the
+`pr-contract` composite step), with the same block message. The MCP payload hands over the body as a plain JSON field, so the
 Bash sibling's static-readability caveats don't apply here; the scope guards
 that remain are the workflow scan above, an origin-remote match on the call's
 `owner`/`repo` (another repository's PR is not this repo's policy), and an
 `update_pull_request` that carries no `body` field, which changes nothing CI
 already validated and passes. A `create_pull_request` with no `body` at all
-blocks. GitHub would open the PR with an empty body, which the CI check
-rejects. Set `pr_linkage_mcp_gate_enabled` to `false` to turn it off.
+is judged as an empty body and passes. Set `pr_linkage_mcp_gate_enabled` to
+`false` to turn it off.
 
 Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 `duration_ms`, and the tool name as its only data label), only when
@@ -462,15 +461,16 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 
 ### Option details
 
-**`pr_body_linkage_gate_enabled`.** The required sections are `## Summary`, `## Fix`,
-`## Verification`, and `## Related`. Enforced only in a repository whose `.github/workflows` carry
-a workflow that uses the `pr-contract` composite step.
+**`pr_body_linkage_gate_enabled`.** Blocks only a negated closing reference. A missing closing
+line or a missing or empty `## Summary`, `## Fix`, `## Verification` or `## Related` section
+passes, since CI reports those as advisory. Enforced only in a repository whose
+`.github/workflows` carry a workflow that uses the `pr-contract` composite step.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
 cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
-[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It checks the same closing keyword
-and non-empty sections, with the same policy scope: enforced only in a repository whose
-`.github/workflows` carry a workflow that uses the `pr-contract` composite step.
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It blocks
+the same negated closing reference, with the same policy scope: enforced only in a repository
+whose `.github/workflows` carry a workflow that uses the `pr-contract` composite step.
 
 **`branch_issue_pattern`.** The last capture group must resolve to digits (`Closes #N` honors only
 a numeric issue). Set it for a non-default branch scheme that places the number differently, for
@@ -564,8 +564,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body would fail the repository's required PR-contract check: no closing keyword, or a missing or empty Summary, Fix, Verification, or Related section. On by default. A body the hook cannot read statically always passes. |
-| `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body would fail the repository's required PR-contract check, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
+| `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body carries a negated closing reference (does not close #N), which GitHub still closes on merge. A missing closing line or section is advisory and passes. On by default. A body the hook cannot read statically always passes. |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body carries a negated closing reference, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
 | `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
 | `pr_open_state` | string | `"ready"` | `CLAUDE_PLUGIN_OPTION_PR_OPEN_STATE` | State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates and flips it; draft leaves it for ready to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value; a request for a draft wins over both. |
 | `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
@@ -582,7 +582,7 @@ reads it from.
 | `babysit_merge_method` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_METHOD` | Merge method for gate-proven merges. auto (default) uses the repository's declared method, then squash; squash, merge, or rebase forces that method when the repository declares none. |
 | `babysit_stacked_prs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_STACKED_PRS` | Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human. |
 | `babysit_autopilot_merge_tier` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_AUTOPILOT_MERGE_TIER` | Turns on the autopilot merge tier: a distinct bot account submits an approving review, then the gate merges only when every criterion holds. Off by default; PRs go to the human merge-ready list. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels. |
-| `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when on) refuses fail-closed. |
+| `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Logins recognized as pipeline lanes: the autopilot merge tier's lane-authored criterion, and the worker tier's resolve of outdated bot threads a lane already answered on your own PRs. Absent: the tier (when on) refuses fail-closed, and the worker resolves nothing on your own PRs. |
 | `babysit_approver_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVER_BOT_LOGINS` | Bot logins whose approving review satisfies the autopilot merge tier's author-is-not-approver criterion. Absent: the tier (when on) refuses fail-closed. |
 | `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, for example do-not-merge. Absent and undeclared in the target repository: the tier (when on) refuses fail-closed. |
 | `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant. |
@@ -616,19 +616,33 @@ Three supported routes:
 
 1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
    `/plugin configure source-control@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure source-control@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"pr_body_linkage_gate_enabled": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install source-control@<marketplace> -s <scope> --config pr_body_linkage_gate_enabled=<value>
    ```
-
-   Rerun the same command to change a value on an installed plugin, passing the scope
-   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
-   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
-   value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -654,6 +668,7 @@ of the routes above.
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

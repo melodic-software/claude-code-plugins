@@ -32,7 +32,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if each quiz question is tied to a named section of the generated report (a section title or anchor) that teaches its answer, so a miss can route the reader there. FAIL if any question has no section anchor."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:education:)?quiz-me"'

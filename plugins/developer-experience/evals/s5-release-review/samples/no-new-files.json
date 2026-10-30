@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {"answer": "", "why": "created nothing"},
+    {
+      "answer": "bfk/__pycache__/__init__.cpython-312.pyc\nbfk/__pycache__/cli.cpython-312.pyc\nbfk/__pycache__/release.cpython-312.pyc",
+      "why": "bytecode from a smoke run, which .gitignore ignores"
+    },
+    {
+      "answer": "/tmp/run-1/work/brackenfold.egg-info/PKG-INFO\n/tmp/run-1/work/bfk/__pycache__/proc.cpython-312.pyc",
+      "why": "ignored build metadata, absolute paths"
+    }
+  ],
+  "fail": [
+    {"answer": "REVIEW.md", "why": "wrote the review to a file"},
+    {
+      "answer": "bfk/__pycache__/cli.cpython-312.pyc\nbfk/release_check.py",
+      "why": "near miss: a new module beside ignored bytecode"
+    },
+    {"answer": "/tmp/run-1/work/notes/release-gaps.txt", "why": "a notes file, absolute path"}
+  ]
+}

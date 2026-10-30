@@ -47,7 +47,7 @@ plan or a `/review:quality-gate downstream` pass, as LOW, MEDIUM, HIGH, or CRITI
 ## The keys and their layers
 
 Layers resolve per the
-[config-cascade convention](config-cascade/README.md), per-key override, a later layer replacing
+[config-cascade convention](../contracts/config-cascade/README.md), per-key override, a later layer replacing
 an earlier one key by key:
 
 1. user-global `~/.claude/review-digest.json`
@@ -73,7 +73,7 @@ is reported and ignored. Lists replace whole. No key is policy-floor: each one o
 reader is offered a view.
 
 Where a built page goes is the `medium` key of the
-[rendered-views concern](rendered-views/README.md#the-rendered-views-cascade-concern), not a key
+[rendered-views concern](../contracts/rendered-views/README.md#the-rendered-views-cascade-concern), not a key
 here. The skill's shipped default is `artifact`, so with no layer setting `medium` the page is
 published as a private Artifact on claude.ai, but only when the repository's visibility is
 `PUBLIC` and no hunk looks like a credential. Otherwise the page stays a local file and the reader

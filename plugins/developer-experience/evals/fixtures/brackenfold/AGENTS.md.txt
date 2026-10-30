@@ -1,0 +1,9 @@
+# brackenfold
+
+Python 3 package `bfk` (standard library only): `bfk/cli.py` is the `bfk` command, `data/accounts.jsonl`
+is the account store, `tests/` holds `unittest` cases.
+
+## Build and test
+
+- Test: `make test` (runs `scripts/run_tests.sh`).
+- Run the CLI: `python3 -m bfk.cli <command>`.

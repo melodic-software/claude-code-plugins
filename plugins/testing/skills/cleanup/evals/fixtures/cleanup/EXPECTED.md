@@ -46,7 +46,7 @@ With the rewrite applied and the deletion not approved, the replay loses none of
 A lost kill: in a batch whose only change is `test_small_order_pays_tax_without_discount` asserting
 `self.assertGreater(price_with_tax(50), 0)`, the line 7 and line 9 mutants survive the replay,
 `Gate: block`, and the candidate change listed for both is `shop_tests/test_pricing.py`, the
-batch's changed test that imports `shop/pricing.py`. When the rewrite of `test_price_is_consistent`
+batch's changed test that reaches `shop/pricing.py`. When the rewrite of `test_price_is_consistent`
 is in the same batch, it kills those mutants too and the gate passes: the gate compares sets.
 
 On `shop_scripts`, the manual protocol's statement removals give two mutants in

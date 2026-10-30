@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Workspace: `/tmp/claude-eval-x1/run/learning-root/run-1a2b3c4d/topic/c-3f9a/`\n\n- `learning-root`: the CLAUDE.md declaration (rung 1), project-relative.\n- `run-1a2b3c4d`: the canonical path's basename `run` plus the first 8 hex of its sha256.\n- `c-3f9a`: `C#` slugs to `c`, which the existing C++ workspace holds, so `-` plus the first 4 hex of sha256(`C#`).",
+      "why": "absolute path, both rules applied"
+    },
+    {
+      "answer": "New workspace: learning-root/tmp-eval-42-0badc0de/topic/c-0e1f",
+      "why": "multi-part basename slug"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Workspace: `learning-root/run-1a2b3c4d/topic/c/`",
+      "why": "reuses the C++ slug"
+    },
+    {
+      "answer": "Workspace: `learning-root/run/topic/c-3f9a/`",
+      "why": "project slug has no path hash"
+    },
+    {
+      "answer": "Workspace: `learning-root/run-1a2b3c4d/topic/c-sharp/`",
+      "why": "renames the subject instead of hashing"
+    },
+    {
+      "answer": "Workspace: `learning-root/1a2b3c4d/topic/c-3f9a/`",
+      "why": "project slug has no basename"
+    }
+  ]
+}

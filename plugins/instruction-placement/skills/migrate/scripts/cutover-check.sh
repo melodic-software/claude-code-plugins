@@ -351,7 +351,7 @@ condition_1() {
       id="${id##*,}"
       [[ -n "$id" ]] || continue
       esc="$(printf '%s' "$id" | sed 's/[$]/\\$/g')"
-      printf '%s' "$window" | grep -qE "isOnByDefault:\(\)=>${esc}([^A-Za-z0-9_\$]|$)" || {
+      grep -qE "isOnByDefault:\(\)=>${esc}([^A-Za-z0-9_\$]|$)" <<<"$window" || {
         note "bundle offset $off: registration names $id, but no isOnByDefault export ties to it"
         continue
       }
@@ -417,7 +417,7 @@ condition_1() {
     # still ties AGENTS.md to a flag somewhere else: a moved bullet and a
     # deleted one look identical from inside one section.
     # Case-sensitive and bounded, so a sub-agents.md link is not a match.
-    if grep -E '(^|[^[:alnum:]_.-])AGENTS\.md' "$ev" 2>/dev/null | grep -qiE 'flag'; then
+    if grep -qiE 'flag' < <(grep -E '(^|[^[:alnum:]_.-])AGENTS\.md' "$ev" 2>/dev/null); then
       unreach "the AGENTS.md bullet left the list, but the page still ties AGENTS.md to a flag elsewhere; a moved bullet reads the same as a removed one"
       return 2
     fi

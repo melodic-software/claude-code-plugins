@@ -21,6 +21,8 @@
 // `label`, `created_at`, `updated_at`. Text written by anyone but those
 // authors is never read.
 
+import { readFileSync } from "node:fs";
+
 import { escalationActivity } from "./escalation-routes.mjs";
 
 export const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
@@ -31,14 +33,14 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 // address-feedback's round record (publish-feedback.mjs), posted by the lanes
 // App after each round it works on an escalated PR.
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
-const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
+export const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
 export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 // report-escalation.sh's comment for a fail-routed stop, one per activity,
 // edited in place; it adds no label.
 export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
 // A review lane's hold comment opens a line with this marker.
 const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
-const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
+export const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
 // check-signed-commits' escalation comment opens with this line; its report
 // job posts it with GITHUB_TOKEN, as github-actions[bot].
@@ -67,33 +69,70 @@ export function laneHold(item) {
 // Issue comments (REST) as timeline items.
 export const commentItems = (comments) => comments.map((comment) => ({ event: "commented", ...comment }));
 
-// The newest `labeled` event for `label`, when it was, and when the label was
-// last removed at or before it (-Infinity when never).
-export function labelHistory(timeline, label) {
-  const labeled = timeline.filter((item) => item.event === "labeled" && same(item.label?.name, label)).at(-1);
+// The review lanes' accounts: their `labeled` event of the human-gated label
+// is a hold, as ci-status reads one (pr-require-checks.yml, "Fail a review-lane
+// hold an untrusted account lifted").
+const REVIEW_BOTS = ["claude[bot]", "github-actions[bot]"];
+
+// The `human` ids of the base's trusted-actor list, read once. An unreadable
+// list is empty, so no removal lifts a hold.
+let trustedHumanIds;
+export function trustedHumans() {
+  if (trustedHumanIds === undefined) {
+    try {
+      const list = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+      trustedHumanIds = new Set(list.actors.filter((actor) => actor?.kind === "human" && Number.isSafeInteger(actor.id)).map((actor) => actor.id));
+    } catch {
+      trustedHumanIds = new Set();
+    }
+  }
+  return trustedHumanIds;
+}
+
+// The item with the newest created_at, whatever the list order; a later item
+// wins a tie, and one whose time does not parse wins over the one kept.
+const newest = (items) =>
+  items.reduce((kept, item) => (kept === undefined || !(Date.parse(item.created_at) < Date.parse(kept.created_at)) ? item : kept), undefined);
+
+// For `label`: the newest `labeled` event and when it was; when a person on the
+// trusted list (`trusted`, a set of ids) last removed it at or before then
+// (-Infinity when never), directly and not through an App, as ci-status
+// accepts a lift; and the newest `labeled` event by a review lane's account,
+// which ci-status counts as a hold.
+export function labelHistory(timeline, label, trusted = trustedHumans()) {
+  const events = timeline.filter((item) => same(item.label?.name, label));
+  const labeled = newest(events.filter((item) => item.event === "labeled"));
   const since = Date.parse(labeled?.created_at ?? "");
   const lifted = Math.max(
     -Infinity,
-    ...timeline
-      .filter((item) => item.event === "unlabeled" && same(item.label?.name, label))
+    ...events
+      .filter((item) => item.event === "unlabeled" && trusted.has(item.actor?.id) && !item.performed_via_github_app)
       .map((item) => Date.parse(item.created_at))
       .filter((time) => time <= since),
   );
-  return { labeled, since, lifted };
+  const reviewLabeled = newest(events.filter((item) => item.event === "labeled" && REVIEW_BOTS.some((bot) => isApp(item.actor, bot))));
+  return { labeled, since, lifted, reviewLabeled };
 }
 
-// A review lane's hold comment written or edited since the label was last
-// removed (ever, when it never was): a person removing the label lifts it.
-export function openReviewHold(timeline, lifted) {
-  return timeline.find(
-    (item) => laneHold(item) !== undefined && !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
-  );
+// When a timeline item was last written: created, or edited later.
+const writtenAt = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+
+// A review lane's hold written or edited since the label was last lifted
+// (ever, when it never was): its hold comment, or else `reviewLabeled`
+// (labelHistory's) when given. A trusted person removing the label lifts it.
+export function openReviewHold(timeline, lifted, reviewLabeled) {
+  const comment = timeline.find((item) => laneHold(item) !== undefined && !(writtenAt(item) < lifted));
+  return comment ?? (reviewLabeled !== undefined && !(writtenAt(reviewLabeled) < lifted) ? reviewLabeled : undefined);
 }
+
+// What an openReviewHold result shows: the hold comment's marker, or who
+// added the label.
+export const holdText = (item) => laneHold(item) ?? `${item.label?.name} added by ${item.actor?.login ?? "an unknown account"}`;
 
 // check-signed-commits' escalation comment written or edited since the label
 // was last removed (ever, when it never was): its first line is
 // SIGNED_COMMITS_HOLD and github-actions[bot] wrote it. The marker in anyone
-// else's comment is never read; a person removing the label lifts it.
+// else's comment is never read; a trusted person removing the label lifts it.
 export function openSignedCommitsHold(timeline, lifted) {
   return timeline.find(
     (item) =>
@@ -127,23 +166,26 @@ export function foreignMarker(appComments, since, known) {
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
 //   marker on its comments since is that escalation's or an address-feedback
 //   round's;
-// - "unknown" for anything else, an unparsable hold or escalation marker
-//   included. Only "lane-escalation" lets a caller work the PR.
-export function gateSource({ timeline, label, head, isLanesApp }) {
+// - "unknown" for anything else, an unparsable hold marker that is open or
+//   names `head`, or an unparsable escalation marker, included. Only
+//   "lane-escalation" lets a caller work the PR.
+// `trusted` is labelHistory's: the ids whose removal of the label lifts a hold.
+export function gateSource({ timeline, label, head, isLanesApp, trusted }) {
   const result = (source, reason) => ({ source, reason });
+  const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted);
   const holds = timeline.filter((item) => laneHold(item) !== undefined);
-  const unparsable = holds.find((item) => !HOLD_LINE.test(laneHold(item)));
+  // A lifted hold on an older head holds nothing, whatever its marker says.
+  const unparsable = holds.find((item) => !HOLD_LINE.test(laneHold(item)) && (!(writtenAt(item) < lifted) || laneHold(item).includes(`sha=${head}`)));
   if (unparsable !== undefined) {
     return result("unknown", `a review-lane hold marker does not parse: ${laneHold(unparsable).slice(0, 120)}`);
   }
-  const atHead = holds.find((item) => HOLD_LINE.exec(laneHold(item))[1] === head);
+  const atHead = holds.find((item) => HOLD_LINE.exec(laneHold(item))?.[1] === head);
   if (atHead !== undefined) {
     return result("review-hold", `a review lane holds head ${head}`);
   }
-  const { labeled, since, lifted } = labelHistory(timeline, label);
-  const open = openReviewHold(timeline, lifted);
+  const open = openReviewHold(timeline, lifted, reviewLabeled);
   if (open !== undefined) {
-    return result("review-hold", `a review lane's hold is open: ${laneHold(open).slice(0, 120)}`);
+    return result("review-hold", `a review lane's hold is open: ${holdText(open).slice(0, 120)}`);
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
@@ -176,7 +218,7 @@ const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
 export { escalationActivity, escalationRoute, ROUTES } from "./escalation-routes.mjs";
 
-const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
+export const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
 // The aggregate of the others: fixing them fixes it. It also fails on a hold
 // label, so it never stands for the head's CI.
 const AGGREGATE = "ci-status";
@@ -185,11 +227,8 @@ const AGGREGATE = "ci-status";
 const SILENT = new Set(["skipped", "neutral"]);
 const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
 
-// The latest run of each check name that is not a skip, when it failed or was
-// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
-// dispatcher reads a cancelled head through it too, so the two agree, and
-// clear-escalations reads a fix-ci stop's head through it.
-export function failingChecks(checkRuns) {
+// The latest run of each check name, a real result over a skip: name -> run.
+export function latestRuns(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
@@ -197,7 +236,15 @@ export function failingChecks(checkRuns) {
       latest.set(run.name, run);
     }
   }
-  return [...latest.values()]
+  return latest;
+}
+
+// The latest run of each check name that is not a skip, when it failed or was
+// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
+// dispatcher reads a cancelled head through it too, so the two agree, and
+// clear-escalations reads a fix-ci stop's head through it.
+export function failingChecks(checkRuns) {
+  return [...latestRuns(checkRuns).values()]
     .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
     .sort((a, b) => a.id - b.id);
 }
@@ -347,6 +394,9 @@ const LABEL_EVENTS_QUERY = `query($owner: String!, $name: String!, $number: Int!
 }`;
 const LABEL_EVENT_PAGES = 20;
 
+// GraphQL names a Bot by its login without the `[bot]` suffix REST gives it.
+const restLogin = (actor) => (actor?.__typename === "Bot" && actor.login && !actor.login.endsWith("[bot]") ? `${actor.login}[bot]` : actor?.login);
+
 // A PR's label events as REST timeline items, read with `graphql(query,
 // variables)`, which a pull-requests: read token may do.
 export async function listLabelEvents({ graphql, repository, number }) {
@@ -359,7 +409,7 @@ export async function listLabelEvents({ graphql, repository, number }) {
       ...items.nodes.map((node) => ({
         event: node.__typename === "LabeledEvent" ? "labeled" : "unlabeled",
         label: { name: node.label?.name },
-        actor: { login: node.actor?.login, id: node.actor?.databaseId, type: node.actor?.__typename },
+        actor: { login: restLogin(node.actor), id: node.actor?.databaseId, type: node.actor?.__typename },
         created_at: node.createdAt,
       })),
     );

@@ -12,6 +12,7 @@ const UNIVERSAL_REFUSE = Object.freeze([
   "codeowners",
   "gitmodules",
   "settings",
+  "lane-grants",
   "symlink",
   "gitlink",
   "rename-into-refused",

@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
@@ -53,14 +54,19 @@ from babysit_classify import (
 )
 from babysit_gh import (
     flatten_paginated_items,
+    gh_api_with_headers,
     gh_capture,
     gh_http_status,
+    gh_timeout_seconds,
     is_owner_repo_pair,
     pull_request_commits_once,
     record_pull_request_total,
 )
 from babysit_risk import (
+    AUTHOR_REVIEW_FLOOR,
     FLOOR,
+    HIGH_FLOOR,
+    REVIEW_FLOOR,
     ChangedFile,
     glob_match,
     is_trusted_actors_path,
@@ -113,7 +119,8 @@ BODY_MERGE_HOLD_RE = re.compile(
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 # `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
 # ci-status enforces only in the merge queue: held here, it is never queued.
-MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed")
+# `human-merge-hold` is the lanes App's label on a pull request a person merges.
+MERGE_HOLD_LABELS = ("do-not-merge", "pr-verify-failed", "human-merge-hold")
 # An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
 # none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
@@ -387,8 +394,59 @@ def _split_repo(repo: str) -> tuple[str, str]:
 def _get(endpoint: str, env: Mapping[str, str] | None = None) -> tuple[int | None, Any]:
     """(status, payload): 200 and the JSON on success; on failure the status gh
     reported, or None when it named none. `env` overrides gh's environment."""
+    return _gh_api(["api", endpoint], env)
+
+
+def _get_pages(
+    endpoint: str, env: Mapping[str, str] | None = None
+) -> tuple[int | None, Any]:
+    """`_get` of the activity `endpoint` page by page, one payload entry per
+    page (merge-holds.mjs `branchActivity`): the API ignores `page`, so each
+    next page is `endpoint` plus the `after` cursor of the answer's Link
+    rel="next", as the link spells it; a short page, or one that is no list,
+    ends the read. A failed read on any page gives its status and None. A full
+    page with no next link, a next link with no new cursor, or a full
+    ACTIVITY_PAGES-th page raises with no further read. The pages share the
+    one timeout a single call gets."""
+    deadline = time.monotonic() + gh_timeout_seconds()
+    pages: list[Any] = []
+    cursors: set[str] = set()
+    path = endpoint
+    while len(cursors) < ACTIVITY_PAGES:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return None, None
+        try:
+            proc, headers = gh_api_with_headers(
+                ["api", path], timeout_seconds=left, env_overrides=env
+            )
+        except (RuntimeError, ValueError, OSError):
+            return None, None
+        if proc.returncode != 0:
+            return gh_http_status(proc.stderr or ""), None
+        try:
+            page = json.loads(proc.stdout) if proc.stdout.strip() else None
+        except ValueError:
+            return None, None
+        pages.append(page)
+        if not is_json_array(page) or len(page) < 100:
+            return 200, pages
+        following = re.search(r'<([^>]*)>;\s*rel="next"', headers.get("link", ""))
+        if following is None:
+            raise PolicyReadError(
+                "the branch's push history has a full page with no next link"
+            )
+        after = re.search(r"[?&]after=([^&#]+)", following[1])
+        if after is None or after[1] in cursors:
+            raise PolicyReadError("the branch's push history names no new page")
+        cursors.add(after[1])
+        path = f"{endpoint}&after={after[1]}"
+    raise PolicyReadError(f"the branch's push history runs past {ACTIVITY_PAGES} pages")
+
+
+def _gh_api(args: list[str], env: Mapping[str, str] | None) -> tuple[int | None, Any]:
     try:
-        proc = gh_capture(["api", endpoint], **({"env_overrides": env} if env else {}))
+        proc = gh_capture(args, **({"env_overrides": env} if env else {}))
     except (RuntimeError, ValueError, OSError):
         return None, None
     if proc.returncode != 0:
@@ -577,6 +635,10 @@ class PipelineConfig:
     # cap (`max_changed_lines` None: no line cap); a value other than true or
     # false turns a switch on. The local babysit lane ignores them.
     high_path_floor: bool = False
+    # `merge.diff-check.path-holds`: absent or false, no changed path holds
+    # a pull request for its path alone (owner decision Q15); true restores
+    # the path floor, the configured denied paths and `review-path:`.
+    path_holds: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
@@ -821,6 +883,7 @@ def read_config_at(
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.max-changed-files", False),
             ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.path-holds", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
@@ -869,6 +932,7 @@ def read_config_at(
         return value not in (None, "false")
 
     high_path_floor = switch("merge.diff-check.high-path-floor")
+    path_holds = switch("merge.diff-check.path-holds")
     if scalar("merge.diff-check.c2-contradictions") not in (None, "false"):
         notes.append(
             "merge.diff-check.c2-contradictions is retired and has no effect:"
@@ -983,6 +1047,7 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        path_holds=path_holds,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
@@ -1058,6 +1123,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
+        path_holds=base.path_holds or main.path_holds,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
@@ -1128,6 +1194,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.report_only,
                     c.require_verifier_verdict,
                     c.high_path_floor,
+                    c.path_holds,
                 )
             )
             and c.dependabot_mode in DEPENDABOT_MODES
@@ -1200,6 +1267,32 @@ def with_default_branch(
     when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
+def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
+    """`merge.agent-identity` when the pull request's base commit and the
+    default branch head both declare the same one, with where it was read.
+    Never the head branch: a person merges `CONFIG_PATH`, so a value that
+    widens what the worker may resolve comes only from reviewed config.
+    None, with the reason, when either side is unset, they differ, or a read
+    fails, so the caller keeps its refusal."""
+    try:
+        base = config_at(repo, base_sha)
+        if base.error:
+            return None, f"{CONFIG_PATH} at the base {base_sha}: {base.error}"
+        main = _default_branch_config(repo)
+    except PolicyReadError as exc:
+        return None, str(exc)
+    keys = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
+    if "" in keys or len(keys) != 1:
+        return None, (
+            f"merge.agent-identity is {base.agent_identity!r} at the base {base_sha} "
+            f"and {main.agent_identity!r} at the default branch head {main.base_sha}"
+        )
+    return base.agent_identity, (
+        f"merge.agent-identity in {CONFIG_PATH} at the base {base_sha} and the "
+        f"default branch head {main.base_sha}"
+    )
+
+
 
 
 # --- Effective rung ---------------------------------------------------------------
@@ -2394,17 +2487,15 @@ def decided_head(notices: Collection[tuple[str, Any]], at: Any) -> str | None:
 def unran_head(activity: Any, ran: Any, decided: str, at: Any) -> str | None:
     """Why the head branch's push history shows a lane run missing before a
     decision made at `at`, else None (merge-holds.mjs `unranHead`, and
-    ci-status's cost-hold step). `activity` is one page of the repository
-    activity API for the branch, newest first, which deleting a run leaves;
-    `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-    `at`. Every head the branch moved to after its last push of `decided`
-    before `at` needs a run of every lane: with one deleted, an older notice
-    would become the decided head (#10437). No push of `decided` before `at`
-    or a full page, which may not reach it, keeps the hold too."""
+    ci-status's cost-hold step). `activity` is the repository activity API for
+    the branch read to its end (`branch_activity`), newest first, which
+    deleting a run leaves; `ran` lists, per REVIEW_LANES entry, the heads of
+    its runs started before `at`. Every head the branch moved to after its
+    last push of `decided` before `at` needs a run of every lane: with one
+    deleted, an older notice would become the decided head (#10437). No push
+    of `decided` before `at` keeps the hold too."""
     if not is_json_array(activity):
         return "the branch's push history is unreadable"
-    if len(activity) >= 100:
-        return "the branch's push history fills a page"
     if (
         not is_json_array(ran)
         or len(ran) != len(REVIEW_LANES)
@@ -2509,12 +2600,41 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     if decided is None:
         return None
     ref = quote(f"refs/heads/{branch}", safe="")
-    status, activity = _get(
+    status, pages = _get_pages(
         f"repos/{owner}/{name}/activity?ref={ref}&direction=desc&per_page=100", env
     )
     if status != 200:
         raise PolicyReadError("the head branch's push history is unreadable")
+    activity = branch_activity(pages)
     return decided if unran_head(activity, ran, decided, at) is None else None
+
+
+ACTIVITY_PAGES = 20
+
+
+def branch_activity(pages: Any) -> list[Any] | None:
+    """The head branch's activity from `_get_pages`' one entry per page, newest
+    first, read to its end (merge-holds.mjs `branchActivity`): the API keeps a
+    branch name's history across deletions, so a name recreated for each sync
+    fills any one page. Only a short page ends the history, so a full last
+    page raises, as does more than ACTIVITY_PAGES pages; `_get_pages` raises
+    both before reading on. No page, or a page that is no list, gives
+    None (`unran_head`'s unreadable)."""
+    if (
+        not is_json_array(pages)
+        or not pages
+        or not all(is_json_array(page) for page in pages)
+    ):
+        return None
+    if len(pages) > ACTIVITY_PAGES:
+        raise PolicyReadError(
+            f"the branch's push history runs past {ACTIVITY_PAGES} pages"
+        )
+    if len(pages[-1]) >= 100:
+        raise PolicyReadError(
+            "the branch's push history has a full page with no next link"
+        )
+    return [move for page in pages for move in page]
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2696,6 +2816,64 @@ def _same_modes(merges: Any, trees: Any) -> bool:
     return True
 
 
+# The code a hold-path file loads that is no hold path itself (merge-holds.mjs
+# CARRY_REFUSES, the same list): a push that touches one stops an approval
+# carrying (`ungated_since`); test_merge_holds_sync.py derives that closure.
+CARRY_REFUSES: tuple[str, ...] = (
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".github/scripts/**",
+    ".github/standards/**",
+    "docs/conventions/pr-pipeline/**",
+    "scripts/**",
+    "lib/**",
+    "plugins/source-control/skills/babysit-prs/scripts/**",
+    "plugins/performance/scripts/**",
+    "plugins/harness-ops/skills/inventory/scripts/**",
+    "plugins/ai-briefing/skills/generate/scripts/**",
+    "plugins/harness-config/skills/audit-permission-state/scripts/**",
+    "plugins/knowledge/skills/course-digest/scripts/**",
+    "plugins/knowledge/skills/video-digest/scripts/**",
+    "plugins/skill-quality/scripts/**",
+    "plugins/source-control/scripts/**",
+    "plugins/testing/skills/check-visual-parity/scripts/**",
+    ".github/recurring-schedule.json",
+    "plugins/evals/skills/validate/scripts/**",
+    "plugins/testing/evals/browser-probe/**",
+    "plugins/work-items/scripts/**",
+)
+
+
+def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
+    """Whether the compare start...H' `merges` touches no hold path and no
+    file a hold path loads, old paths of renames included (merge-holds.mjs
+    `ungatedSince`): `hold_paths` and HIGH_FLOOR, REVIEW_FLOOR and
+    CARRY_REFUSES. H' ahead with nothing behind, its commit list read whole
+    and fewer than the compare API's 300 files listed, each named."""
+    compare = json_object(merges)
+    files = compare.get("files")
+    if (
+        hold_paths is None
+        or compare.get("status") != "ahead"
+        or compare.get("behind_by") != 0
+        or _listed_commits(compare) is None
+        or not is_json_array(files)
+        or len(files) >= 300
+    ):
+        return False
+    paths: list[str] = []
+    for f in files:
+        name = json_object(f).get("filename")
+        if not isinstance(name, str):
+            return False
+        paths.append(name)
+        previous = json_object(f).get("previous_filename")
+        if isinstance(previous, str):
+            paths.append(previous)
+    globs = (*HIGH_FLOOR, *hold_paths, *REVIEW_FLOOR, *CARRY_REFUSES)
+    return not any(glob_match(g, p) for g in globs for p in paths)
+
+
 def approval_carry(
     then: Any,
     now: Any,
@@ -2705,22 +2883,34 @@ def approval_carry(
     based: Any,
     dismissal: str | None = None,
     trees: Any = None,
+    hold_paths: Sequence[str] | None = None,
 ) -> bool:
     """Whether an approval of `start` carries to the head `now` was read at
-    (merge-holds.mjs `approvalCarry`): every commit since is a merge of the
-    base (`base_merges_only`), and the net change is the same
-    (`same_net_change`) or the merges brought exactly the base's changes
-    (`exact_base_carry` over `merges`, `based` and `trees`, None when not
-    read). An approval GitHub dismissed as stale (`auto_dismissed`) passes
-    its `dismissal` commit, which must be one of the commits pushed since
-    `start`."""
-    if not base_merges_only(then, now, start, in_base):
-        return False
-    if dismissal is not None and not any(
-        json_object(c).get("sha") == dismissal for c in _new_commits(then, now) or ()
-    ):
-        return False
-    return same_net_change(then, now) or exact_base_carry(merges, based, trees)
+    (merge-holds.mjs `approvalCarry`), by either of two paths: every commit
+    since is a merge of the base (`base_merges_only`), and the net change is
+    the same (`same_net_change`) or the merges brought exactly the base's
+    changes (`exact_base_carry` over `merges`, `based` and `trees`, None when
+    not read); or, the owner's decision Q10 of 2026-10-28, `merges` (the
+    compare start...H') touches no hold path (`ungated_since`; None
+    `hold_paths` skips this path). An approval GitHub dismissed as stale
+    (`auto_dismissed`) passes its `dismissal` commit, which must be one of
+    the commits pushed since `start`."""
+
+    def pushed(commits: Any) -> bool:
+        return dismissal is None or any(
+            json_object(c).get("sha") == dismissal for c in commits or ()
+        )
+
+    merged = (
+        base_merges_only(then, now, start, in_base)
+        and pushed(_new_commits(then, now))
+        and (same_net_change(then, now) or exact_base_carry(merges, based, trees))
+    )
+    return merged or (
+        hold_paths is not None
+        and ungated_since(merges, hold_paths)
+        and pushed(_listed_commits(json_object(merges)))
+    )
 
 
 def _review_key(value: Any) -> str | None:
@@ -2845,6 +3035,7 @@ def carried_lifters(
     pr: Mapping[str, Any],
     reviews: Sequence[Any],
     humans: Collection[int],
+    hold_paths: Sequence[str] | None = None,
 ) -> list[str]:
     """The trusted people whose approval (`lifts_of` over the REST `reviews`)
     is of the pull request's head or carries to it over merges of its base
@@ -2943,6 +3134,18 @@ def carried_lifters(
                 merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
                 trees = [tree(sha), tree(end)]
             if approval_carry(then, now, lifted, in_base, merges, based, dismissal, trees):
+                lifters.add(login)
+                continue
+            # Q10's path reads start...H' when the base-merge path did not; a
+            # read that fails carries nothing by it.
+            if hold_paths is not None and merges is None:
+                try:
+                    merges = compare(f"{lifted}...{sha}")
+                except PolicyReadError:
+                    merges = None
+            if hold_paths is not None and approval_carry(
+                then, now, lifted, in_base, merges, based, dismissal, trees, hold_paths
+            ):
                 lifters.add(login)
     except PolicyReadError:
         return []
@@ -5034,6 +5237,34 @@ def own_paths(
     )
 
 
+def author_reviewed_paths(
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    humans: Collection[int],
+    verified: bool,
+) -> frozenset[str]:
+    """The `changed` `gate` floor paths (`AUTHOR_REVIEW_FLOOR`) only the
+    author's own commits touched (`foreign_paths`), when a person on the
+    trusted-actor list (`humans`, `trusted_actors`' people) opened the pull
+    request and pr-verify passed its head (`verified`): what
+    `RiskInput.author_reviewed` clears on a clean security review (owner
+    direction 2026-10-27). The lanes App, any other bot, a person off the
+    list, a lane's fix commit on a gate path and commits that do not read
+    get none, so a lane changing its own powers still waits for a person."""
+    user = json_object(pr.get("user"))
+    uid = user.get("id")
+    if not verified or user.get("type") != "User" or type(uid) is not int:
+        return frozenset()
+    if uid not in humans:
+        return frozenset()
+    gate = [p for p in changed if any(glob_match(g, p) for g in AUTHOR_REVIEW_FLOOR)]
+    others = foreign_paths(repo, pr, changed) if gate else frozenset()
+    if others is None:
+        return frozenset()
+    return frozenset(p for p in gate if p not in others)
+
+
 # Manifest and workflow text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
@@ -5860,6 +6091,8 @@ def assess(
                 trusted = trusted_actors(repo, head, exclude=skip)
             except (PolicyReadError, StopReadError):
                 pass
+        # Its people, for the gate-path lift (`author_reviewed_paths`).
+        inputs["trusted_humans"] = trusted[1]
         # Read again right before the enqueue (`recheck_lane_issue`).
         inputs["issue_holds"] = issue_hold_labels(config, human_gated)
         eligible = lane_eligibility(

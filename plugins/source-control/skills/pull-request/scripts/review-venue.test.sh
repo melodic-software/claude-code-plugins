@@ -21,8 +21,8 @@ STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 # The repository's run listing page N comes from $TEST_TMPDIR/page-N.json, a
 # lane workflow's runs from $TEST_TMPDIR/wf-<id>.json, a run's jobs from
-# jobs-<run-id>.json and a job's annotations from ann-<job-id>.json; a missing
-# file fails.
+# jobs-<run-id>.json, a job's annotations from ann-<job-id>.json and a commit's
+# check runs page N from checks-N.json; a missing file fails.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
@@ -37,6 +37,11 @@ case "\$2" in
     id="\${2#*/check-runs/}"; id="\${id%%/*}"
     [[ -f "$TEST_TMPDIR/ann-\$id.json" ]] || exit 1
     cat "$TEST_TMPDIR/ann-\$id.json"
+    ;;
+  */commits/*/check-runs\?*)
+    page="\${2##*page=}"
+    [[ -f "$TEST_TMPDIR/checks-\$page.json" ]] || exit 1
+    cat "$TEST_TMPDIR/checks-\$page.json"
     ;;
   */actions/runs\?*)
     page="\${2##*page=}"
@@ -116,7 +121,21 @@ wf() {
 # wf_state <id> <state> -> the workflow's state, as GET .../actions/workflows/<id> returns it
 wf_state() { jq -nc --arg s "$2" '{state: $s}' >"$TEST_TMPDIR/wfmeta-$1.json"; }
 
-reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json "$TEST_TMPDIR"/wfmeta-*.json "$TEST_TMPDIR"/jobs-*.json "$TEST_TMPDIR"/ann-*.json; }
+# checks <n> <name:status:conclusion[:app-slug]>... -> checks-n.json, the app
+# github-actions unless given; ids rise in call order, so a later spec is newer
+NEXT_CHECK=1
+checks() {
+  local n="$1" spec runs=()
+  shift
+  for spec in "$@"; do
+    IFS=: read -r nm st co app <<<"$spec"
+    runs+=("$(jq -nc --argjson i "$((NEXT_CHECK++))" --arg n "$nm" --arg s "$st" --arg c "$co" --arg a "${app:-github-actions}" \
+      '{id: $i, name: $n, status: $s, conclusion: (if $c == "" then null else $c end), app: {slug: $a}}')")
+  done
+  jq -sc '{check_runs: .}' <<<"$(printf '%s\n' "${runs[@]}")" >"$TEST_TMPDIR/checks-$n.json"
+}
+
+reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json "$TEST_TMPDIR"/wfmeta-*.json "$TEST_TMPDIR"/jobs-*.json "$TEST_TMPDIR"/ann-*.json "$TEST_TMPDIR"/checks-*.json; }
 
 run() {
   : >"$TEST_TMPDIR/calls"
@@ -364,6 +383,114 @@ jq '.[1].message |= "claude-security-review: " + .' "$TEST_TMPDIR/ann-$(((NEXT_R
 out=$(run)
 assert_contains "a lane-prefixed skipped-validation red reaches no verdict" "$out" \
   "security-review ci healthy"
+
+# --head adds a tests line from the head's GitHub Actions check runs named test*.
+HEAD_SHA=0123456789abcdef0123456789abcdef01234567
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "lint-repo:completed:success" "test-bash (0):completed:success" "test-bash (1):completed:success" \
+  "test-python:completed:skipped" "test-node:completed:success"
+out=$(run --head "$HEAD_SHA")
+assert_exit "a head whose test lanes passed exits 0" 0 "$?"
+assert_contains "test lanes that passed on the head are covered by CI" "$out" "tests ci healthy"
+assert_contains "the tests line counts the passing runs" "$out" "3 test-lane check runs succeeded"
+assert_contains "the tests line names each lane once" "$out" "(test-bash, test-node)"
+assert_eq "the tests line comes last" "tests" "$(tail -n1 <<<"$out" | cut -d' ' -f1)"
+assert_contains "every check run on the head is read" "$(cat "$TEST_TMPDIR/calls")" "commits/$HEAD_SHA/check-runs?filter=all"
+
+# A label or body edit re-runs the workflow on the same commit and posts each
+# test lane skipped; that skip must not hide the lane's failure.
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-bash:completed:success" "test-node:completed:failure" "test-bash:completed:skipped" "test-node:completed:skipped"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a newer skip does not hide a failed test lane" "$out" "tests local failing: test-node concluded failure"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-node:completed:failure" "test-node:completed:success" "test-python:completed:neutral"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a re-run that passed replaces its failed attempt, and neutral passes" "$out" "tests ci healthy: 1 test-lane"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "lint-repo:completed:success" "ci-status:completed:success"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a head with no test-lane run is local" "$out" "tests local absent: no test-lane check run"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-bash:completed:skipped" "test-python:completed:skipped" "test-node:completed:skipped"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a draft's skipped test lanes are local" "$out" "tests local absent: every test-lane check run"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-bash (0):completed:success" "test-bash (1):in_progress:" "test-node:queued:"
+out=$(run --head "$HEAD_SHA")
+assert_contains "an unfinished test lane is local" "$out" "tests local pending: 2 of 3"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-bash (0):completed:success" "test-bash (1):completed:failure" "test-node:completed:cancelled"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a failed test lane is local" "$out" "tests local failing: test-bash, test-node concluded cancelled, failure"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+checks 1 "test-bash:completed:failure:some-other-app" "testing-docs:completed:failure" "test-node:completed:success"
+out=$(run --head "$HEAD_SHA")
+assert_contains "only GitHub Actions check runs named test* count" "$out" "tests ci healthy: 1 test-lane"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+full=()
+for _ in $(seq 100); do full+=("lint-repo:completed:success"); done
+checks 1 "${full[@]}"
+checks 2 "test-bash:completed:failure"
+out=$(run --head "$HEAD_SHA")
+assert_contains "a test lane on page 2 of the check runs counts" "$out" "tests local failing: test-bash"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+for n in 1 2 3 4 5; do
+  jq -nc --argjson p "$n" '{check_runs: [range(100) | {id: ($p * 100 + .), name: "test-bash",
+    status: "completed", conclusion: "success", app: {slug: "github-actions"}}]}' >"$TEST_TMPDIR/checks-$n.json"
+done
+out=$(run --head "$HEAD_SHA")
+assert_contains "a check-run listing that may be cut short is local" "$out" "tests local absent: $HEAD_SHA has more than 500 check runs"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+out=$(run)
+assert_not_contains "no --head prints no tests line" "$out" "tests "
+assert_not_contains "no --head reads no check runs" "$(cat "$TEST_TMPDIR/calls")" "check-runs"
+run --head "$HEAD_SHA" >/dev/null 2>&1
+assert_exit "unreadable check runs fail closed" 2 "$?"
+run --head abc123 >/dev/null 2>&1
+assert_exit "a short --head exits 1" 1 "$?"
 
 run --repo 'acme app' >/dev/null 2>&1
 assert_exit "a malformed --repo exits 1" 1 "$?"

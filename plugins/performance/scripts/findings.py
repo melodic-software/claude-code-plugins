@@ -74,6 +74,18 @@ by Read or by a command naming it, is never a repeat. Identical calls where any 
 from the transcript go to unverified_repeated_reads and unverified_repeated_commands instead, since
 a change between them cannot be ruled out.
 
+transcript-counts adds a workflows block only when the Workflow tool started an agent before the
+invocation (subagents/workflows/wf_*/agent-*.jsonl, the same start rule as subagents); otherwise
+the output has no workflows key. The block holds agents, by_workflow (per wf_* directory: agents,
+results, the journal.jsonl records of type result, and wall_ms, earliest to latest timestamp across
+its agents' transcripts, null when none has one, since journal records carry no timestamps), tools
+(the main session's per-tool rules, over the workflow agents' calls made before the invocation) and
+repeated_commands: each Bash command, by full text, run more than once across those calls, shown as
+repeated commands are (repeats that show alike add up), with runs, samples (runs with a timed
+result), p50_ms and p95_ms (null below 2 and 20 samples), max_ms, and peak, the most runs of it
+open at one instant (at least 1); max_ms and peak are null with no sample. They are listed slowest
+first by p95, then p50, then max.
+
 stop-hook-timing reads the `stop_hook_summary` records of a transcript, the whole file, and from
 each only its `hookInfos` entries (`command` and `durationMs`); it skips every other record. An
 entry with a non-negative `durationMs` is a timed sample; one without is counted under `untimed`
@@ -926,6 +938,129 @@ def union_seconds(spans: list[tuple[float, float]]) -> float:
     return total
 
 
+def peak_overlap(spans: list[tuple[float, float]]) -> int:
+    """Most spans open at one instant; a span ending as another starts does not overlap it.
+
+    A zero-length span is still one open run, so any span makes the peak at least 1.
+    """
+    events = sorted([(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans])
+    peak = depth = 0
+    for _, step in events:
+        depth += step
+        peak = max(peak, depth)
+    return max(peak, 1) if spans else 0
+
+
+def agent_calls(records: list[dict]) -> list[dict]:
+    """One agent transcript's tool calls: name, args, error, and at/until when both are stamped."""
+    calls: dict[str, dict] = {}
+    for record in records:
+        stamp = parse_ts(record.get("timestamp"))
+        message = record.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        for block in content if isinstance(content, list) else []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use" and str(block.get("id")) not in calls:
+                args = block.get("input")
+                calls[str(block.get("id"))] = {
+                    "name": str(block.get("name")),
+                    "args": args if isinstance(args, dict) else {},
+                    "at": stamp,
+                }
+            elif block.get("type") == "tool_result":
+                call = calls.get(str(block.get("tool_use_id")))
+                if call is None or "error" in call:
+                    continue
+                call["error"] = bool(block.get("is_error"))
+                if call["at"] is not None and stamp is not None:
+                    call["until"] = stamp
+    return list(calls.values())
+
+
+def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
+    """The Workflow tool's agents that started before cut_at; None when there are none."""
+    runs: dict[str, dict] = {}
+    tools: dict[str, dict[str, int]] = {}
+    waits: dict[str, list[tuple[float, float]]] = {}
+    commands: dict[str, dict] = {}  # full command text -> runs and timed spans
+    for agent in tr.iter_workflow_agents(path):
+        records = list(tr.iter_records(agent.path))
+        stamps = [s for r in records if (s := parse_ts(r.get("timestamp"))) is not None]
+        if cut_at is not None and stamps and stamps[0] >= cut_at:
+            continue
+        run = runs.setdefault(
+            agent.workflow, {"agents": 0, "stamps": [], "dir": agent.path.parent}
+        )
+        run["agents"] += 1
+        run["stamps"] += [min(stamps), max(stamps)] if stamps else []
+        for call in agent_calls(records):
+            # As in the main session, a call made after the invocation belongs to the sweep.
+            if cut_at is not None and call["at"] is not None and call["at"] >= cut_at:
+                continue
+            name, command = call["name"], call["args"].get("command")
+            tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
+            tool["calls"] += 1
+            tool["errors"] += call.get("error", False)
+            span = (call["at"], call["until"]) if "until" in call else None
+            if span:
+                waits.setdefault(name, []).append(span)
+            if name == "Bash" and isinstance(command, str) and not TASK_OUTPUT.search(command):
+                entry = commands.setdefault(command, {"runs": 0, "spans": []})
+                entry["runs"] += 1
+                entry["spans"] += [span] if span else []
+    if not runs:
+        return None
+    for name, spans in waits.items():
+        tools[name]["wait_ms"] = round(union_seconds(spans) * 1000)
+    # Repeats are keyed by full text, then shown; repeats that show alike add up, as merged() does.
+    shown_repeats: dict[str, dict] = {}
+    for command, entry in commands.items():
+        if entry["runs"] > 1:
+            pooled = shown_repeats.setdefault(shown_command(command), {"runs": 0, "spans": []})
+            pooled["runs"] += entry["runs"]
+            pooled["spans"] += entry["spans"]
+    repeated = []
+    for shown, entry in shown_repeats.items():
+        ordered = sorted(end - start for start, end in entry["spans"])
+        n = len(ordered)
+        repeated.append(
+            {
+                "command": shown,
+                "runs": entry["runs"],
+                "samples": n,
+                "p50_ms": round(percentile(ordered, 50) * 1000) if n >= P50_FLOOR else None,
+                "p95_ms": round(percentile(ordered, 95) * 1000) if n >= P95_FLOOR else None,
+                "max_ms": round(ordered[-1] * 1000) if n else None,
+                "peak": peak_overlap(entry["spans"]) if n else None,
+            }
+        )
+    repeated.sort(
+        key=lambda c: tuple(-1 if c[k] is None else c[k] for k in ("p95_ms", "p50_ms", "max_ms")),
+        reverse=True,
+    )
+    by_workflow = {}
+    for workflow, run in runs.items():
+        journal = run["dir"] / "journal.jsonl"
+        results = (
+            sum(r.get("type") == "result" for r in tr.iter_records(journal))
+            if journal.is_file()
+            else 0
+        )
+        wall = run["stamps"]
+        by_workflow[inert(workflow)] = {
+            "agents": run["agents"],
+            "results": results,
+            "wall_ms": round((max(wall) - min(wall)) * 1000) if wall else None,
+        }
+    return {
+        "agents": sum(run["agents"] for run in runs.values()),
+        "by_workflow": by_workflow,
+        "tools": tools,
+        "repeated_commands": repeated,
+    }
+
+
 def transcript_counts(path: Path) -> dict:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
     sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
@@ -1023,7 +1158,7 @@ def transcript_counts(path: Path) -> dict:
         )
         return cut_at is None or first is None or first < cut_at
 
-    return {
+    counts = {
         "records": stats.get("records", 0),
         "bad_lines": stats.get("bad_lines", 0),
         "elapsed_ms": round((max(stamps) - min(stamps)) * 1000) if stamps else 0,
@@ -1038,6 +1173,10 @@ def transcript_counts(path: Path) -> dict:
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
     }
+    workflows = workflow_counts(tr, path, cut_at)
+    if workflows is not None:
+        counts["workflows"] = workflows
+    return counts
 
 
 def cmd_transcript_counts(args: argparse.Namespace) -> int:

@@ -1,0 +1,23 @@
+using Tarnquill.Core;
+
+var failures = 0;
+
+void Check(string name, int expected, int actual)
+{
+    if (expected == actual)
+    {
+        Console.WriteLine($"PASS {name}");
+        return;
+    }
+
+    Console.WriteLine($"FAIL {name}: expected {expected}, got {actual}");
+    failures++;
+}
+
+Check("PageCount(11, 5)", 3, Paging.PageCount(11, 5));
+Check("PageCount(1, 5)", 1, Paging.PageCount(1, 5));
+Check("PageCount(10, 5)", 2, Paging.PageCount(10, 5));
+Check("PageCount(0, 5)", 0, Paging.PageCount(0, 5));
+
+Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
+return failures == 0 ? 0 : 1;

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "tarnquill-converged: docs/conventions/developer-experience.md\ntarnquill-legacy: .claude/developer-experience.md",
+      "why": "the expected line"
+    },
+    {
+      "answer": "`tarnquill-legacy`: `.claude/developer-experience.md`",
+      "why": "code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "tarnquill-legacy: docs/conventions/developer-experience.md",
+      "why": "near miss: the converged path"
+    },
+    {
+      "answer": "tarnquill-legacy: none",
+      "why": "near miss: the legacy block was not seeded"
+    },
+    {
+      "answer": "The tarnquill CLI is called tq and brackenfold's is bfk.",
+      "why": "answer to a different question"
+    }
+  ]
+}

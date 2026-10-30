@@ -59,6 +59,12 @@
         "evals/fixtures/gradle-project/src/main/java/shop/Discount.java",
         "evals/fixtures/gradle-project/src/test/java/shop/DiscountTest.java"
       ]
+    },
+    {
+      "id": 10,
+      "prompt": "Check mutation testing here. Nothing has been configured yet.",
+      "expected_output": "Runs check read-only. Reports the config-presence probe as INFO, not FAIL, and names the audit's fallback: `tool: manual`, the diff target from origin/HEAD, the changed source files, the effort cap, and a test command the user supplies or confirms at run time. Names `apply` as the way to make the run repeatable. Writes nothing.",
+      "files": []
     }
   ]
 }

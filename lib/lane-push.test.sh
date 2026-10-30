@@ -189,9 +189,9 @@ n=0
 for spec in \
   "url.ssh://git@github.com/.pushInsteadOf=https://github.com/|local-config-url" \
   "url.ssh://git@github.com/.insteadOf=https://github.com/|local-config-url" \
-  "include.path=/tmp/x|local-config-include" \
-  "includeIf.onbranch:main.path=/tmp/x|local-config-include" \
-  "includeIf.gitdir:/tmp/.path=/tmp/x|local-config-include" \
+  "include.path=$TMP/absent|local-config-include" \
+  "includeIf.onbranch:main.path=$TMP/absent|local-config-include" \
+  "includeIf.gitdir:/tmp/.path=$TMP/absent|local-config-include" \
   "credential.helper=store|local-config-credential" \
   "credential.https://github.com.username=someone|local-config-credential" \
   "http.extraHeader=Authorization: basic x|local-config-http" \

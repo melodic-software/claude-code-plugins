@@ -1,0 +1,19 @@
+## Developer tooling conventions
+
+### Tools
+- `bfk release <version>`: interactive; asks for confirmation before tagging. No flags bypass the prompt.
+- `bfk report`: prints a summary of `data/accounts.jsonl`.
+- `scripts/run_tests.sh`: runs the unit tests.
+- `scripts/release.ps1`: tags a release on Windows through `bfk release`.
+
+### Shared helpers
+- Run external processes through `run` in `bfk/proc.py`.
+
+### CLI contract
+- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.
+
+### Secrets
+- Tokens come from the environment, never from a flag.
+
+### Platforms
+- Linux and macOS (bash), Windows (pwsh).
