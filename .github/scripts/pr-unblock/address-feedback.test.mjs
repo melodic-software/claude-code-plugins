@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -1657,11 +1657,46 @@ test("needsPerson: a listed review bot's or the reviewer bot's own undirected fi
   assert.equal(needsPerson({ comments: [...codex.comments, { id: 101, author: "trusted-human", direction: true, body: REQUEST }] }, CODEX), true);
   // The security-review lane's critical-security hold on the bot's head.
   assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "held" }] }, CODEX), true);
-  // The reviewer bot's own unlisted finding, with no lane footer, is ruled as
-  // the code lane's at either floor, a severity line in its text included.
-  for (const body of ["finding 100", "finding 100\n\nseverity: CRITICAL"]) {
+  // The reviewer bot's own unlisted finding with no rating and no security
+  // lane in its text is ruled as the code lane's at either floor.
+  for (const body of ["finding 100", "The loop skips the last item.\n\nclaude-lane: claude-review"]) {
     assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER), false, body);
     assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, "CRITICAL"), false, body);
+  }
+});
+
+// The reviewer bot's footer is model text, so its security claim is read from
+// the content: a missing, malformed or trailed footer never loosens the hold.
+test("claimsSecurity holds the reviewer bot's rated or security-lane finding whatever its footer says", () => {
+  const holds = (body, floor) => needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, floor);
+  // A rating it can read at or above the floor, with no footer or a trailed one.
+  for (const body of [
+    "severity: IMPORTANT\n\nThe token reaches the log.",
+    "severity: IMPORTANT\n\nThe token reaches the log.\n\nclaude-lane: claude-security-review (see above)",
+  ]) {
+    assert.equal(claimsSecurity(body), true, body);
+    assert.equal(holds(body), true, body);
+    // Below CRITICAL it is a code fix first, as a lane IMPORTANT finding is.
+    assert.equal(holds(body, "CRITICAL"), false, body);
+  }
+  // A rating-shaped line it cannot read, or a security lane named with no
+  // rating, holds at either floor.
+  for (const body of [
+    "finding 100\n\nseverity: CRITICAL",
+    "**severity: CRITICAL**\n\nThe token leaks.",
+    "**Severity:** CRITICAL\n\nThe token leaks.",
+    "Severity: CRITICAL (token leak)\n\nThe token leaks.",
+    "The token leaks.\n\nclaude-lane: claude-security-review",
+    "The token leaks.\n\nclaude-lane: claude-security-review, rated by hand",
+  ]) {
+    assert.equal(claimsSecurity(body), true, body);
+    assert.equal(holds(body), true, body);
+    assert.equal(holds(body, "CRITICAL"), true, body);
+  }
+  // A readable SUGGESTION, footed or not, is no claim a person decides.
+  for (const body of ["severity: SUGGESTION\n\nNo change is required.", "severity: SUGGESTION\n\nNo change is required.\n\nclaude-lane: claude-security-review"]) {
+    assert.equal(claimsSecurity(body), false, body);
+    assert.equal(holds(body), false, body);
   }
 });
 
