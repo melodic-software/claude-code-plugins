@@ -74,7 +74,7 @@ always-running workflow, never workflow-level `paths` filtering, which would lea
 check **Pending** forever and wedge every prose PR. The required check proves the pass ran; it
 does not gate on the verdict.
 
-Implementation ordering is load-bearing: as of this addendum the caller still uses
+The implementation order must be followed: as of this addendum the caller still uses
 workflow-level `paths` filtering, so the ruleset must NOT mark this check required until the
 caller restructure (always-running workflow, job-level conditional) has landed, flipping the
 requirement first would wedge every prose PR exactly as described above. Sequence: caller
@@ -107,7 +107,7 @@ execution check to required. A caller-side job-level `if:` on the `uses:` job is
 skipped `uses:` job registers a *different* check name, so the child context stays "Expected"
 and wedges prose PRs (community discussion 72708); the gate must live inside the reusable
 workflow. Caller-first against the old pin was also rejected: it would run a full security pass
-on every prose PR in the interim. The load-bearing constraint is unchanged: the ruleset flip
+on every prose PR in the interim. The ordering constraint is unchanged: the ruleset flip
 stays LAST, after this caller restructure is verified
 ([troubleshooting-required-status-checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
 
@@ -359,7 +359,7 @@ it from.
 **The draft filter.** A draft is work in progress and does not spend a review; the
 `ready_for_review` trigger is what delivers one when it is ready. The code-review job's condition is
 `github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false`, and the
-`event_name` clause is load-bearing: a dispatched run has no `github.event.pull_request` at all, so
+`event_name` clause is necessary: a dispatched run has no `github.event.pull_request` at all, so
 a bare draft comparison would never run the review an operator asked for.
 
 **Queued, not cancelled.** The code-review job takes a second, repository-wide concurrency group
