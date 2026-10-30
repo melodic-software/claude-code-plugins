@@ -64,7 +64,8 @@ jobs:
     outputs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
-      # Whether the issue is a trusted size-split sub-issue, for resolve-config.
+      # Whether the issue runs whole at Size Large (a trusted size-split
+      # sub-issue, or one whose split the lanes App declined), for resolve-config.
       runs-whole: ${{ steps.blockers.outputs.runs-whole }}
     env:
       API_BUDGET_TOKEN: github-token

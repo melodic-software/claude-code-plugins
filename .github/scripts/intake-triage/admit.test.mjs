@@ -441,8 +441,9 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ verdict: LARGE, comments: [declineOf(BODY)] })), { verdict: "admit", reasons: [] });
     });
 
-    test("a decline on an older body, by another author, or quoted still parks", () => {
-      for (const comment of [declineOf(`${BODY}\nedited`), declineOf(BODY, { id: HUMAN }), declineOf(BODY, { prefix: "> " })]) {
+    test("a decline on an older body, edited, by another author, or quoted still parks", () => {
+      const edited = { ...declineOf(BODY), created_at: "2026-10-30T10:00:00Z", updated_at: "2026-10-30T11:00:00Z" };
+      for (const comment of [declineOf(`${BODY}\nedited`), edited, declineOf(BODY, { id: HUMAN }), declineOf(BODY, { prefix: "> " })]) {
         assert.deepEqual(decide(facts({ verdict: LARGE, comments: [comment] })), PENDING, comment.body);
       }
     });

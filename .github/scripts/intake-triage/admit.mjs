@@ -176,8 +176,8 @@ export function sizeSplitSettings(rules) {
 // (`appId`) declined to split it on its current body: one of `comments` (REST
 // shape) is the App's, opens with a decline marker line (any reason), and
 // its next line is bodyVersion of the body as it is now. An older body's
-// decline, another author's or a quoted copy does not count, nor does any
-// with `size-split.declined: park` (owner Q93). Pure.
+// decline, an edited one, another author's or a quoted copy does not count,
+// nor does any with `size-split.declined: park` (owner Q93). Pure.
 export function runsWholeDeclined(issue, comments, rules, appId) {
   if (appId === undefined || sizeSplitSettings(rules).declined !== "run-whole") {
     return false;
@@ -185,7 +185,7 @@ export function runsWholeDeclined(issue, comments, rules, appId) {
   const version = bodyVersion(issue?.body);
   return (comments ?? []).some((comment) => {
     const [marker, body] = String(comment?.body ?? "").split("\n", 2);
-    return comment?.user?.id === appId && DECLINE_LINE.test(marker) && body === version;
+    return comment?.user?.id === appId && comment.updated_at === comment.created_at && DECLINE_LINE.test(marker) && body === version;
   });
 }
 export const READY = "status: ready";
