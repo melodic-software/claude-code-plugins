@@ -739,6 +739,27 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
 // The owner's rule for when work stops for the owner: a pre-edit question reaches a person only as an intent
 // question, which the run names with `cause: "intent"`; a choice of means or a
 // design detail, or a pushback naming no cause, is the lane's to decide.
+test("a pushback whose cause opens with a hold code holds on that code, whatever its reason", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const [cause, stop] of [
+    ["cost-risk: provisions a paid Azure plan", "cost-risk"],
+    ["security-risk: the deploy token is in the log", "security-risk"],
+    ["design-change: a new store", "design-change"],
+  ]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which plan?", cause, title: "", summary: "" } });
+    assert.equal(plan.action, "hand-back", cause);
+    assert.equal(plan.stop, stop, cause);
+    assert.ok(plan.addLabels.includes("needs-human"), cause);
+  }
+});
+
+test("a pushback-means intake comment shows the cause the run named", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means: two helpers fit", title: "", summary: "" } });
+  assert.equal(plan.stop, "pushback-means");
+  assert.match(plan.comment, /The cause the run named:\n\n> means: two helpers fit/, plan.comment);
+});
+
 test("a pushback without cause intent goes back through intake instead of reaching a person", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
   for (const cause of [undefined, "", "design", "means", 7]) {

@@ -48,9 +48,9 @@
 //             one intake round. A pushback-means whose words (reason, else
 //             summary) or cause read as a security risk (runCode, any code
 //             ending) goes to intake with no means framing and a `security`
-//             marker; once any counted intake marker carries it, a spent
-//             intake round holds as security-risk whatever its own stop, so
-//             a stated leak always reaches a person.
+//             marker; a spent intake round that is itself such a stop holds
+//             as security-risk, so a leak the run states again reaches a
+//             person.
 //             When a listed human's newest comment, posted since the lane's
 //             last outcome comment, does not open with DECISION_LINE, the
 //             comment links it and shows the line, since the lane counts no
@@ -173,8 +173,8 @@ export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The causes a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
-// A pushback's stop: the hold row its reason explicitly opens with
-// (security-risk, cost-risk, design-change, intent-change); else pushback for
+// A pushback's stop: the hold row its reason or its cause explicitly opens
+// with (security-risk, cost-risk, design-change, intent-change); else pushback for
 // cause intent; else the hold row its cause names; else, for a reason opening
 // with a host-run or attended code, runCode's reading: that code, or
 // security-risk when it names a security risk after the code (owner decision
@@ -184,6 +184,8 @@ const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
 const pushbackStop = (outcome) => {
   const code = leadingCode(outcome.reason);
   if (code && stopRoute(code) === "hold") return code;
+  const causeCode = leadingCode(outcome.cause);
+  if (causeCode && stopRoute(causeCode) === "hold") return causeCode;
   const cause = causeName(outcome.cause);
   if (PUSHBACK_CAUSES.has(cause)) return "pushback";
   if (Object.hasOwn(STOP_ROUTES, cause) && STOP_ROUTES[cause].code === true && stopRoute(cause) === "hold") return cause;
@@ -192,10 +194,9 @@ const pushbackStop = (outcome) => {
 // A pushback-means stop any of whose words a comment can show (the reason,
 // the summary, each not-done item) or whose cause reads as a security risk
 // after any code, or with none. Intake judges it once with no means framing
-// (stopPlan's neutral text) and its marker carries `security`, which stays
-// sticky: any later round that would fail (retry-spent, turn-cap-spent) holds
-// as security-risk instead (finishStop), since a real security risk never
-// ends without a person.
+// (stopPlan's neutral text) and its marker carries `security`; a spent
+// intake round that is itself such a stop holds as security-risk (routeStop),
+// so a real security risk the run names again never ends without a person.
 const pushbackSecurity = (stop, outcome) =>
   stop === "pushback-means" &&
   [outcome?.reason, outcome?.summary, outcome?.cause, ...(outcome?.notDone ?? []).map((item) => item?.what)].some(
@@ -596,7 +597,7 @@ export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 // pushbackSecurity's stop line, which leaves the question's kind to intake.
 const PUSHBACK_SECURITY_WHY =
-  "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; any later round that would fail reaches a person instead, whatever that round's stop";
+  "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; if the run names it again once this intake round is spent, the issue reaches a person";
 function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "", neutral = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
@@ -612,6 +613,9 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   const words = outcome.reason || outcome.summary;
   if (words) {
     lines.push("", RUN_WORDS, "", quoted(words));
+  }
+  if (outcome.exit === "pushback" && String(outcome.cause ?? "").trim()) {
+    lines.push("", "The cause the run named:", "", quoted(String(outcome.cause)));
   }
   // A closed issue's result is the run's report, which its summary holds.
   if (route === "close" && outcome.reason && outcome.summary) {
