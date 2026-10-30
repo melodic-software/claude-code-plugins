@@ -45,7 +45,8 @@
 //     key read), which a patched prototype can answer with code.
 //     `declares` is whether `offset` names a plain `var`/`let`/`const`
 //     declarator of the variable. A module with a direct `eval` answers
-//     found false, since code inside the eval can write any name.
+//     found false, since code inside the eval can write any name; one
+//     whose code only reads an identifier (`foldEvals`) is that read.
 //     -> {"id":5,"ok":true,"found":true,"declares":true,
 //         "writes":[["init",120,true]],"mutations":[["method-call",160,true]],
 //         "reads":[["spread",180,true]]}
@@ -102,12 +103,83 @@ const MODULE_CACHE = 16;
 const PATTERN_NODES = new Set(["ArrayPattern", "ObjectPattern", "AssignmentPattern", "RestElement", "Property"]);
 const modules = new Map();
 
+// The built-ins a folded `.replace` (`evalText`) relies on: the string
+// method and what it calls on the regex, the flag getters `flags` reads
+// included, since `g` and `u` decide what is replaced.
+const REPLACE_TRUSTS = ["replace", "@@replace", "exec", "flags", "global", "unicode", "unicodeSets", "lastIndex"];
+
+// What a direct `eval` argument evaluates to when the reader can tell, as
+// {text, trusts}: a string literal, a template with no expressions, or
+// `.replace` on one with a regex literal and a string literal (protobufjs's
+// `eval("quire".replace(/^/,"re"))`), which trusts REPLACE_TRUSTS; else null.
+function evalText(arg) {
+  const text = literalString(arg);
+  if (text !== null) return { text, trusts: [] };
+  if (arg?.type !== "CallExpression" || memberName(arg.callee) !== "replace" || arg.arguments.length !== 2) return null;
+  const [pattern, replacement] = arg.arguments;
+  const subject = literalString(arg.callee.object);
+  const by = literalString(replacement);
+  if (subject === null || by === null || !pattern.regex) return null;
+  try {
+    return { text: subject.replace(new RegExp(pattern.regex.pattern, pattern.regex.flags), by), trusts: REPLACE_TRUSTS };
+  } catch {
+    return null;
+  }
+}
+
+// The identifier a direct `eval` call only reads, as {name, trusts}: its
+// one argument folds (`evalText`) to code that parses as nothing but one
+// identifier expression, other than `eval` or `arguments`. Else null.
+// `eval?.(...)` is an indirect eval, which reads the global, so it stays.
+function evalRead(call) {
+  if (call.optional || call.callee.type !== "Identifier" || call.callee.name !== "eval" || call.arguments.length !== 1) return null;
+  const folded = evalText(call.arguments[0]);
+  if (folded === null) return null;
+  let program;
+  try {
+    program = acorn.parse(folded.text, PARSE_OPTIONS);
+  } catch {
+    return null;
+  }
+  const expr = program.body.length === 1 && program.body[0].type === "ExpressionStatement" ? program.body[0].expression : null;
+  if (expr?.type !== "Identifier" || expr.name === "eval" || expr.name === "arguments") return null;
+  return { name: expr.name, trusts: folded.trusts };
+}
+
+// Rewrites, in place, each direct `eval` that only reads an identifier
+// (`evalRead`) into that read, so scope analysis sees a plain reference
+// and no direct eval around it. Returns the built-ins the folds trust.
+function foldEvals(ast) {
+  const trusts = new Set();
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
+    const read = node.type === "CallExpression" ? evalRead(node) : null;
+    if (read !== null) {
+      for (const name of read.trusts) trusts.add(name);
+      const { start, end, range } = node;
+      for (const key of Object.keys(node)) delete node[key];
+      Object.assign(node, { type: "Identifier", name: read.name, start, end }, range ? { range } : {});
+      continue;
+    }
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      for (const c of Array.isArray(child) ? child : [child]) {
+        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+      }
+    }
+  }
+  return trusts;
+}
+
 function analyze(source) {
   let ast;
   let manager;
+  let folds;
   try {
     // eslint-scope reads node.range, which acorn adds only on request.
     ast = acorn.parse(source, { ...PARSE_OPTIONS, ranges: true });
+    folds = foldEvals(ast);
     manager = eslintScope.analyze(ast, SCOPE_OPTIONS);
   } catch (e) {
     return { error: e.message };
@@ -129,7 +201,7 @@ function analyze(source) {
     globals.get(name).references.push(ref);
   }
   const evals = manager.scopes.some((s) => s.directCallToEvalScope);
-  return { ast, manager, top, refs, decls, globals, evals, parents: null };
+  return { ast, manager, top, refs, decls, globals, evals, folds, parents: null };
 }
 
 // Each node's parent, built on the module's first `writes` request.
@@ -937,7 +1009,7 @@ function flow(req) {
     if (!(e instanceof Unresolved)) throw e;
     return { ok: true, safe: false, reason: e.message, at: e.at };
   }
-  return { ok: true, safe: true, exits: walk.exits, trusted: [...walk.trusted].sort() };
+  return { ok: true, safe: true, exits: walk.exits, trusted: [...new Set([...walk.trusted, ...entry.folds])].sort() };
 }
 
 // The file name a module specifier ends in; loads match files by it.
@@ -1254,11 +1326,16 @@ function namespace(req) {
   const named = new Map();
   for (const [node, spec] of loaderUses(entry, loaderNames(req)).uses) if (spec !== null) named.set(node, fileName(spec));
   const walk = new Namespace(entry, req.name, named);
+  const paramSpecs = paramSpecsOf(entry);
   let sites = 0;
   try {
     const stack = [entry.ast];
     while (stack.length) {
       const node = stack.pop();
+      // The walk does not follow a load through its specifier's parameter.
+      if (isRequire(node) && paramSpecs(node.arguments[0])?.some((s) => fileName(s) === req.file)) {
+        return { ok: true, safe: false, reason: "a parameter's caller names the file", at: node.start };
+      }
       if ((named.get(node) ?? loadedFile(node)) === req.file) {
         sites++;
         walk.site(node);
@@ -1275,7 +1352,7 @@ function namespace(req) {
     if (!(e instanceof Unresolved)) throw e;
     return { ok: true, safe: false, reason: e.message, at: e.at };
   }
-  return { ok: true, safe: true, sites, trusted: [...walk.trusted].sort(), thenable: walk.thenable };
+  return { ok: true, safe: true, sites, trusted: [...new Set([...walk.trusted, ...entry.folds])].sort(), thenable: walk.thenable };
 }
 
 // The name a member or property key spells: `x.k`, `x["k"]`, and
@@ -1807,7 +1884,9 @@ function freshnessOf(entry) {
 //   (as an argument, only to a definer, as are `Object` and the built-in
 //   constructors).
 //   -> {"hits":[[kind, name|null, offset], ...]} (at most SINK_LIMIT); a
-//      module that does not parse or calls `eval` directly is one hit.
+//      module that does not parse or calls `eval` directly is one hit,
+//      except a direct `eval` that only reads an identifier (`foldEvals`),
+//      read as that identifier, whose fold adds its built-ins to "trusted".
 //      "pending" holds the hits on a target that is fresh only if every
 //      importer passes fresh objects, each [kind, name|null, offset,
 //      [[export, index], ...]], for the caller to check (`fresh_args`);
@@ -1843,7 +1922,9 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
   const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
   const fresh = freshnessOf(entry);
   const pending = [];
-  const trusted = new Set();
+  const trusted = new Set(entry.folds);
+  // `loads` never sees a parameter's callers in code a `Function` call folded to.
+  const paramSpecs = depth === 0 ? paramSpecsOf(entry) : () => null;
   // Counts each of `found` ([kind, name, node]) unless every one of
   // `targets` is fresh. Cleared, the hits leave their trusted names; on
   // a target fresh only through importers they wait in `pending`.
@@ -2068,7 +2149,8 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
       hit("vm-string-code", null, node);
     }
-    if (VM_SPECIFIERS.has(loadedSpecifier(node))) {
+    const specs = (isRequire(node) ? paramSpecs(node.arguments[0]) : null) ?? [loadedSpecifier(node)];
+    if (specs.some((s) => VM_SPECIFIERS.has(s))) {
       const harmless =
         node.type === "ImportDeclaration" &&
         node.specifiers.every((s) => s.type === "ImportSpecifier" && VM_HARMLESS.has(s.imported.name ?? s.imported.value));
@@ -2077,7 +2159,7 @@ function sinkHits(entry, names, depth, loaders = new Set()) {
     // A load the scan cannot name may load node:vm, and `loads` never sees
     // one in code a `Function` call folded to.
     const unseen = depth > 0 && loadedFile(node) !== null;
-    if (unseen || (unknownLoad(node, parents, keyValues) && !held.cleared.has(node))) hit("unknown-load", null, node);
+    if (unseen || (unknownLoad(node, parents, keyValues, paramSpecs) && !held.cleared.has(node))) hit("unknown-load", null, node);
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {
@@ -2198,7 +2280,9 @@ function scanFor(req) {
   if (scan === undefined) {
     if (typeof req.source !== "string") return undefined;
     try {
-      scan = scanOrNull(acorn.parse(req.source, PARSE_OPTIONS));
+      const ast = acorn.parse(req.source, PARSE_OPTIONS);
+      foldEvals(ast);
+      scan = scanOrNull(ast);
     } catch {
       scan = null;
     }
@@ -2218,7 +2302,9 @@ function scanFor(req) {
 // `keyValuesOf`) finds it unknown or able to spell `require`
 // (`module[k]`, `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
 // target of a plain `o[k]=v`; even a literal specifier does not name its file.
-function unknownLoad(node, parents, keyValues) {
+// A specifier `paramSpecs` (from `paramSpecsOf`) names the literals of is
+// named too.
+function unknownLoad(node, parents, keyValues, paramSpecs = () => null) {
   const parent = parents.get(node);
   if (node.type === "ImportExpression") return literalString(node.source) === null;
   // `import.meta` other than read by name can hand out its `require`
@@ -2249,10 +2335,41 @@ function unknownLoad(node, parents, keyValues) {
       ["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier", "ExportSpecifier", "LabeledStatement", "BreakStatement", "ContinueStatement"].includes(parent?.type);
     if (binding) return false;
   }
-  if (parent?.type === "CallExpression" && parent.callee === node) return computed || literalString(parent.arguments[0]) === null;
+  if (parent?.type === "CallExpression" && parent.callee === node) {
+    return computed || (literalString(parent.arguments[0]) === null && paramSpecs(parent.arguments[0]) === null);
+  }
   if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
   if (node.type === "MemberExpression" && !computed && onlyTested(parents, node)) return false;
   return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
+}
+
+// What a load's specifier `arg` can be when it is a parameter: for a plain
+// parameter of a function declaration, never written, whose function is
+// not exported and is only ever called directly with a literal string in
+// its place, those strings; else null. protobufjs's `inquire(moduleName)`
+// loads `moduleName`, and each caller names a package.
+function paramSpecsOf(entry) {
+  const parents = parentsOf(entry);
+  return (arg) => {
+    const v = arg?.type === "Identifier" ? entry.refs.get(arg.start)?.resolved : null;
+    const def = v?.defs.length === 1 ? v.defs[0] : null;
+    const fn = def?.type === "Parameter" ? def.node : null;
+    if (fn?.type !== "FunctionDeclaration" || fn.id === null || v.references.some((r) => r.isWrite())) return null;
+    const index = fn.params.indexOf(def.name);
+    const callee = entry.decls.get(fn.id.start);
+    const exported = ["ExportNamedDeclaration", "ExportDefaultDeclaration"].includes(parents.get(fn)?.type);
+    if (index < 0 || callee?.defs.length !== 1 || exported) return null;
+    const specs = [];
+    for (const r of callee.references) {
+      const call = parents.get(r.identifier);
+      if (r.isWrite() || call?.type !== "CallExpression" || call.callee !== r.identifier) return null;
+      if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) return null;
+      const spec = literalString(call.arguments[index]);
+      if (spec === null) return null;
+      specs.push(spec);
+    }
+    return specs;
+  };
 }
 
 // Whether the value of `node` is only tested for truth, so it never
@@ -2359,8 +2476,8 @@ function loaderUses(entry, names) {
   return { aliases: own.flatMap(([, , exported]) => exported), cleared, uses };
 }
 
-// `computed` is whether a computed key may load a module the scan cannot
-// name, which takes the scope analysis to tell (`computedLoad`);
+// `computed` is whether a computed key or a variable specifier may load a
+// module, which takes the scope analysis to tell (`computedLoads`);
 // `aliasInits` are the offsets of the `aliasInit` reads, which `loads`
 // counts unless each is a named loader's (`loaderUses`).
 function scanOf(ast) {
@@ -2380,13 +2497,19 @@ function scanOf(ast) {
     computed = true;
     return new Set();
   };
+  // A specifier that is a variable may be a parameter `paramSpecsOf` names.
+  const deferredSpecs = (arg) => {
+    if (arg?.type !== "Identifier") return null;
+    computed = true;
+    return [];
+  };
   const parents = new Map();
   const stack = [ast];
   while (stack.length) {
     const node = stack.pop();
     const loaded = loadedFile(node);
     if (loaded !== null) loads.add(loaded);
-    if (unknownLoad(node, parents, deferred)) {
+    if (unknownLoad(node, parents, deferred, deferredSpecs)) {
       if (aliasInit(node, parents.get(node))) aliasInits.push(node.start);
       else loads.add(UNKNOWN_FILE);
     }
@@ -2415,15 +2538,20 @@ function scanOf(ast) {
   return { keys, loads, imports, computed, aliasInits };
 }
 
-// Whether a computed key in the module may load a module the scan cannot
+// The files the loads `scanOf` deferred to the scope analysis load: each
+// file a parameter's callers name (`paramSpecsOf`), and UNKNOWN_FILE when a
+// computed key or a variable specifier may load a module the scan cannot
 // name (`unknownLoad` with the key's provenance).
-function computedLoad(entry) {
+function computedLoads(entry) {
   const parents = parentsOf(entry);
   const keyValues = keyValuesOf(entry);
+  const paramSpecs = paramSpecsOf(entry);
+  const files = new Set();
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    if (unknownLoad(node, parents, keyValues) && !aliasInit(node, parents.get(node))) return true;
+    if (unknownLoad(node, parents, keyValues, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
+    if (isRequire(node)) for (const spec of paramSpecs(node.arguments[0]) ?? []) files.add(fileName(spec));
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
@@ -2431,7 +2559,7 @@ function computedLoad(entry) {
       }
     }
   }
-  return false;
+  return files;
 }
 
 // {"op":"keys_used","module":key,"source"?:...,"names":[...]}
@@ -2447,8 +2575,9 @@ function keysUsed(req) {
 }
 
 // {"op":"loads","module":key,"source"?:...,"loaders"?:[...]}
-//   -> {"files":[file names the module loads whole]} (`loadedFile`, and a
-//      named loader's call with a literal specifier, `loaderUses`), with
+//   -> {"files":[file names the module loads whole]} (`loadedFile`, a
+//      named loader's call with a literal specifier, `loaderUses`, and each
+//      literal the callers pass a parameter specifier, `paramSpecsOf`), with
 //      "*" when it may load one the scan cannot name (`unknownLoad`, an
 //      alias that is no named loader, any other use of one), and
 //      "aliases", the names it exports an alias under (`aliasesOf`); or
@@ -2461,7 +2590,7 @@ function loads(req) {
   if (scan.computed && !scan.loads.has(UNKNOWN_FILE)) {
     const entry = moduleFor(req);
     if (entry === null) return { ok: true, need_source: true };
-    if (entry.error || computedLoad(entry)) scan.loads.add(UNKNOWN_FILE);
+    for (const file of entry.error ? [UNKNOWN_FILE] : computedLoads(entry)) scan.loads.add(file);
     scan.computed = false;
   }
   const names = loaderNames(req);
@@ -2506,7 +2635,10 @@ function handle(req) {
       }
       try {
         const ast = acorn.parse(req.source, PARSE_OPTIONS);
-        if (typeof req.module === "string") scans.set(req.module, scanOrNull(ast));
+        if (typeof req.module === "string") {
+          foldEvals(ast);
+          scans.set(req.module, scanOrNull(ast));
+        }
         return { ok: true, parsed: true };
       } catch (e) {
         if (typeof req.module === "string") scans.set(req.module, null);
