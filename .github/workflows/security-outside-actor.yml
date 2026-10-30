@@ -27,9 +27,9 @@ name: security-outside-actor
 # `security: outside-actor` and `needs-human` labels and posts one comment per
 # outside actor, naming their login without a mention and quoting none of
 # their text. `security: outside-actor` is a hold of its own (merge-holds.mjs
-# OUTSIDE_ACTOR_LABEL): the merge gates, intake triage, the work-unblock
-# sweep and each lane that skips needs-human skip it, and only a person
-# removes it. The script reads the event payload itself; no event text
+# OUTSIDE_ACTOR_LABEL): the merge queue, auto-merge arming, babysit,
+# intake triage, the work-unblock sweep and each activity whose
+# labels-absent lists needs-human skip it, and only a person removes it. The script reads the event payload itself; no event text
 # reaches a shell. The lanes kill switch does not stop this check: it would
 # silence the boundary it guards.
 #

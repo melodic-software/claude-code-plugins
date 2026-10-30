@@ -12,6 +12,6 @@ bump: minor
   flags. No model, secret or kill switch; the job token holds `contents: read`, `issues: write` and
   `pull-requests: write`.
 - `security: outside-actor` is a hold of its own, defined in `merge-holds.mjs`: the merge queue,
-  auto-merge arming, intake triage, the work-unblock sweep and each activity that skips
-  `needs-human` skip it, and only a person removes it. A Bot's push to a fork pull request is
+  auto-merge arming, intake triage, the work-unblock sweep and each activity whose
+  `labels-absent` lists `needs-human` skip it, and only a person removes it. A Bot's push to a fork pull request is
   checked too.
