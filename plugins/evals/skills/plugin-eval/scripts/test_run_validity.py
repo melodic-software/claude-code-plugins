@@ -342,16 +342,26 @@ class RunValidityTest(unittest.TestCase):
         result.write_text(json.dumps(data), encoding="utf-8")
         return self.run_script(result, "--runs", "1"), trace
 
-    def test_a_run_whose_every_bash_call_failed_is_invalid_whatever_the_wording(self):
+    def test_a_run_whose_every_bash_call_failed_with_no_output_is_invalid(self):
         proc, trace = self.bash_trace(
-            "all-failed.jsonl", [(True, "Exit code 1\nREADME.md"), (True, "some new wording")]
+            "all-failed.jsonl",
+            [(True, ""), (True, "Exit code 1"), (True, [{"type": "text", "text": " \n"}])],
         )
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn(
-            "  case measurable-criterion, without-arm run 1: all 2 Bash calls failed (%s)"
+            "  case measurable-criterion, without-arm run 1: all 3 Bash calls failed (%s)"
             % trace,
             proc.stdout,
         )
+
+    def test_failed_bash_calls_that_printed_output_pass(self):
+        for name, results in (
+            ("two-outputs.jsonl", [(True, "Exit code 1\nREADME.md"), (True, "Exit code 1\nls: x: No such file")]),
+            ("three-outputs.jsonl", [(True, "Exit code 2\ncat: y: No such file")] * 2
+             + [(True, [{"type": "text", "text": "Exit code 1\nTraceback"}])]),
+        ):
+            proc, _ = self.bash_trace(name, results)
+            self.assertIn("check session started: PASS", proc.stdout, name)
 
     def test_denied_bash_calls_are_left_to_the_permission_denials_check(self):
         denied = "Permission to use Bash has been denied by your permission settings."

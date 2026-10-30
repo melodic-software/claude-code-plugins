@@ -323,6 +323,8 @@ jobs:
     permissions:
       checks: write
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -358,6 +360,14 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The runner merges the select job's base
@@ -610,6 +620,8 @@ jobs:
       contents: read
     outputs:
       escalation-reason: ${{ steps.refusal.outputs.escalation-reason }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -641,6 +653,14 @@ jobs:
           SCAN_REFUSED_DIR: ${{ runner.temp }}/scan-refused
           SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
         run: node .base/.github/scripts/pr-unblock/conflict-scan-refusal.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # address-feedback is five jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
@@ -815,6 +835,8 @@ jobs:
     permissions:
       checks: write
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -856,6 +878,14 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.address-feedback-select.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill fixes the kept threads and records
@@ -1691,6 +1721,8 @@ jobs:
     permissions:
       checks: write
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1717,6 +1749,14 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.review-dependency-select.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reviews the update and returns its
@@ -2110,6 +2150,8 @@ jobs:
     permissions:
       checks: write
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2136,6 +2178,14 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
@@ -2608,6 +2658,8 @@ jobs:
       actions: read # this run's jobs and their steps
       checks: write
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2642,6 +2694,14 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A run that stopped on a reason escalation-routes.json routes `fail` ends
   # in a failing commit status on the head its activity gated, never a
@@ -2707,6 +2767,8 @@ jobs:
     permissions:
       contents: read
       statuses: write
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2744,6 +2806,14 @@ jobs:
           ACTIVITY: ${{ inputs.activity }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh "$([ -n "$ESCALATION_REASON" ] && echo status || echo clear)"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   report-escalation:
     needs:
