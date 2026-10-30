@@ -2048,12 +2048,13 @@ listing and re-fires the issue on main's files, once per version of the two file
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
-`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. When the admit job stops the
-run because the issue's author is neither a listed human nor the lanes App, `report-skip` runs
-with `dimension-skip: outside-author`: it removes `agent-ready` and comments, under an
-`outcome=outside-author` marker and with no label, that a listed human re-files the work as a new
-issue. What changes from the PR flow:
+`dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
+issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
+and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
+files its sub-issues (owner Q93). When the admit job stops the run because the issue's author is
+neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
+it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
+that a listed human re-files the work as a new issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -2189,16 +2190,43 @@ issue. What changes from the PR flow:
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
-  `patch-protected-path`), and a reason with no code, like a reason the table does not list,
-  holds. `hold` labels the issue with the human-gated role label, removes `agent-ready` and
-  comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
+  `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
+  code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
+  A security mention always reaches the owner: a reason with no code, or one whose code's route is
+  `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
+  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key,
+  `backdoor`, `exploit` or branch protection, in any case and even inside a word; `XSS`, `RCE` or
+  `CVE` as a whole word; or an ignore-instructions phrase)
+  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route.
+  Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
+  `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
+  carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
+  `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
+  from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
+  collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
+  import. `hold` labels the issue with the human-gated
+  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
   `agent-ready`, asking no decision; `retry` keeps
   `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock
   sweep restarts the issue and the next run resumes its branch, while the retry markers since a
-  listed human last added `agent-ready` are fewer than `limits.stop-retries`; past that, the stop
-  takes the `retry-spent` row's route. `fail` removes `agent-ready`, adds no label and comments
+  listed human last added `agent-ready`, whatever stop wrote them, are fewer than
+  `limits.stop-retries` or the stop's row's `retries`; past that, the stop takes the
+  `retry-spent` row's route. `wait` (`blocked-by-pr`) keeps `agent-ready` with
+  `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
+  issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
+  apart from its retries; a pull request that is not open, or none named, retries instead.
+  `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
+  which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
+  comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
+  cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
+  and its commit message closes the issue, and `report-delivered` only on a
+  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
+  report; either retries otherwise. Dependents and split parents count the lanes App's
+  `already-done` close as trusted only while that evidence re-checks true when they read it
+  (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
+  `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker

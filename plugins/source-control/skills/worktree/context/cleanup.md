@@ -15,7 +15,19 @@ Settle the scope before Step 1. Strip `--dry-run` from the arguments; what remai
 - **Bare `cleanup`, no worktree worked.** The whole-repository behavior below, unchanged. It is also the behavior when the sweep is chosen.
 - **The scoped worktree is the one the session runs in.** Compare the scoped path to `git rev-parse --show-toplevel`. When they match, say so before anything else: "`<path>` is this session's own worktree." Classification and guards run as usual, with no repo-wide inventory, and Step 4b decides how its removal runs.
 
-**Outside a repository, cleanup reports and removes nothing.** Its guards (stranded work, claims, the reap, `git worktree prune`) are per repository, so it runs only from inside the repository that owns a candidate. Collect with [status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode), identify candidates per Step 2 for each repository, and add the Step 2c root scan rows of [audit.md](audit.md). Present them as Step 3 does, grouped under a heading per owning repository (scan rows under their root), each group ending with "Run `/source-control:worktree cleanup` from `<repo>` to act on these." Take no Step 1, 4 or 5 action, `--dry-run` or not.
+### Outside a repository: across repositories
+
+When `git rev-parse --is-inside-work-tree` fails, cleanup acts on every repository that owns a worktree, one repository at a time, with the single-repository steps unchanged. Every git command in Steps 1 to 5 runs as `git -C '<owning-repo>' …`: the prunes, `worktree unlock`, `worktree remove`, `branch -D`, the emitted `push origin --delete`, and the four Workspace-entry reads `down` depends on ([create.md § Workspace environment setup](create.md#workspace-environment-setup)). Each forge read (PRs, `delete_branch_on_merge`) targets the owning repository, each helper that takes `--repo-dir` gets `'<owning-repo>'`, and the carried-file guard's `MAIN_ROOT` is the owning repository. A step that needs a working directory, such as `down`, runs in a subshell `( cd '<dir>' && … )`, so the caller's working directory never changes. A path or repository holding a single quote reaches no command: report it.
+
+`down` is the one step this mode gates further. Discovery collects every repository with a worktree under the roots, including clones the user never chose to trust, and a session outside every repository has no stage context for the untrusted-input skip in Step 4a. So `down` runs for an owning repository only when its exact command line, and the commit SHA it was read from, appeared under that repository's heading in the Step 3 table the user confirmed. Step 4a then runs that shown command, never one re-read later. A repository whose `down` was not shown has `down` skipped: report it as skipped and say why, as the untrusted-input rule does.
+
+1. **Collect.** Run `worktree-discover.sh` as [status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode) does and keep its rows. Each `repo` row whose linked count is above 0 is an owning repository. A named path takes its owning repository from its `worktree` row and is then resolved against `worktree-facts.sh list '<owning-repo>'` as the paths-given scope above does; a path with no row, or with owner `-`, is reported and dropped.
+2. **Identify.** Run Step 1 and Step 2 once per owning repository, including its own stale batch and stranded-work record. In place of Step 2's per-repository root scan, run the Step 2c root scan of [audit.md](audit.md) once per `root` row, with `--root '<root>'` and every `repo` row as a `--repo-dir`; its proposed rows have no owning repository and are listed under their root. With paths given, skip the root scan and the detection scan as the paths-given scope does. A `worktree` row with owner `-` is reported, never a candidate.
+3. **Present.** Show one Step 3 table with a heading per owning repository (scan rows under their root) and end it with one confirm covering every group, naming each repository the yes acts on. Under each heading that has a git-tracked candidate, read the Workspace entry as [create.md § Workspace environment setup](create.md#workspace-environment-setup) step 2 does, against `'<owning-repo>'`, and show its `down` command line verbatim with the commit SHA, or `down: none` when no entry or no `down` line is found. The confirm states that a yes also runs each `down` command shown. `--dry-run` stops here, after Step 1's `--dry-run` prunes, having removed nothing.
+4. **Remove.** Run each confirmed worktree through Step 4a and 4b against its owning repository; Step 4b's `<main-root>` is the owning repository. This session's own worktree cannot be a candidate here, since the session runs outside every repository. A scan row has no owning repository: it takes its class's qualifying tests, the file-lock release, the reap and the `rm -rf`, as in a single-repository run.
+5. **Verify.** Run Step 5 once per owning repository, and report per repository.
+
+A stranded, superseded, unknown, in-progress or dirty row stops exactly as it does in a single-repository run, and the other repositories' rows go on.
 
 ## Step 1: Prune orphaned metadata
 
@@ -144,13 +156,16 @@ entry with a `down` command (contract: `docs/conventions/workspace-environment/R
 plugin's marketplace repository), run it for a git-tracked candidate once both guards above have
 cleared (for a locked candidate, including the `stale` proof) and the file-lock release has run. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
 [create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,
-then run `down` once through the Bash tool from the candidate's root:
+then run `down` once through the Bash tool from the candidate's root. In a cross-repository run,
+skip the step 2 read: run the `down` command and SHA shown under the owning repository's heading in
+the Step 3 table the user confirmed ([Outside a repository](#outside-a-repository-across-repositories)),
+and derive only the step 3 values:
 `(cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>)`.
 Keep the parentheses: the subshell stops the directory change from persisting, because the shell
 keeps its directory between calls and a session left inside the candidate makes the later `rmdir`
 fail as busy.
 Skip it, and say why, for a worktree whose stage reads untrusted input (the rule in
-[create.md § Workspace environment setup](create.md#workspace-environment-setup) step 1) and when no entry or no `down` line is found; an orphaned-directory candidate has no
+[create.md § Workspace environment setup](create.md#workspace-environment-setup) step 1), for a cross-repository run whose Step 3 table did not show the command, and when no entry or no `down` line is found; an orphaned-directory candidate has no
 worktree to run it in. A non-zero exit is reported with the command and the exit code, and the removal continues
 under the guards; its output is data. Never run `down` from the `WorktreeRemove` hook.
 
