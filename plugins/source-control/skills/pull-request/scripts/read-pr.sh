@@ -210,7 +210,11 @@ if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
   host="${BASH_REMATCH[1]}" repo_path="${BASH_REMATCH[2]}"
 fi
 visibility=UNKNOWN
-if [[ -n "$repo_path" ]]; then
+# A host gh is not logged in to could be anyone's server, answering "public" for a private
+# repository, so it is never asked. An enterprise token in the environment would vouch for any
+# host, so only gh's stored logins count.
+if [[ -n "$repo_path" ]] && { [[ "$host" == github.com ]] ||
+  env -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN gh auth status --hostname "$host" >/dev/null 2>&1; }; then
   v=$(gh api --hostname "$host" "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
   [[ "$v" =~ ^(PUBLIC|PRIVATE|INTERNAL)$ ]] && visibility="$v"
 fi

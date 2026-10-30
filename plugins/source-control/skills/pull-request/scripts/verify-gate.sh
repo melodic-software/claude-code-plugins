@@ -5,6 +5,7 @@
 # the later call that flips the draft. `record` writes the gate's result for one head commit;
 # `check` runs in the same shell command as `gh pr ready` and refuses unless that exact head
 # has a recorded `pass`, or a recorded `skipped` (`--skip verify` or `pre_ready` turned it off).
+# CI's test lanes passing on that head skips only the suites; the rest of the gate still records.
 # A result recorded for another head never counts, so a commit after the gate voids it.
 #
 # Usage:

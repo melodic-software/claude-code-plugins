@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/color-grading-primer.html",
+            "content": "<p>A primer creates no MISSION.md, GLOSSARY.md or learning-records/.</p>"
+          }
+        }
+      ],
+      "why": "temp HTML ladder; the content names the files but the path does not"
+    },
+    {
+      "answer": [],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "~/Documents/Claude Learning/project-1a2b3c4d/topic/color-grading/MISSION.md",
+            "content": "# Mission: Color grading\n"
+          }
+        }
+      ],
+      "why": "writes a mission"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "D:\\Learning\\Claude Learning\\p-1a2b3c4d\\topic\\color-grading\\learning-records\\0001-starting-point.md",
+            "content": "# Starting point\n"
+          }
+        }
+      ],
+      "why": "writes a learning record on a Windows path"
+    }
+  ]
+}

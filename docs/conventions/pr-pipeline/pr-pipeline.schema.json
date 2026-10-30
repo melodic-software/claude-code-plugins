@@ -370,6 +370,12 @@
           "maximum": 1,
           "description": "Share of the header's limit left, by the header's remaining, at which the repository kill switch should be set. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
+        "pace": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks (.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
+        },
         "read-floor": {
           "type": "number",
           "minimum": 0,
@@ -497,6 +503,7 @@
         "research-first",
         "probe-first",
         "workflow-modified",
+        "kill-switch",
         "rung-up",
         "no-model-turn",
         "finding-stands",
@@ -1024,6 +1031,11 @@
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
+        "full-run-cap-bypass": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: pr-merge's post-merge-dispatch starts a full run of main inside its 30-minute cap when the post-merge report lists an unverified lane merge that no started full run covers, one run for the whole uncovered batch. false: the cap holds for every merge. Absent is true."
+        },
         "lane-prs": {
           "enum": ["native", "gate"],
           "default": "native",
@@ -1125,6 +1137,13 @@
           },
           "description": "GitHub login the unattended merge lane acts as. It must be the [bot] login of a GitHub App dedicated to this lane: a machine user is a User and would pass every human test, and GitHub's shared built-in bots (github-actions[bot], dependabot[bot]) are rejected in any letter case. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
+        "trust-path-hold-apps": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
+        },
         "diff-check": {
           "type": "object",
           "additionalProperties": false,
@@ -1147,7 +1166,12 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way. The local babysit lane always applies the manifest review."
+              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way while path-holds is true. The local babysit lane always applies the manifest review."
+            },
+            "path-holds": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
             },
             "c2-contradictions": {
               "type": "boolean",

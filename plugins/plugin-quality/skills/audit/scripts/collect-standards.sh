@@ -158,8 +158,8 @@ elif [[ -z "$inv_cite" ]]; then
 elif [[ "$base" != "SKILL.md" ]]; then
   emit_probe invocation-mode not-applicable "$inv_rel:$inv_cite" - "not a skill file"
 else
-  if awk 'BEGIN{f=0} /^---[[:space:]]*$/{f++; next} f==1{print} f>=2{exit}' "$COMPONENT" |
-    grep -E -q '^disable-model-invocation:'; then
+  if grep -E -q '^disable-model-invocation:' \
+    < <(awk 'BEGIN{f=0} /^---[[:space:]]*$/{f++; next} f==1{print} f>=2{exit}' "$COMPONENT"); then
     emit_probe invocation-mode aligned "$inv_rel:$inv_cite" - "explicit disable-model-invocation"
   else
     emit_probe invocation-mode finding "$inv_rel:$inv_cite" "$COMPONENT:1" "disable-model-invocation key absent"

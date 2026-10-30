@@ -461,20 +461,44 @@ member write of a trusted name, a write whose computed key may be one, a trusted
 string or `Symbol.x` argument to any call, an object literal holding one given to
 `Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
 `Reflect.set`, `__defineGetter__`) given a key that may be one or read other than as a direct
-callee, an alias of `Object` or `Reflect`, a prototype swap (`__proto__=`, `setPrototypeOf`), and a
-write to an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a
-string, a template without substitutions, or `Symbol.x`. A computed key is known when every value
-it can take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof`
-result, or a variable each write of which is one of those, so a loop counter (`o[i]=`) or a
-TypeScript enum (`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target
-is cleared only when it is provably fresh: a literal or a function (never a call result, not even
-`Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
-superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
-holds one of those; or the `prototype` of a function or class declared in the module whose every
-reference is `F.prototype.k` with a named key other than `constructor` (a call, `new`, or
-`F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
-given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
-built from a string: global `eval` other than a direct call, the global `Function` used other
+callee, an alias of `Object` or `Reflect` (a destructuring declarator is none when each definer it
+takes, as in `var{defineProperty:f}=Object`, is never written again and only called, each call
+then checked as that definer's, and every other key it takes is a static that defines nothing
+and hands out no code, such as `getPrototypeOf` or `keys`), a prototype swap (`__proto__=`,
+`setPrototypeOf`, and a `__proto__` set through `Reflect.set(o,"__proto__",p)` or an own
+`__proto__` property given to `Object.assign`, as in `{["__proto__"]:p}`), and a write to
+an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a string, a
+template without substitutions, or `Symbol.x`. A computed key is known when every value it can
+take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof` result, or a
+variable each write of which is one of those, so a loop counter (`o[i]=`) or a TypeScript enum
+(`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target is cleared only
+when it is provably fresh: a literal, a function, or `new` of a class declared in the module with
+no superclass and no constructor returning a value; `new` of a built-in constructor named by its
+unshadowed global name (`Error` and the other native errors, `Map`, `Set`, `WeakMap`, `WeakSet`),
+which trusts that name; a call of the global `Object.create`, or the object an `Object` definer
+returns, which trusts `Object` and `create` or the definer's name, since any of them can be
+replaced first; `this` in the constructor of a class with no superclass, or in a function every
+reference to which binds it to a fresh object (`r.bind(b,c)`, trusting `bind`). A derived class's
+`this` is whatever `super()` returns, so it is fresh only in a class extending one of those
+built-ins, trusting that name; `new` of such a class is fresh the same way. `super()` calls the
+class's own prototype, so the class counts only while every reference to it is a `new`, a named
+member read that writes nothing, the right of `instanceof`, a superclass or an `export{...}`.
+These hand the class on only as `new.target`, an instance's `constructor`, `this` in a getter or
+method, or an importer's binding, none of which is a fresh target, so a prototype swap through
+one is a sink. Also fresh: a `?:` whose branches both are; a variable
+that only ever holds one of those, or is assigned one before any read in its own function; the
+`prototype` of a function or class declared in the module whose every reference is `F.prototype.k`
+with a named key other than `constructor` (a call, `new`, or
+`F.prototype.constructor` leads back to F, which could replace it); and a parameter never written,
+when every call of its function passes one (not followed for a function that reads `arguments` or
+is declared in a block, which sloppy code can change or call unseen). For an exported function
+those calls include every importer's: `sinks` holds the hit as pending, and it clears only when
+each module importing the export calls it directly with a fresh argument (the helper's
+`fresh_args` op), none re-exports it, and no module loads its file whole or loads a file the
+parser cannot name. Every module is then checked for the names the cleared targets trusted as
+well. `Reflect.set`'s receiver, when given, must be fresh too. A module that does not parse or
+calls `eval` is a sink, and so is code built from a string: global `eval` other than a direct
+call, the global `Function` used other
 than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
@@ -501,13 +525,16 @@ module, holds no sink by this same rule (followed up to 4 folds deep). The modul
 what only sloppy code allows (`with`) and parses the rest the same, except an HTML-like comment,
 so text holding `<!--` or `-->` is not folded. `test_reader_findings` pins the three shapes #9983 reports
 on 2.1.310 (lodash's probe, the `new Function("")` probe, an unused syntax check) as clearing;
-ajv's generated code is no constant and stays a sink. Any other use stays a sink: a stored function
+ajv's generated code is no constant and stays a sink. Folded code that loads a file
+(`import("...")`, `require("...")`) is a sink too, since the bundle's load scan never reads it.
+Any other use stays a sink: a stored function
 (`var F=Function("...");F()`), a body that is no constant (`Function(s)()`), `.call` or `.apply`
 on the result. The folded calls trust the global `Function` itself, so the rule counts `Function`
 among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
 the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
 given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
-holds a computed write of its own.
+holds a computed write of its own. `Object` and the built-in constructors above count the same
+way.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -533,8 +560,27 @@ behind a comma, or called with no literal; a computed member or destructured key
 as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
 `x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
 load any file whole, so any such module fails every export hop; `typeof require`,
-`require.resolve` and a binding named `require` do not count. A computed read whose key is a
+`require.resolve`, a binding named `require`, and a `.require` member read that is only tested
+(a `&&` operand other than the last, an `if`, loop or `?:` test, a `!` operand, as in lodash's
+`w&&w.require&&w.require("util")`) do not count. A computed read whose key is a
 parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+A template `import()` whose specifier starts with a bare package name
+(`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
+specifier cannot reach a file embedded in the executable (pointer: Bun's
+[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page, as of
+2026-10-29; recheck when it documents how a bare specifier resolves inside a compiled executable).
+
+A named loader is followed instead: an alias of `import.meta.require` or `require` that a
+module-scope declarator initializes, never written again and exported by name other than
+`default` (Bun's runtime chunk: `var Fe=import.meta.require;export{...,Fe}`, the helper's
+`aliases`). Every import of an exported alias name, in any module, holds the loader. A call of it
+with a literal specifier loads that file whole, followed by the `namespace` op like
+`require(...)`, and a literal `vm` or `node:vm` is a sink. Any other use (a call with no literal,
+an alias, an escape, a re-export, in an importer or the runtime chunk) counts as a load the scan
+cannot name, in the sink rule too. The alias stays such a load when Bun's module table names no
+file for its module or any module loads that file whole, since `R.Fe(s)` on a namespace of it
+reaches the alias unseen.
+
 On 2.1.284 to 2.1.288 the chunk
 re-exporting the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14
 times, each read by name, but on 2.1.288 3 modules hold a load the scan cannot name without a
@@ -544,6 +590,10 @@ Stated assumptions, not checked:
 
 - Code built from strings is not analyzed, only counted as a sink (above), except a direct call
   of `Function` on constant strings, whose code is scanned as written.
+- An accessor or definer read off a prototype as a value is not followed:
+  `Object.getOwnPropertyDescriptor(Object.prototype,"__pro"+"to__").set` hands out the
+  `__proto__` setter, which swaps any object's prototype when called, and the same read of
+  `__defineGetter__` hands out a definer that takes any key. Neither read is counted.
 - Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
   read of it: `(()=>0).constructor("...")()` builds code no rule counts.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as

@@ -414,3 +414,29 @@ calls that reach `/proc/*/environ`, and `Read(/<workspace>/.git/**)` denies a Gr
 | `lane-permissions/read-git-config-denied` | deny (rule) | deny; seen only in `result.permission_denials`, so `unknown` | pass |
 | `lane-permissions/grep-in-checkout-runs` | ran | ran | pass |
 | `lane-permissions/read-in-checkout-runs` | ran | ran | pass |
+
+## Basis for record 18
+
+A live run of the `intake-permissions` area, `probe.py run --live --area intake-permissions
+--retries 1 --max-runs 10 --max-cost-usd 2`, with the launch above plus `--permission-mode dontAsk`
+and `--allowedTools 'Bash(gh issue view *)'`. Each case's settings put the stub `gh` first on
+`PATH`. Linux (WSL2), Claude Code **2.1.312**, 2026-10-29: 5 runs, no retry needed. The streams
+were not committed. The recheck trigger and expiry above apply.
+
+## 18. Under `dontAsk`, a `Bash(gh issue view *)` rule does not approve a compound command
+
+**Claim.** Under `dontAsk` with only `Bash(gh issue view *)` allowed, a plain `gh issue view 1` runs,
+and the same call with `; touch`, `&& touch`, `| touch` or `$(touch ...)` appended is denied: the
+rule approves no subcommand it does not match. The denial reports `decision_reason_type` `mode`
+(the `dontAsk` mode denies what no rule allows), not `rule`.
+
+**Recheck trigger.** A release note naming Bash permission rule matching, compound commands, command
+substitution, `--allowedTools` or `dontAsk`.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `intake-permissions/gh-issue-view-runs` | ran, `gh-stub-marker` | ran, `gh-stub-marker: issue view 1` | pass |
+| `intake-permissions/gh-issue-view-semicolon-denied` | deny | deny, mode | pass |
+| `intake-permissions/gh-issue-view-and-denied` | deny | deny, mode | pass |
+| `intake-permissions/gh-issue-view-pipe-denied` | deny | deny, mode | pass |
+| `intake-permissions/gh-issue-view-substitution-denied` | deny | deny, mode | pass |

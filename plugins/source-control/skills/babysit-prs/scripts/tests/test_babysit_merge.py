@@ -2464,5 +2464,187 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         method.assert_not_called()
 
 
+class MainReviewInputTests(unittest.TestCase):
+    """What the gate hands bind() for the main-run reviews: nothing, with no
+    read, unless the pull request changes a lane source; then each lane's
+    exact artifact name for the head's tree and the context bind() checks."""
+
+    def reviews(self, changed: list[str]) -> tuple[Any, Any, list[Any]]:
+        calls: list[Any] = []
+
+        def collect(repo, names, workflow, branch, env):
+            calls.append((repo, names, workflow, branch))
+            return [{"lane": "claude-review"}]
+
+        tree = "e" * 40
+        with (
+            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(
+                merge, "gh_json", return_value={"tree": {"sha": tree}}
+            ) as read,
+            mock.patch.object(merge, "collect_main_reviews", side_effect=collect),
+            mock.patch.object(merge, "_force_pushed_heads", return_value=["b" * 40]),
+            mock.patch.object(
+                merge,
+                "collect_main_review_counts",
+                side_effect=lambda repo, shas, names, env: (
+                    calls.append(("critical-counts", dict(shas), names))
+                    or {
+                        HEAD: {
+                            "claude-review": [(2, 0), ("stop", "too-large")],
+                            "claude-security-review": [(1, 0), None],
+                        },
+                        "b" * 40: {
+                            "claude-security-review": [(3, 1), ("stop", "binary")],
+                        },
+                    }
+                ),
+            ),
+        ):
+            reviews, context = merge._main_reviews(
+                "owner/repo", 5, HEAD, changed, None, None, None, [HEAD]
+            )
+        calls.extend(read.call_args_list)
+        return reviews, context, calls
+
+    def test_no_lane_source_reads_nothing(self) -> None:
+        self.assertEqual(self.reviews(["app.py"]), (None, None, []))
+
+    def test_a_lane_source_collects_by_the_heads_tree(self) -> None:
+        reviews, context, calls = self.reviews(["app.py", ".github/workflows/x.yml"])
+        tree = "e" * 40
+        self.assertEqual(reviews, [{"lane": "claude-review"}])
+        self.assertEqual(
+            context,
+            {
+                "repo": "owner/repo",
+                "pr": 5,
+                "tree": tree,
+                "branch": "main",
+                # An unreadable title counts one CRITICAL, and only readable
+                # counts on this head can match a verdict.
+                "carried_critical": {"claude-review": 0, "claude-security-review": 1},
+                "head_records": {
+                    "claude-review": [[2, 0]],
+                    "claude-security-review": [[1, 0]],
+                },
+                # A designed stop on this head, never one on another head.
+                "head_stops": {
+                    "claude-review": ["too-large"],
+                    "claude-security-review": [],
+                },
+            },
+        )
+        # The security lane on every head of the pull request, force-pushed
+        # ones included; the code lane on the head alone, the only records
+        # its binding reads.
+        self.assertEqual(
+            calls[1],
+            (
+                "critical-counts",
+                {
+                    "claude-review": [HEAD],
+                    "claude-security-review": [HEAD, HEAD, "b" * 40],
+                },
+                {
+                    "claude-review": "pr-review-main: claude-review",
+                    "claude-security-review": "pr-review-main: claude-security-review",
+                },
+            ),
+        )
+        self.assertEqual(
+            calls[0],
+            (
+                "owner/repo",
+                {
+                    "claude-review": f"pr-review-main-claude-review-5-{tree}",
+                    "claude-security-review": f"pr-review-main-claude-security-review-5-{tree}",
+                },
+                ".github/workflows/pr-review-main.yml",
+                "main",
+            ),
+        )
+
+
+class LaneRunsReadTests(unittest.TestCase):
+    """`_lane_evidence` lists a lane's pull_request runs only when `bind()`
+    can read them: a lane-source pull request binds the code lane on a
+    main-run review alone, so only the security lane's runs are listed (its
+    carried blocking count reads them)."""
+
+    def lanes_listed(self, changed: list[str]) -> list[Any]:
+        listed: list[Any] = []
+        pr = {
+            "head": {"ref": "feat", "sha": HEAD},
+            "base": {"sha": "b" * 40},
+            "user": {"login": "someone"},
+            "commits": 0,
+        }
+        with (
+            mock.patch.object(merge, "fetch_paginated_api", return_value=[]),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge,
+                "collect_lane_runs",
+                side_effect=lambda repo, number, ref, lanes, *rest: (
+                    listed.extend(lanes) or []
+                ),
+            ),
+            mock.patch.object(merge, "_main_reviews", return_value=(None, None)),
+        ):
+            merge._lane_evidence(
+                "owner/repo",
+                5,
+                pr,
+                "agent",
+                frozenset(),
+                lambda login: "write",
+                changed,
+            )
+        return listed
+
+    def test_a_lane_source_lists_only_the_security_lanes_runs(self) -> None:
+        self.assertEqual(
+            self.lanes_listed(["app.py", "AGENTS.md"]),
+            [merge.review_evidence.LANES["claude-security-review"]],
+        )
+
+    def test_any_other_pull_request_lists_every_lane(self) -> None:
+        self.assertEqual(
+            self.lanes_listed(["app.py"]),
+            list(merge.review_evidence.LANES.values()),
+        )
+
+
+class ForcePushedHeadsTests(unittest.TestCase):
+    """The heads force pushes replaced, whose recorded review counts still
+    hold; a listing that is not whole raises."""
+
+    def heads(self, total: int, oids: list[Any]) -> list[str]:
+        nodes = [
+            {"beforeCommit": None if oid is None else {"oid": oid}} for oid in oids
+        ]
+        data = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {"totalCount": total, "nodes": nodes}
+                    }
+                }
+            }
+        }
+        with mock.patch.object(merge, "gh_json_graphql", return_value=data):
+            return merge._force_pushed_heads("owner/repo", 5)
+
+    def test_names_each_replaced_head(self) -> None:
+        self.assertEqual(
+            self.heads(3, ["a" * 40, None, "b" * 40]), ["a" * 40, "b" * 40]
+        )
+
+    def test_a_listing_past_one_page_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.heads(101, ["a" * 40])
+
+
 if __name__ == "__main__":
     unittest.main()

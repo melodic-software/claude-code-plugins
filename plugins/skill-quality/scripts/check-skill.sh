@@ -50,6 +50,10 @@
 # CHECK_SKILL_SKIP_MARKDOWNLINT=1 skips check 6 (markdownlint) for callers with
 # no Node toolchain.
 #
+# CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 (the skill's scripts/*.test.sh)
+# for callers whose test tier runs those suites itself, such as
+# scripts/check-affected.sh without --tests.
+#
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
@@ -703,8 +707,9 @@ vc_strip_negated_mutate() {
 
 vc_lead_mutate() {
   # Positive action verbs only. "remediation" (noun) is not advertising.
-  vc_strip_negated_mutate "$1" | grep -qE \
-    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
+  grep -qE \
+    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)' \
+    < <(vc_strip_negated_mutate "$1")
 }
 
 vc_lead_readonly() {
@@ -717,13 +722,15 @@ vc_lead_readonly() {
   # restriction, not a never-mutates claim (Fixes the files but does not
   # modify vendored dependencies).
   vc_lead_mutate "$t" && return 1
-  printf '%s' "$t" | grep -qE \
-    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
+  grep -qE \
+    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations' \
+    <<<"$t"
 }
 
 vc_has_override() {
-  printf '%s' "$1" | grep -qE \
-    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare'
+  grep -qE \
+    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare' \
+    <<<"$1"
 }
 
 vc_body_bare_mutate() {
@@ -737,8 +744,9 @@ vc_body_bare_mutate() {
 }
 
 vc_body_never_mutate() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | grep -qE \
-    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits'
+  grep -qE \
+    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits' \
+    < <(tr '[:upper:]' '[:lower:]' <<<"$1")
 }
 
 check_25() {
@@ -1057,7 +1065,7 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         [[ -n "$phrase" ]] || continue
         MOVE_HOST=""
         for ((sib_i = 0; sib_i < ${#SIB_NAMES[@]}; sib_i++)); do
-          printf '%s\n' "${SIB_TRIGS[$sib_i]}" | grep -qxF -- "$phrase" || continue
+          grep -qxF -- "$phrase" <<<"${SIB_TRIGS[$sib_i]}" || continue
           OTHER_NAME="${SIB_NAMES[$sib_i]}"
           OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
           if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null; then
@@ -1065,7 +1073,7 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
               "$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)")"
             # Sibling already carried the phrase at BASE_REF: coincidental
             # overlap, not a move — keep looking for a genuine host.
-            printf '%s\n' "$OTHER_BASE_TRIG" | grep -qxF -- "$phrase" && continue
+            grep -qxF -- "$phrase" <<<"$OTHER_BASE_TRIG" && continue
           fi
           MOVE_HOST="$OTHER_NAME"
           break
@@ -1315,7 +1323,9 @@ fi
 
 # --- Check 7: scripts/*.test.sh pass where present -------------------------
 
-if [[ -d "$SKILL_DIR/scripts" ]]; then
+if [[ "${CHECK_SKILL_SKIP_SCRIPT_TESTS:-}" == "1" ]]; then
+  note "script tests skipped (CHECK_SKILL_SKIP_SCRIPT_TESTS=1)"
+elif [[ -d "$SKILL_DIR/scripts" ]]; then
   SKILL_TOPLEVEL="$("${GIT_UNSET[@]}" git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
   while IFS= read -r test_sh; do
@@ -1562,7 +1572,7 @@ done
 
 # --- Check 16: metadata.category (informational) ------------------------------
 
-if [[ -n "$FRONTMATTER" ]] && ! grep -A8 '^metadata:' <<<"$FRONTMATTER" | grep -q 'category:'; then
+if [[ -n "$FRONTMATTER" ]] && ! grep -q 'category:' < <(grep -A8 '^metadata:' <<<"$FRONTMATTER"); then
   note "no metadata.category in frontmatter (optional — category not machine-readable)"
 fi
 

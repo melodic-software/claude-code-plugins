@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | plugins/eol-normalizer/hooks/hooks.json:9 - `${BASH_VERSION:+exit}` only exits under bash. Hook commands run through /bin/sh, which is dash on Debian and Ubuntu, so the row goes on to `powershell` and fails there. |",
+      "why": "names the line and BASH_VERSION"
+    },
+    {
+      "answer": "BASH_VERSION is unset in dash, so the POSIX guard never fires (hooks.json line 9).",
+      "why": "mechanism before the location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No findings. The node-notice row is consistent with the PostToolUse hook.",
+      "why": "misses the bug"
+    },
+    {
+      "answer": "hooks.json:10 - a 10 second timeout is tight for the notice; BASH_VERSION handling looks fine.",
+      "why": "another line and no defect named at line 9"
+    },
+    {
+      "answer": "hooks.json:9 - the `${BASH_VERSION:+exit}` guard looks fine and the PowerShell half mirrors the shell half.",
+      "why": "the right line quoted with no defect named"
+    }
+  ]
+}

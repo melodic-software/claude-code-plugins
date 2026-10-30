@@ -1,0 +1,31 @@
+---
+written_against: developer-experience@0.0.1
+---
+# Developer tooling conventions
+
+## Tools
+<!-- developer-experience: source=chosen -->
+- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.
+- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).
+- `tq env check`: checks required tools.
+- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.
+- `tq commit` accepts `--yes` to skip the prompts in scripts.
+
+## Shared helpers
+<!-- developer-experience: source=chosen -->
+- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.
+
+## CLI contract
+<!-- developer-experience: source=default -->
+- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.
+
+## Secrets
+<!-- developer-experience: source=chosen -->
+- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.
+
+## Platforms
+<!-- developer-experience: source=chosen -->
+- Linux and macOS (bash), Windows (pwsh).
+
+## Not yet
+- `--json` on `tq commit`.

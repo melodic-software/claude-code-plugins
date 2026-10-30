@@ -370,7 +370,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
-        if (p == "plugins/planning/shared/tests/ui.test.sh" || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
+        if (p ~ /^plugins\/planning\/shared\/tests\/ui-[a-z]\.test\.sh$/ || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s

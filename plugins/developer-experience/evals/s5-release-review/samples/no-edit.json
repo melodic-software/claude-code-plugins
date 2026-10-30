@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "input\\(", "path": "/tmp/run-1/work/bfk"}}],
+      "why": "searched the source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/bfk/cli.py", "old_string": "release.add_argument(\"version\")", "new_string": "release.add_argument(\"version\")\n    release.add_argument(\"--yes\", action=\"store_true\")"}}],
+      "why": "near miss: added the missing --yes flag it had just reported"
+    }
+  ]
+}

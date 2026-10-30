@@ -1,0 +1,15 @@
+namespace Tarnquill.Core;
+
+public static class Paging
+{
+    /// <summary>Number of pages needed to show <paramref name="total"/> items, <paramref name="pageSize"/> per page.</summary>
+    public static int PageCount(int total, int pageSize)
+    {
+        if (pageSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize), "page size must be positive");
+        }
+
+        return total / pageSize + 1;
+    }
+}

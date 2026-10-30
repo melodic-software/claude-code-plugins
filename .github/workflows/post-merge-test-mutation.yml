@@ -72,14 +72,14 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -189,10 +189,9 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -410,15 +409,15 @@ jobs:
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
+            /.github/actions/setup-pinned-node/
             /.github/scripts/post-merge-test-mutation/
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       # The structured output is untrusted model text: read through env and
       # checked by the script, never interpolated into a command.

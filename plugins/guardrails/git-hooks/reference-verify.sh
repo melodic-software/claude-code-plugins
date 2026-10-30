@@ -23,15 +23,19 @@
 # The ranges come from the check lib: one per pushed ref, a new branch from its
 # merge-base with the remote's default branch, a deletion skipped. A hook
 # manager that keeps stdin from this script leaves the lib's fallback: the
-# current branch against its upstream. A range whose tip merged the default
+# current branch against its upstream. Whichever way it came, a range's base
+# then moves up to the nearest of the remote's tracking refs between it and
+# the tip (nearest_pushed_base), so a new branch stacked on a pushed branch is
+# judged only on what it adds to that branch. A range whose tip merged the default
 # branch is narrowed to the lines the branch itself adds (narrow_to_branch).
 # Each range is checked on its own, in
 # that range's tip: the checkout when HEAD is the tip and the tree is clean,
 # else a temporary detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
-# file's first added line, and exits 1. Missing jq follows the check-placement
-# contract: checks.skipmissing, else fail for an agent and a notice for a person.
+# first judged line holding the text the finding names (see report), and exits
+# 1. Missing jq follows the check-placement contract: checks.skipmissing, else
+# fail for an agent and a notice for a person.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
@@ -46,6 +50,14 @@ lib="$here/check-lib.sh"
 # shellcheck source=../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
 set -uo pipefail
+
+# A declined entry checks nothing, whichever path registered it: a lefthook
+# remote runs this script from the fetched copy, where no installer removed it.
+# The keys read as install.mjs reads them: the entry's key at git's precedence,
+# unset falling back to the master key, a non-boolean value not declining.
+declined="$(git config --type=bool --get checks.guardrails.reference-verify.declined 2>/dev/null)"
+[[ $? -eq 1 ]] && declined="$(git config --type=bool --get checks.git-hooks.declined 2>/dev/null)"
+[[ "$declined" == true ]] && exit 0
 
 checks_init pre-push "$@" || exit 0
 checks_require_tool jq "https://jqlang.org/download/"
@@ -138,6 +150,22 @@ narrow_to_branch() {
     "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges"
 }
 
+# nearest_pushed_base: moves BASE to the commit of a tracking ref of $remote
+# that the tip holds and that holds BASE, the one fewest commits behind the tip.
+# Those commits are on the remote already, so they are not judged again.
+nearest_pushed_base() {
+  local r n best="" min=0
+  while IFS= read -r r; do
+    [[ "$r" != "$BASE" ]] || continue
+    n="$(git rev-list --count "$r..$TIP" 2>/dev/null)" || continue
+    if [[ -z "$best" ]] || ((n < min)); then
+      best="$r"
+      min="$n"
+    fi
+  done < <(git for-each-ref --merged="$TIP" --contains="$BASE" --format='%(objectname)' "refs/remotes/$remote/" 2>/dev/null)
+  [[ -z "$best" ]] || BASE="$best"
+}
+
 # main_base_for_range: sets MAIN_BASE for the current BASE..TIP, empty unless
 # the default branch's merge-base is not already behind BASE.
 main_base_for_range() {
@@ -163,6 +191,52 @@ first_line() {
     "$CHECKS_TMP/ranges"
 }
 
+# report <path> <whole>: the verifiers' report on stdin as "<path>:<line>: "
+# rows. A detail line names a flag with its command ("faketool --bogus (not in
+# ...)"), a path or a skill reference; it gets the first judged line of the tip's
+# text ($CHECKS_TMP/file) holding that text, every line when <whole> is 1, else
+# those the range adds. A heading gets its first detail's line; a line matching
+# nothing, the file's first added line.
+# The path travels in the environment: awk -v decodes a backslash escape, and
+# the path is printed.
+report() {
+  REPORT_PATH="$1" awk -v whole="$2" -v first="$(first_line "$1")" \
+    -v ranges="$CHECKS_TMP/ranges" -v file="$CHECKS_TMP/file" '
+    function judged(i, k) {
+      if (whole) return 1
+      for (k = 1; k <= n; k++) if (i >= s[k] && i <= e[k]) return 1
+      return 0
+    }
+    function locate(cmd, needle, i) {
+      if (needle == "") return first
+      for (i = 1; i <= lines; i++)
+        if (index(src[i], needle) && (cmd == "" || index(src[i], cmd)) && judged(i)) return i
+      return first
+    }
+    function row(at, msg) { printf "%s:%s: %s\n", want, at, msg }
+    BEGIN {
+      want = ENVIRON["REPORT_PATH"]
+      while ((getline l < ranges) > 0) { split(l, r, "\t"); if (r[1] == want) { n++; s[n] = r[2] + 0; e[n] = r[3] + 0 } }
+      while ((getline l < file) > 0) src[++lines] = l
+    }
+    /^[ \t]*$/ { next }
+    !/^  / { if (head != "") row(first, head); head = $0; at = first; next }
+    {
+      d = substr($0, 3)
+      if (d !~ /^\.\.\. and /) {
+        cmd = ""; needle = d
+        if ((p = index(d, " (not in ")) > 0) {
+          needle = substr(d, 1, p - 1); cmd = needle
+          sub(/ .*/, "", cmd); sub(/.* /, "", needle)
+        } else if ((p = index(d, " (")) > 0) needle = substr(d, 1, p - 1)
+        at = locate(cmd, needle)
+      }
+      if (head != "") { row(at, head); head = "" }
+      row(at, $0)
+    }
+    END { if (head != "") row(first, head) }'
+}
+
 # verified_type <path>: an extension the verifiers read, outside an eval
 # suite's samples/ folder. A sample is recorded model output: a flag, skill
 # reference or path in it is data, not a claim the repository makes.
@@ -180,7 +254,7 @@ out="$CHECKS_TMP/findings"
 
 # check_range: every file the current range (or the worktree) changes.
 check_range() {
-  local f ctx line msg _
+  local f ctx whole _
   local derived=$'\n' text="$CHECKS_TMP/text" payload="$CHECKS_TMP/payload"
   changed_lines
   narrow_to_branch
@@ -197,12 +271,14 @@ check_range() {
     # Git quotes a name holding a quote, a backslash or a control byte whatever
     # core.quotePath says, so the range table has no entry for it: such a file
     # is judged whole, as a new one is.
+    checks_file_text --tip "$TIP" "$f" >"$CHECKS_TMP/file"
+    whole=0
     if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$derived" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
-      checks_file_text --tip "$TIP" "$f" >"$text"
-      jq -n --arg p "$PWD/$f" --rawfile c "$text" \
+      whole=1
+      jq -n --arg p "$PWD/$f" --rawfile c "$CHECKS_TMP/file" \
         '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}' >"$payload"
     else
-      checks_file_text --tip "$TIP" "$f" | added_lines "$f" >"$text"
+      added_lines "$f" <"$CHECKS_TMP/file" >"$text"
       grep -q '[^[:space:]]' "$text" || continue
       jq -n --arg p "$PWD/$f" --rawfile c "$text" \
         '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload"
@@ -210,10 +286,7 @@ check_range() {
     ctx="$(CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" 2>/dev/null |
       jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
     [[ -n "$ctx" ]] || continue
-    line="$(first_line "$f")"
-    while IFS= read -r msg; do
-      [[ -n "${msg//[[:space:]]/}" ]] && printf '%s:%s: %s\n' "$f" "$line" "$msg"
-    done <<<"$ctx" >>"$out"
+    report "$f" "$whole" <<<"$ctx" >>"$out"
   done < <(checks_files)
 }
 
@@ -237,6 +310,7 @@ else
   remote="${CHECKS_ARGS%% *}"
   [[ -n "$remote" ]] || remote=origin
   while read -r BASE TIP <&3; do
+    nearest_pushed_base
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
     main_base_for_range
     if tip_is_checkout; then

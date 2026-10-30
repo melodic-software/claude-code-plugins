@@ -264,7 +264,7 @@ PROBE_TIMEOUT_CMD=""
 if [[ "${LANES_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
   for candidate in timeout gtimeout; do
     if command -v "$candidate" >/dev/null 2>&1 &&
-      "$candidate" --help 2>&1 | grep -Fq -- '--kill-after'; then
+      grep -Fq -- '--kill-after' < <("$candidate" --help 2>&1); then
       PROBE_TIMEOUT_CMD="$candidate"
       break
     fi
@@ -1296,7 +1296,7 @@ claude_app_covers_repo() {
     fi
     if [[ "$selection" == "selected" ]]; then
       repos="$(gh api --paginate "user/installations/$id/repositories" --jq '.repositories[].full_name' 2>/dev/null)" || continue
-      printf '%s\n' "$repos" | tr '[:upper:]' '[:lower:]' | grep -qxF -- "$slug" && return 0
+      grep -qxF -- "$slug" < <(tr '[:upper:]' '[:lower:]' <<<"$repos") && return 0
     fi
   done <<<"$installs"
   return 1
@@ -1747,7 +1747,7 @@ for_each_lane() {
       exit 3
     }
     if ((${#TARGET_LANES[@]})); then
-      printf '%s\n' "${TARGET_LANES[@]}" | grep -qxF "$name" || continue
+      grep -qxF "$name" < <(printf '%s\n' "${TARGET_LANES[@]}") || continue
     fi
     model="$(lane_field "$i" model)"
     effort="$(lane_field "$i" effort)"

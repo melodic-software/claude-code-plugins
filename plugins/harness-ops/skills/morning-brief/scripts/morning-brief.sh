@@ -7,7 +7,8 @@
 # RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags),
 # review findings stranded on already-merged PRs, and per lane workflow the last
 # 7 days of runs: failures by class, limit stops, restarts and turn headroom,
-# then model usage per activity and profile; last, what on GitHub or Azure is
+# then model usage per activity and profile; per UTC day, each time the
+# factory needed the owner (owner touches); last, what on GitHub or Azure is
 # charging or could start charging.
 #
 # Read-only: it never mutates labels, comments, issues, PRs, or any GitHub or
@@ -68,6 +69,11 @@
 #   morning-brief.sh --lane-read-limit N      cap on lane runs whose job annotations are read, the newest 3 of each lane first (default 200)
 #   morning-brief.sh --max-turns-hits N       max-turns hits per activity and profile above which
 #                                             the lanes model-usage table prints RECOMMENDED (default: unset)
+#   morning-brief.sh --touch-days N           UTC days the owner-touch section covers, today included (default 2)
+#   morning-brief.sh --owner-login L          the operator login the owner-touch section counts (default: gh api user)
+#   morning-brief.sh --lane-identity L        the lane login whose escalations count (default: merge.agent-identity
+#                                             in the repo's docs/conventions/pr-pipeline.yaml)
+#   morning-brief.sh --hold-label L           the hold label whose waits the owner-touch section measures (default needs-human)
 #   morning-brief.sh --org ORG                GitHub org whose billing the cost section reads
 #                                             (default: the repo's owner)
 #   morning-brief.sh --subscription ID        Azure subscription the cost section reads
@@ -119,6 +125,8 @@
 #                             search page documents, {data:{search:{issueCount,
 #                             pageInfo,nodes}}}, as the stuck section's GraphQL
 #                             read returns them
+#   --touch-json FILE         {owner, laneIdentity, pages}: the operator and lane
+#                             logins and the owner-touch search page documents
 #   --lane-runs-json FILE     object mapping a workflow file name to its runs,
 #                             each {id,html_url,event,display_title,head_sha,
 #                             status,conclusion,created_at} (the lanes section)
@@ -189,6 +197,14 @@ STRANDED_DAYS="3"
 STUCK_DAYS="7"
 STUCK_LIMIT="20"
 STUCK_JSON=""
+# Owner touches: the window in UTC days (today so far, and the days before it),
+# and who counts as the operator and the lane identity (default: the gh login,
+# and merge.agent-identity in the repo's pr-pipeline.yaml).
+TOUCH_DAYS="2"
+TOUCH_JSON=""
+OWNER_LOGIN_ARG=""
+LANE_IDENTITY_ARG=""
+HOLD_LABEL="needs-human"
 DATA_DIR_ARG=""
 LANE_RUNS_JSON=""
 LANE_ANNOTATIONS_JSON=""
@@ -557,6 +573,37 @@ while (($# > 0)); do
     STUCK_JSON="$2"
     shift 2
     ;;
+  --touch-days)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    ((10#$2 >= 1)) || {
+      printf 'morning-brief: --touch-days must be 1 or more\n' >&2
+      exit 3
+    }
+    TOUCH_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --owner-login)
+    require_value "$1" "${2:-}"
+    OWNER_LOGIN_ARG="$2"
+    shift 2
+    ;;
+  --lane-identity)
+    require_value "$1" "${2:-}"
+    LANE_IDENTITY_ARG="$2"
+    shift 2
+    ;;
+  --hold-label)
+    require_value "$1" "${2:-}"
+    HOLD_LABEL="$2"
+    shift 2
+    ;;
+  --touch-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    TOUCH_JSON="$2"
+    shift 2
+    ;;
   -*)
     printf 'morning-brief: unknown flag %q (use --help)\n' "$1" >&2
     exit 3
@@ -774,12 +821,14 @@ NEEDS_LIVE_DECISIONS=0
 NEEDS_LIVE_TELEMETRY=0
 NEEDS_LIVE_MERGED=0
 NEEDS_LIVE_STUCK=0
+NEEDS_LIVE_TOUCH=0
 [[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
 [[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
 [[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
 [[ -z "$TELEMETRY_JSON" ]] && NEEDS_LIVE_TELEMETRY=1
 [[ -z "$MERGED_JSON" ]] && NEEDS_LIVE_MERGED=1
 [[ -z "$STUCK_JSON" ]] && NEEDS_LIVE_STUCK=1
+[[ -z "$TOUCH_JSON" ]] && NEEDS_LIVE_TOUCH=1
 
 # --- Repo label inventory -------------------------------------------------------
 # An inventory that reached its cap cannot prove a label absent, so it is
@@ -839,11 +888,11 @@ if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
     label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
-# The stranded and stuck sections alone never force a repo resolution: every
+# The stranded, stuck and owner-touch sections alone never force a repo resolution: every
 # other section can be driven from fixtures, and a fixture-only run must not
 # reach for the network just to resolve a repo it was not given. With --repo, or
 # once another live section resolves one, the section is live like the rest.
-ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK) && ${#REPO} > 0)))
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK || NEEDS_LIVE_TOUCH) && ${#REPO} > 0)))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
@@ -889,6 +938,7 @@ REPO_ARGS=()
 [[ -n "$REPO" ]] && REPO_ARGS=(--repo "$REPO")
 [[ -n "$REPO" ]] || NEEDS_LIVE_MERGED=0
 [[ -n "$REPO" ]] || NEEDS_LIVE_STUCK=0
+[[ -n "$REPO" ]] || NEEDS_LIVE_TOUCH=0
 
 # --- Portable date handling ---------------------------------------------------
 # GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
@@ -1002,7 +1052,7 @@ STUCK_LABELS=("${QUEUE_LABELS[@]}")
 # --- Section state ---------------------------------------------------------
 # Sections render into files so the header, printed first, can carry the
 # unreadable count.
-SECTIONS_TOTAL=8
+SECTIONS_TOTAL=9
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -2244,6 +2294,253 @@ print_lanes() {
 }
 
 # =============================================================================
+# Section 6b — owner touches: each time the factory needed the owner
+# =============================================================================
+# Per UTC day over the last --touch-days days, from GitHub's own events: the
+# operator login's approvals, merges and do-not-merge lifts, the hold label
+# (needs-human) going on and coming off with the wait between, and escalation
+# comments by lane, kind and reason. GitHub keeps the history, so no store:
+# re-running over the same days gives the same counts, which is the baseline.
+# An escalation counts only from a trusted author (the lane identity, else the
+# operator), per the work-items escalation-marker reference. The operator
+# login's actions include any agent session holding that login.
+#
+# One paged GraphQL search per UTC day (`updated:` within that day), so each
+# stays under the search's 1,000-result ceiling; every item with an event in
+# the window was updated on or after the window's start, so it lands in
+# exactly one day's search. A search that reaches the ceiling, or an item with
+# more than 100 events in the window (label events: 100 read back from now
+# with more before them and none before the window), prints PARTIAL.
+# 50 a page, per the page-size probe recorded in SKILL.md.
+TOUCH_PAGE_LIMIT=20 # 20 pages of 50 is the search ceiling
+TOUCH_TOP=10
+
+# shellcheck disable=SC2016  # GraphQL variables bound by -f, which MUST reach the server unexpanded
+TOUCH_QUERY='
+    query($search:String!, $since:DateTime!, $endCursor:String) {
+      search(query:$search, type:ISSUE, first:50, after:$endCursor) {
+        issueCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          __typename
+          ... on Issue {
+            number
+            acts: timelineItems(since:$since, first:100, itemTypes:[ISSUE_COMMENT]) {
+              pageInfo { hasNextPage }
+              nodes { __typename ... on IssueComment { createdAt author { login } body } }
+            }
+            labels: timelineItems(itemTypes:[LABELED_EVENT, UNLABELED_EVENT], last:100) {
+              pageInfo { hasPreviousPage }
+              nodes { __typename
+                ... on LabeledEvent { createdAt actor { login } label { name } }
+                ... on UnlabeledEvent { createdAt actor { login } label { name } } }
+            }
+          }
+          ... on PullRequest {
+            number
+            acts: timelineItems(since:$since, first:100, itemTypes:[ISSUE_COMMENT, PULL_REQUEST_REVIEW, MERGED_EVENT]) {
+              pageInfo { hasNextPage }
+              nodes { __typename
+                ... on IssueComment { createdAt author { login } body }
+                ... on PullRequestReview { createdAt author { login } state }
+                ... on MergedEvent { createdAt actor { login } } }
+            }
+            labels: timelineItems(itemTypes:[LABELED_EVENT, UNLABELED_EVENT], last:100) {
+              pageInfo { hasPreviousPage }
+              nodes { __typename
+                ... on LabeledEvent { createdAt actor { login } label { name } }
+                ... on UnlabeledEvent { createdAt actor { login } label { name } } }
+            }
+          }
+        }
+      }
+    }'
+
+# fetch_touch_pages OUTFILE START_EPOCH: one GraphQL page document per page,
+# every UTC day from START_EPOCH to now.
+fetch_touch_pages() {
+  local out="$1" start="$2" day_start day_end cursor pages args since
+  since="$(from_epoch "$start" | sed 's/Z$/:00Z/')"
+  : >"$out"
+  for ((day_start = start; day_start <= NOW_EPOCH; day_start += 86400)); do
+    day_end=$((day_start + 86399))
+    cursor="" pages=0
+    while :; do
+      args=(api graphql -f query="$TOUCH_QUERY" -f since="$since"
+        -f search="repo:$REPO updated:$(from_epoch "$day_start" | sed 's/Z$/:00Z/')..$(from_epoch "$day_end" | sed 's/Z$/:59Z/')")
+      [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
+      gh_read "$WORK/touch.page" "${args[@]}" || return 1
+      cat "$WORK/touch.page" >>"$out"
+      pages=$((pages + 1))
+      cursor="$(jq -r '.data.search.pageInfo | if .hasNextPage != true then "" elif .endCursor == null then "!" else .endCursor end' \
+        "$WORK/touch.page" 2>/dev/null)" || {
+        LAST_ERR="could not parse an owner-touch page"
+        return 1
+      }
+      [[ "$cursor" != "!" ]] || {
+        LAST_ERR="an owner-touch page reported more results but no cursor to them"
+        return 1
+      }
+      [[ -n "$cursor" ]] || break
+      ((pages >= TOUCH_PAGE_LIMIT)) && break
+    done
+  done
+}
+
+# The lane identity: merge.agent-identity in docs/conventions/pr-pipeline.yaml
+# on the default branch. Prints nothing when the file or key is absent.
+fetch_lane_identity() {
+  gh_read "$WORK/pipeline.yaml" api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml" || {
+    [[ "$LAST_ERR" == *"Not Found"* || "$LAST_ERR" == *"HTTP 404"* ]] && return 0
+    return 1
+  }
+  awk '/^[^[:space:]#]/ { top = $0 } top ~ /^merge:/ && /^[[:space:]]+agent-identity:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); gsub(/["'"'"']/, ""); print; exit }' "$WORK/pipeline.yaml"
+}
+
+# shellcheck disable=SC2016  # jq program, not shell
+TOUCH_JQ='
+  def norm: ascii_downcase | sub("\\[bot\\]$"; "");
+  def ep: fromdateiso8601;
+  def age: if . == null then "unknown" else (. / 86400 | floor) as $d | ((. % 86400) / 3600 | floor) as $h | ((. % 3600) / 60 | floor) as $m
+    | if $d > 0 then "\($d)d \($h)h" elif $h > 0 then "\($h)h \($m)m" else "\($m)m" end end;
+  def pad($w): tostring | (" " * ([$w - length, 0] | max)) + .;
+  def reason($l):
+    first($l[] | capture("^- Reason: `(?<r>[^`]+)`").r)
+    // first($l[1:2][] | capture("^<!-- babysit-merge-(?<r>[a-z0-9-]+) -->").r)
+    // first($l[1:2][] | capture("^<!-- work-resolve-issue outcome=(?<r>[a-z]+(-[a-z]+)*)").r)
+    // "unspecified";
+  ($op | norm) as $op
+  | ($trusted | map(norm)) as $trusted
+  | [ .. | objects | select(has("data")) | .data.search.nodes[]? | select(type == "object" and .number != null) ]
+  | unique_by(.number) as $items
+  | [ $items[] as $n
+      | (if $n.__typename == "PullRequest" then "PR" else "issue" end) as $kind
+      | ([ $n.labels.nodes[]? | select(.createdAt != null) ]) as $lab
+      | ( ( $n.acts.nodes[]? | select(.createdAt != null and (.createdAt | ep) >= $start)
+            | .createdAt as $at
+            | (((.actor // .author) // {}).login // "" | norm) as $who
+            | if .__typename == "PullRequestReview" and .state == "APPROVED" and $who == $op then {k: "approve"}
+              elif .__typename == "MergedEvent" and $who == $op then {k: "merge"}
+              elif .__typename == "IssueComment" and ($trusted | index($who)) != null
+                   and ((.body // "") | split("\n")[0] | rtrimstr("\r") | test("^<!-- work-items:escalation lane=[^ ]+ kind=[^ ]+ -->$"))
+                then ((.body | split("\n") | map(rtrimstr("\r"))) as $l
+                  | ($l[0] | capture("lane=(?<lane>[^ ]+) kind=(?<kind>[^ ]+)")) as $m
+                  | {k: "escalate", lane: $m.lane, ekind: $m.kind, reason: reason($l)})
+              else empty end
+            | . + {n: $n.number, kind: $kind, at: $at} ),
+          ( $lab[] | select((.createdAt | ep) >= $start)
+            | . as $e
+            | ((.actor // {}).login // "" | norm) as $who
+            | if .label.name == $hold and .__typename == "LabeledEvent" then {k: "hold-on"}
+              elif .label.name == $hold and .__typename == "UnlabeledEvent" then
+                {k: "hold-off", op: ($who == $op),
+                 wait: ([ $lab[] | select(.__typename == "LabeledEvent" and .label.name == $hold and (.createdAt | ep) <= ($e.createdAt | ep)) | .createdAt | ep ]
+                        | max | if . == null then null else ($e.createdAt | ep) - . end)}
+              elif .label.name == "do-not-merge" and .__typename == "UnlabeledEvent" and $who == $op then {k: "dnm-lift"}
+              else empty end
+            | . + {n: $n.number, kind: $kind, at: $e.createdAt} ) ) ] as $ev
+  | ([ range($start; $now + 1; 86400) | todate[0:10] ]) as $days
+  | ["approve", "merge", "dnm-lift", "hold-on", "hold-off", "escalate"] as $cols
+  | "  operator: \($op); escalations trusted from: \($trusted | unique | join(", "))",
+    "  day         " + ($cols | map(pad(9)) | join("")) + "  hold-off by operator",
+    ( $days[] as $d | [ $ev[] | select(.at[0:10] == $d) ] as $de
+      | "  \($d)  " + ($cols | map(. as $c | [ $de[] | select(.k == $c) ] | length | pad(9)) | join(""))
+        + ([ $de[] | select(.k == "hold-off" and .op) ] | length | pad(22)) ),
+    ( [ $ev[] | select(.k == "hold-off") ] as $off
+      | if ($off | length) == 0 then "  hold waits: no hold lifted in the window"
+        else ([ $off[] | .wait | select(. != null) ] | sort) as $w
+          | "  hold waits (\($hold) applied to lifted): n=\($w | length)"
+            + (if ($w | length) > 0 then ", median \($w[(($w | length) - 1) / 2 | floor] | age), max \($w[-1] | age)" else "" end)
+            + (if ($off | length) > ($w | length) then ", \(($off | length) - ($w | length)) with no apply event read" else "" end)
+        end ),
+    ( [ $ev[] | select(.k == "escalate") ] as $es
+      | if ($es | length) == 0 then "  escalations: none in the window"
+        else "  escalations by lane, kind and reason:",
+          ( $es | group_by([.lane, .ekind, .reason]) | map({c: length, key: "\(.[0].lane) \(.[0].ekind) \(.[0].reason)"})
+            | sort_by(-.c, .key)[] | "    \(.c | pad(4))  \(.key)" )
+        end ),
+    ( [ $ev[] | select(.k != "hold-on" and (.k != "hold-off" or .op)) ] | group_by(.n)
+      | map({n: .[0].n, kind: .[0].kind, c: length, parts: (group_by(.k) | map("\(.[0].k) \(length)") | join(", "))})
+      | sort_by(-.c, .n) as $top
+      | if ($top | length) == 0 then empty
+        else "  most-touched items (operator actions and escalations):",
+          ( $top[:$cap][] | "    #\(.n) \(.kind)  \(.parts)" ),
+          ( if ($top | length) > $cap then "  PARTIAL: \($top | length) items touched; showing the top \($cap)" else empty end )
+        end ),
+    ( [ $items[] | select(.acts.pageInfo.hasNextPage == true
+          or (.labels.pageInfo.hasPreviousPage == true
+              and ([ .labels.nodes[]? | .createdAt | select(. != null) | ep ] | min // $start) >= $start))
+        | "#\(.number)" ] as $t
+      | if ($t | length) > 0 then "  PARTIAL: more than 100 events in the window on \($t | join(" ")); counts on those may be low" else empty end ),
+    "  note: approve, merge, dnm-lift and hold-off by operator count actions under the operator login, including any agent session that holds it"
+'
+
+print_touches() {
+  echo "== Owner touches (last ${TOUCH_DAYS} UTC days) =="
+  local pages="$WORK/touch.pages" op lane_id trusted out start
+  start=$((NOW_EPOCH - NOW_EPOCH % 86400 - (TOUCH_DAYS - 1) * 86400))
+  if [[ -n "$TOUCH_JSON" ]]; then
+    local err
+    err="$(body_error "$TOUCH_JSON")"
+    if [[ -n "$err" ]]; then
+      unreadable touches "$err"
+      return
+    fi
+    jq -e 'type == "object"' "$TOUCH_JSON" >/dev/null 2>&1 || {
+      unreadable touches "--touch-json is not an object {owner, laneIdentity, pages}"
+      return
+    }
+    op="${OWNER_LOGIN_ARG:-$(jq -r '.owner // empty' "$TOUCH_JSON")}"
+    lane_id="${LANE_IDENTITY_ARG:-$(jq -r '.laneIdentity // empty' "$TOUCH_JSON")}"
+    jq -c '.pages // []' "$TOUCH_JSON" >"$pages"
+  elif [[ -z "$REPO" ]]; then
+    echo "  (no repo resolved — pass --repo or --touch-json)"
+    echo
+    return
+  elif [[ "$TRANSPORT" == "rest" ]]; then
+    unreadable touches "timeline events need GraphQL, which this session does not serve"
+    return
+  else
+    op="$OWNER_LOGIN_ARG"
+    if [[ -z "$op" ]]; then
+      gh_read "$WORK/touch.user" api user -q .login || {
+        unreadable touches "operator login: $LAST_ERR"
+        return
+      }
+      op="$(tr -d '\r\n' <"$WORK/touch.user")"
+    fi
+    lane_id="$LANE_IDENTITY_ARG"
+    if [[ -z "$lane_id" ]]; then
+      lane_id="$(fetch_lane_identity)" || {
+        unreadable touches "lane identity (docs/conventions/pr-pipeline.yaml): $LAST_ERR"
+        return
+      }
+    fi
+    fetch_touch_pages "$pages" "$start" || {
+      graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+      unreadable touches "$LAST_ERR"
+      return
+    }
+  fi
+  [[ -n "$op" ]] || {
+    unreadable touches "no operator login (pass --owner-login)"
+    return
+  }
+  trusted="$(jq -cn --arg a "$op" --arg b "$lane_id" '[$a, $b] | map(select(length > 0))')"
+  out="$(jq -s -r --arg op "$op" --argjson trusted "$trusted" --arg hold "$HOLD_LABEL" \
+    --argjson start "$start" --argjson now "$NOW_EPOCH" --argjson cap "$TOUCH_TOP" "$TOUCH_JQ" "$pages" 2>&1)" || {
+    unreadable touches "could not parse the owner-touch pages: ${out%%$'\n'*}"
+    return
+  }
+  echo "$out"
+  if jq -s -e '[ .. | objects | select(has("data")) | .data.search | objects | select((.issueCount // 0) > 1000) ] | length > 0' \
+    "$pages" >/dev/null 2>&1; then
+    echo "  PARTIAL: a day's search reached its 1,000-result ceiling; that day's counts may be low"
+  fi
+  echo
+}
+
+# =============================================================================
 # Section 7 — cost: what on GitHub or Azure is charging or could start charging
 # =============================================================================
 # One line per check: a status (OK, ALERT, INFO or UNREADABLE), its source, a
@@ -2871,6 +3168,7 @@ print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
 print_lanes >"$WORK/s6"
+print_touches >"$WORK/s6b"
 print_cost >"$WORK/s7"
 
 printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(utc_stamp "$NOW_EPOCH")"
@@ -2880,7 +3178,7 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s7"
+cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s6b" "$WORK/s7"
 
 # Exit 5 when the brief carries no data at all; 6 when some sections rendered
 # beside unreadable ones, so a caller never takes a partial brief for a full one.

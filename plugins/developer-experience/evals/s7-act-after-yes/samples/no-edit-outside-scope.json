@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no edit at all"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/ws/scripts/README.md", "old_string": "- `test.sh`: runs the unit tests.\n", "new_string": ""}},
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/ws/Makefile", "old_string": "bash scripts/test.sh", "new_string": "bash scripts/run_tests.sh"}}
+      ],
+      "why": "edits only the scripts docs and the caller, absolute paths"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "README.md", "old_string": "make test", "new_string": "make test "}}],
+      "why": "relative path to the root README"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/eval/ws/scripts/seed_fixtures.py", "old_string": "from bfk.legacy import normalize_row", "new_string": ""}}],
+      "why": "edits the script the user said to leave"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/eval/ws/docs/conventions/developer-experience.md", "old_string": "a", "new_string": "b"}}],
+      "why": "edits the conventions file"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/eval/ws/tests/test.sh", "old_string": "a", "new_string": "b"}}],
+      "why": "near miss: a test.sh outside scripts/"
+    }
+  ]
+}

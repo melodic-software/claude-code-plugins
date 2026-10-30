@@ -342,24 +342,65 @@ class ParserReader:
         return answer
 
     def sinks(
-        self, src: str, lo: int, hi: int, names: list[str]
-    ) -> list[tuple[str, str | None, int]]:
+        self,
+        src: str,
+        lo: int,
+        hi: int,
+        names: list[str],
+        loaders: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
         """Where the module `src[lo:hi]` may write one of `names` on an object
-        that could be a built-in prototype (the helper's `sinks` op), each
-        (kind, name, offset in `src`). A module that does not parse, calls
-        `eval` directly, or holds a character outside the BMP is one hit.
-        Answers are memoized per reader, since every spread asks again."""
-        key = ("sinks", id(src), lo, tuple(names))
+        that could be a built-in prototype (the helper's `sinks` op), with
+        `loaders` as `loads` takes them: `hits`, each (kind, name, offset in
+        `src`); `pending`, each (kind, name, offset, needs), a hit on a
+        target fresh only if every importer of each export in `needs`
+        passes a fresh object as that argument (`fresh_args`); and
+        `trusted`, the names the cleared targets relied on. A module that
+        does not parse, calls `eval` directly, or holds a character outside
+        the BMP is one hit. Answers are memoized per reader, since every
+        spread asks again."""
+        key = ("sinks", id(src), lo, tuple(names), loaders)
         cached = self._answers.get(key)
         if cached is not None:
-            return cached["hits"]
-        res = self._send("sinks", src, lo, hi, names=names)
+            return cached
+        res = self._send("sinks", src, lo, hi, names=names, loaders=list(loaders))
         if res.get("unreadable"):
-            hits = [("unreadable", None, lo)]
+            answer: dict[str, Any] = {
+                "hits": [("unreadable", None, lo)],
+                "pending": [],
+                "trusted": [],
+            }
         else:
-            hits = [(kind, name, at + lo) for kind, name, at in res["hits"]]
-        self._answers[key] = {"hits": hits}
-        return hits
+            answer = {
+                "hits": [(kind, name, at + lo) for kind, name, at in res["hits"]],
+                "pending": [
+                    (kind, name, at + lo, [(n, i) for n, i in needs])
+                    for kind, name, at, needs in res["pending"]
+                ],
+                "trusted": res["trusted"],
+            }
+        self._answers[key] = answer
+        return answer
+
+    def fresh_args(
+        self, src: str, lo: int, hi: int, name: str, source: str, index: int
+    ) -> dict[str, Any] | None:
+        """Whether every use of the export `name` the module `src[lo:hi]`
+        imports from `source` is a direct call passing a fresh object as
+        argument `index` (the helper's `fresh_args` op): {"needs": [(export,
+        index)], "trusted": [...]}, the needs those arguments carry on the
+        module's own exports, or None when one may not be fresh."""
+        key = ("fresh_args", id(src), lo, name, source, index)
+        if key not in self._answers:
+            res = self._send(
+                "fresh_args", src, lo, hi, name=name, index=index, **{"from": source}
+            )
+            self._answers[key] = (
+                {"needs": [(n, i) for n, i in res["needs"]], "trusted": res["trusted"]}
+                if res.get("fresh")
+                else None
+            )
+        return self._answers[key]
 
     def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
         """File `src`'s module paths by module start (`read_bundle`)."""
@@ -411,20 +452,39 @@ class ParserReader:
             return None
         return found[0], found[1]
 
-    def loads(self, src: str, lo: int, hi: int) -> list[str] | None:
+    def loads(
+        self, src: str, lo: int, hi: int, loaders: tuple[str, ...] = ()
+    ) -> list[str] | None:
         """The file names the module `src[lo:hi]` loads whole (`import(f)`,
         `require(f)`, `import*as N from f`, `export*from f`, `f` a literal),
         holding "*" when it may load a file it cannot name, or None when it
-        does not parse."""
-        key = ("loads", id(src), lo)
+        does not parse. `loaders` are the names modules export an alias of
+        `require` under (`aliases`): an alias all of whose names are among
+        them is a named loader, and so is each import of one. A call of a
+        named loader with a literal specifier loads that file; any other
+        use may load any."""
+        return self._loads(src, lo, hi, loaders)["files"]
+
+    def aliases(self, src: str, lo: int, hi: int) -> list[str]:
+        """The names the module `src[lo:hi]` exports an alias of `require`
+        or `import.meta.require` under (`var Fe=import.meta.require;
+        export{Fe}`); empty when it does not parse."""
+        return self._loads(src, lo, hi, ())["aliases"]
+
+    def _loads(
+        self, src: str, lo: int, hi: int, loaders: tuple[str, ...]
+    ) -> dict[str, Any]:
+        key = ("loads", id(src), lo, loaders)
         if key not in self._answers:
-            res = self._send("loads", src, lo, hi)
+            res = self._send("loads", src, lo, hi, loaders=list(loaders))
+            unreadable = res.get("unreadable")
             self._answers[key] = {
-                "files": None if res.get("unreadable") else res["files"]
+                "files": None if unreadable else res["files"],
+                "aliases": [] if unreadable else res["aliases"],
             }
         cached = self._answers[key]
         assert cached is not None
-        return cached["files"]
+        return cached
 
     def imports(self, src: str, lo: int, hi: int) -> list[tuple[str, str]] | None:
         """Each name the module `src[lo:hi]` imports or re-exports by name
@@ -442,17 +502,26 @@ class ParserReader:
         return cached["names"]
 
     def namespace(
-        self, src: str, lo: int, hi: int, file: str, name: str
+        self,
+        src: str,
+        lo: int,
+        hi: int,
+        file: str,
+        name: str,
+        loaders: tuple[str, ...] = (),
     ) -> dict[str, Any]:
-        """Whether every whole load of `file` in the module `src[lo:hi]`
-        reads only exports other than `name`, by name (the helper's
-        `namespace` op): {"safe": True, "trusted": [...], "thenable": bool}
-        or {"safe": False, "reason": ..., "at": offset in `src` or None}."""
-        key = ("namespace", id(src), lo, file, name)
+        """Whether every whole load of `file` in the module `src[lo:hi]`,
+        through a named loader too (`loaders` as `loads` takes them), reads
+        only exports other than `name`, by name (the helper's `namespace`
+        op): {"safe": True, "trusted": [...], "thenable": bool} or
+        {"safe": False, "reason": ..., "at": offset in `src` or None}."""
+        key = ("namespace", id(src), lo, file, name, loaders)
         cached = self._answers.get(key)
         if cached is not None:
             return cached
-        res = self._send("namespace", src, lo, hi, file=file, name=name)
+        res = self._send(
+            "namespace", src, lo, hi, file=file, name=name, loaders=list(loaders)
+        )
         if res.get("unreadable"):
             answer: dict[str, Any] = {
                 "safe": False,

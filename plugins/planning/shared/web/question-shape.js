@@ -1,7 +1,7 @@
 // The browser half of question-shape knowledge that both interview pages share, served by both servers (the shared
-// page's server.py and the 1:1 page's surface/server.py): the id of a person's own option, the composer kit every
-// text box people write in uses, and the fit to the visual viewport that keeps an on-screen keyboard off the field
-// being typed in. One classic script, one global: QuestionShape.
+// page's server.py and the 1:1 page's surface/server.py): the id of a person's own option, the markdown both pages
+// render, the composer kit every text box people write in uses, and the fit to the visual viewport that keeps an
+// on-screen keyboard off the field being typed in. One classic script, one global: QuestionShape.
 (() => {
   /** The option id of a person's own "Something else…" option (shared/session.py OTHER_OPTION). */
   const OTHER = "other";
@@ -11,6 +11,90 @@
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const listen = (t, ev, fn, opt) => t.addEventListener(ev, fn, opt);
   const memory = () => { const m = {}; return { get: k => m[k], set: (k, v) => { if (v) m[k] = v; else delete m[k]; } }; };
+
+  // ---------- safe markdown: the one dialect both pages render, built from elements and text nodes only ----------
+  // Blocks: paragraphs (a blank line ends one, a line break stays one), "#" headings, "- " and "1." lists and "> "
+  // quotes. Inline: `code`, **bold**, *emphasis*, [text](url) and bare http(s) links, owner/repo#N, and, when the
+  // session names a repository, #N and repo-relative paths (a path links only with a commit too). A page passes:
+  //   repo()         {repo, commit} the session names, either one empty or absent when it names none;
+  //   text(p, s)     how it appends a plain run s to p (mentions, question ids), else as text;
+  //   heading        the level of a "#" heading (## one lower, down to h6), else every heading is a bold line.
+  const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
+  // *emphasis* opens only after a space, an opening bracket or a quote and hugs its text, so *.js and a URL's *x* stay text
+  const SPAN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|(?<![^\s(\["'])\*[^*\s](?:[^*\n]*?[^*\s])?\*(?![*\w]))/;
+  const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\bhttps?:\/\/[^\s<>"']+/g;
+  /** owner/repo#N; `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2
+   *  or more characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with
+   *  a lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
+   *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
+  const REF = /(?<![\w./:@~\\#-])([\w.-]+\/[\w.-]+)#([1-9]\d{0,6})(?![\w-])|(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
+  function link(text, url) { const a = el("a", "vf-link", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
+  const web = url => { try { return ["http:", "https:"].includes(new URL(url).protocol); } catch { return false; } };
+  /** One line's inline markdown appended to parent; bold and emphasis hold the rest of the dialect. */
+  function inline(parent, line, o = {}) {
+    String(line ?? "").split(SPAN).forEach((part, i) => {
+      if (!part) return;
+      if (!(i % 2)) links(parent, part, o);
+      else if (part[0] === "`") parent.append(el("code", "vf-code", part.slice(1, -1)));
+      else { const bold = part[1] === "*", e = el(bold ? "strong" : "em"); inline(e, bold ? part.slice(2, -2) : part.slice(1, -1), o); parent.append(e); }
+    });
+  }
+  function links(parent, s, o) {
+    let i = 0;
+    for (const m of s.matchAll(LINK)) {
+      const url = m[1] ? m[2] : m[0].replace(/[).,;:!?]+$/, "");
+      if (m.index > i) refs(parent, s.slice(i, m.index), o);
+      parent.append(web(url) ? link(m[1] ?? url, url) : m[1] ? m[0] : url);
+      i = m.index + (m[1] ? m[0].length : url.length);
+    }
+    if (i < s.length) refs(parent, s.slice(i), o);
+  }
+  function refs(parent, s, o) {
+    const plain = o.text || ((p, t) => p.append(t));
+    if (!s.includes("#") && !s.includes("/")) { plain(parent, s); return; }
+    const at = o.repo?.(), repo = at && REPO.test(at.repo) ? at.repo : "", commit = repo && SHA.test(at.commit) ? at.commit : "";
+    let i = 0;
+    for (const m of s.matchAll(REF)) {
+      const url = m[1] ? `https://github.com/${m[1]}/issues/${m[2]}`
+        : m[3] ? repo && `https://github.com/${repo}/issues/${m[3]}`
+        : commit && `https://github.com/${repo}/blob/${commit}/${m[4]}${m[5] ? `#L${m[5]}${m[6] ? `-L${m[6]}` : ""}` : ""}`;
+      if (!url) continue;
+      if (m.index > i) plain(parent, s.slice(i, m.index));
+      parent.append(link(m[0], url));
+      i = m.index + m[0].length;
+    }
+    if (i < s.length) plain(parent, s.slice(i));
+  }
+  /** Text as markdown, a fragment of paragraphs, headings, lists and quotes. */
+  function markdown(text, o = {}) {
+    const f = document.createDocumentFragment();
+    for (const block of String(text ?? "").replace(/\r/g, "").split(/\n\s*\n/)) {
+      let p = null, list = null, quote = null, qp = null;
+      for (const raw of block.split("\n")) {
+        const h = raw.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/), q = raw.match(/^\s{0,3}>\s?(.*)$/), m = raw.match(/^\s*(?:[-*•]|(\d{1,9})[.)])\s+(.*)$/);
+        if (h) {
+          p = list = quote = null;
+          const hd = o.heading ? el("h" + Math.min(6, o.heading + h[1].length - 1)) : el("p", "vf-mdh");
+          inline(hd, h[2], o); f.append(hd);
+        } else if (q) {
+          p = list = null;
+          if (!quote) { quote = el("blockquote"); f.append(quote); qp = null; }
+          if (!q[1].trim()) qp = null; // an empty quote line starts the quote's next paragraph
+          else { if (qp) qp.append(el("br")); else quote.append(qp = el("p")); inline(qp, q[1].trim(), o); }
+        } else if (m) {
+          p = quote = null;
+          const tag = m[1] ? "ol" : "ul";
+          if (list?.tagName.toLowerCase() !== tag) { list = el(tag, "vf-" + tag); f.append(list); }
+          const li = el("li"); inline(li, m[2], o); list.append(li);
+        } else if (raw.trim()) {
+          list = quote = null;
+          if (p) p.append(el("br")); else f.append(p = el("p"));
+          inline(p, raw.trim(), o);
+        }
+      }
+    }
+    return f;
+  }
 
   // ---------- the composer kit: one rule set for every field people write in ----------
   // send: Enter in a one-line field, Ctrl or Cmd + Enter in a multi-line one, with its hint shown beside it. Shift or
@@ -123,5 +207,5 @@
   vv?.addEventListener("scroll", refit);
   fitViewport();
 
-  window.QuestionShape = { OTHER, MOD_KEY, keyHint, kit, fitViewport };
+  window.QuestionShape = { OTHER, MOD_KEY, keyHint, markdown, inline, kit, fitViewport };
 })();

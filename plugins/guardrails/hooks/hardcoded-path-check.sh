@@ -184,7 +184,7 @@ hpc_resolve_scan_root() {
   if (($# > 1)); then
     toplevel=$2
   else
-    toplevel="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+    toplevel="$(exec git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
   fi
   [[ -n "$toplevel" ]] || return 0
   tl_norm=""
@@ -327,6 +327,27 @@ NORM_FILE="${FILE//\\//}"
 # secret-pattern-detection, which scans even without a resolvable root —
 # secrets are dangerous anywhere; hardcoded paths only harm portable artifacts.
 [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] || exit 0
+
+# Extract content to check — Write has .content, Edit has .new_string,
+# NotebookEdit has .new_source.
+case "$TOOL" in
+Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
+Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
+NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
+*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+esac
+
+# Clean content, the common case, is decided here, before either git probe.
+# Every branch below ends in `exit 0` for content hpp::scan_text finds clean:
+# not a work tree, outside the project, allowlisted, gitignored, empty, or a
+# clean scan. Only the clean scan differs, by its `ok` telemetry envelope, so
+# the early exit is taken only when no envelope can be written. The scan root
+# below is CLAUDE_PROJECT_DIR or empty, and a prefilter `clean` with the root
+# is `clean` without it.
+if [[ -z "$start" ]] || ! hook::telemetry_enabled; then
+  hpp::prefilter "$CONTENT" "$CLAUDE_PROJECT_DIR"
+  [[ "$HPP_GATE" == clean ]] && exit 0
+fi
 # Same rationale when the project dir resolves but is NOT a git working tree
 # (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
 # session is the common case): the target is not a portable repo artifact, and
@@ -339,8 +360,9 @@ NORM_FILE="${FILE//\\//}"
 # One git process answers both questions this lane asks of the project dir:
 # line 1 is the work-tree test, line 2 the toplevel hpc_resolve_scan_root needs.
 # Where --show-toplevel fails, git has already printed line 1, so the toplevel
-# is empty, as a separate call's would be.
-_hpc_git="$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null)"
+# is empty, as a separate call's would be. `exec` makes git the substitution's
+# own process: with a redirect on the command, bash would fork once more.
+_hpc_git="$(exec git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null)"
 [[ "${_hpc_git%%$'\n'*}" == "true" ]] || exit 0
 _hpc_toplevel=""
 [[ "$_hpc_git" == *$'\n'* ]] && _hpc_toplevel=${_hpc_git#*$'\n'}
@@ -365,14 +387,6 @@ if git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 
-# Extract content to check — Write has .content, Edit has .new_string,
-# NotebookEdit has .new_source.
-case "$TOOL" in
-Write) CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
-Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
-NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
-*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
-esac
 [[ -n "${CONTENT:-}" ]] || exit 0
 
 # Resolve current repo root for the machine-specific-path check. Comments are
@@ -416,11 +430,15 @@ emit_tel() {
 # line terminator (`\n\n`); without a sentinel those separators vanish and the
 # guidance line glues onto the last path (`…/repoUse portable alternatives:`).
 # printf x absorbs the strip; peeling it restores the block terminators intact.
-VIOLATIONS=$(
-  hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE"
-  printf x
-)
-VIOLATIONS=${VIOLATIONS%x}
+VIOLATIONS=""
+hpp::prefilter "$CONTENT" "$SCAN_ROOT"
+if [[ "$HPP_GATE" != clean ]]; then
+  VIOLATIONS=$(
+    hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE"
+    printf x
+  )
+  VIOLATIONS=${VIOLATIONS%x}
+fi
 if [[ -n "$VIOLATIONS" ]]; then
   # The file as the model names it: project-relative when it sits under the
   # project spelled the same way, else as given. A prefix strip, not

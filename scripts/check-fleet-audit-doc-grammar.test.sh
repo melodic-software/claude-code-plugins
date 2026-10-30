@@ -249,9 +249,11 @@ if changed_files::verify_base a6be07f9; then
   fixture_tree::build hist --sut "$SCRIPT"
   mkdir -p "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts"
   git show a6be07f9:plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh \
-    >"$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh"
+    >"$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" ||
+    { echo "FAIL: cannot read a6be07f9's audit-fleet.sh" >&2; exit 1; }
   git show a6be07f9:plugins/repo-fleet-hygiene/skills/audit/SKILL.md \
-    >"$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/SKILL.md"
+    >"$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" ||
+    { echo "FAIL: cannot read a6be07f9's SKILL.md" >&2; exit 1; }
   chmod +x "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh"
   out="$(
     cd "$hist" &&

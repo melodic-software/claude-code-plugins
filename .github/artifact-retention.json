@@ -21,6 +21,19 @@
         ".github/workflows/pr-verify.yml#check-intent-fallback"
       ]
     },
+    "pr-review-main-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py _main_bound binds a lane-source pull request's lanes on these verdicts and counts the most findings any of them reported for the head's tree"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+      "reason": "A verdict that reported findings must outlive a later clean review of the same tree, or its expiry would lower the count the gate reads; the gate counts the most findings any unexpired verdict of the tree reported.",
+      "uploads": [
+        ".github/workflows/pr-review-main.yml#review",
+        ".github/workflows/pr-review-main.yml#review-subscription",
+        ".github/workflows/pr-review-main.yml#review-fallback"
+      ]
+    },
     "pr-merge-dispatched-*": {
       "retention-days": "max",
       "readers": [
@@ -119,6 +132,13 @@
         ".github/scripts/pr-merge/carry-run-cache.mjs VERIFY_ARTIFACT, from the newest trusted run"
       ],
       "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "lane-transcript-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/actions/upload-lane-transcript/README.md the transcript puller, a daily task outside CI that copies each sealed transcript to its sink"
+      ],
+      "reason": "A recorded owner decision on the lane transcript store: CI keeps each encrypted transcript 7 days and a daily puller copies it to the sink, so a week of missed pulls loses nothing."
     },
     "skill-reply-*": {
       "retention-days": 7,

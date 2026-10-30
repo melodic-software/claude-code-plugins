@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing to change, nothing edited"},
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "plugin-conventions", "path": "AGENTS.md"}}],
+      "why": "searched the managed block, no Edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "docs/conventions/developer-experience.md", "old_string": "developer-experience@0.1.0", "new_string": "developer-experience@0.2.2"}}],
+      "why": "near miss: bumped written_against on a file it had no other change for"
+    }
+  ]
+}

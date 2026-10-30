@@ -15,10 +15,12 @@
 .github/actions/request-lane-token
 .github/actions/seal-lane-output
 .github/actions/select-trusted-text
+.github/actions/upload-lane-transcript
 .github/scripts/apply-patch
 .github/scripts/branch-cleanup
 .github/scripts/intake-reenter
 .github/scripts/intake-triage
+.github/scripts/lib
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
@@ -26,6 +28,7 @@
 .github/scripts/plugin-eval
 .github/scripts/post-merge-test-mutation
 .github/scripts/pr-merge
+.github/scripts/pr-review-main
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
 .github/scripts/work-unblock

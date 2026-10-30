@@ -19,7 +19,8 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, prefilterSpec, WRITE_STEP } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -29,6 +30,7 @@ const CHECKS = ".github/workflows/pr-require-checks.yml";
 const WINDOWS = ".github/workflows/pr-test-windows.yml";
 const REVIEW = ".github/workflows/pr-review-hosted.yml";
 const VERIFY = ".github/workflows/pr-verify.yml";
+const MAIN_REVIEW = ".github/workflows/pr-review-main.yml";
 const MAIN_TIP = "e".repeat(40);
 const sha = (n) => String(n).padStart(40, "0");
 
@@ -71,7 +73,7 @@ const run = (id, head, { path = CHECKS, conclusion = "cancelled", status = "comp
   jobs,
 });
 
-function fakeGitHub({ pulls, runs = [], fail = {} }) {
+function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
   const calls = [];
   const byId = new Map(runs.map((r) => [r.id, r]));
   const github = async (method, path) => {
@@ -114,6 +116,10 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
     if (method === "GET" && notes) {
       return runs.flatMap((r) => r.jobs ?? []).find((j) => j.id === Number(notes[1]))?.notes ?? [];
     }
+    const listed = /^\/repos\/[^/]+\/[^/]+\/commits\/([0-9a-f]{40})\/statuses\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && listed) {
+      return (statuses[listed[1]] ?? []).slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
+    }
     const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun|\/rerun-failed-jobs)?$/.exec(path);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
@@ -128,8 +134,8 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
 
 // Runs the workflow's two steps: plan, then, when the plan step succeeds,
 // act. The upload steps between them read the plan's record-N outputs.
-async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, github: wrap = (g) => g } = {}) {
-  const { github, calls } = fakeGitHub({ pulls, runs, fail });
+async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g } = {}) {
+  const { github, calls } = fakeGitHub({ pulls, runs, fail, statuses });
   const sleeps = [];
   const order = [];
   const tracked = wrap(async (method, path, body) => {
@@ -496,9 +502,9 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
   assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
-// pr-verify's jobs, each a leg (key, subscription, fallback), as name and body.
-const verifyLegs = () => {
-  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+// A lane workflow's jobs (pr-verify's legs by default), as name and body.
+const verifyLegs = (file = "pr-verify.yml") => {
+  const workflow = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
   const jobs = workflow.slice(workflow.search(/^jobs:$/m));
   return [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4,}.*\n|\s*\n)+)/gm)].map(([, name, body]) => ({ name, body }));
 };
@@ -522,6 +528,25 @@ test("pr-verify still names its judge step as the reconciler reads it, in every 
     const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
     assert.equal(writes.length, 1, name);
     assert.match(writes[0], /\n[ ]+if: steps\.judge\.outcome == 'success'\n/, name);
+  }
+});
+
+// A review leg whose step names drifted would lose its hold, and one whose
+// trigger check took no reconciler record would refuse every re-run.
+test("pr-review-main still names its review and write steps as the reconciler reads them, and takes its record, in every review leg", () => {
+  const legs = verifyLegs("pr-review-main.yml").filter(({ body }) => /^ {6}- name: Review the pull request$/m.test(body));
+  assert.equal(legs.length, 3);
+  for (const { name, body } of legs) {
+    const steps = legSteps(body);
+    const names = steps.map((s) => s.match(/^ {6}- name: (.+)$/m)[1]);
+    const review = steps.findIndex((s) => /^ {8}id: review$/m.test(s));
+    assert.equal(names[review], REVIEW_STEP, name);
+    assert.equal(names[review - 1], JUDGE_PREDECESSOR, name);
+    const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
+    assert.equal(writes.length, 1, name);
+    assert.match(writes[0], /\n[ ]+if: steps\.review\.outcome == 'success'/, name);
+    const trigger = steps.find((s) => s.startsWith("      - name: Check the trigger\n"));
+    assert.match(trigger, /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/, name);
   }
 });
 
@@ -806,6 +831,66 @@ test("a verify run whose jobs cannot be read is not re-run", async () => {
   assert.equal(code, 1);
   assert.deepEqual(reruns, []);
   assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+// pr-review-main run 40892239796's first-attempt jobs: both lanes reviewed and
+// stopped on a credit stop, so the verdict write skipped and "Fail without a
+// verdict" failed each job; the run ended failure with no verdict.
+const MAIN_REVIEW_JOBS = fixture("jobs-40892239796.json").jobs;
+const mainReviewRun = (id, opts = {}, jobs = MAIN_REVIEW_JOBS) => ({
+  ...run(id, MAIN_TIP, { path: MAIN_REVIEW, event: "workflow_run", conclusion: "failure", ...opts }),
+  head_branch: "main",
+  jobs,
+});
+
+test("a main-run review that ended failure with no verdict is recorded and re-run once", async () => {
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301)] });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [301]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
+});
+
+test("a main-run review at attempt 2, or none of whose jobs started, is never re-run or recorded", async () => {
+  const notStarted = MAIN_REVIEW_JOBS.map((job) => ({ ...job, conclusion: "cancelled", steps: [] }));
+  for (const lost of [mainReviewRun(301, { attempt: 2 }), mainReviewRun(301, { conclusion: "cancelled" }, notStarted)]) {
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [lost] });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+  }
+});
+
+// One lane wrote its verdict before the run failed: a re-run would review the
+// head again, so the run is held, as a pr-verify run is.
+test("a main-run review whose verdict write started in any lane is held with its reason", async () => {
+  const [first, ...rest] = MAIN_REVIEW_JOBS;
+  const wrote = { ...first, steps: first.steps.map((s) => (s.name === WRITE_STEP ? { ...s, conclusion: "success" } : s)) };
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, [wrote, ...rest])], env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+    assert.match(readFileSync(summary, "utf8"), /lane run 301 \(\.github\/workflows\/pr-review-main\.yml\) ended failure after its verdict write started/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, oldest first", async () => {
+  const { reruns, outputs } = await reconcile({
+    pulls: [],
+    runs: [
+      verifyRun(201, { created: "2026-10-19T19:00:00Z" }),
+      mainReviewRun(301, { created: "2026-10-19T18:00:00Z" }),
+      verifyRun(202, { created: "2026-10-19T19:10:00Z" }),
+      mainReviewRun(302, { created: "2026-10-19T19:20:00Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [301, 201, 202]);
+  assert.deepEqual(records(outputs), [301, 201, 202].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
 test("a non-operational Actions status records nothing", async () => {
@@ -1300,9 +1385,10 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     const count = (part) => reads.filter((r) => r.includes(part)).length;
     assert.equal(count("/actions/artifacts?"), 0);
     assert.equal(count("POST /graphql"), 1);
-    // The pulls page, one run listing per head, nine pr-verify status
-    // listings, one intake listing and the one pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 9 + 1 + 1);
+    // The pulls page, one run listing per head, nine status listings for each
+    // of pr-verify and pr-review-main, one intake listing and the one
+    // pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 9 + 1 + 1);
   });
 });
 
@@ -1514,7 +1600,110 @@ test("ci-status's lanes-hold step still fails a lanes App PR with the kill-switc
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const step = /- name: Fail a lanes App pull request its body or a member holds\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   assert.match(step, /LANES_DISABLED: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}/);
-  const fail = step.split("\n").findIndex((line) => line.includes(`echo "::error::#$pr: ${KILL_SWITCH_NOTE} (`));
+  // The step prints merge-holds.mjs switchHold's reason as its error.
+  assert.match(step, /const \{ switchHold \} = await import\(/);
+  const fail = step.split("\n").findIndex((line) => line.includes('echo "::error::${reason//%/%25}"'));
   assert.ok(fail > 0, "the kill-switch error line is in the step");
   assert.match(step.split("\n")[fail + 1], /^[ ]+exit 1$/);
+  const lanes = { number: 1, user: { type: "Bot", id: 7 } };
+  assert.ok(switchHold(lanes, { appId: "7", disabled: "true", repoDisabled: "false" }).startsWith(`#1: ${KILL_SWITCH_NOTE} (`));
+});
+
+// Any PR whose newest pr-require-checks run failed only in ci-status, on its
+// first attempt, on the pr-unblock step's notes: once no pr-unblock/* status
+// by github-actions[bot] fails the head (the lane's clear posted success over
+// its stop), that ci-status is re-run, recorded as attempt 2. The notes are
+// the ones ci-status wrote on #10828's head (check run 123256890668), and the
+// step's line is pinned below.
+const STOP_LINE = (context = "pr-unblock/address-feedback", head = sha(1)) =>
+  `'${context}' is failure on ${head}: Lane stopped: feedback-untaken-threads; checked again on a new head. The lane that stopped clears it by running again on this head, or a new head carries none.`;
+const stopJobs = ({ notes = [STOP_LINE()] } = {}) => [
+  { id: 501, name: "lint-repo", status: "completed", conclusion: "success", steps: [] },
+  {
+    id: 502,
+    name: "ci-status",
+    status: "completed",
+    conclusion: "failure",
+    steps: [],
+    notes: [
+      { annotation_level: "notice", message: "github-token=17 not-modified=0 graphql=0" },
+      { annotation_level: "failure", message: "Process completed with exit code 1." },
+      ...notes.map((message) => ({ annotation_level: "failure", message })),
+    ],
+  },
+];
+const BOT = { login: "github-actions[bot]" };
+const unblockStatus = (state, { context = "pr-unblock/address-feedback", creator = BOT } = {}) => ({ context, state, creator });
+// Newest first, as GitHub lists them: the clear over the stop.
+const cleared = (head = sha(1)) => ({ [head]: [unblockStatus("success"), unblockStatus("failure")] });
+
+test("a ci-status a pr-unblock stop failed is re-run once after the lane clears the stop, recorded, past the lookback", async () => {
+  for (const created of ["2026-10-19T19:00:00Z", "2026-10-12T19:00:00Z"]) {
+    const { code, outputs, reruns, failedJobReruns, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), created })], statuses: cleared() });
+    assert.equal(code, 0);
+    assert.deepEqual(failedJobReruns, [101]);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, "", ""]);
+    assert.ok(calls.includes(`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`));
+  }
+  const again = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs(), attempt: 2 })], statuses: cleared() });
+  assert.equal(again.code, 0);
+  assert.deepEqual(again.failedJobReruns, []);
+});
+
+test("a ci-status re-run waits for every pr-unblock stop on the head to clear, and reads only github-actions[bot]'s statuses", async () => {
+  const notes = [STOP_LINE(), STOP_LINE("pr-unblock/fix-ci")];
+  const statuses = { [sha(1)]: [unblockStatus("success"), unblockStatus("error", { context: "pr-unblock/fix-ci" }), unblockStatus("failure")] };
+  const standing = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs({ notes }) })], statuses });
+  assert.deepEqual(standing.failedJobReruns, []);
+  const other = { [sha(1)]: [unblockStatus("success", { creator: { login: "someone" } }), unblockStatus("failure")] };
+  const forged = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: other });
+  assert.deepEqual(forged.failedJobReruns, []);
+});
+
+test("a ci-status with no pr-unblock stop note, or another failure beside it, is not re-run and its statuses are not read", async () => {
+  const cases = [
+    stopJobs({ notes: ["#1: the PR body holds it"] }),
+    stopJobs({ notes: [] }),
+    stopJobs({ notes: [STOP_LINE(), "the pull request title is not in Conventional Commits form"] }),
+    stopJobs().map((j) => (j.name === "ci-status" ? { ...j, notes: [...j.notes, { annotation_level: "failure", message: "Process completed with exit code 1." }] } : j)),
+  ];
+  for (const jobs of cases) {
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })], statuses: cleared() });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+    assert.ok(!calls.some((c) => c.includes("/statuses")));
+  }
+  const passed = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { conclusion: "success" })], statuses: cleared() });
+  assert.deepEqual(passed.calls.filter((c) => c.startsWith("POST ") || c.includes("/statuses")), []);
+});
+
+test("an unreadable status list re-runs nothing and fails no listing", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fail = { [`GET /repos/${REPO}/commits/${sha(1)}/statuses?per_page=100&page=1`]: new Error("HTTP 502") };
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  assert.ok(log.mock.calls.some((c) => String(c.arguments[0]).includes("#1: its pr-unblock statuses could not be read (HTTP 502)")));
+});
+
+test("a failed ci-status re-run after a cleared stop is a warning, and the run still passes", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fail = { [`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`]: new Error("HTTP 500") };
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: stopJobs() })], statuses: cleared(), fail });
+  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.equal(code, 0);
+  assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/101/rerun-failed-jobs`));
+  assert.ok(lines.includes("::warning title=reconcile::#1 run 101: HTTP 500"));
+  assert.ok(!lines.some((l) => l.startsWith("::error")));
+});
+
+test("ci-status's pr-unblock step still writes the stop note the reconciler matches", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const step = /- name: Fail a head a pr-unblock lane stopped\n(?:(?:[ ]{8,}.*)?\n)+/.exec(workflow)?.[0] ?? "";
+  const line = step.split("\n").find((l) => l.includes(`echo "::error::'$context' is $state on $head: `));
+  assert.ok(line, "the stop error line is in the step");
+  assert.match(step, /done <<<"\$failing"\n[ ]+exit 1\n/);
+  assert.match(STOP_LINE("pr-unblock/conflict"), PR_UNBLOCK_STOP_NOTE);
+  assert.doesNotMatch(STOP_LINE("ci-lanes"), PR_UNBLOCK_STOP_NOTE);
 });

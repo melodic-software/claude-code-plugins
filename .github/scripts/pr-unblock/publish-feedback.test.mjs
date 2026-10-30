@@ -89,6 +89,8 @@ function fakeApi(overrides = {}) {
       return calls.filter((call) => call[0] === "readBranch").length > (overrides.movesAfter ?? Infinity) ? PUSHED : NOW;
     },
     getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
+    // The lanes App opened the PR unless the case names another opener.
+    getPull: async () => ({ user: { id: overrides.opener ?? APP } }),
     // The PR's commits, oldest first; none earlier than the range by default.
     listPullCommits: async () => overrides.pullCommits ?? [],
     compare: async (base, head) => {
@@ -1634,4 +1636,95 @@ test("a malformed stale_notes list reads as a malformed run.json", async () => {
 test("a pass-only round skips pass-only, so the dispatcher can tell its reply check from a round's", async () => {
   const result = await run(staleApi([noteThread("PRRT_old")]), null, staleRun(["PRRT_old"]));
   assert.equal(result.skipReason, "pass-only");
+});
+
+// On a PR a person opened GitHub lets the lanes App reply but not resolve
+// (#10763): each answer posts as the lanes App and the thread stays open for
+// the person or their babysit worker tier, with no escalation.
+test("on an owner PR a VALID reply and a lane verdict post as the lanes App and leave their threads open", async () => {
+  const api = fakeApi({ opener: HUMAN });
+  const logged = [];
+  const result = await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    headRef: "feature",
+    appId: APP,
+    modelRun: "5000-1",
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+    readArtifact: () => ({ runText: JSON.stringify(RUN), repliesText: lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })) }),
+    readAdjudication: () => verdicts(judged("PRRT_b", "lane")),
+    fileExists: exists,
+    log: (line) => logged.push(line),
+  });
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100, 200, 200], "both lane replies and the adjudication reply");
+  assert.deepEqual(api.resolved(), []);
+  assert.ok(logged.some((line) => line === "PRRT_a: left open; the lanes App cannot resolve a thread on a PR it did not open"), logged.join("\n"));
+  assert.ok(logged.includes("replied on PRRT_a (VALID)"), logged.join("\n"));
+  assert.ok(logged.includes("PRRT_b: the finding does not hold; left open for the person"), logged.join("\n"));
+  assert.ok(!logged.some((line) => line.endsWith("; resolved")), logged.join("\n"));
+});
+
+test("on a lanes App PR the same round still resolves both threads", async () => {
+  const api = fakeApi();
+  await run(api, lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })), JSON.stringify(RUN), verdicts(judged("PRRT_b", "lane")));
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
+});
+
+// A tests-only finding (#10075): run.json carries the select job's CI
+// snapshot of the gated head, and the reply job settles from it alone.
+const CI_RUNS = [{ name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/3" }];
+const ciRun = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, threads, ci });
+// A round that pushed nothing: the select job read the head the reply job sees.
+const ciRunAtNow = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, head_sha: NOW, threads, ci });
+const testsVerdict = () => verdictsAt(NOW, judged("PRRT_a", "tests-only"));
+
+test("an UNCERTAIN tests-only finding on a green head is resolved citing the runs, with no feedback-uncertain", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "green", runs: CI_RUNS }), testsVerdict());
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  assert.match(api.posted()[1][3], /\[test-node\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/3\)/);
+  // Red leaves it open with no person; no snapshot leaves it as today.
+  const red = fakeApi();
+  assert.equal((await run(red, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "red", runs: CI_RUNS }), testsVerdict())).escalationReason, "");
+  assert.deepEqual(red.resolved(), []);
+  assert.equal(red.posted().length, 1);
+  const none = fakeApi();
+  assert.equal((await run(none, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow(undefined), testsVerdict())).escalationReason, "feedback-unadjudicated");
+});
+
+test("a tests-only finding stays open when the round pushed a fix past the head whose checks were read", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun({ state: "green", runs: CI_RUNS }), verdicts(judged("PRRT_a", "tests-only")));
+  assert.equal(result.escalationReason, "feedback-unadjudicated");
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("a run.json whose ci snapshot is malformed posts nothing", async () => {
+  for (const ci of [
+    { state: "passed", runs: [] },
+    { state: "green" },
+    { state: "green", runs: [{ name: "test-node", url: "https://evil.example/x" }] },
+    { state: "green", runs: [{ name: "test-node\n- [x](y)", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
+    { state: "green", runs: Array.from({ length: 101 }, () => CI_RUNS[0]) },
+    { state: "green", runs: CI_RUNS, extra: 1 },
+  ]) {
+    const api = fakeApi();
+    const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun(ci), verdicts(judged("PRRT_a", "tests-only")));
+    assert.equal(result.escalationReason, "feedback-invalid", JSON.stringify(ci));
+    assert.equal(api.posted().length, 0);
+  }
+});
+
+// A mode-only fix (#10080): GitHub lists the file with no patch and no
+// changed lines, and the lane's commit still credits the thread.
+test("a VALID reply whose fix commit only changes the file's mode is posted and resolved", async () => {
+  const modeOnly = [{ filename: "src/a.js", status: "changed", changes: 0 }];
+  const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: modeOnly }, commits: { [FIX]: { files: modeOnly } } });
+  const result = await run(api, lines(reply({ disposition: "VALID", evidence: ["src/a.js:1"], note: "Dropped the executable bit." })));
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });

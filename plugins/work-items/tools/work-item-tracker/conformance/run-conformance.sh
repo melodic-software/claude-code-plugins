@@ -213,6 +213,16 @@ if ! verb_supported list-sub-items; then
   wit_case "unsupported list-sub-items gates list-frontier --parent → exit 6" 6 list-frontier --parent "$FAKE_ID"
 fi
 
+# --- status-storage (core-derived: answers on every adapter) ---
+
+wit_case "status-storage" 0 status-storage "${repo_args[@]+"${repo_args[@]}"}"
+assert_schema_version "status-storage"
+assert_eq "status-storage names field or labels" "ok" "$(jq -r 'if (.storage == "field" and .field == "Work status")
+  or (.storage == "labels" and .field == null) then "ok" else "bad" end' <<<"$WIT_OUT")"
+if ! verb_supported get-field-options; then
+  assert_eq "status-storage without get-field-options → labels" "labels" "$(jq -r '.storage' <<<"$WIT_OUT")"
+fi
+
 # --- create-item ---
 
 ITEM_A_ID="" ITEM_B_ID=""

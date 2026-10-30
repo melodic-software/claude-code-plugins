@@ -38,6 +38,7 @@ dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
   ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | ts-unreferenced-symbol | unreferenced-file) printf '2' ;;
+  cs-unreferenced-private | cs-unreferenced-symbol) printf '2' ;;
   *) printf '3' ;;
   esac
 }
@@ -57,7 +58,7 @@ dc_is_excluded_path() {
 
 # Lowercase extensions of source files with no symbol detector. Add one here,
 # space-separated, to classify it.
-DC_NOLANE_EXTS=" rs cs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
+DC_NOLANE_EXTS=" rs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
 
 # In-skill fallback glob table. A consumer repo that ships
 # .claude/ecosystems/<eco>.yaml has richer globs; this table is the common path
@@ -65,7 +66,7 @@ DC_NOLANE_EXTS=" rs cs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh 
 # names an ecosystem's lint tools, never a dead-code detector.
 #
 # `nolane` is a source file this roster has no symbol detector for: an extension
-# in DC_NOLANE_EXTS (Rust, .NET, and the rest), or an extensionless file whose
+# in DC_NOLANE_EXTS (Rust, F#, VB, and the rest), or an extensionless file whose
 # line-1 shebang names an interpreter other than a shell. The grep lane can still
 # report it as `unreferenced-file`. An extensionless file with a shell shebang is
 # `shell`. `other` is not source (docs, manifests, markup, an extensionless file
@@ -79,6 +80,7 @@ dc_lang_of_path() {
   *.go) printf 'go' ;;
   *.sh | *.bash) printf 'shell' ;;
   *.ps1 | *.psm1) printf 'pwsh' ;;
+  *.cs) printf 'cs' ;;
   *)
     if [[ "$base" == *.* ]]; then
       base="${base,,}"
@@ -514,22 +516,36 @@ dc_knip_config_module() {
 # grep lane — the portable reference-search floor
 # ---------------------------------------------------------------------------
 
-# Emit `<line><TAB><name><TAB><text>` for every symbol DEFINITION in one file.
-# The extractor set is this lane's declared coverage: shell functions,
-# PowerShell functions, and function, class, const, let, and var declarations in
-# JS/TS (with or without `export`). Names under three characters are dropped:
-# at that length the reference search is noise, not evidence.
+# Emit `<line><TAB><name><TAB><shape><TAB><text>` for every symbol DEFINITION in
+# one file. The extractor set is this lane's declared coverage: shell functions,
+# PowerShell functions, function, class, const, let, and var declarations in
+# JS/TS (with or without `export`), and C# type declarations plus C# members
+# that carry an access modifier. Names under three characters are dropped: at
+# that length the reference search is noise, not evidence.
+#
+# C# is read as text, one line at a time, and nothing is built. A member with no
+# access modifier (private by default), an override, an operator, a constructor,
+# an indexer and a tuple-typed member are not extracted. A `private` declaration
+# (not `private protected`) is cs-unreferenced-private; any other is
+# cs-unreferenced-symbol.
 dc_symbol_defs() {
   local file="$1" lang="$2"
-  local line name num=0
+  local line name shape rest head num=0
   local sh_paren='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\)[[:space:]]*\{'
   local sh_kw='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_:.-]*)'
   local ps_kw='^[[:space:]]*[Ff]unction[[:space:]]+([A-Za-z_][A-Za-z0-9_-]*)'
   local ts_decl='^[[:space:]]*(export[[:space:]]+)?(default[[:space:]]+)?(async[[:space:]]+)?(function[*]?|class|const|let|var)[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)'
+  local cs_attrs='^[[:space:]]*(\[[^]]*\][[:space:]]*)*'
+  local cs_type="${cs_attrs}(((public|internal|protected|private|static|sealed|abstract|partial|readonly|unsafe|file|new|ref)[[:space:]]+)*)(class|struct|interface|enum|record)([[:space:]]+(class|struct))?[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)"
+  local cs_member="${cs_attrs}(public|internal|protected|private)[[:space:]]+(.*)$"
+  local cs_modifier='^(internal|protected|static|readonly|const|volatile|virtual|abstract|sealed|new|async|extern|unsafe|partial|required|event)[[:space:]]+(.*)$'
+  local cs_cut='[(=;{]*'
+  local cs_name='[[:space:]]([A-Za-z_][A-Za-z0-9_]*)$'
   while IFS= read -r line || [[ -n "$line" ]]; do
     num=$((num + 1))
     line="${line//$'\r'/}"
     name=""
+    shape='unreferenced-symbol'
     case "$lang" in
     shell)
       if [[ $line =~ $sh_paren ]]; then
@@ -539,7 +555,42 @@ dc_symbol_defs() {
       fi
       ;;
     ts)
+      shape='ts-unreferenced-symbol'
       [[ $line =~ $ts_decl ]] && name="${BASH_REMATCH[5]}"
+      ;;
+    cs)
+      shape='cs-unreferenced-symbol'
+      if [[ $line =~ $cs_type ]]; then
+        name="${BASH_REMATCH[8]}"
+        # Group 2 wraps the whole modifier run: a repeated group alone keeps
+        # only its last pass, and the attribute text must not be read.
+        case " ${BASH_REMATCH[2]}" in
+        *[[:space:]]protected[[:space:]]*) ;;
+        *[[:space:]]private[[:space:]]*) shape='cs-unreferenced-private' ;;
+        *) ;;
+        esac
+      elif [[ $line =~ $cs_member ]]; then
+        rest="${BASH_REMATCH[3]}"
+        [[ "${BASH_REMATCH[2]}" == private ]] && shape='cs-unreferenced-private'
+        # An override is reached through its base and an operator through its
+        # symbol, so neither name is ever spelled at a call site.
+        case " $rest " in
+        *[[:space:]]override[[:space:]]* | *[[:space:]]operator[[:space:]]*) rest='' ;;
+        *) ;;
+        esac
+        while [[ $rest =~ $cs_modifier ]]; do
+          [[ "${BASH_REMATCH[1]}" == protected ]] && shape='cs-unreferenced-symbol'
+          rest="${BASH_REMATCH[2]}"
+        done
+        # The declared name is the last word before the parameter list, the
+        # initializer, the terminator or the accessor body. A constructor has no
+        # type word before its name, so it never matches cs_name.
+        # shellcheck disable=SC2295  # cs_cut is a glob pattern on purpose
+        head="${rest%%$cs_cut}"
+        head="${head%"${head##*[![:space:]]}"}"
+        [[ "$head" == *'>' ]] && head="${head%<*}"
+        [[ $head =~ $cs_name ]] && name="${BASH_REMATCH[1]}"
+      fi
       ;;
     *)
       [[ $line =~ $ps_kw ]] && name="${BASH_REMATCH[1]}"
@@ -547,6 +598,6 @@ dc_symbol_defs() {
     esac
     [[ -n "$name" ]] || continue
     ((${#name} >= 3)) || continue
-    printf '%s\t%s\t%s\n' "$num" "$name" "$(dc_trim_excerpt "$line")"
+    printf '%s\t%s\t%s\t%s\n' "$num" "$name" "$shape" "$(dc_trim_excerpt "$line")"
   done <"$file"
 }
