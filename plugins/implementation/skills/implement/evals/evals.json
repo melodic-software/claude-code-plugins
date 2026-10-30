@@ -215,7 +215,7 @@
       "name": "per-unit-check-pilot",
       "narration": true,
       "prompt": "/implementation:implement execute Phase 3 of the approved plan at .work/telemetry-names/PLAN.md: rename the metric `queue_wait_ms` to `queue_wait_seconds` and divide each recorded value by 1000, at 14 emit sites across 8 files. A lever is built and already matches my hand edit of the first site. I'm reviewing each turn; branch feat/telemetry-names, clean tree. My per_unit_check option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
-      "expected_output": "Resolves per_unit_check to pilot from the default and reports that layer in one line. Runs the lever on a small first batch of the emit sites, sized from the best-practices 'Fan out across files' section it links, runs the build check and the tests covering those sites, and only once that batch is green runs the lever on the remaining sites, followed by one check over all of them before the commit checkpoint.",
+      "expected_output": "Resolves per_unit_check to pilot from the default and reports that layer in one line. Runs the lever on a small first batch of the emit sites, sized from the best-practices 'Run sessions in parallel' section it links, runs the build check and the tests covering those sites, and only once that batch is green runs the lever on the remaining sites, followed by one check over all of them before the commit checkpoint.",
       "files": [],
       "expectations": [
         "Reports per_unit_check: pilot with the default as the supplying layer",
