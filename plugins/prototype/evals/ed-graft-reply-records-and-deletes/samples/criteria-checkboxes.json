@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "screen: /shipments\n- [ ] Layout: B's cards with C's region filter (graft)",
+      "why": "checkbox"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Winner: B mostly.",
+      "why": "no criteria"
+    }
+  ]
+}

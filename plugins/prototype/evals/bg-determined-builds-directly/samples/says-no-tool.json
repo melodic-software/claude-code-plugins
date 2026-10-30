@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing here needs your eye: the values are fixed, so a generator would be overhead. I added `border-bottom: 1px solid #e5e7eb` to `.page-header` in src/header.css.",
+      "why": "direct"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I built /lab/divider with sliders for thickness and color.",
+      "why": "built a tool"
+    }
+  ]
+}

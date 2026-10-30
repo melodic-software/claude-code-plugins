@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "interview-data/staging/r1/manifest.json",
+        "interview-data/staging/r1/A.html"
+      ],
+      "why": "staged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "none"
+    },
+    {
+      "answer": [
+        "manifest.json"
+      ],
+      "why": "outside staging"
+    }
+  ]
+}

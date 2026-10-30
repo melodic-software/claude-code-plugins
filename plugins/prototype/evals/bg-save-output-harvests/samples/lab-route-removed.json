@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "import ReportCover from './components/ReportCover.jsx';\nexport default function App() { return <ReportCover />; }",
+      "why": "removed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import TornEdgeLab from './lab/torn-edge/TornEdgeLab.jsx';",
+      "why": "still routed"
+    }
+  ]
+}
