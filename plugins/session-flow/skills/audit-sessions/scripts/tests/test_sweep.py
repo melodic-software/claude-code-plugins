@@ -79,6 +79,8 @@ def test_rules_are_well_formed():
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
     assert {rule["route"] for rule in RULE.values()} - {None} == ROUTES
+    assert RULES["basis"].count("threshold-derivation.md") == 1
+    assert (SCRIPTS.parent / "reference" / "threshold-derivation.md").is_file()
 
 
 def test_subagent_count_routes_to_observability():
