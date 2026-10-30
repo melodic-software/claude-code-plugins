@@ -461,7 +461,20 @@ and the prefilter is unchanged, because every `xargs` or `parallel` delete it ju
 `-delete` or `unlink`; so the row's k is unchanged. Each command of a call that passes the prefilter
 now has its pipe feed recorded with bash builtins before it is judged, and an `xargs` or `parallel`
 delete fed by a confined listing pays the recursive-delete judgment a recursive `rm` already pays,
-through the same one `realpath` (and, on Windows, the one `cygpath`).
+through the same one `realpath` (and, on Windows, the one `cygpath`). Measured on melo-lap-001
+(Windows 11 on AC, Git Bash 5.3.15, Node 24.21.0), guardrails at `b76fecf22` against `a1b88a685`
+(the parent of `c3d7eb88d`, the #9754 change; no hook or lib code differs between `c3d7eb88d` and
+`b76fecf22`), with a guardrails-only config and no telemetry sink. With the dotfiles fan-out harness
+(sha256 `e1bbebb9…`), 15 interleaved rounds of `--runs 7`, S = 20 ms: the `Bash` row's paired
+median moved +2 ms (0.1 S) and the `$(…)` sample −1 ms, inside the ±2 ms the untouched `Write` and
+`Edit` rows moved; the row's median is 163 ms on both. With `hyperfine -N` (300 runs per arm in five
+alternating blocks; its own `bash -c :` floor is 62 ms, a cold start where the harness times a fork
+from bash), the row's median on `git status --short` went from 133.0 to 133.5 ms, on
+`find ./build -type f | xargs rm -rf` from 143.5 to 365.1 ms, and on `rm -rf ./build` from 357.6 to
+361.0 ms. The common call stays inside its k × S budget. A pipe-fed delete is a new judged shape: it
+costs +222 ms (about 11 S at the harness's S), the cost a recursive `rm` already pays. This run did
+not count its processes. Taking that recursive-delete cost as the budget for a pipe-fed delete is a
+judgment, not a k × S result.
 
 **block-root-delete-target find deletes (#9752).** The arm starts no process of its own, so the
 common call's k is unchanged: it reads find's argv from the parse the guard already makes, and
