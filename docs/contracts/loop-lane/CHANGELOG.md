@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.12.0] - 2026-10-30
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **Kept owner holds.** §2 "When work stops for the owner" names the two pr-merge holds the owner
+  keeps, a trusted-actor widening and a file listing past the files API's cap, with the reason for
+  each. A high path still holds a pull request but no longer stops it for the owner, and only a
+  CRITICAL security finding does (owner decision 2026-10-30, #11020).
+
 ## [12.11.1] - 2026-10-30
 
 Patch. Corrects a posting-lanes row; no topology, escalation-contract, capability-tier or §4

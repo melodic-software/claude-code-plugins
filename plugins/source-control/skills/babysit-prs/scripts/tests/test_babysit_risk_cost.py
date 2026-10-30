@@ -215,10 +215,8 @@ class ModelSpendDetections(_Finding):
         )
         result = _cost([_file(config, patch=patch)], public=True)
         self.assertReported(result)
-        self.assertEqual(
-            [r.code for r in person_reasons(holding(result))],
-            [f"high-path:{config}"],
-        )
+        self.assertIn(f"high-path:{config}", [r.code for r in holding(result)])
+        self.assertEqual(person_reasons(holding(result)), [])
         consumer = _file("conventions/pr-pipeline.yaml", patch=patch)
         result = _cost([consumer], public=True)
         self.assertReported(result)
