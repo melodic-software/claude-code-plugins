@@ -59,8 +59,8 @@ No action → route on context (a subject named → `collide`; an existing metap
   identity / qualifying / verbal), its linking quality (why it lands), and family distance
   (close / medium / far). The writer picks by emotional intent.
 - **Show the writer both finder-question lists.** What characteristics does this idea have? What
-  else has those characteristics? Both lists belong in every reply because they are raw
-  material the writer mines for their own options, not just a route to your picks.
+  else has those characteristics? Both lists belong in the reply because they are raw material the
+  writer mines for their own options, not just a route to your picks.
 - **Weight the collisions toward verbs.** In any mixed batch, noun×verb candidates should outnumber
   adjective×noun ones.
 - **Take object-writing output as input.** The mined world vocabulary of a song is the raw material
