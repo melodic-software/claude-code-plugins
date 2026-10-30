@@ -139,7 +139,9 @@ expires during the read can only make the counts differ. Pages that read
 whole but hold any other count print one `LISTING_MISS_PREFIX` line on stderr
 (the counts, the pages read, the base's age) and are read again on the same
 base after each of `INCREMENTAL_WAITS`, up to `INCREMENTAL_READS` reads inside
-one `LISTING_TIMEOUT_SECONDS`; no wait or miss loosens the check, and after
+one `LISTING_TIMEOUT_SECONDS` (a caller that sets `NO_INCREMENTAL_WAITS_ENV`
+to `1`, killing the reader sooner than those waits and a whole listing take,
+skips the waits and reads once); no wait or miss loosens the check, and after
 those reads, on any failed read (a timeout, a 429
 or a rate-limit 403 included, which are never read again), or with a base
 that is missing, older or of another shape, it lists every page, checked the
@@ -226,6 +228,8 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
 LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
+# `1`: no wait between incremental reads (`incremental_waits`).
+NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # The head-ref map's version and its keys' shape, an artifact id
 # (head-ref-map.mjs writes both).
@@ -322,6 +326,14 @@ INCREMENTAL_WAITS = (15.0, 30.0)
 # The incremental reads on one base before a whole listing: the first, then
 # one after each wait.
 INCREMENTAL_READS = 1 + len(INCREMENTAL_WAITS)
+
+
+def incremental_waits() -> tuple[float, ...]:
+    """`INCREMENTAL_WAITS`, or none when `NO_INCREMENTAL_WAITS_ENV` is `1`:
+    one incremental read, and a miss lists every page at once."""
+    return () if os.environ.get(NO_INCREMENTAL_WAITS_ENV) == "1" else INCREMENTAL_WAITS
+
+
 # The prefix of the stderr line `Reader._incremental` prints for each read
 # that missed the live count, like babysit_gh's `babysit-gh-calls`.
 LISTING_MISS_PREFIX = "babysit-listing-miss"
@@ -1115,7 +1127,7 @@ class Reader:
         # a failed read lists every page at once, as `_read_listing` decides.
         if base is not None:
             deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
-            for wait in (*INCREMENTAL_WAITS, None):
+            for wait in (*incremental_waits(), None):
                 listing = self._incremental(base, deadline, "incremental")
                 if (
                     listing is not COUNT_MISSED

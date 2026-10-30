@@ -189,6 +189,13 @@ test("the action emits each named token, the call count as an api-calls notice t
     );
     // calls: each token's own requests (2 counted plus a 304 is 2), not the counter's rise (28).
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=lanes-app-calls=0 github-token-calls=2\ncosts=github-token-cost=28\n");
+    // With no RUNNER_TEMP there is no api-calls line to read: unknown, never an empty count.
+    writeFileSync(join(dir, "output"), "");
+    execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: "", GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
+    });
+    assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=github-token-calls=unknown\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
