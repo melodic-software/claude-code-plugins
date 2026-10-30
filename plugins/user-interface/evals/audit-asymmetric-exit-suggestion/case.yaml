@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: audit-asymmetric-exit-suggestion
-description: "contract-change: Written from MB:plugins/user-interface/skills/audit-animation/SKILL.md:64-70 (Suggestion: an asymmetric exit) and MB:plugins/user-interface/reference/animation/catalog.md:150-152 (exit mirrors entry in path and timing). Under the base contract a menu whose exit runs shorter than its entrance is reported at Suggestion. Head reverses the rule (an exit should run shorter than its entrance), so a failure on head is the intended change, reported apart from the non-inferiority verdict."
+description: "contract-change: Written from MB:plugins/user-interface/skills/<audit at base>/SKILL.md:64-70 (Suggestion: an asymmetric exit) and MB:plugins/user-interface/reference/animation/catalog.md:150-152 (exit mirrors entry in path and timing). Under the base contract a menu whose exit runs shorter than its entrance is reported at Suggestion. Head reverses the rule (an exit should run shorter than its entrance), so a failure on head is the intended change, reported apart from the non-inferiority verdict."
 tags: [audit, motion, contract-change]
 runs: 3
 expected_outcome: "The report flags the menu's 150ms exit against its 200ms entrance as an asymmetric exit at Suggestion severity, not Blocking or Important"

@@ -5,11 +5,11 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "user-interface:audit-animation"
+            "skill": "user-interface:audit\u002danimation"
           }
         }
       ],
-      "why": "audit-animation fired"
+      "why": "the base audit skill fired under its base name"
     },
     {
       "answer": [

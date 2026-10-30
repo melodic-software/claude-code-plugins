@@ -2,7 +2,7 @@
   "skill": "user-interface:audit",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/audit",
-  "ranking_note": "Written from the description of user-interface:audit-animation at the merge base, before the rename to audit, so the positives cover only what the animation audit owned: the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output. Scoring the merge base needs skill and skill_dir pointed at audit-animation, since this format has no field for a renamed skill.",
+  "ranking_note": "Written from the description of user-interface:audit at the merge base (under its base name), before the rename to audit, so the positives cover only what the animation audit owned: the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output. Scoring the merge base needs skill and skill_dir pointed at the base name and path, since this format has no field for a renamed skill.",
   "competitors": [
     "user-interface:write-animation",
     "user-interface:glossary",
