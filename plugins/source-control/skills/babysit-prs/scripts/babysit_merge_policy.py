@@ -1781,8 +1781,8 @@ class _GreenMain:
 def _recovered_at(
     issue: dict[str, Any], human: Callable[[Any], bool], green: _GreenMain
 ) -> datetime | None:
-    """When main went green again past a red-main record (owner decision,
-    2026-10-30): the creation of the earliest green full run
+    """When main went green again past a red-main record: the creation of
+    the earliest green full run
     (`_GreenMain.listed`) created after the record, at a commit after the
     record's SHA and on main's history. None for any other record, one a
     non-human edited (the SHA comes from its body), or no such run; a failed

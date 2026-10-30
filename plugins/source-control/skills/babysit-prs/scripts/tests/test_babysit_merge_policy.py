@@ -1070,8 +1070,8 @@ def green_run(**fields: Any) -> dict[str, Any]:
 
 class AutoClearOnGreen(unittest.TestCase):
     """An open `schedule` or `dispatch` record clears once a newer attempt-1
-    green full run on main sits at a later commit (owner decision,
-    2026-10-30); any other record stays human-close."""
+    green full run on main sits at a later commit; any other record stays
+    human-close."""
 
     def fake(self, body: str = DEMOTION_BODY, runs: Any = None, **issue: Any) -> GhFake:
         issue = {"state": "OPEN", "timelineItems": {"nodes": []}} | issue
