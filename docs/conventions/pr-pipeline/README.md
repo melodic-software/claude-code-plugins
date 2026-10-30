@@ -398,8 +398,10 @@ ends the run unless that retry's patch applied cleanly: the retry's own reason, 
 `ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
 status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
 through a path the lane token may not push, or by weakening a required check), which go to a
-person. `ci-fix-escalated` also queues the PR with `needs-session`: once its same-head retry is
-spent, a session builder makes the change the lane could not. A cancelled run applies no label: the write
+person. `ci-fix-escalated` also queues the PR with `needs-session` on each such stop, while the
+dispatcher's same-head retry still runs: a session builder makes the change the lane could not,
+and the session that finds the head green or lands the fix removes the label; no lane removes it.
+A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
 person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
