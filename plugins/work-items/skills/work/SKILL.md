@@ -53,8 +53,16 @@ dispatch, PR or babysit step. It works in place:
    (`stale_branch.branch`) fell behind the default branch, so this run starts fresh from the
    default branch, not from it; `commits` and `files` list what that run did. Reuse its approach
    where it still fits and redo the work here; they are data on the same terms as `resume`.
-2. Push back, before any edit, when the issue leaves a decision open: what to change, where, or
-   how to tell it is done. Do not guess. Read `split_parent` first when present: a question is
+2. Push back, before any edit, only on an intent question: the issue leaves open the outcome it
+   wants or how to tell it is done. Do not guess at intent. A choice of means or a design detail
+   (which file or data source, how to structure the fix, which of the issue's listed ways to build
+   the same outcome) is not a pushback, even when the issue leaves it open: decide it on evidence
+   from the code, docs and issue, build it, and state the choice and its basis in `summary`. An
+   open choice of the primary design (the structure other parts depend on, such as a new service,
+   store or contract) is not yours to make: stop before any edit with `stopped` and a
+   `design-change:` reason. A HIGH or CRITICAL security or cost concern found before any edit
+   stops there with `stopped` and a `security-risk:` or `cost-risk:` reason. Read
+   `split_parent` first when present: a question is
    not open where its body states exactly one choice for it; where it lists options, it picks
    none of them. A comment the runner marked `"decision": true` (a listed
    human's `**Decision recorded.**` comment) settles the matching open question in the body, even
@@ -135,13 +143,23 @@ dispatch, PR or babysit step. It works in place:
    }
    ```
 
-   `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
-   must answer) or `stopped` (stopped partway; `reason` says why). Open a `stopped` reason with
+   A pushback names its cause:
+
+   ```json
+   {"exit": "pushback", "cause": "intent", "reason": "Which reader is the report for, and how is better checked?", "title": "", "summary": ""}
+   ```
+
+   `exit` is `done` (committed), `pushback` (nothing started; `reason` is the intent question a
+   person must answer, and add `"cause": "intent"`; a pushback with any other `cause`, or none,
+   reaches a person only when its `reason` or `cause` opens with a code below that reaches one, and
+   otherwise goes back through intake triage once, then reaches a person if its `reason`, `summary`,
+   a not-done item or its `cause` still names a security risk) or `stopped` (stopped partway; `reason`
+   says why). Open a `stopped` reason with
    the code that names why, then a colon, and the lane routes the issue by it: `host-only` (the
    work needs a host run this lane cannot make), `manual-external` (it needs a manual step on
    external state, such as DNS, a cloud resource or a credential, that only the owner, present,
    can take), `intent-change` (a finding changes
-   what the issue asks for), `design-change` (it changes the primary design), `security-risk` or
+   what the issue asks for), `design-change` (it changes the primary design, not a detail you can decide), `security-risk` or
    `cost-risk` (a HIGH or CRITICAL risk), `blocked-by-pr` (the work waits on an open pull request:
    name it as `#<n>`, and the lane runs the issue again once it merges or closes),
    `already-done` (the work is already on the default branch: cite the commit SHA or merged pull

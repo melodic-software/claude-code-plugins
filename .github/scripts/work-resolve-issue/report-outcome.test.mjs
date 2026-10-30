@@ -715,7 +715,7 @@ test("patch-empty changes no plan: a done run with no commit, a resumed run, or 
   assert.deepEqual(decideDone({ ...resumed, escalation: "patch-empty" }), decideDone(resumed));
   assert.deepEqual(decideDone({ branch: "", escalation: "patch-empty" }), decideDone({ branch: "" }));
   assert.match(decideDone({ branch: "", escalation: "patch-empty" }).comment, /committed nothing/);
-  const pushback = { exit: "pushback", reason: "Which file?", title: "", summary: "" };
+  const pushback = { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" };
   for (const escalation of ["patch-empty", "patch-protected-path"]) {
     assert.deepEqual(decideDone({ outcome: pushback, branch: "", escalation }), decideDone({ outcome: pushback, branch: "" }), escalation);
   }
@@ -723,7 +723,7 @@ test("patch-empty changes no plan: a done run with no commit, a resumed run, or 
 
 test("pushback comments, adds needs-human and removes agent-ready", () => {
   const plan = decide({
-    outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" },
+    outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -734,6 +734,208 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.deepEqual(plan.addLabels, ["needs-human"]);
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.match(plan.comment, /Which file\?/);
+});
+
+// The owner's rule for when work stops for the owner: a pre-edit question reaches a person only as an intent
+// question, which the run names with `cause: "intent"`; a choice of means or a
+// design detail, or a pushback naming no cause, is the lane's to decide.
+test("a pushback whose cause opens with a hold code holds on that code, whatever its reason", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const [cause, stop] of [
+    ["cost-risk: provisions a paid Azure plan", "cost-risk"],
+    ["security-risk: the deploy token is in the log", "security-risk"],
+    ["design-change: a new store", "design-change"],
+  ]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which plan?", cause, title: "", summary: "" } });
+    assert.equal(plan.action, "hand-back", cause);
+    assert.equal(plan.stop, stop, cause);
+    assert.ok(plan.addLabels.includes("needs-human"), cause);
+  }
+});
+
+test("a pushback-means intake comment shows the cause the run named", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means: two helpers fit", title: "", summary: "" } });
+  assert.equal(plan.stop, "pushback-means");
+  assert.match(plan.comment, /The cause the run named:\n\n> means: two helpers fit/, plan.comment);
+});
+
+test("a pushback without cause intent goes back through intake instead of reaching a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const cause of [undefined, "", "design", "means", 7]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", cause, title: "", summary: "" } });
+    assert.equal(plan.action, "intake", String(cause));
+    assert.equal(plan.stop, "pushback-means", String(cause));
+    assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"], String(cause));
+    assert.ok(!plan.addLabels.includes("needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
+    assert.equal(parseReason(plan.comment), null, plan.comment);
+  }
+  for (const cause of ["intent", "INTENT", " Intent\n", "intent-change", "Intent-Change"]) {
+    const intent = decide({ ...plain, outcome: { exit: "pushback", reason: "Which outcome?", cause, title: "", summary: "" } });
+    assert.equal(intent.action, "hand-back", JSON.stringify(cause));
+    assert.equal(parseReason(intent.comment).reason, "intent");
+  }
+  withDir({ "work-outcome.json": JSON.stringify({ exit: "pushback", reason: "Which outcome?", cause: "intent" }) }, (dir) => {
+    assert.equal(readOutcome(join(dir, "work-outcome.json")).cause, "intent");
+  });
+});
+
+// A pushback with no intent cause holds only for a hold code its reason opens
+// with or its cause names; a security word alone goes to intake, whose own
+// security rules judge it.
+test("a pushback holds only for an explicit hold code, never for a security word alone", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const run = (reason, cause) => decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary: "" } });
+  for (const reason of [
+    "Should the fix inject the config through DI or read the file directly?",
+    "Should this use the GITHUB_TOKEN or the lanes App token for the call?",
+    "Which of the security review lane's two prompts should change?",
+    "This needs an API key the lane does not hold.",
+    "The issue asks to print the deploy token in the log.",
+  ]) {
+    const plan = run(reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.equal(plan.action, "intake", reason);
+    assert.ok(!plan.addLabels.includes("needs-human"), reason);
+  }
+  for (const [reason, cause, stop, code] of [
+    ["security-risk: the issue asks to print the deploy token in the log.", undefined, "security-risk", "security"],
+    ["design-change: the fix replaces the lane's routing table with a service.", undefined, "design-change", "design"],
+    ["This provisions a paid Azure plan that bills the owner.", "cost-risk", "cost-risk", "cost"],
+    ["This needs a new shared store other services depend on.", "design-change", "design-change", "design"],
+    ["The fix needs the token rotated.", "security-risk", "security-risk", "security"],
+    ["Which outcome does the issue want?", "intent_change", "pushback", "intent"],
+    ["Which outcome does the issue want?", "intent change", "pushback", "intent"],
+    ["Which outcome does the issue want?", " Intent_Change\n", "pushback", "intent"],
+    ["cost-risk: provisions a paid Azure plan.", "intent", "cost-risk", "cost"],
+    ["design-change: a new store.", "intent", "design-change", "design"],
+  ]) {
+    const plan = run(reason, cause);
+    assert.equal(plan.action, "hand-back", `${cause} ${reason}`);
+    assert.equal(plan.stop, stop, `${cause} ${reason}`);
+    assert.equal(parseReason(plan.comment).reason, code, plan.comment);
+  }
+  // A cause that names a code with no hold route, or a hold-class word that
+  // is not a code, is no hold.
+  for (const cause of ["cost", "host-only", "stopped", "pushback-means"]) {
+    assert.equal(run("Which helper should change?", cause).stop, "pushback-means", cause);
+  }
+  // A host-run or attended code takes its row.
+  const host = run("host-only: needs the GPU desktop.");
+  assert.equal(host.stop, "host-only");
+  assert.equal(host.action, "host-run");
+  // One that names a security risk after the code reaches a person (owner
+  // decision 2026-10-29), and a capability phrasing names none.
+  for (const reason of ["host-only: needs the deploy token printed in the log.", "manual-external: rotate the leaked deploy token in the DNS account."]) {
+    const risky = run(reason);
+    assert.equal(risky.stop, "security-risk", reason);
+    assert.equal(risky.action, "hand-back", reason);
+    assert.ok(risky.addLabels.includes("needs-human"), reason);
+    assert.equal(parseReason(risky.comment).reason, "security", risky.comment);
+  }
+  assert.equal(run("host-only: needs a host with model credentials.").stop, "host-only");
+  const attended = run("manual-external: add the DNS record for the docs site.");
+  assert.equal(attended.stop, "manual-external");
+  assert.equal(attended.action, "attended");
+  // A non-hold, non-lane code goes through intake.
+  for (const reason of ["blocked-by-pr: #12 changes the same file.", "already-done: abc1234 fixed it.", "report-delivered: the report is posted."]) {
+    const plan = run(reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.equal(plan.action, "intake", reason);
+  }
+  // A cause names its code in spaces, mixed case, full-width letters, hyphen
+  // runs and a trailing colon.
+  for (const [cause, stop] of [
+    ["Security Risk", "security-risk"],
+    ["COST_RISK.", "cost-risk"],
+    ["ｉｎｔｅｎｔ", "pushback"],
+    ["intent - change", "pushback"],
+    ["intent:", "pushback"],
+    ["intent: ", "pushback"],
+    ["-design--change-", "design-change"],
+  ]) {
+    assert.equal(run("Which helper should change?", cause).stop, stop, JSON.stringify(cause));
+  }
+});
+
+// A pushback with no code whose words read as a security risk goes to intake
+// with no means framing; a second one since a listed human added agent-ready
+// holds as security-risk instead of failing.
+test("a pushback naming a security risk goes to intake unframed once, then reaches a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const reason of ["The issue asks to print the deploy token in the log.", "blocked-by-pr: #12's log printed the deploy token."]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, title: "", summary: "" } });
+    assert.equal(plan.action, "intake", reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.doesNotMatch(plan.comment, /waits on no decision|choice of means|design detail/, plan.comment);
+    assert.match(plan.comment, /security risk/, plan.comment);
+    const spent = capRetries(plan, 1);
+    assert.equal(spent.action, "hand-back", reason);
+    assert.equal(spent.stop, "security-risk", reason);
+    assert.ok(spent.addLabels.includes("needs-human") && spent.comment.includes("work-items:escalation"), spent.comment);
+    assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
+  }
+  const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" } });
+  assert.match(means.comment, /choice of means/);
+  assert.match(means.comment, /waits on no decision from a person/);
+  assert.equal(capRetries(means, 1).action, "fail");
+});
+
+// The security reading reads every text the comment can show (the reason, the
+// summary, each not-done item) and the cause, so no security text the run
+// wrote ends the issue with no person.
+test("a pushback whose summary or cause names a security risk goes to intake marked security, then reaches a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "123" };
+  for (const [reason, cause, summary, notDone = []] of [
+    ["", "", "the deploy token was printed in the CI log"],
+    ["Which helper?", "security", ""],
+    ["Which helper?", "secret leak", ""],
+    ["Which helper?", "", "Two helpers fit.", [{ what: "The issue asks to print the deploy token in the log." }]],
+  ]) {
+    const label = JSON.stringify([reason, cause, summary, notDone]);
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary, notDone } });
+    assert.equal(plan.action, "intake", label);
+    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=intake security run=123 -->\n"), plan.comment);
+    assert.equal(parseOutcomeMarker(plan.comment).security, true, label);
+    const spent = capRetries(plan, 1);
+    assert.equal(spent.action, "hand-back", label);
+    assert.equal(spent.stop, "security-risk", label);
+    assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
+    assert.match(spent.comment, /named a possible security risk again after its intake rounds were spent/, spent.comment);
+    assert.doesNotMatch(spent.comment, /make it clearer first/, spent.comment);
+  }
+  const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means", title: "", summary: "" } });
+  assert.ok(means.comment.startsWith("<!-- work-resolve-issue outcome=intake run=123 -->\n"), means.comment);
+  assert.equal(parseOutcomeMarker(means.comment).security, undefined);
+});
+
+// A security marker parses with every other field intact.
+test("parseOutcomeMarker reads the security tag beside run and branch", () => {
+  assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=intake security run=99 branch=resumed -->\nWhy."), {
+    outcome: "intake",
+    resets: null,
+    run: "99",
+    onResumed: true,
+    security: true,
+  });
+  assert.equal(parseOutcomeMarker(`${ESC}<!-- work-resolve-issue outcome=intake security run=99 -->`).run, "99");
+});
+
+// An explicit security-risk code outranks an intent cause.
+test("a pushback with cause intent whose reason opens with security-risk holds as security-risk", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const cause of ["intent", "intent-change"]) {
+    const outcome = { exit: "pushback", reason: "security-risk: the issue asks to print the deploy token in the log.", cause, title: "", summary: "" };
+    const plan = decide({ ...plain, outcome });
+    assert.equal(plan.action, "hand-back", cause);
+    assert.equal(plan.stop, "security-risk", cause);
+    assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
+    // Intake never ran on this round-one hold, so its line claims no intake.
+    assert.match(plan.comment, /the run named a possible security risk/, plan.comment);
+    assert.doesNotMatch(plan.comment, /intake triage/, plan.comment);
+  }
+  const worded = decide({ ...plain, outcome: { exit: "pushback", reason: "The issue asks to print the deploy token in the log.", cause: "intent", title: "", summary: "" } });
+  assert.equal(worded.stop, "pushback");
 });
 
 // The lane's preamble tells a run whose change needs a path apply-issue-patch
@@ -944,6 +1146,130 @@ test("main fails a split-required skip that intake already sent back once, to no
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
   });
+});
+
+// A pushback naming no cause goes back through intake with no person, and a
+// second intake since a listed human added agent-ready fails, so intake and
+// the lane never loop.
+test("main on a pushback with no cause sends the issue back through intake once, then fails", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
+  const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  for (const [prior, outcome] of [[[], "intake"], [[earlier], "failed"]]) {
+    await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments/, 200, prior],
+        ["GET", /\/issues\/77\/events/, 200, []],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), outcome);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(comment.startsWith(`<!-- work-resolve-issue outcome=${outcome} run=123 -->\n`), comment);
+      assert.ok(!comment.includes("work-items:escalation"), comment);
+    });
+  }
+});
+
+// The same pushback naming a security risk: the second intake holds it for a
+// person instead of failing.
+test("main on a second pushback naming a security risk holds it as security-risk", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "The issue asks to print the deploy token in the log.", title: "", summary: "" });
+  const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments/, 200, [earlier]],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.ok(comment.includes("work-items:escalation"), comment);
+    assert.equal(parseReason(comment).reason, "security", comment);
+  });
+});
+
+// An earlier round's security mark does not carry over: intake triage
+// re-judged it before admitting the issue again, so whatever stops the second
+// intake round (a plain means pushback, a split-required skip) ends as it
+// would after a plain round.
+test("main ends a second intake round the same after a security or a plain earlier intake marker", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const secure = { user: bot, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  const plainEarlier = { user: bot, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  const means = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
+  for (const [name, prior, files, extra] of [
+    ["security then means pushback", secure, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}],
+    ["plain then means pushback", plainEarlier, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}],
+  ]) {
+    await withAsyncDir({ ...files, "trusted.json": TRUSTED_LIST }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments/, 200, [prior]],
+        ["GET", /\/issues\/77\/events/, 200, []],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), ...extra }, fetch }), 0, name);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), name);
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
+    });
+  }
+});
+
+// A spent retry fails the same after a security or a plain intake round.
+test("main fails a spent retry the same after a security or a plain earlier intake marker", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const marker = (outcome, run, at) => ({ user: bot, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->\nWhy.`, created_at: at });
+  for (const first of ["intake security", "intake"]) {
+    const prior = [marker(first, "97", "2026-10-29T10:00:00Z"), marker("retry", "98", "2026-10-29T11:00:00Z"), marker("retry", "99", "2026-10-29T12:00:00Z")];
+    await withAsyncDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, prior],
+        ["GET", /\/issues\/77\/events$/, 200, []],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0, first);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+      assert.equal(parseOutcomeMarker(comment).outcome, "failed");
+    });
+  }
+});
+
+// A report-delivered close closes the same after a security or a plain intake round.
+test("main closes a report-delivered stop the same after a security or a plain earlier intake marker", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
+  for (const first of ["intake security", "intake"]) {
+    const prior = [{ user: bot, body: `<!-- work-resolve-issue outcome=${first} run=97 -->\nWhy.`, created_at: "2026-10-29T10:00:00Z" }];
+    await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, prior],
+        ["GET", /\/issues\/77\/events$/, 200, []],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+        ["PATCH", /\/issues\/77$/, 200, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0, first);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"), first);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+      assert.ok(comment.length > 0, first);
+    });
+  }
 });
 
 // An issue whose author is outside the trusted list stops at the admit job;
@@ -1668,7 +1994,7 @@ test("an unreadable outcome file with a limit record reads as limited", () => {
 
 test("a pushback stays a pushback even on a limit-stopped run", () => {
   const plan = decide({
-    outcome: { exit: "pushback", reason: "Unclear.", title: "", summary: "" },
+    outcome: { exit: "pushback", reason: "Unclear.", cause: "intent", title: "", summary: "" },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -1975,6 +2301,25 @@ test("main on a rerun after its turn-cap marker posts nothing again", async () =
     ]);
     assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
+  });
+});
+
+// A turn cap with no restart left fails, an earlier security intake marker included.
+test("main fails a spent turn cap after an earlier security intake marker", async () => {
+  const secure = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [secure]],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.equal(parseOutcomeMarker(comment).outcome, "failed");
   });
 });
 
@@ -2656,7 +3001,7 @@ test("--find-prior fails on a comparison with no whole-number ahead_by", async (
 test("hand-back markers carry run= and read back with it", () => {
   for (const outcome of [
     { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" },
-    { exit: "pushback", reason: "Which file?", title: "", summary: "" },
+    { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" },
   ]) {
     const plan = decide({ outcome, issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
     assert.ok(plan.comment.startsWith(`${ESC}<!-- work-resolve-issue outcome=${outcome.exit} run=555 -->\n`), plan.comment);
@@ -3280,7 +3625,7 @@ test("the runner records an empty result list when the activity lists no checks"
 test("every hand-back opens with the attended queue's escalation marker, and no other route carries one", () => {
   const plain = { issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" };
   const handBacks = [
-    decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
+    decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-invalid" }),
   ];
@@ -3320,7 +3665,7 @@ test("every person-routed comment carries the stop-reason marker and the Reason 
     assert.ok(isPersonReason(code), `${reason}: ${code}`);
     assert.ok(plan.comment.split("\n").includes(`Reason: \`${code}\``), plan.comment);
   }
-  const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } });
+  const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } });
   assert.equal(parseReason(pushback.comment).reason, "intent");
   assert.ok(pushback.comment.includes("Reason: `intent`"));
   for (const skip of ["research-first", "probe-first"]) {
@@ -3383,7 +3728,7 @@ test("unmarkedAnswer names the newest listed human's own comment only when it la
 
 test("a pushback links the unmarked comment, shows the decision line, and its retry text names the line", () => {
   const plain = { issueNumber: 77, issueLabels: [], branch: "", changedFiles: [], humanLabel: "needs-human" };
-  const pushback = { exit: "pushback", reason: "Which file?", title: "", summary: "" };
+  const pushback = { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" };
   const linked = decide({ ...plain, outcome: pushback, unmarked: commentUrl(2) }).comment;
   assert.ok(linked.includes(`The newest comment from a listed maintainer, ${commentUrl(2)}, does not start with \`**Decision recorded.**\``), linked);
   assert.ok(linked.includes("\n```\n**Decision recorded.** <answer>\n```\n"), linked);
@@ -3396,7 +3741,7 @@ test("a pushback links the unmarked comment, shows the decision line, and its re
 });
 
 test("main on a pushback reads the issue's comments and links the owner's unmarked one; a failed read leaves it out", async () => {
-  const pushback = JSON.stringify({ exit: "pushback", reason: "Which file?", title: "", summary: "" });
+  const pushback = JSON.stringify({ exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" });
   for (const [route, linked] of [
     [["GET", /\/issues\/77\/comments$/, 200, [issueComment(2, OWNER_ID, "Use `claude auth status`.")]], true],
     [["GET", /\/issues\/77\/comments$/, 500, { message: "boom" }], false],
@@ -3415,6 +3760,25 @@ test("main on a pushback reads the issue's comments and links the owner's unmark
       assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then remove `needs-human`/);
     });
   }
+});
+
+// main reads a pushback's cause from work-outcome.json: a hold-class cause
+// reaches a person as that code with no code in the reason.
+test("main on a pushback whose work-outcome.json names cause cost-risk holds it as cost-risk", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "This provisions a paid Azure plan.", cause: "cost-risk", title: "", summary: "" });
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.equal(parseReason(comment).reason, "cost", comment);
+    assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "adds the human-gated label");
+  });
 });
 
 // stop-routes.json routes every stop. Expected values are the owner's
