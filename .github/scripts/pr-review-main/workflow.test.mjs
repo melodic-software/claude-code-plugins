@@ -296,8 +296,10 @@ test("a diff in more than one chunk writes a manifest of every file, its chunk a
   assert.equal(two.manifest, `${MIXED_MANIFEST.join("\n")}\n`);
   // One chunk is the single-pass review: no manifest.
   assert.equal(split(MIXED.join(""), 100000, 4, 15000).manifest, null);
-  // Past its cap the manifest lists what fits and counts the rest.
-  const capped = split(MIXED.join(""), 600, 4, 60);
+  // Past its cap the manifest lists what fits and counts the rest, the count's
+  // line included in the cap.
+  const capped = split(MIXED.join(""), 600, 4, 83);
+  assert.ok(Buffer.byteLength(capped.manifest) <= 83);
   assert.equal(capped.manifest, `${MIXED_MANIFEST.slice(0, 2).join("\n")}\nand 4 more files, not listed\n`);
   // A diff too large to split writes no manifest either.
   assert.equal(split(MIXED.join(""), 600, 1, 15000).manifest, null);

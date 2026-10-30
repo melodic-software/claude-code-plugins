@@ -12,7 +12,8 @@ With more than one chunk it also writes <manifest>, each file of the patch
 in order as `chunk <k> <status> <path>`, status added, deleted, renamed (the
 path `old -> new`) or modified, so each chunk's reviewer sees what the other
 chunks hold. Each path is git's own, quoted as git quotes it, so a path never
-breaks a line. Lines past manifest-bytes are counted, not listed.
+breaks a line. Files past manifest-bytes are counted, not listed; the whole manifest, that
+count's line included, stays within manifest-bytes.
 """
 
 import sys
@@ -85,10 +86,14 @@ def manifest(chunks: list[bytes], max_bytes: int) -> bytes:
         for k, chunk in enumerate(chunks, 1)
         for lines in files_of(chunk)
     ]
+    def more(count: int) -> bytes:
+        return b"and %d more files, not listed\n" % count if count else b""
+
     out = b""
     for n, line in enumerate(lines):
-        if len(out) + len(line) + 1 > max_bytes:
-            return out + b"and %d more files, not listed\n" % (len(lines) - n)
+        left = len(lines) - n - 1
+        if len(out) + len(line) + 1 + len(more(left)) > max_bytes:
+            return out + more(len(lines) - n)
         out += line + b"\n"
     return out
 
