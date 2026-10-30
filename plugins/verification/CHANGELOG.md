@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.5] - 2026-10-30
+
+### Changed
+
+- Setup reads `docs/conventions/<plugin>.yaml` with the bundled `yaml-subset.mjs` instead of running `yaml-subset.awk`. It accepts and refuses the same files, and parse errors now use `yaml-subset.mjs` wording, for example `line 2: duplicate key "x"` (#10131).
+
 ## [0.13.4] - 2026-10-30
 
 ### Changed

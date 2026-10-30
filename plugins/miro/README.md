@@ -219,7 +219,7 @@ Three supported routes:
    {"miro_api_token": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see
@@ -231,7 +231,7 @@ Three supported routes:
 
    For a `sensitive` option, route 1 stays the recommended route. What
    `plugin configure` does with a sensitive value, and on which hosts that was
-   measured, is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   measured, is recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
