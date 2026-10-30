@@ -351,6 +351,120 @@ wait
 assert_eq "racing prunes hold the sentinel one at a time" "ok" \
   "$(awk '$1=="in"{if(h!="")bad=1;h=$2;n++} $1=="out"{if(h!=$2)bad=1;h=""} END{print (bad||!n||h!="")?"overlap":"ok"}' "$race_log")"
 
+# --- 8b. stale-lock and Collector recovery, against a stateful service mock ---
+# The state file is the service: stop writes stopped, start writes running, the query reads it.
+# With kill-once present, the stop also hard-kills the prune (no EXIT trap).
+SVC="$TMP/svc-state"
+SVC_STOP="$TMP/svc-stop.sh"
+SVC_START="$TMP/svc-start.sh"
+SVC_RUNNING="$TMP/svc-running.sh"
+# shellcheck disable=SC2016  # the stub expands its own $PPID
+printf '#!/usr/bin/env bash\necho stopped >"%s"\nif [[ -e "%s/kill-once" ]]; then rm -f "%s/kill-once"; kill -9 "$PPID"; fi\n' \
+  "$SVC" "$TMP" "$TMP" >"$SVC_STOP"
+printf '#!/usr/bin/env bash\necho running >"%s"\n' "$SVC" >"$SVC_START"
+# shellcheck disable=SC2016  # the stub expands its own $(cat)
+printf '#!/usr/bin/env bash\n[[ "$(cat "%s")" == running ]]\n' "$SVC" >"$SVC_RUNNING"
+chmod +x "$SVC_STOP" "$SVC_START" "$SVC_RUNNING"
+run_svc() { # <store_dir> <args...>
+  CC_OTEL_STORE="$1" CC_OTEL_STOP_CMD="$SVC_STOP" CC_OTEL_START_CMD="$SVC_START" \
+    CC_OTEL_RUNNING_CMD="$SVC_RUNNING" CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
+    bash "$SCRIPT" "${@:2}" 2>&1
+}
+aged_store() { # <name>: one recent + one aged line, so a real run has work
+  local s
+  s="$(new_store "$1")"
+  {
+    log_line "$RECENT" "$RECENT"
+    log_line "$OLD" "$OLD"
+  } >"$s/cc-logs.json"
+  printf '%s' "$s"
+}
+
+S="$(aged_store killed)"
+echo running >"$SVC"
+touch "$TMP/kill-once"
+(run_svc "$S" >/dev/null) 2>/dev/null # the kill notice is expected
+assert_eq "killed prune: Collector left stopped" "stopped" "$(cat "$SVC")"
+assert_eq "killed prune: sentinel left behind" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
+out="$(run_svc "$S")"
+rc=$?
+assert_eq "after a killed prune: next run exits 0" "0" "$rc"
+assert_contains "after a killed prune: stale sentinel taken over" "$out" "took over a stale sentinel"
+assert_contains "after a killed prune: next run prunes" "$out" "action=pruned"
+assert_eq "after a killed prune: Collector running again" "running" "$(cat "$SVC")"
+assert_eq "after a killed prune: sentinel released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+assert_eq "after a killed prune: aged line trimmed" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
+
+# A live holder is respected while young, and fails the run once it outlasts the bound.
+S="$(aged_store liveholder)"
+echo stopped >"$SVC"
+# The holder exits on the release file without releasing the sentinel, leaving a dead owner.
+# shellcheck disable=SC2016  # the inner script expands its own variables
+bash -c 'err() { :; }; source "$1"; SENTINEL="$2"; take_sentinel || exit; while [[ ! -e "$3" ]]; do sleep 0.1; done' \
+  _ "$LIFECYCLE" "$S/.prune-in-progress" "$TMP/release-holder" >/dev/null 2>&1 </dev/null &
+holder=$!
+for _ in $(seq 100); do
+  [[ -s "$S/.prune-in-progress/owner" ]] && break
+  sleep 0.1
+done
+out="$(run_svc "$S")"
+rc=$?
+assert_eq "live holder: run exits 0" "0" "$rc"
+assert_contains "live holder: noop-locked" "$out" "action=noop-locked"
+assert_eq "live holder: store untouched" "2" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
+assert_eq "live holder: Collector left to the holder" "stopped" "$(cat "$SVC")"
+log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
+out="$(run_svc "$S")"
+assert_contains "live holder: dry-check path stays quiet" "$out" "action=noop-nothing-to-prune"
+assert_eq "live holder: dry-check path leaves the Collector to the holder" "stopped" "$(cat "$SVC")"
+touch -t 200001010000 "$S/.prune-in-progress"
+out="$(run_svc "$S")"
+rc=$?
+assert_eq "live holder past the bound: dry-check path exits 1" "1" "$rc"
+assert_contains "live holder past the bound: dry-check path reports it" "$out" "for over 60 minutes"
+log_line "$OLD" "$OLD" >>"$S/cc-logs.json"
+out="$(run_svc "$S")"
+rc=$?
+assert_eq "live holder past the bound: run exits 1" "1" "$rc"
+assert_contains "live holder past the bound: reported" "$out" "action=error-lock-held"
+assert_eq "live holder past the bound: lock kept" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
+assert_eq "live holder past the bound: Collector left to the holder" "stopped" "$(cat "$SVC")"
+touch "$TMP/release-holder"
+wait "$holder"
+out="$(run_svc "$S")"
+assert_contains "holder gone: its lock is taken over" "$out" "took over a stale sentinel"
+assert_eq "holder gone: Collector running" "running" "$(cat "$SVC")"
+
+# The dry-check path (nothing to prune) restores a stopped Collector.
+S="$(new_store drycheck-restore)"
+log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
+echo stopped >"$SVC"
+out="$(run_svc "$S")"
+rc=$?
+assert_eq "dry-check restore: exits 0" "0" "$rc"
+assert_contains "dry-check restore: still the no-op path" "$out" "action=noop-nothing-to-prune"
+assert_eq "dry-check restore: Collector running" "running" "$(cat "$SVC")"
+assert_eq "dry-check restore: sentinel released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+out="$(run_svc "$S")"
+assert_not_contains "dry-check, Collector running: no start" "$out" "starting it"
+
+# A sentinel with no owner token is stale only past the bound.
+mkdir "$S/.prune-in-progress"
+echo stopped >"$SVC"
+out="$(run_svc "$S")"
+assert_eq "young ownerless sentinel: respected" "stopped" "$(cat "$SVC")"
+touch -t 200001010000 "$S/.prune-in-progress"
+out="$(run_svc "$S")"
+assert_contains "old ownerless sentinel: taken over" "$out" "took over a stale sentinel"
+assert_eq "old ownerless sentinel: Collector running" "running" "$(cat "$SVC")"
+assert_eq "old ownerless sentinel: released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+
+# --scrub-cold takes the same sentinel and restores the Collector the same way.
+echo stopped >"$SVC"
+out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$S" --scrub-cold)"
+assert_contains "scrub-cold no-op: reported" "$out" "action=noop-scrub-cold-keep-user-prompts"
+assert_eq "scrub-cold no-op: Collector running" "running" "$(cat "$SVC")"
+
 # --- 9. verify-before-mv: failed verify aborts, original untouched, exit 1 ---
 S="$(new_store verifyfail)"
 {

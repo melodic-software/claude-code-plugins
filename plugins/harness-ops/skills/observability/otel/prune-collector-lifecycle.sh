@@ -13,7 +13,10 @@ readonly OS_KIND
 readonly COLLECTOR_SERVICE_NAME='otelcol-contrib'
 readonly POLL_INTERVAL_SECONDS=0.25
 readonly POLL_MAX_TRIES=40 # 40 * 0.25s = 10s
+# A prune stops the Collector for seconds to a few minutes; a lock older than this is a problem.
+readonly SENTINEL_MAX_AGE_MINUTES=60
 
+OWNER_ID=""
 # Trap state (script-level so the EXIT trap sees them).
 OWN_SENTINEL=false
 STAMP_DIR=""
@@ -30,11 +33,66 @@ SENTINEL=""
 #   As of: 2026-09-28.
 #   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
 take_sentinel() {
-  mkdir "$SENTINEL" 2>/dev/null && (set -o noclobber && : >"$SENTINEL/owner") 2>/dev/null
+  [[ -n "$OWNER_ID" ]] || OWNER_ID="$$ $(proc_start "$$")"
+  mkdir "$SENTINEL" 2>/dev/null && (set -o noclobber && printf '%s\n' "$OWNER_ID" >"$SENTINEL/owner") 2>/dev/null
 }
 release_sentinel() {
   rm -f "$SENTINEL/owner" 2>/dev/null || true
   rmdir "$SENTINEL" 2>/dev/null || true
+}
+
+# Print a process's start time, or nothing when it is gone. The owner token holds "<pid> <start>",
+# so a reused pid does not pass for the holder. /proc covers Linux and Git Bash; macOS has no /proc.
+proc_start() {
+  local stat
+  local -a fields
+  if [[ -d /proc/self ]]; then
+    { read -r stat <"/proc/$1/stat"; } 2>/dev/null || return 0
+    read -ra fields <<<"${stat##*) }"
+    printf '%s\n' "${fields[19]:-}" # field 22, starttime
+  else
+    ps -o lstart= -p "$1" 2>/dev/null || true
+  fi
+}
+
+# Called when take_sentinel fails. Returns 0 after removing a stale sentinel (its holder is gone,
+# or it has no owner token and is older than SENTINEL_MAX_AGE_MINUTES), 1 while a holder is live
+# or the lock is young, 3 when a live holder has kept it past the bound. The stale sentinel is
+# renamed aside first: only one racer's rename succeeds, so two runs cannot both take it over.
+recover_stale_sentinel() {
+  local owner="" moved="" pid start old="" aside="$SENTINEL.stale.$$"
+  { read -r owner <"$SENTINEL/owner"; } 2>/dev/null || true
+  read -r pid start <<<"$owner" || true
+  old="$(find "$SENTINEL" -maxdepth 0 -mmin "+$SENTINEL_MAX_AGE_MINUTES" 2>/dev/null)"
+  if [[ -n "${pid:-}" && -n "${start:-}" ]]; then
+    if [[ "$(proc_start "$pid")" == "$start" ]]; then
+      [[ -n "$old" ]] && return 3
+      return 1
+    fi
+  elif [[ -z "$old" ]]; then
+    return 1
+  fi
+  mv "$SENTINEL" "$aside" 2>/dev/null || return 1
+  { read -r moved <"$aside/owner"; } 2>/dev/null || true
+  if [[ "$moved" != "$owner" ]]; then
+    mv "$aside" "$SENTINEL" 2>/dev/null || true
+    return 1
+  fi
+  rm -rf "${aside:?}"
+  err "took over a stale sentinel ($SENTINEL, owner: ${owner:-none}): its prune is gone"
+}
+
+# Take the sentinel, recovering a stale one. Returns as recover_stale_sentinel does when held.
+acquire_sentinel() {
+  take_sentinel && return 0
+  local rc=0
+  recover_stale_sentinel || rc=$?
+  ((rc == 0)) || return "$rc"
+  take_sentinel
+}
+
+lock_held_too_long() {
+  err "a live prune has held $SENTINEL for over $SENTINEL_MAX_AGE_MINUTES minutes"
 }
 
 require_windows_service() {
@@ -114,6 +172,36 @@ wait_collector_gone() {
     if ((query_rc == 1)); then return 0; fi
     return 2
   done
+}
+
+# The service exists only on Windows; a set query seam stands in for it in tests.
+manages_collector() { [[ "$OS_KIND" == windows || -n "${CC_OTEL_RUNNING_CMD:-}" ]]; }
+
+# Start the Collector when it is Stopped; the caller holds the sentinel. Returns 1 only when the
+# start fails. A failed query is reported and left alone.
+ensure_collector_running() {
+  manages_collector || return 0
+  local rc=0
+  collector_running || rc=$?
+  if ((rc == 2)); then err "failed to query Collector service status"; fi
+  ((rc == 1)) || return 0
+  err "Collector service '$COLLECTOR_SERVICE_NAME' is stopped and no prune holds the lock — starting it"
+  start_collector && return 0
+  err "failed to start Collector service '$COLLECTOR_SERVICE_NAME'"
+  return 1
+}
+
+# Restore a Collector a killed prune left stopped, on the paths that do not stop it themselves.
+# Quiet while a live prune holds the lock; returns 1 when that lock outlasts the bound.
+ensure_collector_briefly() {
+  manages_collector || return 0
+  local rc=0
+  acquire_sentinel || rc=$?
+  if ((rc == 3)); then lock_held_too_long; fi
+  ((rc == 0)) || return $((rc == 3))
+  ensure_collector_running || rc=$?
+  release_sentinel
+  return "$rc"
 }
 
 cleanup() {

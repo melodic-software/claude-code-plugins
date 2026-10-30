@@ -18,6 +18,9 @@
 # Lock-safe cycle (only runs when records actually need dropping — see dry-check below):
 #   1. acquire an mkdir-atomic sentinel (.prune-in-progress) in the store dir. The mkdir is the
 #      mutual-exclusion lock: a second prune fails to create it and exits without mutation.
+#      Its owner token records the holder's pid and start time. A sentinel whose holder is gone
+#      (or, with no token, older than an hour) is stale: the run logs it and takes it over. A
+#      live holder past the hour fails the run (action=error-lock-held, exit 1).
 #   2. stop the provisioning-owned otelcol-contrib Windows service; poll Get-Service until it is
 #      Stopped so its file exporter has released the store handles.
 #   3. per store file: awk-route each line to a kept temp / dropped temp / surgery temp in the
@@ -31,6 +34,8 @@
 #      store intact — no backup/rollback needed.
 #   4. start the service + release the sentinel last. Done in the EXIT trap, so every trim exit path
 #      attempts recovery; a failed restart makes an otherwise successful prune fail visibly.
+#      A hard kill skips the trap, so the no-op paths and --scrub-cold also start a Stopped
+#      Collector whenever no live prune holds the sentinel.
 #
 # Comparison is at SECOND granularity: a 19-digit nano (~1.78e18) exceeds awk's exact-integer
 # range (IEEE-754 double, exact only to 2^53 ≈ 9.0e15), so a raw-nano awk compare silently
@@ -264,6 +269,23 @@ parse_counts() {
   SURGERY="${SURGERY%% *}"
 }
 
+# Take the sentinel, recovering a stale one, or report why not: 1 = a live prune holds it
+# (action=noop-locked), 3 = it has held it past the bound (action=error-lock-held).
+take_lock_or_report() {
+  local rc=0
+  # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+  acquire_sentinel || rc=$?
+  ((rc == 0)) && return 0
+  if ((rc == 3)); then
+    lock_held_too_long
+    printf 'action=error-lock-held\n'
+  else
+    err "a prune is already in progress ($SENTINEL) — exiting"
+    printf 'action=noop-locked\n'
+  fi
+  return "$rc"
+}
+
 # The probe reads this stamp to show the scheduled prune is firing.
 stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
 
@@ -335,7 +357,8 @@ main() {
     if keep_prompts && ! scrub_content; then
       printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and CC_OTEL_COLD_KEEP_CONTENT (unset or 1) keep prompts and content in cold; nothing scrubbed\n'
       printf 'action=noop-scrub-cold-keep-user-prompts\n'
-      return 0
+      ensure_collector_briefly
+      return
     fi
     if ! command -v duckdb >/dev/null 2>&1; then
       err "duckdb not found — cannot scrub cold files"
@@ -350,14 +373,11 @@ main() {
     # alone keeps a concurrent prune from compacting into cold/ mid-scrub.
     mkdir -p "$store_dir"
     # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-    if ! take_sentinel; then
-      err "a prune is already in progress ($SENTINEL) — exiting"
-      printf 'action=noop-locked\n'
-      return 0
-    fi
+    take_lock_or_report || return $(($? == 3))
     OWN_SENTINEL=true
     trap cleanup EXIT
     rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
+    ensure_collector_running
     scrub_cold "$store_dir" false
     return
   fi
@@ -426,24 +446,22 @@ main() {
 
   if ((${#present_files[@]} == 0)); then
     printf 'action=noop-store-absent\n'
-    return 0
+    ensure_collector_briefly
+    return
   fi
 
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
     stamp_last_prune "$store_dir"
     printf 'action=noop-nothing-to-prune\n'
-    return 0
+    ensure_collector_briefly
+    return
   fi
 
   # Acquire the sentinel (lock + revival-race signal). Failure => another prune holds it.
   mkdir -p "$store_dir"
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-  if ! take_sentinel; then
-    err "a prune is already in progress ($SENTINEL) — exiting"
-    printf 'action=noop-locked\n'
-    return 0
-  fi
+  take_lock_or_report || return $(($? == 3))
   OWN_SENTINEL=true
   trap cleanup EXIT
   # The first prune of a store had no cold/ for mark_cold_clean_briefly; it gets one here.

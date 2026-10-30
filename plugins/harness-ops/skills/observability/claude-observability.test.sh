@@ -238,6 +238,8 @@ assert_eq "missing log handled by guard" "0" "$count"
 
 # --- Test 9: clean action — synthetic mixed-age data + dry-run + real run ---
 CLEAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/clean.sh"
+# clean delegates to the OTEL prune; stub its Collector service calls so no run reaches the host's.
+export CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true CC_OTEL_RUNNING_CMD=false
 clean_test_dir="$TEST_TMPDIR/clean-test"
 mkdir -p "$clean_test_dir"
 (cd "$clean_test_dir" && git init -q && git config commit.gpgsign false)

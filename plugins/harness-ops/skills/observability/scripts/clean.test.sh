@@ -57,7 +57,8 @@ make_project() { # <name>
 run_clean() { # <project> [args...] ; sets OUT and RC
   local dir="$1"
   shift
-  OUT=$(env CLAUDE_PROJECT_DIR="$dir" CC_OTEL_STORE="$dir/otel" bash "$SCRIPT" --keep-days 30 "$@" 2>&1)
+  OUT=$(env CLAUDE_PROJECT_DIR="$dir" CC_OTEL_STORE="$dir/otel" CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true \
+    CC_OTEL_RUNNING_CMD=false bash "$SCRIPT" --keep-days 30 "$@" 2>&1)
   RC=$?
 }
 
