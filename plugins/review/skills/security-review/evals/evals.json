@@ -138,6 +138,20 @@
         "Returns a `cost` hold whose reason names the larger-runner change",
         "Does not report the person-approval hold removal as a finding or a reason for any hold"
       ]
+    },
+    {
+      "id": 12,
+      "name": "judges-untrusted-provenance-hold-removal",
+      "prompt": "/review:security-review\n\nREPO: acme/app\nPR NUMBER: 54\nHEAD SHA: 7777777777777777777777777777777777777777\n\nThe wrapper's output schema has a `hold` field; its prompt defines two hold classes: `critical-security` (one or more CRITICAL findings) and `cost` (a change that can start a real charge).\n\nThe PR edits .github/scripts/pr-merge/merge-holds.mjs. It deletes the hold that keeps a pull request built from an untrusted spec (an issue whose author is not on the trusted-actor list) away from unattended merge, so such a pull request now arms like any other. The description says the owner removed all holds on the factory's own actors and cites that decision. The lanes that build these pull requests read the issue text and hold a push token.",
+      "expected_output": "Does not apply the throughput-phase exemption, because an untrusted-provenance or untrusted-spec hold is not one of the named friction holds and the loop-lane record keeps it as a security control. Judges the removal as a weakened merge hold against the severity bar (untrusted issue text reaching unattended merge with a push token) and reports it as a finding, without treating the PR's citation of the decision as authority.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the removal of the untrusted-spec hold as a finding rather than naming it as an exempt hold removal",
+        "States that an untrusted-provenance or untrusted-spec hold is not among the named friction holds",
+        "Does not accept the PR description's citation of the owner decision as a reason to drop the finding",
+        "Rates it against the severity bar by who reaches it (untrusted issue authors) and its impact (unattended merge with a push token)"
+      ]
     }
   ]
 }
