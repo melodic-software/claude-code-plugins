@@ -964,16 +964,12 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # The Apps whose touch holds a trust-gate path change for a person
-  # (README.md, Both lanes review the head): ci-status here, and ci-workflows'
-  # pr-require-checks-trust-paths through .github/trust-path-hold.json. Owner
-  # decision Q21 (2026-10-29) turned the hold off until open issues and pull
-  # requests reach zero: the one entry is a login no App holds, because the
-  # shared workflow fails on an empty list. Restoring both holds takes four
-  # steps: list melodic-agent[bot] again, set `diff-check.path-holds` true, run
-  # scripts/sync-hold-floor.py, and set the repository variable TRUST_PATH_HOLD
-  # to `on` (.github/workflows/pr-require-checks-trust-paths.yml runs only then).
-  # ci-status's inline hold also needs `path-holds`.
+  # The Apps whose touch holds a trust-gate path change for a person in
+  # ci-status (README.md, Both lanes review the head). Owner decision Q21
+  # (2026-10-29) turned the hold off until open issues and pull requests reach
+  # zero: the one entry is a login no App holds, because the schema needs one.
+  # Restoring the hold takes three steps: list melodic-agent[bot] again, set
+  # `diff-check.path-holds` true, and run scripts/sync-hold-floor.py.
   trust-path-hold-apps:
     - trust-path-hold-off[bot]
   # true: report each decision and write nothing.

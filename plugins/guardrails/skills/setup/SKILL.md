@@ -256,7 +256,12 @@ full rules. Never runs from bare `apply`.
 3. **Values the profile lacks.** Owners, identity markers, `az_config_dir` and shared
    exceptions are not discovered. In an attended run, ask for them once, by domain name, and
    pass them as `--owner NAME=OWNER`, `--marker NAME=TEXT`, `--az-config-dir NAME=DIR` and
-   `--shared-exception PATH`. A value nobody gives is left out of the map.
+   `--shared-exception FROM[,FROM...]:TO=PATH`. A shared exception opens PATH, a directory
+   of domain TO, to sessions in the FROM domains, one way; the script refuses a PATH that is
+   not TO's tree or below it or one of TO's owner directories, and a FROM that lists TO. A
+   value nobody gives is left out of the map. A map that still holds a plain-path
+   `shared_exceptions` entry from the earlier shape grants nothing for it: re-run this action
+   with `--replace` to rewrite it.
 4. **Write.** Run `<script> --profile <file> [values] --data-dir "${CLAUDE_PLUGIN_DATA}"
    --confirm` only after the operator says yes to that map in this turn. An unattended run
    stops at the preview. When a different map is already there, the script refuses unless

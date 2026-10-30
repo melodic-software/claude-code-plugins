@@ -125,12 +125,58 @@ assert_contains "the notes say why gh_config_dir is left out" "$ERR" "default-un
 
 # --- Operator values ------------------------------------------------------------
 run "$TWO" --owner alpha=alpha-org --marker alpha=alpha-org --az-config-dir beta=/placeholder/az-beta \
-  --shared-exception /placeholder/shared
+  --shared-exception "alpha:beta=$BETA/shared"
 assert_exit "operator values: exit 0" 0 "$RC"
 assert_eq "an owner lands in its domain" "alpha-org" "$(jq -r '.domains.alpha.owners[0]' <<<"$OUT")"
 assert_eq "a marker lands in its domain" "alpha-org" "$(jq -r '.domains.alpha.identity_markers[0]' <<<"$OUT")"
 assert_eq "an az directory lands in its domain" "/placeholder/az-beta" "$(jq -r '.domains.beta.az_config_dir' <<<"$OUT")"
-assert_eq "a shared exception is top level" "/placeholder/shared" "$(jq -r '.shared_exceptions[0]' <<<"$OUT")"
+assert_eq "a shared exception is a top-level entry naming its domains" "$BETA/shared|alpha|beta" \
+  "$(jq -r '.shared_exceptions[0] | "\(.path)|\(.from | join(","))|\(.to)"' <<<"$OUT")"
+
+# --- Shared exceptions ------------------------------------------------------------
+THREE="$TEST_TMPDIR/three.json"
+GAMMA="$TEST_TMPDIR/trees/gamma"
+profile "$ALPHA" "$GH_UNEXAMINED" "$BETA" "$GH_UNEXAMINED" "$GAMMA" "$GH_UNEXAMINED" >"$THREE"
+run "$THREE" --shared-exception "alpha,gamma:beta=$BETA/shared" --shared-exception "beta:alpha=$ALPHA"
+assert_exit "two shared exceptions: exit 0" 0 "$RC"
+assert_eq "an exception from two domains" "alpha,gamma" "$(jq -r '.shared_exceptions[0].from | join(",")' <<<"$OUT")"
+assert_eq "an exception that is the tree itself" "$ALPHA" "$(jq -r '.shared_exceptions[1].path' <<<"$OUT")"
+SHARED_DATA="$TEST_TMPDIR/shared-data"
+run "$THREE" --shared-exception "alpha:beta=$BETA/shared" --data-dir "$SHARED_DATA" --confirm
+assert_exit "a map with a shared exception: written" 0 "$RC"
+guard_invoke --cwd "$ALPHA/repo" --command "ls $BETA/shared/x" -- "CLAUDE_PLUGIN_DATA=$SHARED_DATA"
+assert_silent "the guard allows the written exception from its from domain" "$GUARD_OUT"
+guard_invoke --cwd "$GAMMA/repo" --command "ls $BETA/shared/x" -- "CLAUDE_PLUGIN_DATA=$SHARED_DATA"
+assert_contains "the guard denies it from a domain it does not list" "$GUARD_OUT" '"permissionDecision":"deny"'
+OWNER_SHARED="alpha:beta=$TEST_TMPDIR/home/src/github.com/beta-org/shared"
+RC=0
+OUT=$(cd "$TEST_TMPDIR/run" && HOME="$TEST_TMPDIR/home" bash "$SCRIPT" --profile "$TWO" --owner beta=beta-org \
+  --shared-exception "$OWNER_SHARED" 2>"$TEST_TMPDIR/err") || RC=$?
+assert_exit "an exception below an owner directory of its to domain: exit 0" 0 "$RC"
+RC=0
+OUT=$(cd "$TEST_TMPDIR/run" && HOME="$TEST_TMPDIR/home" bash "$SCRIPT" --profile "$TWO" \
+  --shared-exception "$OWNER_SHARED" 2>"$TEST_TMPDIR/err") || RC=$?
+assert_exit "the same path with no owner for its to domain: refused" 1 "$RC"
+# shared_refused <label> <value> <what the refusal says>
+shared_refused() {
+  run "$TWO" --shared-exception "$2"
+  assert_exit "$1: refused" 1 "$RC"
+  assert_contains "$1: the refusal says why" "$ERR" "$3"
+}
+shared_refused "an exception outside its to domain" "alpha:beta=$ALPHA/shared" "is not the tree of domain beta"
+shared_refused "an exception beside its to domain's tree" "alpha:beta=${BETA}x/shared" "is not the tree of domain beta"
+NESTED="$TEST_TMPDIR/nested.json"
+profile "$ALPHA" "$GH_UNEXAMINED" "$BETA" "$GH_UNEXAMINED" "$BETA/inner" "$GH_UNEXAMINED" >"$NESTED"
+run "$NESTED" --shared-exception "alpha:beta=$BETA/inner/shared"
+assert_exit "an exception below a domain nested in its to: refused" 1 "$RC"
+assert_contains "an exception below a domain nested in its to: the refusal says why" "$ERR" "outside every domain nested there"
+shared_refused "an exception from its own to" "beta:beta=$BETA/shared" "FROM lists TO"
+shared_refused "an exception to a domain the profile lacks" "alpha:gamma=$BETA/shared" "names domain gamma"
+shared_refused "an exception from a domain the profile lacks" "gamma:beta=$BETA/shared" "names domain gamma"
+shared_refused "an exception with no to" "alpha=$BETA/shared" "takes FROM[,FROM...]:TO=PATH"
+shared_refused "an exception with an empty from" ":beta=$BETA/shared" "takes FROM[,FROM...]:TO=PATH"
+run "$TWO" --shared-exception "$BETA/shared"
+assert_exit "an exception with no NAME=: usage" 2 "$RC"
 run "$TWO" --owner alpha=alpha-org
 assert_contains "a domain missing values gets its own note" "$ERR" "domain beta: owners, identity_markers, az_config_dir not in the profile"
 run "$TWO" --owner alpha=-n --marker beta=--args
