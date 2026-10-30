@@ -860,18 +860,19 @@ test("a pushback naming a security risk goes to intake unframed once, then reach
   assert.equal(capRetries(means, 1).action, "fail");
 });
 
-// The security reading reads the words the comment shows (the reason, else
-// the summary) and the cause, so neither an empty reason nor a security cause
-// ends the issue with no person.
+// The security reading reads every text the comment can show (the reason, the
+// summary, each not-done item) and the cause, so no security text the run
+// wrote ends the issue with no person.
 test("a pushback whose summary or cause names a security risk goes to intake marked security, then reaches a person", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "123" };
-  for (const [reason, cause, summary] of [
+  for (const [reason, cause, summary, notDone = []] of [
     ["", "", "the deploy token was printed in the CI log"],
     ["Which helper?", "security", ""],
     ["Which helper?", "secret leak", ""],
+    ["Which helper?", "", "Two helpers fit.", [{ what: "The issue asks to print the deploy token in the log." }]],
   ]) {
-    const label = JSON.stringify([reason, cause, summary]);
-    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary } });
+    const label = JSON.stringify([reason, cause, summary, notDone]);
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary, notDone } });
     assert.equal(plan.action, "intake", label);
     assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=intake security run=123 -->\n"), plan.comment);
     assert.equal(parseOutcomeMarker(plan.comment).security, true, label);
@@ -879,7 +880,7 @@ test("a pushback whose summary or cause names a security risk goes to intake mar
     assert.equal(spent.action, "hand-back", label);
     assert.equal(spent.stop, "security-risk", label);
     assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
-    assert.match(spent.comment, /named a possible security risk/, spent.comment);
+    assert.match(spent.comment, /named a possible security risk, and intake triage did not clear it/, spent.comment);
     assert.doesNotMatch(spent.comment, /make it clearer first/, spent.comment);
   }
   const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means", title: "", summary: "" } });
@@ -908,6 +909,9 @@ test("a pushback with cause intent whose reason opens with security-risk holds a
     assert.equal(plan.action, "hand-back", cause);
     assert.equal(plan.stop, "security-risk", cause);
     assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
+    // Intake never ran on this round-one hold, so its line claims no intake.
+    assert.match(plan.comment, /the run named a possible security risk/, plan.comment);
+    assert.doesNotMatch(plan.comment, /intake triage/, plan.comment);
   }
   const worded = decide({ ...plain, outcome: { exit: "pushback", reason: "The issue asks to print the deploy token in the log.", cause: "intent", title: "", summary: "" } });
   assert.equal(worded.stop, "pushback");
@@ -1197,9 +1201,42 @@ test("main holds a second intake round as security-risk when an earlier intake m
         assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"], name);
         assert.ok(comment.includes("work-items:escalation"), comment);
         assert.equal(parseReason(comment).reason, "security", comment);
+        assert.match(comment, /intake triage did not clear it/, comment);
       } else {
         assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), name);
         assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
+      }
+    });
+  }
+});
+
+// The sticky mark covers every round that would fail, not only intake ones: a
+// security pushback's intake, then stopped runs with no code until retries
+// are spent, holds as security-risk; a plain intake before them still fails.
+test("main holds a spent retry as security-risk when an earlier intake marker carries security", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const marker = (outcome, run, at) => ({ user: bot, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->\nWhy.`, created_at: at });
+  for (const [first, held] of [["intake security", true], ["intake", false]]) {
+    const prior = [marker(first, "97", "2026-10-29T10:00:00Z"), marker("retry", "98", "2026-10-29T11:00:00Z"), marker("retry", "99", "2026-10-29T12:00:00Z")];
+    await withAsyncDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, prior],
+        ["GET", /\/issues\/77\/events$/, 200, []],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0, first);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      if (held) {
+        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+        assert.ok(comment.includes("work-items:escalation"), comment);
+        assert.equal(parseReason(comment).reason, "security", comment);
+        assert.match(comment, /intake triage did not clear it/, comment);
+      } else {
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+        assert.equal(parseOutcomeMarker(comment).outcome, "failed");
       }
     });
   }
@@ -2234,6 +2271,27 @@ test("main on a rerun after its turn-cap marker posts nothing again", async () =
     ]);
     assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
+  });
+});
+
+// A turn cap with no restart left fails, unless an earlier intake marker
+// carries security: then it holds as security-risk.
+test("main holds a spent turn cap as security-risk when an earlier intake marker carries security", async () => {
+  const secure = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [secure]],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.equal(parseReason(comment).reason, "security", comment);
+    assert.match(comment, /intake triage did not clear it/, comment);
   });
 });
 

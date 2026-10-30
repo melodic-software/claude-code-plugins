@@ -189,15 +189,18 @@ const pushbackStop = (outcome) => {
   if (Object.hasOwn(STOP_ROUTES, cause) && STOP_ROUTES[cause].code === true && stopRoute(cause) === "hold") return cause;
   return PUSHBACK_LANE_ROUTES.has(stopRoute(code)) ? runCode(outcome.reason) : "pushback-means";
 };
-// A pushback-means stop whose words (the reason, else the summary, as its
-// comment shows them) or cause read as a security risk after any code, or
-// with none. Intake judges it once with no means framing (stopPlan's neutral
-// text) and its marker carries `security`, which stays sticky: past the cap
-// any intake round holds as security-risk rather than failing (routeStop's
-// `sticky`), since a real security risk never ends without a person.
+// A pushback-means stop any of whose words a comment can show (the reason,
+// the summary, each not-done item) or whose cause reads as a security risk
+// after any code, or with none. Intake judges it once with no means framing
+// (stopPlan's neutral text) and its marker carries `security`, which stays
+// sticky: any later round that would fail (retry-spent, turn-cap-spent) holds
+// as security-risk instead (finishStop), since a real security risk never
+// ends without a person.
 const pushbackSecurity = (stop, outcome) =>
   stop === "pushback-means" &&
-  [outcome?.reason || outcome?.summary, outcome?.cause].some((words) => words && runCode(words, { anyCodeEnds: true }) === "security-risk");
+  [outcome?.reason, outcome?.summary, outcome?.cause, ...(outcome?.notDone ?? []).map((item) => item?.what)].some(
+    (words) => typeof words === "string" && words && runCode(words, { anyCodeEnds: true }) === "security-risk",
+  );
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
 const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
@@ -504,16 +507,20 @@ export function unmarkedAnswer(comments, humans, bot) {
 // this report already handed on. `unmarked` is unmarkedAnswer's URL, which a
 // pushback links with the line it lacks.
 // `reason` is the stop-reason code (stopReasonCode), which must be a person
-// reason: the comment carries its marker and its visible line.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason }) {
+// reason: the comment carries its marker and its visible line. `spentSecurity`
+// marks routeStop's spent security hold, the only one whose line says intake
+// triage did not clear the risk.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason, spentSecurity = false }) {
   const pushback = outcome.exit === "pushback";
   const [reasonMarker, reasonLine] = personReasonLines(LANE, reason);
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     reasonMarker,
-    reason === "security" && pushback
-      ? "The work-resolve-issue lane did not start this issue: this run or an earlier one on it named a possible security risk, and intake triage did not clear it, so a person checks it first."
-      : pushback
+    spentSecurity
+      ? "The work-resolve-issue lane hands this issue to a person: this run or an earlier one on it named a possible security risk, and intake triage did not clear it, so a person checks it first."
+      : reason === "security" && pushback
+        ? "The work-resolve-issue lane did not start this issue: the run named a possible security risk, so a person checks it first."
+        : pushback
         ? "The work-resolve-issue lane did not start this issue: it needs a person to make it clearer first."
         : "The work-resolve-issue lane stopped partway through this issue and needs a person.",
     "",
@@ -589,7 +596,7 @@ export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 // pushbackSecurity's stop line, which leaves the question's kind to intake.
 const PUSHBACK_SECURITY_WHY =
-  "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; the next intake round past the cap reaches a person, whatever that round's stop";
+  "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; any later round that would fail reaches a person instead, whatever that round's stop";
 function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "", neutral = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
@@ -642,32 +649,31 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
 // A stop routed by stop-routes.json, or by `route` in its place; `args` are
 // handBack's. A retry, wait or intake past limits.stop-retries, or the row's
 // own `retries` when fewer (`retries`, counted since a listed human last added
-// agent-ready), takes retry-spent's route instead; a spent intake round takes
-// security-risk's hold when it is a pushbackSecurity stop or `sticky` (a
-// counted earlier intake marker carries `security`).
-function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop), why = "", sticky = false } = {}) {
+// agent-ready), takes retry-spent's route instead; a spent intake round that
+// is itself a pushbackSecurity stop takes security-risk's hold. `spentSecurity`
+// marks that hold, and finishStop's, for handBack.
+function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop), why = "", spentSecurity = false } = {}) {
   const cap = stopRetries(stop, limits["stop-retries"]);
   const spent = COUNTED.has(given) && retries >= cap;
   const security = given === "intake" && pushbackSecurity(stop, args.outcome);
-  if (spent && given === "intake" && (security || sticky)) {
-    return routeStop("security-risk", args);
+  if (spent && security) {
+    return routeStop("security-risk", args, { spentSecurity: true });
   }
   const shown = spent ? "retry-spent" : stop;
   const route = spent ? stopRoute(shown) : given;
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
-      ? handBack({ ...args, reason: stopReasonCode(shown) })
+      ? handBack({ ...args, reason: stopReasonCode(shown), spentSecurity })
       : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why, neutral: security });
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 
 // A retry, wait or intake plan with the earlier ones counted in: past the cap
 // it becomes retry-spent's route, or security-risk's hold for an intake plan
-// that is a pushbackSecurity stop or follows one (`sticky`, from
-// priorSecurityIntake). Any other plan is returned as it is.
-export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS, { sticky = false } = {}) =>
-  COUNTED.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action, why: plan.why, sticky }) : plan;
+// that is a pushbackSecurity stop. Any other plan is returned as it is.
+export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
+  COUNTED.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action, why: plan.why }) : plan;
 
 // apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
@@ -1535,7 +1541,7 @@ function restartMarkers({ comments, events, bot, humans, runId, outcome }) {
 }
 export const countRestarts = (args) => restartMarkers(args).length;
 // Whether a counted earlier intake marker carries `security`: a pushbackSecurity
-// round, which keeps every later spent intake round a security-risk hold.
+// round, which turns every later plan that would fail into a security-risk hold.
 export const priorSecurityIntake = (args) => restartMarkers({ ...args, outcome: "intake" }).some((marker) => marker.security);
 
 // A read, GraphQL queries included, and a write marked safeToResend, is sent
@@ -1790,9 +1796,10 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // that doneEvidence does not prove, retry instead. A retry, wait or intake
 // first counts its own outcome's markers since a listed human last added
 // agent-ready: past its cap it takes retry-spent's route (security-risk's hold
-// for an intake round that is a pushbackSecurity stop or follows a counted one
-// whose marker carries `security`, which removes agent-ready too), so an issue intake
-// keeps sending back cannot loop. A
+// for an intake round that is a pushbackSecurity stop), so an issue intake
+// keeps sending back cannot loop. Any plan that would then fail (retry-spent,
+// turn-cap-spent) holds as security-risk instead when a counted intake marker
+// carries `security`, so a security reading never ends without a person. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
@@ -1811,27 +1818,36 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
       "Its reason cites no pull request merged into the default branch, or commit on it, made after the issue opened whose commit message closes this issue, so it retries instead of closing.";
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
+  let history = null;
+  const read = async () =>
+    (history ??= {
+      comments: await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`),
+      events: await paginate(github, `${repo}/issues/${plan.issueNumber}/events`),
+      bot,
+      humans,
+      runId,
+    });
   if (COUNTED.has(plan.action)) {
-    const outcome = plan.exit;
-    const comments = await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`);
-    const events = await paginate(github, `${repo}/issues/${plan.issueNumber}/events`);
-    const counted = { comments, events, bot, humans, runId, outcome };
-    plan = capRetries(plan, countRestarts(counted), limits, { sticky: outcome === "intake" && priorSecurityIntake(counted) });
-    if (KEPT.has(plan.action)) {
-      const posted = comments.some((comment) => {
-        const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-        return marker?.outcome === plan.exit && runId !== "" && marker.run === runId;
-      });
-      if (!posted) {
-        await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
-      }
-      console.log(
-        plan.action === "wait"
-          ? `report-outcome: issue #${plan.issueNumber} waits on #${plan.pr} (${plan.stop}); it keeps agent-ready and work-unblock restarts it once #${plan.pr} merges or closes`
-          : `report-outcome: issue #${plan.issueNumber} stopped (${plan.stop}); it keeps agent-ready and work-unblock retries it`,
-      );
-      return;
+    const counted = { ...(await read()), outcome: plan.exit };
+    plan = capRetries(plan, countRestarts(counted), limits);
+  }
+  if (plan.action === "fail" && priorSecurityIntake(await read())) {
+    plan = routeStop("security-risk", plan.stopArgs, { spentSecurity: true });
+  }
+  if (KEPT.has(plan.action)) {
+    const posted = history.comments.some((comment) => {
+      const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
+      return marker?.outcome === plan.exit && runId !== "" && marker.run === runId;
+    });
+    if (!posted) {
+      await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
     }
+    console.log(
+      plan.action === "wait"
+        ? `report-outcome: issue #${plan.issueNumber} waits on #${plan.pr} (${plan.stop}); it keeps agent-ready and work-unblock restarts it once #${plan.pr} merges or closes`
+        : `report-outcome: issue #${plan.issueNumber} stopped (${plan.stop}); it keeps agent-ready and work-unblock retries it`,
+    );
+    return;
   }
   await applyHandBack(github, repo, plan);
   if (plan.action === "close") {

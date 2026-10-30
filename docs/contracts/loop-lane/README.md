@@ -338,11 +338,11 @@ followed by text naming a security risk (owner decision 2026-10-29); a pushback 
 a code and no security risk takes that code's route. Any other pushback goes back through intake
 triage once, whose own intent, security and cost rules decide whether it stops
 ([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)
-`pushback-means`, `retries: 1`); a second one fails. A pushback whose words (its reason, else its
-summary) or cause name a security risk marks its intake comment `security`, and that mark is
-sticky: the next intake round past the cap holds for the owner as `security-risk` whatever stops
-it (a plain pushback or a `split-required` skip included), so a real security risk never ends
-without a person.
+`pushback-means`, `retries: 1`); a second one fails. A pushback whose words (its reason, its
+summary or a not-done item) or cause name a security risk marks its intake comment `security`,
+and that mark is sticky: any later round that would fail (a spent intake, retry or wait, or a
+spent turn cap) holds for the owner as `security-risk` instead, whatever stops it, so a real
+security risk never ends without a person.
 
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 

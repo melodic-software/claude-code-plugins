@@ -2212,13 +2212,14 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `retries: 1`): intake decides it again on evidence and admits it, unless its own intent,
   security or cost rules stop it. A second `pushback-means` since a listed human added
   `agent-ready` takes `retry-spent`'s route, unless a security reading fired: a `pushback-means`
-  whose words (the reason, else the summary, as its comment shows them) or `cause` read as a
-  security risk (the security reading below, after any code, `blocked-by-pr` included) gets an
-  intake comment with no means framing and no "waits on no decision from a person", whose marker
-  carries `security` (`outcome=intake security`). That mark is sticky: once a counted intake
-  marker carries it, the next intake round past the cap holds as `security-risk` whatever its
-  own stop, a plain `pushback-means` or a `split-required` skip included, and its hand-back says
-  an earlier run named a possible security risk.
+  any of whose words a comment can show (the reason, the summary, each `notDone` item) or whose
+  `cause` reads as a security risk (the security reading below, after any code, `blocked-by-pr`
+  included) gets an intake comment with no means framing and no "waits on no decision from a
+  person", whose marker carries `security` (`outcome=intake security`). That mark is sticky:
+  once a counted intake marker carries it, any plan that would fail (`retry-spent` after a spent
+  intake, retry or wait, or `turn-cap-spent`) holds as `security-risk` instead, whatever its own
+  stop, and only that spent hold's hand-back says intake triage did not clear the risk; a
+  round-one `security-risk` hold says only that the run named one.
   A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
