@@ -52,7 +52,7 @@ The **pre-clarity** stage. Upstream of exploration, research, and `/planning:pla
 
 For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
-The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says. It has to exist before the first reply arrives. The acceptance-criteria coverage prompt is the one thing that does not count as a round for this purpose: it writes no row and does not by itself make the register exist (see "Acceptance-criteria capture"). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
+The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says. It has to exist before the first reply arrives. The acceptance-criteria coverage prompt does not count as a round here: it writes no register row and does not by itself make the register exist or bring the register gate into scope ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
 
 ## Gates
 
@@ -60,7 +60,7 @@ Three gates halt this skill. They are stated here, near the top of the file, so 
 
 - **The user's decisions are never synthesized.** Synthesize-directly and the Mixed path's synthesized rest resolve only codebase-resolvable facts and unambiguous conventional defaults. A decision that is genuinely the user's is asked, never folded into the Brief or captured as an assumption. Unattended, and only when the caller declares it, that decision is recorded `blocked` with arbiter `USER-RESERVED` and named as a blocker. Full rule: Step 1.5, the auto-guard and its unattended path.
 - **A gap during `lock` synthesis halts the run.** Stop and surface the gap to the user; never fudge it with a guess. `lock` confirms the problem with one question and takes its invocation as confirmation of the rest; neither exempts it from this halt. Full rule: the Action Router `lock` row and Step 1.5.
-- **The register gate runs before the contract locks.** Before persisting the contract or handing off, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md`; exit 1 and exit 2 both halt. Only a run that asked no question skips it; the acceptance-criteria coverage prompt is not a question for this purpose, and any other question is. Full rule: Step 3, "Register gate".
+- **The register gate runs before the contract locks.** Before persisting the contract or handing off, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md`; exit 1 and exit 2 both halt. Only a run that asked no question skips it; the acceptance-criteria coverage prompt is not a question for this purpose, and any other question is ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Full rule: Step 3, "Register gate".
 
 ## Action Router
 
@@ -169,7 +169,7 @@ Alternatives to consider:
 
 **A hedged reply resolves only the headline.** A reply given with doubt ("yes?", "I think so", "probably") resolves at most the headline of the one question it can be tied to, never that question's `Commits you to:` rows and never the rest of the round. A hedged accept-shorthand ("accept all?") is not an accept-shorthand. Record the headline with a `hedged:` resolution, keep its commitment rows `open`, and echo back in one line what the headline commits to and which rows are still open. A hedged reply that cannot be tied to one question resolves nothing: restate the open rows.
 
-**Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. One exception, and only one: the acceptance-criteria coverage prompt gets no row even when it rides along in a round, because it carries no decision to track. Every real question in that same round is registered exactly as always. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
+**Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. The one exception is the acceptance-criteria coverage prompt, which gets no row even inside a round while every real question beside it does ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
 
 **Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write: a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing. That is the ordinary consequence of not blocking the round. Check it against the `open` and `superseded-by-plan` rows (a superseded row is restated, never resolved by the return): a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken. The floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
 
@@ -209,123 +209,11 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 
 ## Acceptance-criteria capture
 
-Two behaviors ride on the moment acceptance criteria are captured. The first is always on; the
-second fires only when the consuming team's convention selects it.
+Two behaviors ride on the moment acceptance criteria are captured; read both files then.
 
-### Coverage prompt. Always on, asked once
+The coverage prompt is always on and asked once, writes no register row, and does not by itself bring the register gate into scope: [`context/coverage-prompt.md`](context/coverage-prompt.md).
 
-While capturing acceptance criteria, ask ONE question: are the criteria missing an
-**unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
-case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
-interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
-whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
-it is a coverage check, not a format.
-
-It is **not** a `Q<N>` decision. Never write it into the open-question register, never mark it
-`blocked`, and never route it to `### Deferred questions`. The register gates the contract, and a
-coverage check parked there would hold a lock hostage to a question that carries no decision.
-
-**It therefore does not bring the Step 3 register gate into scope by itself.** A synthesize-directly
-run whose ONLY question was this prompt wrote no register, has nothing to gate, and skips the gate
-exactly as a run that asked nothing does. Without this, that path would ask a question it is
-forbidden to register and then trip a gate demanding the row.
-
-**The exemption covers this prompt and nothing else.** It is not a license for a question asked
-beside it. A residue decision, a frontier round, a gap surfaced mid-synthesis, a `blocked` row from
-an unattended run: any OTHER question is a register question as usual. It writes its row at
-ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
-breath. One coverage check is exempt; a round that happens to contain one is not.
-
-Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
-synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
-is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
-The prompt is never itself a criterion. On the page surface it is a Notes question the user answers there, the restate refuses an acceptance line that asks the user something, and a prompt still unanswered at export lands in the Brief's `### Captured assumptions` as `- asked in Notes, not answered: <the prompt>` ([`context/surface.md`](context/surface.md) "Confirmation gate").
-
-### Non-interactive runs skip the ask and say so
-
-A run with nobody to answer, a dispatched worker, a forked subagent, a headless invocation, or any
-caller that declared the run unattended, **SKIPS** the ask instead of blocking on it, and the
-session's returned summary states that **unwanted-behavior and state-driven coverage went
-unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
-summary. A prompt nobody can answer must not stall the run and must not silently vanish.
-
-**That line is the coverage note and nothing else.** It records that a check went unrun. It is never
-a place to park a decision, it satisfies no part of the auto-guard, and it changes nothing about the
-unattended ladder: a decision genuinely the user's is still recorded `blocked`, still written to
-`### Deferred questions` with **arbiter: USER-RESERVED**, and still named as a blocker. Capturing a
-user's decision as an assumption is the failure the auto-guard exists to prevent, and no line here
-licenses it.
-
-The unattended condition is **declared by the caller, never sniffed**, the same rule the auto-guard's
-unattended path states. There is no supported way for a session to observe that it is
-non-interactive, so never read an environment variable to decide this.
-
-### EARS tags, when the convention selects them
-
-Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
-degrade, emit criteria exactly as today: `- AC<n>: <testable criterion>`, untagged, byte-comparable
-in shape to a run with no convention surface at all. Under `ears`, every emitted criterion carries a
-bracketed pattern prefix after its id on that same plain-bullet form:
-
-| Tag | Pattern |
-|---|---|
-| `[ubiquitous]` | an always-true requirement, no trigger and no state |
-| `[event-driven]` | `WHEN <trigger>, <response>` |
-| `[state-driven]` | `WHILE <state>, <response>` |
-| `[unwanted-behavior]` | `IF <trigger>, THEN <response>` |
-| `[optional-feature]` | `WHERE <feature is included>, <response>` |
-
-```text
-- AC1: [event-driven] WHEN the upload completes, the manifest is rewritten
-- AC2: [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
-```
-
-The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
-`optional-feature`. This vocabulary is a contract with whatever reads the tag downstream, and a name
-spelled any other way, `unwanted_behavior`, `unwanted`, `event`, reads as no tag at all and breaks
-detection silently rather than loudly. The tag prefixes the criterion; it never replaces the
-testable sentence, and an untaggable criterion is a criterion still owed a shape, not a criterion
-owed a sixth pattern.
-
-Where the tags travel: they land in the Brief's `### Acceptance criteria`, and a consumer that
-publishes the Brief verbatim as a tracker container body carries them with it. They do not reach
-per-slice criteria, which are freshly authored by whatever decomposes the work, because a vertical
-slice owns everything it grades; a slice keeps only the criterion's id.
-
-### Resolution ladder for `acceptance_criteria_format`
-
-Restated here rather than cited: an installed plugin never sees the publishing repository's
-convention docs, so a path citation would make that publisher a runtime dependency of this session.
-
-```markdown
-1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
-   `git rev-parse --show-toplevel`. Never a CWD-relative read.
-2. Resolve the convention home `<home>` from the pointer line in the marked
-   `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
-   (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
-   bundled resolver where the plugin ships one; never hand-parse the root file.
-3. The printed home is repo-relative: join it to the root resolved in step 1,
-   then read `<home>/authoring-formats/README.md` from that path and take the
-   key's value from its fenced YAML block.
-4. Layer order is one layer deep: an explicit invocation argument, where the skill has
-   one, then the team convention doc, then the documented default. A convention-doc
-   surface has no personal overlay, so there is no further layer to consult.
-5. Default: `acceptance_criteria_format` is `free-text` — emit untagged plain-bullet
-   criteria, exactly today's shape.
-6. Degrade soft, and say so. No pointer line, no convention home on disk, no
-   `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
-   each resolve to the documented default. Name the cause in one clause and continue;
-   never hard-fail, and never ask the operator to create the surface mid-task.
-7. Report provenance whenever the resolved value shapes output: name the key, the value,
-   and the layer it came from — `argument`, `team convention doc <path>`, or `default`.
-```
-
-This plugin ships the step-2 resolver at
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout,
-exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in
-one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target
-directory does not exist). Every non-zero exit is a step-6 degrade, `free-text`, cause named in one
-clause, never a halt and never a prompt to go create the surface.
+EARS pattern tags apply only when the consuming team's convention selects them, through the `acceptance_criteria_format` resolution ladder, whose step-1 project root is `${CLAUDE_PROJECT_DIR}` (unexpanded or empty means unset): [`context/ears.md`](context/ears.md).
 
 ## The interview loop
 
@@ -381,11 +269,11 @@ On the page surface, Step 3's confirmation gate runs on the page: post the resta
 
 **What, not how: the mechanism tripwire.** "Does not plan implementation" has a trigger. When a question or its recommendation names a mechanism (a tool, an API, a credential or token scope, a runtime, a platform per step), ask once whether the user wants mechanism-level decisions settled now or at planning. Ask it in the same round as the first mechanism-naming question and register it like any other question; until it is answered, recommendations carry no mechanism part. When the answer is "at planning", no later recommendation fixes a mechanism, and every still-`open` mechanism row, commitment rows included, becomes `deferred`: carried to the Brief's `### Deferred questions` under the arbiter rule in an engineering session, listed as deferred in the shared-understanding summary in a general one. When the answer is "now", write `C<N> | confirmed | mechanism decisions settled in this interview | user, round <N>` at once, and the Brief's Constraints records that this topic overrides "does not plan implementation".
 
-**Sweep for assumptions before Step 3.** In `me` and `auto` with a register, including the `auto` Mixed path after its residue round, the loop ends with a fresh-context assumption sweep. Once the frontier is empty, and before the Step 3 register gate and confirmation gate, dispatch a non-fork sub-agent to inventory undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and any composed artifacts. You turn each item into a register row at the next contiguous `Q<N>`, a stated fact, or, for hedged rows, a line in the confirmation restate. Any `open` row it adds returns the run to Step 2, and the next sweep covers only what the new answers changed; Step 3 is reached when a sweep adds no `open` row. A run that asked no question skips it, and so does `lock`; unattended, an item that is the user's decision is `blocked`. The acceptance-criteria coverage prompt is never a sweep item. Scope, item shape, and disposition: [`context/assumption-sweep.md`](context/assumption-sweep.md).
+**Sweep for assumptions before Step 3.** In `me` and `auto` with a register, including the `auto` Mixed path after its residue round, the loop ends with a fresh-context assumption sweep. Once the frontier is empty, and before the Step 3 register gate and confirmation gate, dispatch a non-fork sub-agent to inventory undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and any composed artifacts. You turn each item into a register row at the next contiguous `Q<N>`, a stated fact, or, for hedged rows, a line in the confirmation restate. Any `open` row it adds returns the run to Step 2, and the next sweep covers only what the new answers changed; Step 3 is reached when a sweep adds no `open` row. A run that asked no question skips it, and so does `lock`; unattended, an item that is the user's decision is `blocked`. The acceptance-criteria coverage prompt is never a sweep item ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Scope, item shape, and disposition: [`context/assumption-sweep.md`](context/assumption-sweep.md).
 
 ### Step 3. Recognize the stop condition
 
-Stop when no question is left to ask. Every unknown the task depends on resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
+Stop when no question is left to ask. Every unknown the task depends on resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per [`context/coverage-prompt.md`](context/coverage-prompt.md). Don't stop early on impatience; don't keep asking past the stop condition.
 
 **Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. That no question is left to ask is a judgment, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
@@ -396,7 +284,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 
 Exit 1 (a row is `open` or `superseded-by-plan`) and exit 2 (ungradeable) both HALT. Resolve or explicitly retire an `open` row and re-run; a `superseded-by-plan` row leaves only on the user's reply to it ([`context/loop.md`](context/loop.md) "Superseded by plan"). Never lock a contract over a non-zero exit; that is the reported failure restated. **A run that asked no question wrote no register, has nothing to gate, and skips this**: `auto` routing to synthesize-directly with no open decision. `lock` always writes its problem row, so its register gates. The carve-out is about the absence of questions, never about which action produced it: the moment ANY question exists. Asked, surfaced mid-synthesis, or blocked unattended. A register exists and the gate applies. The `--brief` cross-check runs in Step 4, once there is a Brief to cross-check against; it also exits 1 with `brief=unconfirmed` while the Brief is stamped `Restatement: UNCONFIRMED`. The gate reads only that stamp, so it cannot see a Brief edited after a Confirm: after such an edit, post a new `restate`, get a fresh Confirm and export again.
 
-**One thing is not a question for this purpose: the acceptance-criteria coverage prompt.** It carries no decision, writes no register row, and asking it does not by itself make a register exist or bring this gate into scope, so a synthesize-directly run whose only question was the coverage prompt still skips the gate. Read it narrowly. It exempts that one prompt, never a real question asked in the same round or the same session: any other question still writes its row at ask-time and still brings the gate into scope. See "Acceptance-criteria capture".
+**The acceptance-criteria coverage prompt is not a question for this purpose**: it writes no register row and does not by itself bring this gate into scope, and no other question in the same round or session shares that exemption ([`context/coverage-prompt.md`](context/coverage-prompt.md)).
 
 **Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user's explicit confirmation that it is reached. Do not act on the interview's output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).
 
@@ -442,7 +330,7 @@ PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite: that note is the Brief's only history (Step 1).
 
-Section schema: write the literal `## Brief` template (TLDR / Problem / Goal / Work size / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)"; Problem and Work size follow [`../../context/problem-framing.md`](../../context/problem-framing.md). `### Acceptance criteria` stays plain bullets in both formats, tagged or not, per "Acceptance-criteria capture" above; it is never converted to checkboxes. Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both are required; loop.md covers when to use which.
+Section schema: write the literal `## Brief` template (TLDR / Problem / Goal / Work size / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)"; Problem and Work size follow [`../../context/problem-framing.md`](../../context/problem-framing.md). `### Acceptance criteria` stays plain bullets in both formats, tagged or not, per [`context/ears.md`](context/ears.md); it is never converted to checkboxes. Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both are required; loop.md covers when to use which.
 
 ### Step 5. Hand off
 
@@ -493,6 +381,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and the `acceptance_criteria_format` resolution ladder.
 
 ## Composition with other skills
 
