@@ -133,11 +133,13 @@ async function main(env = process.env) {
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
     return response.json();
   };
-  const readArtifact = async (id) => {
+  // The artifact's one JSON file, or, given names, each named file's text.
+  const readArtifact = async (id, files = null) => {
     const dir = mkdtempSync(join(env.RUNNER_TEMP ?? tmpdir(), "monitor-"));
+    const unzip = (...name) => execFileSync("unzip", ["-p", join(dir, "a.zip"), ...name], { encoding: "utf8", maxBuffer: 16 << 20 });
     try {
       writeFileSync(join(dir, "a.zip"), await get(`/repos/${repo}/actions/artifacts/${id}/zip`));
-      return JSON.parse(execFileSync("unzip", ["-p", join(dir, "a.zip")], { encoding: "utf8", maxBuffer: 16 << 20 }));
+      return files ? Object.fromEntries(files.map((name) => [name, unzip(name)])) : JSON.parse(unzip());
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

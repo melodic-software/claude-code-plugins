@@ -178,6 +178,7 @@ const routes = () => [
     },
   ],
   [/actions\/runs\/(\d+)$/, (path) => prMergeRun(Number(/(\d+)$/.exec(path)[1]))],
+  [/actions\/artifacts\?name=pr-merge-post-merge-report/, { artifacts: [artifact(70, "2026-10-19T16:01:00Z", 10)] }],
   [/\/pulls\?state=closed/, [
     { merged_at: "2026-10-19T13:00:00Z", user: { login: "melodic-automation-lanes[bot]" } },
     { merged_at: "2026-10-19T16:00:00Z", user: { login: "dependabot[bot]" } },
@@ -198,11 +199,22 @@ const routes = () => [
   ],
 ];
 
+// A pr-merge-post-merge-report artifact's two files, as post-merge-dispatch
+// writes them: the exit code with a newline, and the check's JSON.
+const CAP = "workflow runs: total_count 1734, 1000 returned, at the 1000-run search cap";
+const reportFiles = (code, reason = code === "3" ? CAP : null) => ({
+  "post-merge-code": `${code}\n`,
+  "post-merge.json": JSON.stringify({ ok: code === "0", readable: code !== "3", reason }),
+});
+
 const input = (api, extra = {}) => ({
   get: api.get,
   graphql: api.graphql,
   getStatus: async (url) => status[url],
-  readArtifact: async (id) => ({ run_id: 1000 + id, event: "schedule", live: true, started_at: "2026-10-19T16:30:00Z", candidates: 10, refusal_counts: {}, results: [] }),
+  readArtifact: async (id, files) =>
+    files
+      ? reportFiles(id === 70 ? "0" : "3")
+      : { run_id: 1000 + id, event: "schedule", live: true, started_at: "2026-10-19T16:30:00Z", candidates: 10, refusal_counts: {}, results: [] },
   repo,
   now,
   windowStart,
@@ -235,6 +247,9 @@ test("collect reads every source into the signals' data shape", async () => {
     ],
   );
   assert.equal(data.sweep.runId, 1001);
+  assert.deepEqual(data.postMergeReports, [
+    { runId: 10, url: "https://github.com/o/r/actions/runs/10", code: "0", reason: null, createdAt: "2026-10-19T16:01:00Z" },
+  ]);
   assert.deepEqual(data.laneMerges, { lastMergedAt: "2026-10-19T13:00:00Z" });
   assert.deepEqual(
     data.audits.map((a) => [a.workflow, a.run.failedJobs]),
@@ -654,4 +669,84 @@ test("stalled stops: a stop-resolved not-applicable skip ends an address-feedbac
     ],
   );
   assert.ok(!data.gaps.some((g) => g.startsWith("stalled stops:")), data.gaps.join("\n"));
+});
+
+// Trusted pr-merge runs 10-14 (14 a fork's on its own main, 15 a
+// pull_request_target run), each with one post-merge report; runs 11-15
+// completed before the window, so the budget source reads no jobs for them.
+const reportRoutes = (artifacts) => [
+  [
+    /workflows\/pr-merge\.yml\/runs/,
+    {
+      workflow_runs: [
+        run(10),
+        ...[11, 12, 13].map((id) => run(id, { updated_at: "2026-10-19T15:00:00Z" })),
+        run(14, { updated_at: "2026-10-19T15:00:00Z", head_repository: { full_name: "fork/r" } }),
+        run(15, { updated_at: "2026-10-19T15:00:00Z", event: "pull_request_target" }),
+      ],
+    },
+  ],
+  [/actions\/artifacts\?name=pr-merge-post-merge-report/, { artifacts }],
+  ...routes(),
+];
+const reportArtifact = (runId, minutesAgo) => artifact(runId + 60, new Date(now.getTime() - minutesAgo * 60_000).toISOString(), runId);
+
+test("post-merge reports: four unreadable sweeps in a row are read, newest first, one download each", async () => {
+  const api = fakeApi(reportRoutes([10, 11, 12, 13].map((id, i) => reportArtifact(id, 10 + 15 * i))));
+  const downloads = [];
+  const data = await collect(
+    input(api, { readArtifact: async (id, files) => (files ? (downloads.push(id), reportFiles("3")) : { run_id: 1001, live: true, candidates: 1, results: [] }) }),
+  );
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(
+    data.postMergeReports.map((r) => [r.runId, r.code, r.reason]),
+    [10, 11, 12, 13].map((id) => [id, "3", CAP]),
+  );
+  assert.deepEqual(downloads, [70, 71, 72, 73]);
+  // The pr-merge run list is read once for both sources that need it.
+  assert.equal(api.calls.filter((p) => p.includes("pr-merge.yml/runs")).length, 1);
+  assert.equal(api.calls.filter((p) => p.includes("name=pr-merge-post-merge-report")).length, 1);
+});
+
+test("post-merge reports: the read stops at the newest readable report", async () => {
+  const api = fakeApi(reportRoutes([10, 11, 12, 13].map((id, i) => reportArtifact(id, 10 + 15 * i))));
+  const downloads = [];
+  const codes = { 70: "3", 71: "0" };
+  const data = await collect(
+    input(api, { readArtifact: async (id, files) => (files ? (downloads.push(id), reportFiles(codes[id] ?? "3")) : { run_id: 1001, live: true, candidates: 1, results: [] }) }),
+  );
+  assert.deepEqual(downloads, [70, 71]);
+  assert.deepEqual(
+    data.postMergeReports.map((r) => r.code),
+    ["3", "0"],
+  );
+});
+
+test("post-merge reports: a fork's, a pull-request run's or an unlisted run's report is never read", async () => {
+  const artifacts = [
+    reportArtifact(14, 1),
+    reportArtifact(15, 2),
+    artifact(99, "2026-10-19T16:39:00Z", 999),
+    artifact(98, "2026-10-19T16:38:00Z", 10, { expired: true }),
+    ...[10, 11, 12, 13].map((id, i) => reportArtifact(id, 10 + 15 * i)),
+  ];
+  const downloads = [];
+  const data = await collect(
+    input(fakeApi(reportRoutes(artifacts)), {
+      readArtifact: async (id, files) => (files ? (downloads.push(id), reportFiles("3")) : { run_id: 1001, live: true, candidates: 1, results: [] }),
+    }),
+  );
+  assert.deepEqual(downloads, [70, 71, 72, 73]);
+  assert.deepEqual(
+    data.postMergeReports.map((r) => r.runId),
+    [10, 11, 12, 13],
+  );
+});
+
+test("post-merge reports: none from the last 70 minutes is a gap, not a clear", async () => {
+  for (const artifacts of [[], [reportArtifact(10, 71)]]) {
+    const data = await collect(input(fakeApi(reportRoutes(artifacts))));
+    assert.deepEqual(data.gaps, ["post-merge reports: no report from a trusted pr-merge run in the last 70 minutes"]);
+    assert.deepEqual(data.postMergeReports, []);
+  }
 });
