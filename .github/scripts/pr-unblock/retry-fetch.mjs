@@ -14,6 +14,17 @@
 // returned, and any other error raised, at once. A retry line names an
 // error's name and cause code, never its message: undici puts a whole header
 // value, the token included, in some messages.
+//
+// A call that still fails, a 4xx or 5xx answer or a network error (status
+// 0), adds one {method, path, status} line to
+// $RUNNER_TEMP/lane-run-report/api-failures.jsonl for the lane run report
+// comment: the URL's path only, never its query, headers or body. A fetch
+// that already counts its answers (rate-guard.mjs countsRequests) writes its
+// HTTP failures there itself, so here only its network errors are added.
+
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import process from "node:process";
 
 const RETRY_CAPS_MS = [4000, 8000];
 
@@ -39,12 +50,28 @@ export function isGraphQLRead(url, init = {}) {
   }
 }
 
+export function recordFailure({ method, url, status, dir = process.env.RUNNER_TEMP }) {
+  if (!dir) return;
+  try {
+    const path = new URL(String(url?.url ?? url), "https://api.github.com").pathname;
+    mkdirSync(join(dir, "lane-run-report"), { recursive: true });
+    appendFileSync(join(dir, "lane-run-report", "api-failures.jsonl"), `${JSON.stringify({ method: String(method ?? "GET").toUpperCase(), path, status })}\n`);
+  } catch {
+    // A report row is never worth failing the call.
+  }
+}
+
 const label = (error) =>
   [error?.name ?? "Error", typeof error?.cause?.code === "string" ? error.cause.code : null].filter(Boolean).join(" ");
 
 export function retryFetch(
   fetchImpl,
-  { sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random, log = (line) => console.log(line) } = {},
+  {
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    random = Math.random,
+    log = (line) => console.log(line),
+    failureDir,
+  } = {},
 ) {
   return async function send(url, { safeToResend = false, ...init } = {}) {
     const method = init.method ?? "GET";
@@ -60,8 +87,13 @@ export function retryFetch(
       const cap = RETRY_CAPS_MS[attempt];
       const failed = error !== undefined ? networkError(error) : response.status >= 500;
       if (!failed || !resend || cap === undefined) {
+        const dir = failureDir ?? process.env.RUNNER_TEMP;
         if (error !== undefined) {
+          recordFailure({ method, url, status: 0, dir });
           throw error;
+        }
+        if (response.status >= 400 && !fetchImpl[Symbol.for("api-budget.counted")]) {
+          recordFailure({ method, url, status: response.status, dir });
         }
         return response;
       }
