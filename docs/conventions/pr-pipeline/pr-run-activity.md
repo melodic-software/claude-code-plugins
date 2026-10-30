@@ -2203,14 +2203,18 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   A `pushback` exit holds only for a code or an intent cause. A `reason` that opens with a hold
   code (`security-risk`, `cost-risk`, `design-change`, `intent-change`) takes that hold row,
   whatever its cause. Otherwise it holds as `intent` when its outcome names `"cause": "intent"`
-  or `intent-change` (any case, an underscore or space for the hyphen), an intent question; else
-  a `cause` that names a hold code takes that hold row; else a `reason` that opens with a
-  `host-run` or `attended` code (`host-only`, `patch-protected-path`, `manual-external`) takes
-  that row, unless the security reading below for a `stopped` reason after such a code holds it.
-  Any other pushback, one that only mentions a security word included, is
-  `pushback-means`, which goes back through intake triage once (`intake` route, `retries: 1`):
-  intake decides it again on evidence and admits it, unless its own intent, security or cost
-  rules stop it, and then takes `retry-spent`'s route.
+  or `intent-change` (any case, spaces, underscores or hyphens between the words, a trailing `.`,
+  `:` or `;`), an intent question; else a `cause` that names a hold code, read the same way, takes
+  that hold row; else a `reason` that opens with a `host-run` or `attended` code (`host-only`,
+  `patch-protected-path`, `manual-external`) takes that row, or the `security-risk` hold when the
+  security reading below for a `stopped` reason finds a security risk after the code. Any other
+  pushback is `pushback-means`, which goes back through intake triage once (`intake` route,
+  `retries: 1`): intake decides it again on evidence and admits it, unless its own intent,
+  security or cost rules stop it. A second `pushback-means` since a listed human added
+  `agent-ready` takes `retry-spent`'s route, unless its reason reads as a security risk (the
+  security reading below, after any code, `blocked-by-pr` included): that one holds as
+  `security-risk`, and its first intake comment states no means framing and no "waits on no
+  decision from a person".
   A `stopped` reason (never a `pushback`) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,

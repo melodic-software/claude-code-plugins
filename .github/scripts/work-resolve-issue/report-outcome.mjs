@@ -38,13 +38,17 @@
 //
 //   pushback  a reason that opens with a hold code (security-risk,
 //             cost-risk, design-change, intent-change) takes that row; else
-//             cause intent or intent-change (any case, `_` or space for `-`)
-//             comments why, adds the human-gated label, removes agent-ready;
-//             else a cause naming a hold code takes that row; else a reason
-//             opening with a host-run or attended code takes that row,
-//             unless runCode reads a security risk after it; else
-//             pushback-means (stop-routes.json). A security word without the
-//             security-risk code holds nothing: intake judges it.
+//             cause intent or intent-change (causeName: any case, spaces,
+//             `_` or `-` between words, a trailing `:`) comments why, adds
+//             the human-gated label, removes agent-ready; else a cause
+//             naming a hold code takes that row; else a reason opening with
+//             a host-run or attended code takes that row, or security-risk's
+//             hold when runCode reads a security risk after the code (owner
+//             decision 2026-10-29); else pushback-means (stop-routes.json),
+//             one intake round. A pushback-means whose words read as a
+//             security risk (runCode, any code ending) goes to intake with
+//             no means framing, and past its cap holds as security-risk
+//             instead of failing, so a stated leak always reaches a person.
 //             When a listed human's newest comment, posted since the lane's
 //             last outcome comment, does not open with DECISION_LINE, the
 //             comment links it and shows the line, since the lane counts no
@@ -153,7 +157,7 @@ import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
-import { ATTENDED_LABEL, HOST_RUN_LABEL, leadingCode, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
 
@@ -169,20 +173,25 @@ const EXITS = new Set(["done", "pushback", "stopped"]);
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 // A pushback's stop: the hold row its reason explicitly opens with
 // (security-risk, cost-risk, design-change, intent-change); else pushback for
-// cause intent; else the hold row its cause names; else the host-run or
-// attended row its reason opens with, unless runCode reads a security risk
-// after that code; else pushback-means, so intake's own
-// intent, security and cost rules judge it. A security word with no code
-// reaches no person here.
+// cause intent; else the hold row its cause names; else, for a reason opening
+// with a host-run or attended code, runCode's reading: that code, or
+// security-risk when it names a security risk after the code (owner decision
+// 2026-10-29); else pushback-means, so intake's own intent, security and cost
+// rules judge it, with routeStop's security reading (pushbackSecurity).
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
 const pushbackStop = (outcome) => {
   const code = leadingCode(outcome.reason);
   if (code && stopRoute(code) === "hold") return code;
-  const cause = String(outcome.cause ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const cause = causeName(outcome.cause);
   if (PUSHBACK_CAUSES.has(cause)) return "pushback";
   if (Object.hasOwn(STOP_ROUTES, cause) && STOP_ROUTES[cause].code === true && stopRoute(cause) === "hold") return cause;
-  return PUSHBACK_LANE_ROUTES.has(stopRoute(code)) && runCode(outcome.reason) === code ? code : "pushback-means";
+  return PUSHBACK_LANE_ROUTES.has(stopRoute(code)) ? runCode(outcome.reason) : "pushback-means";
 };
+// A pushback-means stop whose words read as a security risk after any code,
+// or with none. Intake judges it once with no means framing (stopPlan's
+// neutral text); past its cap it holds as security-risk rather than failing,
+// since a real security risk never ends without a person.
+const pushbackSecurity = (stop, outcome) => stop === "pushback-means" && runCode(outcome?.reason, { anyCodeEnds: true }) === "security-risk";
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
 const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
@@ -554,6 +563,7 @@ const ROUTE_TEXT = {
   attended: `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`,
   intake:
     "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
+  "intake-security": "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage.",
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
@@ -561,17 +571,20 @@ const ROUTE_TEXT = {
 // full-width `＃<n>`) other than the issue itself, or "".
 export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "" }) {
+// pushbackSecurity's stop line, which leaves the question's kind to intake.
+const PUSHBACK_SECURITY_WHY =
+  "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; a second such pushback reaches a person";
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", why = "", neutral = false }) {
   const exit = ROUTE_OUTCOME[route];
   const lines = [
     `<!-- work-resolve-issue outcome=${exit}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
-    `${stopLine(stop)} ${stopWhy(shown)}.`,
+    `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
     ...(why ? [why] : []),
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
         ? `It keeps \`agent-ready\`, and work-unblock starts it again once #${pr} merges or closes (wait ${retries + 1} of ${cap}).`
-        : ROUTE_TEXT[route],
+        : ROUTE_TEXT[neutral ? "intake-security" : route],
   ];
   const words = outcome.reason || outcome.summary;
   if (words) {
@@ -613,17 +626,22 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
 // A stop routed by stop-routes.json, or by `route` in its place; `args` are
 // handBack's. A retry, wait or intake past limits.stop-retries, or the row's
 // own `retries` when fewer (`retries`, counted since a listed human last added
-// agent-ready), takes retry-spent's route instead.
+// agent-ready), takes retry-spent's route instead; a spent pushbackSecurity
+// stop takes security-risk's hold.
 function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: given = stopRoute(stop), why = "" } = {}) {
   const cap = stopRetries(stop, limits["stop-retries"]);
   const spent = COUNTED.has(given) && retries >= cap;
+  const security = given === "intake" && pushbackSecurity(stop, args.outcome);
+  if (spent && security) {
+    return routeStop("security-risk", args);
+  }
   const shown = spent ? "retry-spent" : stop;
   const route = spent ? stopRoute(shown) : given;
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
       ? handBack({ ...args, reason: stopReasonCode(shown) })
-      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why });
+      : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why, neutral: security });
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 

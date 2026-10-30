@@ -803,10 +803,61 @@ test("a pushback holds only for an explicit hold code, never for a security word
   const host = run("host-only: needs the GPU desktop.");
   assert.equal(host.stop, "host-only");
   assert.equal(host.action, "host-run");
-  // One that names a security risk after the code goes to intake, not the host queue.
-  const risky = run("host-only: needs the deploy token printed in the log.");
-  assert.equal(risky.stop, "pushback-means");
-  assert.equal(risky.action, "intake");
+  // One that names a security risk after the code reaches a person (owner
+  // decision 2026-10-29), and a capability phrasing names none.
+  for (const reason of ["host-only: needs the deploy token printed in the log.", "manual-external: rotate the leaked deploy token in the DNS account."]) {
+    const risky = run(reason);
+    assert.equal(risky.stop, "security-risk", reason);
+    assert.equal(risky.action, "hand-back", reason);
+    assert.ok(risky.addLabels.includes("needs-human"), reason);
+    assert.equal(parseReason(risky.comment).reason, "security", risky.comment);
+  }
+  assert.equal(run("host-only: needs a host with model credentials.").stop, "host-only");
+  const attended = run("manual-external: add the DNS record for the docs site.");
+  assert.equal(attended.stop, "manual-external");
+  assert.equal(attended.action, "attended");
+  // A non-hold, non-lane code goes through intake.
+  for (const reason of ["blocked-by-pr: #12 changes the same file.", "already-done: abc1234 fixed it.", "report-delivered: the report is posted."]) {
+    const plan = run(reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.equal(plan.action, "intake", reason);
+  }
+  // A cause names its code in spaces, mixed case, full-width letters, hyphen
+  // runs and a trailing colon.
+  for (const [cause, stop] of [
+    ["Security Risk", "security-risk"],
+    ["COST_RISK.", "cost-risk"],
+    ["ｉｎｔｅｎｔ", "pushback"],
+    ["intent - change", "pushback"],
+    ["intent:", "pushback"],
+    ["intent: ", "pushback"],
+    ["-design--change-", "design-change"],
+  ]) {
+    assert.equal(run("Which helper should change?", cause).stop, stop, JSON.stringify(cause));
+  }
+});
+
+// A pushback with no code whose words read as a security risk goes to intake
+// with no means framing; a second one since a listed human added agent-ready
+// holds as security-risk instead of failing.
+test("a pushback naming a security risk goes to intake unframed once, then reaches a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const reason of ["The issue asks to print the deploy token in the log.", "blocked-by-pr: #12's log printed the deploy token."]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, title: "", summary: "" } });
+    assert.equal(plan.action, "intake", reason);
+    assert.equal(plan.stop, "pushback-means", reason);
+    assert.doesNotMatch(plan.comment, /waits on no decision|choice of means|design detail/, plan.comment);
+    assert.match(plan.comment, /security risk/, plan.comment);
+    const spent = capRetries(plan, 1);
+    assert.equal(spent.action, "hand-back", reason);
+    assert.equal(spent.stop, "security-risk", reason);
+    assert.ok(spent.addLabels.includes("needs-human") && spent.comment.includes("work-items:escalation"), spent.comment);
+    assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
+  }
+  const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" } });
+  assert.match(means.comment, /choice of means/);
+  assert.match(means.comment, /waits on no decision from a person/);
+  assert.equal(capRetries(means, 1).action, "fail");
 });
 
 // An explicit security-risk code outranks an intent cause.
@@ -1055,6 +1106,28 @@ test("main on a pushback with no cause sends the issue back through intake once,
       assert.ok(!comment.includes("work-items:escalation"), comment);
     });
   }
+});
+
+// The same pushback naming a security risk: the second intake holds it for a
+// person instead of failing.
+test("main on a second pushback naming a security risk holds it as security-risk", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "The issue asks to print the deploy token in the log.", title: "", summary: "" });
+  const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments/, 200, [earlier]],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.ok(comment.includes("work-items:escalation"), comment);
+    assert.equal(parseReason(comment).reason, "security", comment);
+  });
 });
 
 // An issue whose author is outside the trusted list stops at the admit job;

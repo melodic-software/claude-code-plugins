@@ -152,7 +152,8 @@ dispatch, PR or babysit step. It works in place:
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the intent question a
    person must answer, and add `"cause": "intent"`; a pushback with any other `cause`, or none,
    reaches a person only when its `reason` opens with a code below that reaches one, and
-   otherwise goes back through intake triage once) or `stopped` (stopped partway; `reason`
+   otherwise goes back through intake triage once, then reaches a person if its `reason` still
+   names a security risk) or `stopped` (stopped partway; `reason`
    says why). Open a `stopped` reason with
    the code that names why, then a colon, and the lane routes the issue by it: `host-only` (the
    work needs a host run this lane cannot make), `manual-external` (it needs a manual step on

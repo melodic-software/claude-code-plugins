@@ -332,11 +332,14 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 
 A choice of means or a design detail is none of these reasons: the lane doing the work decides it
 on evidence, as the owner's standing direction "Decide from evidence" says. The issue lane's pre-edit pushback reaches the owner only when the run
-names `cause: intent` (or `intent-change`), or a hold code (`security-risk`, `cost-risk`,
-`design-change`, `intent-change`) in its reason or its cause; a security word without the
-`security-risk` code is not one. Any other pushback goes back through intake triage, whose own
-intent, security and cost rules decide whether it stops
-([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json) `pushback-means`).
+names `cause: intent` (or `intent-change`), a hold code (`security-risk`, `cost-risk`,
+`design-change`, `intent-change`) in its reason or its cause, or a `host-run` or `attended` code
+followed by text naming a security risk (owner decision 2026-10-29); a pushback opening with such
+a code and no security risk takes that code's route. Any other pushback goes back through intake
+triage once, whose own intent, security and cost rules decide whether it stops
+([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)
+`pushback-means`, `retries: 1`); a second one fails, except that one whose text names a security
+risk holds for the owner as `security-risk`, so a real security risk never ends without a person.
 
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 

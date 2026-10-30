@@ -124,8 +124,9 @@ const capabilityOnly = (text) => {
 // decision 2026-10-29), unless the secret is only named in a capability
 // phrasing: a person is only for a real security risk such as a leaked token
 // (owner direction, docs/contracts/loop-lane/README.md "When work stops for
-// the owner"), and a capability limit is none. A wait or retry code comes back
-// to the lane anyway.
+// the owner"), and a capability limit is none. This holds for a pushback that
+// opens with a host-run or attended code too. A wait or retry code comes back
+// to the lane anyway, except after a pushback (runCode's anyCodeEnds).
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
 const namesEndingRisk = (text) => {
   const rest = text.replace(CAPABILITY, " ");
@@ -139,23 +140,37 @@ const namesEndingRisk = (text) => {
 // when it names security, so a misformatted security code still reaches a
 // person; else "stopped". Intent, design and cost words are common in plain
 // reasons, so only their code holds for them.
-const reasonText = (reason) =>
-  String(reason ?? "")
+const plainText = (text) =>
+  String(text ?? "")
     .normalize("NFKC")
-    .replace(/[\p{Cf}\p{Mn}]/gu, "")
-    .replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
+    .replace(/[\p{Cf}\p{Mn}]/gu, "");
+const reasonText = (reason) => plainText(reason).replace(/^[\s*_`]*(?:reason\s*:)?[\s*_`]*/i, "");
+// A pushback's `cause` as a row name: read as a reason is, lowercased, with
+// trailing `.`, `:`, `;` and spaces dropped and each run of spaces,
+// underscores and hyphens one hyphen, so "Security Risk", "intent - change"
+// and "intent:" name their rows.
+export const causeName = (cause) =>
+  plainText(cause)
+    .trim()
+    .toLowerCase()
+    .replace(/[.:;\s]+$/, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 // The code a reason explicitly opens with, read as runCode reads it, with no
 // security-word reading: "" when it opens with none.
 export const leadingCode = (reason) => {
   const text = reasonText(reason);
   return CODES.find(([, code]) => code.test(text))?.[0] ?? "";
 };
-export const runCode = (reason) => {
+// With `anyCodeEnds`, every code reads as ending the lane's work: a pushback
+// never waits or retries, so a security mention after a wait code such as
+// blocked-by-pr counts as well.
+export const runCode = (reason, { anyCodeEnds = false } = {}) => {
   const text = reasonText(reason);
   for (const [name, code] of CODES) {
     const match = code.exec(text);
     if (match) {
-      return ENDING_ROUTES.has(STOP_ROUTES[name].route) && namesEndingRisk(text.slice(match[0].length)) ? "security-risk" : name;
+      return (anyCodeEnds || ENDING_ROUTES.has(STOP_ROUTES[name].route)) && namesEndingRisk(text.slice(match[0].length)) ? "security-risk" : name;
     }
   }
   return SECURITY_WORD.test(text) ? "security-risk" : "stopped";

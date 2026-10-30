@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { HOLD_CLASSES, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
+import { causeName, HOLD_CLASSES, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute } from "./stop-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 test("a reason the table does not list names no owner reason, so it fails, to no person", () => {
@@ -329,4 +329,30 @@ test("the table does not load without a security-risk hold row, or with a class 
 test("a manual external step routes to attended, and a host-only stop to host-run", () => {
   assert.equal(stopRoute("manual-external"), "attended");
   assert.equal(stopRoute("host-only"), "host-run");
+});
+
+// A pushback never waits, so with anyCodeEnds a security mention after a wait
+// code reads as security-risk; a stopped run's wait code keeps its route.
+test("runCode with anyCodeEnds reads a security mention after a wait code", () => {
+  const reason = "blocked-by-pr: #12's log printed the deploy token.";
+  assert.equal(runCode(reason), "blocked-by-pr");
+  assert.equal(runCode(reason, { anyCodeEnds: true }), "security-risk");
+  assert.equal(runCode("blocked-by-pr: #12 changes the same file.", { anyCodeEnds: true }), "blocked-by-pr");
+});
+
+test("causeName reads a cause as a row name", () => {
+  for (const [cause, name] of [
+    ["Security Risk", "security-risk"],
+    ["ｉｎｔｅｎｔ", "intent"],
+    ["intent - change", "intent-change"],
+    ["intent:", "intent"],
+    ["intent: ", "intent"],
+    [" Intent_Change\n", "intent-change"],
+    ["in\u200btent;", "intent"],
+    ["--cost__risk.", "cost-risk"],
+    [undefined, ""],
+    [7, "7"],
+  ]) {
+    assert.equal(causeName(cause), name, JSON.stringify(cause));
+  }
 });
