@@ -205,7 +205,11 @@ sys.stdout.buffer.write(buffer.getvalue())' "$record"
 *) exit 1 ;;
 esac
 EOF
-printf '#!/usr/bin/env bash\nprintf "sleep %%s\\n" "$*" >>"$STUB_LOG"\n' >"$TMP_ROOT/bin/sleep"
+# The sleep stub logs `sleep <seconds>` and returns at once.
+cat >"$TMP_ROOT/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf 'sleep %s\n' "$*" >>"$STUB_LOG"
+EOF
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
 # The verdict reader stub logs `reader <args>`, exits STUB_READER_RC when set,
