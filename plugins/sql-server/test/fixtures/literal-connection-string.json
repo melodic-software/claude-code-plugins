@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "local": {
+      "server": "Server=tcp:example-dev.database.windows.net,1433;Initial Catalog=app",
+      "databases": ["app"],
+      "auth": { "type": "entra-default" }
+    }
+  }
+}
