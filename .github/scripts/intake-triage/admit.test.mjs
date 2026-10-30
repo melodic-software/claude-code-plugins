@@ -1744,7 +1744,7 @@ describe("unrunnableCriteria", () => {
 });
 
 // Host work goes to the host queue (`host-run`), parked at status: confirmed,
-// never to a person (docs/conventions/loop-lane/README.md, the three labels
+// never to a person (docs/contracts/loop-lane/README.md, the three labels
 // that take work off the unattended path). Only a mixed issue lacking
 // host-run holds, so refine.mjs splitOf can split it from needs-decision.
 describe("host-run work", () => {
@@ -1814,7 +1814,7 @@ describe("host-run work", () => {
     assert.equal(decide(facts({ issue: queued(CANARY), events: addedBy(HUMAN) })).hold, undefined);
   });
 
-  // Billing is an owner stop reason (docs/conventions/loop-lane/README.md, when
+  // Billing is an owner stop reason (docs/contracts/loop-lane/README.md, when
   // work stops for the owner), so a paid eval keeps the person hold; any other
   // unrunnable kind, an off-allowlist page included, goes to the host queue.
   test("a paid-eval item keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
