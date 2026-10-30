@@ -287,6 +287,26 @@ describe("split_parent", () => {
   });
 });
 
+test("a trusted target-subset part carries its Scope line's targets as scope", async () => {
+  const PARENT_BODY = ["## Done when", "", "- [ ] Port pkg-a.", "- [ ] Port pkg-b."].join("\n");
+  const body = `${splitChildHeader(7719, 1, 2, null, true)}\n- [ ] Port pkg-a.\n- [ ] Port pkg-b.\nScope: pkg-a`;
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const base = fakeGitHub({ comments: [], issue: { ...ISSUE, body }, spec: { body, author: LANES_ACTOR } });
+  const github = async (method, apiPath, payload) => {
+    if (`${method} ${apiPath}` === `GET /repos/${REPO}/issues/6825/parent`) {
+      return { number: 7719, repository_url: `https://api.github.com/repos/${REPO}` };
+    }
+    if (method === "POST" && apiPath === "/graphql" && payload.variables.number === 7719) {
+      return { data: { repository: { issue: { body: PARENT_BODY, lastEditedAt: null, author: { __typename: "User", databaseId: OWNER.id }, editor: null, comments: { totalCount: 0, nodes: [] } } } } };
+    }
+    return base(method, apiPath, payload);
+  };
+  const { code, issue } = await run(github);
+  assert.equal(code, 0);
+  assert.deepEqual(issue.scope, ["pkg-a"]);
+  assert.equal((await run(fakeGitHub({ comments: [], issue: ISSUE }))).issue.scope, undefined);
+});
+
 test("a decision line inside a quote or code fence, or not first, is no decision", async () => {
   const { issue } = await run(
     fakeGitHub({

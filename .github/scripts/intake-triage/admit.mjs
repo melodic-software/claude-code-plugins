@@ -1528,6 +1528,17 @@ export const SCOPE_PREFIX = "Scope: ";
 export const scopeTarget = (name, lines) =>
   typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`\r\n]/.test(name) && lines.some((line) => line.includes(name));
 
+// The targets the Scope line of `body`, a size-split sub-issue's body that
+// splitChildBody returned, names, or null when it has none: every done-when
+// line of a scoped part applies only to these targets. The one parser the
+// work lane (write-issue.mjs) and pr-verify (resolve-pr.mjs) read it with;
+// pass only a body splitChildBody trusts, so an unreadable Scope line
+// never narrows anything. Pure.
+export function splitScope(body) {
+  const last = String(body ?? "").split("\n").at(-1);
+  return last.startsWith(SCOPE_PREFIX) ? last.slice(SCOPE_PREFIX.length).split(", ") : null;
+}
+
 // The targets a Scope line names, or null when one is no scopeTarget over
 // `lines` or repeats. Pure.
 function scopeTargets(line, lines) {
