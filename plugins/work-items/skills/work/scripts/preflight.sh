@@ -10,7 +10,7 @@
 #       is missing from the effective allow-list. Deny wins over allow. The
 #       lane never runs `git push`: it pushes with
 #       `bash <plugin-root>/scripts/lane-push.sh …`, an interpreter-led call no
-#       allow rule pre-approves (docs/conventions/permission-rule-hygiene), so
+#       allow rule pre-approves (docs/contracts/permission-rule-hygiene), so
 #       the permission mode decides it and nothing here probes it.
 #   (c) the configured out-of-tree worktree root is not covered by any
 #       permissions.additionalDirectories entry, so every write into it
@@ -20,7 +20,7 @@
 # remediation: an agent cannot widen its own permissions.allow, and a
 # permissions block shipped in a plugin settings.json is inert
 # (reference/permission-preflight.md "Why a preflight, not a fixer" holds the
-# pointer record; docs/conventions/permission-rule-hygiene). This script never edits
+# pointer record; docs/contracts/permission-rule-hygiene). This script never edits
 # settings; it prints the exact operator remediation and ALWAYS exits 0.
 # Findings never fail the run.
 #

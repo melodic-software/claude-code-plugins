@@ -848,6 +848,26 @@ describe("decide", () => {
     test("a status: ready added by neither a listed human nor the lanes App does not lift it", () => {
       assert.equal(verdictFor([removed("2026-10-20T00:00:00Z"), marked("2026-10-21T00:00:00Z", OUTSIDER)]), "skip");
     });
+
+    // A lane stop removes agent-ready beside a hold; a trusted lift of that
+    // hold later is the re-mark, since no status: ready add follows it.
+    const label = (event, name, at, id) => ({ event, label: { name }, actor: { id }, created_at: at });
+    const stop = (hold) => [label("labeled", hold, "2026-10-20T00:00:00Z", APP), label("unlabeled", AGENT_READY, "2026-10-20T00:00:01Z", APP)];
+    for (const hold of ["needs-human", "status: needs-decision"]) {
+      test(`a lane stop then a trusted lift of ${hold} is decided`, () => {
+        assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", HUMAN)]), "admit");
+        assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", APP)]), "admit");
+      });
+      test(`a lift of ${hold} by neither a listed human nor the lanes App does not lift it`, () => {
+        assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", OUTSIDER)]), "skip");
+      });
+      test(`a lift of ${hold} before the removal does not lift it`, () => {
+        assert.equal(verdictFor([label("unlabeled", hold, "2026-10-19T00:00:00Z", HUMAN), removed("2026-10-20T00:00:00Z")]), "skip");
+      });
+    }
+    test("a person's removal with no hold involved still skips", () => {
+      assert.equal(verdictFor([marked("2026-10-19T00:00:00Z"), removed("2026-10-20T00:00:00Z"), label("unlabeled", "priority: medium", "2026-10-21T00:00:00Z", HUMAN)]), "skip");
+    });
   });
 
   test("issue text cannot admit: a quoted task list does not count, so the issue is refused", () => {
