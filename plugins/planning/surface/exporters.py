@@ -15,7 +15,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  from its deferred and planningOwned bullets and the TLDR's opening scope
                  bullets from its tldr. Intent, above Goal, holds its intent paragraph (else
                  `none stated`), then the user's own words: each live ask, note and own event's
-                 text, in event order, under its Q<N>. An answered row that took the
+                 text and each note typed on an accept, alternative or hedged choice, in
+                 event order, under its Q<N>. An answered row that took the
                  recommendation adds its question basis as a `why:` line to its Constraints
                  entry. Captured assumptions holds each
                  unconfirmed commitment as a named risk and a Notes question the user left
@@ -1104,14 +1105,25 @@ def brief_label(r):
     return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
 
 
-# The events whose text is the user's own words, and how the Brief's Intent labels each.
-USER_WORDS = {"ask": "asked", "note": "note", "own": "own answer"}
+# The events whose text is the user's own words, and how the Brief's Intent labels each; an
+# accept, alt or hedged event has text only when the user typed a note on that choice.
+USER_WORDS = {
+    "ask": "asked",
+    "note": "note",
+    "own": "own answer",
+    "accept": "accepted with note",
+    "alt": "chose ({alt}) with note",
+    "hedged": "accepted on condition",
+}
+CHOICE_WORDS = ("accept", "alt", "hedged")
 
 
 def user_words(rows, events, intent):
-    """One Intent bullet per live ask, note and own event, in event order: its question's Q<N>
-    (a note names none) and its text as typed, whitespace runs one space. An undone or
-    withdrawn event is left out, and so is the note that gave the intent paragraph."""
+    """One Intent bullet per live ask, note, own event and choice typed with a note, in event
+    order: its question's Q<N> (a note names none) and its text as typed, whitespace runs one
+    space. An undone or withdrawn event is left out, and so are a choice repeating a line already
+    listed and the note that gave the intent paragraph; a repeated ask, note or own answer is
+    listed again."""
     labels = {r["q"]["id"]: brief_label(r) for r in rows}
     undone = {e.get("undoSeq") for e in events if e.get("kind") == "undo"}
     said = " ".join(str(intent or "").split())
@@ -1126,7 +1138,12 @@ def user_words(rows, events, intent):
             continue
         qid = e.get("id")
         where = f"{labels.get(qid) or clean(qid)} " if qid else ""
-        out.append(f"- {where}{USER_WORDS[kind]}: {text}")
+        label = USER_WORDS[kind].format(alt=clean(e.get("alt")))
+        line = f"- {where}{label}: {text}"
+        # A Reconfirm posts the kept choice and its note again.
+        if kind in CHOICE_WORDS and line in out:
+            continue
+        out.append(line)
     return out
 
 
@@ -1685,7 +1702,7 @@ def supersede_row(text, qid, proposes, where):
     was <form>:: E(its answer)`, escaped as export_ledger escapes a superseded row. `was` keeps
     only the answer and names the form it had, so resolve_row restore rebuilds that form."""
     if not proposes.strip():
-        raise SystemExit("refused: --proposes is empty")
+        raise SystemExit("refused: the proposal (--proposes-file) is empty")
 
     def change(status, res):
         if status != "answered":
@@ -1712,7 +1729,7 @@ def resolve_row(text, qid, how, note, where):
     if how not in ("reconfirm", "restore"):
         raise SystemExit(f"refused: unknown resolution {how!r} (reconfirm or restore)")
     if note and how == "restore":
-        raise SystemExit("refused: --note belongs to reconfirm")
+        raise SystemExit("refused: --note-file belongs to reconfirm")
 
     def change(status, res):
         if status != "superseded-by-plan":
@@ -1748,7 +1765,7 @@ def resolve_row(text, qid, how, note, where):
         marked, kept = None, note
         if form == "named":
             # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
-            # when no --note replaces it, and its commitments. An earlier reconfirm's proposal and
+            # when no --note-file replaces it, and its commitments. An earlier reconfirm's proposal and
             # `was` have no field left to go in, so they are dropped.
             held = parse_named(old, where)
             if held:

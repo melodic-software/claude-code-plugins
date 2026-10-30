@@ -10,7 +10,7 @@ at the link for what it says.
 
 **Recheck trigger:** between the pinned commit and upstream HEAD, a path that a row below links
 changes, or a unit under the scope is added or removed: re-audit the affected rows. `scripts/check-upstream-drift.sh` detects these
-([upstream-drift convention, "Pinned git upstreams"](../conventions/upstream-drift/README.md#pinned-git-upstreams)).
+([upstream-drift convention, "Pinned git upstreams"](../contracts/upstream-drift/README.md#pinned-git-upstreams)).
 Re-auditing moves the pin and records the outcome per row.
 
 ## License

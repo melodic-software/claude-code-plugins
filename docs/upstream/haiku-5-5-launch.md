@@ -10,7 +10,7 @@
 
 This is the provenance record for this repository's response to the Claude Haiku 5.5 release
 (2026-10-07). It follows the record shape of [opus-5-5-task-cost.md](opus-5-5-task-cost.md) and the
-[upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Figures from the
+[upstream-drift](../contracts/upstream-drift/README.md#required-parts) convention. Figures from the
 launch page and the system card appear only in this file, each labeled vendor-reported; figures from
 independent measurers are labeled with their publisher. Guidance elsewhere links this record and
 copies none of its figures ([cost claims](../../.claude/rules/cost-claims.md)).
@@ -104,5 +104,5 @@ section changes.
 |---|---|---|
 | H1 Routing | No role routes to `haiku` until it passes this repository's routing eval ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901)); a role that does runs at `high`, never `xhigh` or `max`: [routing rubric](../../plugins/multi-agent/reference/routing-rubric.md) | [Choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#decide-whether-to-upgrade-or-change-models) |
 | H2 Effort and the `haiku` alias | The plugin-philosophy effort carve-out separates the Anthropic API, where `haiku` takes an effort level, from providers where it still resolves to Haiku 4.5: [effort tiers](../plugin-philosophy.md#effort-tiers) | [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases); [adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
-| H3 Loop lanes | `haiku` stays out of every lane on four grounds, none of them context window or knowledge cutoff: [Alias binding](../conventions/loop-lane/README.md#alias-binding) | [Prompting Claude Haiku 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5); the system card above <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer --> |
+| H3 Loop lanes | `haiku` stays out of every lane on four grounds, none of them context window or knowledge cutoff: [Alias binding](../contracts/loop-lane/README.md#alias-binding) | [Prompting Claude Haiku 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5); the system card above <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer --> |
 | H4 Instruction audit | The standing schedule row `frontier-release-instruction-ablation` runs `/harness-config:audit-instructions` on any Claude model release and `/harness-config:unhobble` only on a frontier release; Haiku 5.5 got the audit pass only ([#2019](https://github.com/melodic-software/claude-code-plugins/issues/2019)) | none: an in-repo decision |

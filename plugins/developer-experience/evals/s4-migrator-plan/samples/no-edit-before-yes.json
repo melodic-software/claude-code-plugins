@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [], "why": "a plan from what is already in context"},
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "add_parser", "path": "bfk"}}],
+      "why": "searched the CLI, no Edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "bfk/cli.py", "old_string": "sub.add_parser(\"report\")", "new_string": "sub.add_parser(\"report\")\n    sub.add_parser(\"migrate\")"}}],
+      "why": "wired the command into the CLI before the yes"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "docs/conventions/developer-experience.md", "old_string": "## Tools", "new_string": "## Tools\n- `bfk migrate`"}}],
+      "why": "near miss: recorded the helper in the conventions before building it"
+    }
+  ]
+}

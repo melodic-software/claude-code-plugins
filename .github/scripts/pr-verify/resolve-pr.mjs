@@ -5,7 +5,8 @@
 // - the run is a completed pull_request run of pr-require-checks.yml, by
 //   exact path, in this repository on a head of this repository, that
 //   succeeded or failed only on holds an approving review of the head lifts
-//   (heldOnly), so a person approves a head pr-verify has judged;
+//   or the `do-not-merge` label (heldOnly), so a person approves, and a
+//   session holding the pull request reads, a head pr-verify has judged;
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
 // - the PR is not a draft and not a dependency manager's (a Bot account with
@@ -49,10 +50,11 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { loadRules, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
+import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -192,6 +194,11 @@ const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "B
 // App pull request, and the step after it that aggregates the lanes.
 export const HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
 export const AGGREGATE_STEP = "Aggregate lane results";
+// The ci-status step that runs ci-workflows' check-contract (title,
+// `do-not-merge` label, issue linkage), and the one error line its run.sh
+// writes for the label, whose name pr-require-checks.yml leaves the default.
+export const CONTRACT_STEP = "Check the pull-request contract";
+export const DO_NOT_MERGE_LINE = "pr-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
 // What merge-holds.mjs `holds` writes after each hold an approving review of
 // the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
@@ -214,12 +221,15 @@ export const errorLines = (log) =>
     .flatMap((line) => /^﻿?(?:\S+ )?##\[error\](.*)$/.exec(line)?.slice(1) ?? []);
 
 // Whether failed run `runId` failed only because a person has not yet approved
-// pull request `number`'s head: of its latest jobs only ci-status failed, its
-// only failed step is HOLD_STEP, the lanes aggregate succeeded, and every
-// error that job logged is one of `number`'s holds an approval lifts or that
-// step's exit. ci-status still fails, so such a head never merges unapproved;
-// the verdict a judgment writes lifts no hold path. A read that fails, a job
-// or step list cut short, or any other error is false.
+// pull request `number`'s head or holds it with `do-not-merge`: of its latest
+// jobs only ci-status failed, its failed steps are HOLD_STEP, CONTRACT_STEP or
+// both, the lanes aggregate succeeded, and every error that job logged is one
+// of `number`'s holds an approval lifts (at least one when HOLD_STEP failed),
+// DO_NOT_MERGE_LINE (exactly once when CONTRACT_STEP failed, never otherwise)
+// or a failed step's exit. ci-status still fails, so such a head never merges
+// unapproved or labeled; the verdict a judgment writes lifts no hold path and
+// no label. A read that fails, a job or step list cut short, or any other
+// error is false.
 export async function heldOnly(github, readLog, repository, runId, number) {
   try {
     const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
@@ -236,17 +246,25 @@ export async function heldOnly(github, readLog, repository, runId, number) {
     }
     const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
     const failed = steps.filter((step) => step?.conclusion !== "success" && step?.conclusion !== "skipped");
+    const names = failed.map((step) => step?.name);
     if (
-      failed.length !== 1 ||
-      failed[0].name !== HOLD_STEP ||
-      failed[0].conclusion !== "failure" ||
+      failed.length === 0 ||
+      failed.some((step) => step.conclusion !== "failure" || ![HOLD_STEP, CONTRACT_STEP].includes(step.name)) ||
+      new Set(names).size !== names.length ||
       !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
     ) {
       return false;
     }
     const errors = errorLines(await readLog(ci[0].id));
-    const holds = errors.filter((line) => line !== STEP_EXIT);
-    return errors.length - holds.length === 1 && holds.length > 0 && holds.every((line) => personHoldLine(line, number));
+    const reasons = errors.filter((line) => line !== STEP_EXIT);
+    const person = reasons.filter((line) => personHoldLine(line, number));
+    const label = reasons.filter((line) => line === DO_NOT_MERGE_LINE);
+    return (
+      errors.length - reasons.length === failed.length &&
+      person.length + label.length === reasons.length &&
+      (person.length > 0) === names.includes(HOLD_STEP) &&
+      label.length === (names.includes(CONTRACT_STEP) ? 1 : 0)
+    );
   } catch {
     return false;
   }
@@ -411,7 +429,10 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // refinement comment by the lanes App (`laneAppId`), the newest and only
 // while unedited (admit.mjs refinementSpec) and created before the pull
 // request, so nothing the App posts once a lane run has the issue becomes
-// spec (`specText`). Other Bot and App text is left out even where
+// spec (`specText`), with the body's done-when items that refinement lists
+// as checks a person runs (`person_checks`, admit.mjs personChecks under the
+// issue lane's `webHosts`); a split refinement whose record does not stand is
+// left out. Other Bot and App text is left out even where
 // select-trusted-text keeps it, except the body of a sub-issue the lanes App
 // filed in a size split, under the split-child trust rule, `taskList` being
 // admission's `task-list` (admit.mjs splitChildBody, its one home).
@@ -419,7 +440,7 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head.
-async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList) {
+async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -496,17 +517,26 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
     specText: issues.map((issue) => {
       const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
       const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
+      // Under admission's guards and web hosts (admit.mjs personChecks).
+      const checks = refinement === undefined ? [] : personChecks({ ...issue, comments: issue.comments.nodes }, humans, laneAppId, taskList, webHosts);
+      // A split refinement whose record does not stand reaches the verifier
+      // in no form, so its prose names no item a person runs; a split drafts
+      // no criteria (refine.mjs validateOutput), so nothing else goes with it.
+      const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
-        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
+        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
+        // The body's done-when items that refinement lists as checks a
+        // person runs (admit.mjs personChecks), each as written.
+        ...(checks.length > 0 && { person_checks: checks.map((n) => taskItems(issue.body, taskList)[n - 1].text) }),
       };
     }),
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -568,7 +598,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     // This PR's plain FAIL stands unless it now links issues a FAIL name
     // carries, which differ from the none or too many the FAIL recorded, and
     // only trusted people changed the link since. A failed read keeps it.
-    specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList).catch(() => null);
+    specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts).catch(() => null);
     const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
     if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
       return skip("already-judged");
@@ -578,7 +608,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
       return skip("already-judged");
     }
   }
-  specRead ??= await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList);
+  specRead ??= await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts);
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
@@ -652,8 +682,11 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   // A job's log: GitHub answers with a redirect to storage, which is read
   // without the token.
   const send = fetchImpl ?? fetch;
+  // The API request is counted for the job-end api-calls notice; the storage
+  // read it redirects to is not a GitHub API request.
+  const counted = countRequests(send);
   const readLog = async (jobId) => {
-    let response = await send(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
+    let response = await counted(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
       redirect: "manual",
     });
@@ -683,6 +716,9 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     // Admission's task-list marker, from the checkout this script runs from
     // (main's, in pr-verify.yml): a split sub-issue counts only by it.
     taskList: loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"],
+    // The issue lane's web hosts, which pr-verify.yml reads from main's
+    // pr-pipeline.yaml as admission does (resolve-config issueLaneWebHostsFromBase).
+    webHosts: webHostsFrom(env.ISSUE_LANE_WEB_HOSTS),
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
   });

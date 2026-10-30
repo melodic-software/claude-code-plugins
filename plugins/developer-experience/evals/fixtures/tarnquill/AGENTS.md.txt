@@ -1,0 +1,10 @@
+# tarnquill
+
+.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),
+`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).
+
+## Build and test
+
+- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).
+- Check: `make check`.
+- Run the CLI: `make tq ARGS="<command>"`.

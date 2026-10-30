@@ -745,15 +745,19 @@ test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first pu
   assert.equal(runs("schedule", "2"), true);
   assert.equal(runs("schedule", "1", "false"), false);
   // A skipped gate lets the dispatch step run; a checked one must proceed.
-  const dispatches = (outcome, proceed = "") =>
+  const dispatches = (outcome, proceed = "", paced = "false") =>
     evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"), {
       "steps.kill.outputs.proceed": "true",
       "steps.gate.outcome": outcome,
       "steps.gate.outputs.proceed": proceed,
+      "steps.pace.outputs.paced": paced,
     });
   assert.equal(dispatches("skipped"), true);
   assert.equal(dispatches("success", "true"), true);
   assert.equal(dispatches("success", "false"), false);
+  // A tick the burn-rate pacer paces dispatches nothing (log-api-budget/pace.mjs).
+  assert.equal(dispatches("skipped", "", "true"), false);
+  assert.equal(dispatches("skipped", "", ""), true, "a pacer that wrote nothing");
 });
 
 test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {

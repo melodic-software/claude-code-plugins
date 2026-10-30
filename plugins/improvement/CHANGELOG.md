@@ -3,6 +3,28 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6] - 2026-10-29
+
+### Fixed
+
+- **The per-project state key no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lib/state-key.sh` checks the remote identity with a here-string instead of `printf | grep -q`, so under `set -o pipefail` a valid identity can no longer be read as invalid and keyed by hash when grep exits before printf finishes writing.
+
+## [0.3.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [0.3.4] - 2026-10-29
+
+### Added
+
+- The `already-built-disconnected-scan-behavior-present` eval case: the original case with the disconnected-scan heuristic stated in the prompt, run with `--ablation none`, so the pair discriminates when the variant passes `ranked-ahead-of-greenfield` and the original fails it. ([#10184](https://github.com/melodic-software/claude-code-plugins/issues/10184))
+
+### Fixed
+
+- The `already-built-disconnected-scan` eval case drops its `skill-fired` grader: the prompt invokes the skill by its slash command, so firing is not in question, and the grader failed every with-plugin run of the [#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589) discrimination run.
+
 ## [0.3.3] - 2026-10-24
 
 ### Fixed

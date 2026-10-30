@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Check: `make check`.\n- Run the CLI: `make tq ARGS=\"<command>\"`.\n\n<!-- BEGIN GENERATED: plugin-conventions -->\n- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `docs/conventions/developer-experience.md`. Use /developer-experience:build-cli to create a tool or change its interface, and /developer-experience:audit-tools to take stock of or clean up tools; a bug fix inside one needs neither.\n<!-- END GENERATED: plugin-conventions -->\n",
+      "why": "the managed block appended"
+    },
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n  The scripts exit 0 even when `dotnet build` fails.\n- Check: `make check`.\n- Run the CLI: `make tq ARGS=\"<command>\"`.\n\n## The `tq` CLI\n\n- `tq commit`: interactive.",
+      "why": "lines added between and after the scaffold lines, no final newline"
+    },
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Check: `make check`.\n- Run the CLI: `make tq ARGS=\"<command>\"`.",
+      "why": "the scaffold file with its final newline dropped"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Check: `make check` (`dotnet run --project tests/Tarnquill.Core.Checks`).\n- Run the CLI: `make tq ARGS=\"<command>\"`.\n",
+      "why": "near miss: the Check line rewritten in place"
+    },
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Check: `make check`.\n",
+      "why": "the Run the CLI line removed"
+    },
+    {
+      "answer": "# tarnquill\n\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Check: `make check`.\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Run the CLI: `make tq ARGS=\"<command>\"`.\n",
+      "why": "near miss: two lines swapped"
+    },
+    {
+      "answer": "# tarnquill\n.NET 10 solution: `src/Tarnquill.Cli` (the `tq` team CLI), `src/Tarnquill.Core` (shared library),\n`tests/Tarnquill.Core.Checks` (a console project of checks; exit 0 means pass).\n\n## Build and test\n\n- Build: `make build` (runs `scripts/build.sh`; `scripts/build.ps1` on Windows).\n- Check: `make check`.\n- Run the CLI: `make tq ARGS=\"<command>\"`.\n",
+      "why": "near miss: the blank line under the title removed"
+    }
+  ]
+}

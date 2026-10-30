@@ -1,7 +1,15 @@
+Result: clean, nothing changed and nothing under Action needed
 Marketplace: m: current (autoUpdate: on)
 In-repo: skipped: no project context resolved from /w
-Divergences: 67 actionable: 24 pre-existing, 43 newly created by this run (5 by the in-repo update, 38 by the user-scope sweep) → run `/harness-ops:plugins converge`
-Timing: 1s this marketplace; clock resolution: seconds
+Divergences: 67 actionable
+  24 pre-existing
+  43 newly created by this run
+    5 by the in-repo update
+    38 by the user-scope sweep
+  remedy: run `/harness-ops:plugins converge`
+Timing: 1s this marketplace
+  clock resolution: seconds
 
 Run journal: /r
-Timing: 1s run total; clock resolution: seconds
+Timing: 1s run total
+  clock resolution: seconds

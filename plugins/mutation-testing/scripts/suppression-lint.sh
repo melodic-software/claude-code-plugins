@@ -409,7 +409,7 @@ for record in "${records[@]}"; do
   [[ -r "$path" ]] || die "record is not readable: $record"
 
   stream="$(parse_record "$path")"
-  if printf '%s\n' "$stream" | grep -q "^F$TAB"; then
+  if grep -q "^F$TAB" <<<"$stream"; then
     printf '%s\n' "$stream" | sed -n "s/^F$TAB/unparseable: /p" >&2
     die "cannot grade $record"
   fi

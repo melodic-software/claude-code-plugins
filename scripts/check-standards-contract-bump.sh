@@ -26,9 +26,13 @@ cd "$script_dir/.."
 # shellcheck source=lib/changelog-fragments.sh
 . "$script_dir/lib/changelog-fragments.sh" || exit 2
 
-src="docs/conventions/standards/README.md"
-schema="docs/conventions/standards/standards.schema.json"
-changelog="docs/conventions/standards/CHANGELOG.md"
+# The contract moved from docs/conventions/, which keeps a stub; the old home is
+# read only when the new one has no README.
+home="docs/contracts/standards"
+[[ -f "$home/README.md" ]] || home="docs/conventions/standards"
+src="$home/README.md"
+schema="$home/standards.schema.json"
+changelog="$home/CHANGELOG.md"
 
 base="${1:-}"
 if [[ -z "$base" ]]; then

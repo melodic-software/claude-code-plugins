@@ -148,7 +148,7 @@ classify_tier() {
   case "$path" in
   */.claude/rules/*.md | .claude/rules/*.md)
     fm="$(frontmatter "$path")"
-    if printf '%s\n' "$fm" | grep -Eq '^[[:space:]]*paths[[:space:]]*:'; then
+    if grep -Eq '^[[:space:]]*paths[[:space:]]*:' <<<"$fm"; then
       printf 'invocation'
     else
       printf 'always'

@@ -1,0 +1,36 @@
+using Tarnquill.Cli.Commands;
+
+namespace Tarnquill.Cli;
+
+public static class Program
+{
+    public static int Main(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            PrintUsage();
+            return 2;
+        }
+
+        switch (args[0])
+        {
+            case "commit":
+                return CommitCommand.Run();
+            case "item" when args.Length > 1 && args[1] == "comment":
+                return ItemCommentCommand.Run(args[2..]);
+            case "env" when args.Length > 1 && args[1] == "check":
+                return EnvCheckCommand.Run();
+            default:
+                PrintUsage();
+                return 2;
+        }
+    }
+
+    private static void PrintUsage()
+    {
+        Console.Error.WriteLine("usage: tq <command>");
+        Console.Error.WriteLine("  commit                          interactive commit (asks for type and message)");
+        Console.Error.WriteLine("  item comment <id> --body <text> post a comment on a tracker item");
+        Console.Error.WriteLine("  env check                       check that required tools are installed");
+    }
+}

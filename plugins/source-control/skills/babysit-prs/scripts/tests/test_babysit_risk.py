@@ -29,6 +29,7 @@ from babysit_risk import (
     holding,
     holds,
     normalize_path,
+    person_reasons,
     score,
 )
 
@@ -282,7 +283,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 5, "gate": 27, "enforcement": 43},
+            {"trust": 19, "gate": 48, "enforcement": 41},
         )
         self.assertEqual(
             babysit_risk.HIGH_FLOOR,
@@ -379,14 +380,14 @@ class HighReasonTests(unittest.TestCase):
     def test_paths_off_the_floor_take_no_path_code(self):
         # Owner direction 2026-10-23: only a takeover path waits for the owner.
         for path in (
-            ".claude/settings.json",
             "plugins/foo/settings.local.json",
             "package.json",
             "plugins/foo/package-lock.json",
             "plugins/foo/requirements.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-review-security-hosted.yml",
-            ".github/workflows/work-resolve-issue.yml",
+            # Workflows with no write token, secret or lane token; one that
+            # holds any is a `gate` path.
+            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
                 codes = _codes(score(_input(files=(_file(path),))))
@@ -479,7 +480,8 @@ class OrderingTests(unittest.TestCase):
         )
         files = (
             _file("CODEOWNERS"),
-            _file(".gitmodules", has_patch=False),
+            _file(".gitmodules"),
+            _file("plugins/foo/logo.png", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
         result = score(
@@ -499,7 +501,7 @@ class OrderingTests(unittest.TestCase):
                 "files-incomplete",
                 "findings:claude-review",
                 "lines-over",
-                "no-patch:.gitmodules",
+                "no-patch:plugins/foo/logo.png",
             ),
         )
 
@@ -1156,19 +1158,21 @@ def _lane_config():
     )
 
 
-def _lane_input(files):
+def _lane_input(files, **changes):
     """The pr-merge lane's input under this repository's own
     docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it."""
+    wires it; `changes` overrides a switch."""
     config = _lane_config()
-    return _input(
-        files=files,
-        max_changed_lines=config.max_changed_lines,
-        high_paths=config.denied_paths,
-        high_floor=config.high_path_floor,
-        max_changed_files=config.max_changed_files,
-        lines_optional=True,
-    )
+    wired = {
+        "files": files,
+        "max_changed_lines": config.max_changed_lines,
+        "high_paths": config.denied_paths,
+        "high_floor": config.high_path_floor,
+        "path_holds": config.path_holds,
+        "max_changed_files": config.max_changed_files,
+        "lines_optional": True,
+    }
+    return _input(**(wired | changes))
 
 
 class LanePathFloorTests(unittest.TestCase):
@@ -1177,10 +1181,12 @@ class LanePathFloorTests(unittest.TestCase):
     (B) and Q-ENFORCE (A)); the trust gate still holds the trusted-actor
     list."""
 
-    def test_the_live_config_has_the_floor_off(self):
+    def test_the_live_config_has_the_floor_and_path_holds_off(self):
+        # Owner decision Q15: path holds off until open issues and PRs reach 0.
         self.assertIs(_lane_config().high_path_floor, False)
+        self.assertIs(_lane_config().path_holds, False)
 
-    def test_the_floor_holds_with_the_switch_off(self):
+    def test_the_floor_holds_with_path_holds_on_and_is_skipped_live(self):
         for path in (
             ".gitmodules",
             ".github/CODEOWNERS",
@@ -1237,9 +1243,17 @@ class LanePathFloorTests(unittest.TestCase):
                     _lane("claude-security-review", open_findings=1),
                 )
                 result = score(
-                    dataclasses.replace(_lane_input((_file(path),)), lanes=unreviewed)
+                    _lane_input((_file(path),), lanes=unreviewed, path_holds=True)
                 )
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
+                self.assertTrue(
+                    any(babysit_risk.is_path_hold(r) for r in result.reasons)
+                )
+                live = score(_lane_input((_file(path),), lanes=unreviewed))
+                self.assertFalse(
+                    any(babysit_risk.is_path_hold(r) for r in live.reasons)
+                )
+                self.assertNotEqual(live.skipped, ())
 
     def test_trusted_paths_off_the_floor_merge(self):
         for path in (
@@ -1258,22 +1272,19 @@ class LanePathFloorTests(unittest.TestCase):
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
+        # `.claude/rules/**` left this list under owner decision Q11
+        # (2026-10-28): agent settings and instruction files stay gated.
         for path in (
-            "AGENTS.md",
-            "CLAUDE.md",
             "prompts/x.md",
-            ".claude/rules/x.md",
             "plugins/foo/hooks/hooks.json",
             "plugins/foo/hooks/guard.sh",
             "plugins/foo/bin/tool",
             "plugins/foo/lib/x.sh",
             "plugins/foo/scripts/run.py",
             "plugins/foo/skills/bar/scripts/run.ps1",
-            "plugins/foo/.mcp.json",
             "plugins/foo/.lsp.json",
             "plugins/foo/monitors/monitors.json",
             "docs/conventions/x.md",
-            "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
@@ -1290,13 +1301,11 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
-            ".claude/settings.json",
-            "plugins/foo/.claude/settings.local.json",
             "package.json",
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
@@ -1311,9 +1320,10 @@ class LanePathFloorTests(unittest.TestCase):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
         self.assertEqual(
-            _codes(score(_lane_input(files))),
+            _codes(score(_lane_input(files, path_holds=True))),
             ("high-path:docs/conventions/pr-pipeline.yaml", "cost-finding"),
         )
+        self.assertEqual(_codes(score(_lane_input(files))), ("cost-finding",))
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1575,6 +1585,20 @@ class PersonReasonsTests(unittest.TestCase):
         self.assertFalse(holds(result), result.reasons)
         self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
 
+    def test_a_file_no_review_could_read_holds_for_a_person(self):
+        # git calls a script with an early NUL byte binary, so the files API
+        # sends no patch and no review read what node or bash would run.
+        for path in (".github/scripts/pr-unblock/x.mjs", "scripts/x.sh", "data.bin"):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path, has_patch=False),)))
+                persons = [r.code for r in babysit_risk.person_reasons(holding(result))]
+                self.assertIn(f"unreviewed-patch:{path}", persons)
+                self.assertNotIn(f"no-patch:{path}", _codes(result))
+        for path in ("docs/a.PNG", "fonts/x.woff2", "paper.pdf"):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path, has_patch=False),)))
+                self.assertFalse(holds(result), result.reasons)
+
     def test_a_listing_past_the_files_api_cap_holds_for_a_person(self):
         capped = score(_input(files_complete=False, files_capped=True))
         self.assertEqual(
@@ -1712,7 +1736,7 @@ class TrustGateTests(unittest.TestCase):
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/scripts/pr-merge/gate.mjs",
-            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/pr-test-windows.yml",
             ".github/standards/trusted-actors/README.md",
             "plugins/foo/trusted-actors/trusted-actors.json",
         ):
@@ -1740,8 +1764,10 @@ class ReviewFlagClassTests(unittest.TestCase):
         self.assertTrue(holds(result))
 
     def test_subscription_spend_is_reported_and_does_not_hold(self):
-        patch = "@@ -1,1 +1,2 @@\n on: push\n+  claude_args: --model opus"
-        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        patch = "@@ -1,1 +1,2 @@\n lanes:\n+  model: opus"
+        result = score(
+            _input(files=(_file("conventions/pr-pipeline.yaml", patch=patch),))
+        )
         self.assertEqual(_codes(result), ("cost-finding",))
         self.assertFalse(holds(result))
 
@@ -1782,7 +1808,303 @@ class ReviewFlagClassTests(unittest.TestCase):
 
 def _floor_sample(glob):
     """A path the floor glob `glob` matches."""
-    return glob.removeprefix("**/").replace("**", "x.mjs")
+    return glob.removeprefix("**/").replace("**", "x.mjs").replace("*", "")
+
+
+_REPO = pathlib.Path(__file__).resolve().parents[6]
+
+
+def _credentialed(text: str) -> bool:
+    """Whether workflow text holds a credential beyond its job's GITHUB_TOKEN
+    (owner decision Q11 (A)): a secret other than GITHUB_TOKEN, a lane token,
+    or an OIDC token, read independently of babysit_risk."""
+    import re
+
+    import yaml
+
+    data = yaml.safe_load(text)
+    perms = [data.get("permissions")] + [
+        job.get("permissions") for job in (data.get("jobs") or {}).values()
+    ]
+    oidc = any(isinstance(p, dict) and p.get("id-token") == "write" for p in perms)
+    # `actions: write` dispatches the gated credentialed workflows; write-all
+    # grants it and id-token both.
+    dispatch = any(
+        p == "write-all" or (isinstance(p, dict) and p.get("actions") == "write")
+        for p in perms
+    )
+    code = "\n".join(
+        line.split(" #")[0]
+        for line in text.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    secrets = {m.casefold() for m in re.findall(r"secrets\.([A-Za-z0-9_]+)", code)}
+    lane_token = any(
+        "request-lane-token" in str(step.get("uses", ""))
+        for job in (data.get("jobs") or {}).values()
+        for step in job.get("steps") or ()
+    )
+    return oidc or dispatch or bool(secrets - {"github_token"}) or lane_token
+
+
+class SecretRefReadsExpressions(unittest.TestCase):
+    def test_a_bare_secrets_context_inside_an_expression_is_a_reference(self):
+        # Only the `${{ }}` alternative of `_SECRET_REF` matches these shapes.
+        for line in (
+            "${{ secrets }}",
+            "${{ contains(secrets, 'A') }}",
+            "${{ secrets || 'x' }}",
+            "${{ secrets.X }}",
+        ):
+            with self.subTest(line=line):
+                self.assertTrue(babysit_risk._SECRET_REF.search(line))
+
+
+@unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
+class CredentialedWorkflowsAreGate(unittest.TestCase):
+    """Owner decision Q11 (A), 2026-10-28: the workflow `gate` class keeps
+    only the review workflows, ci-status, those that hold a credential beyond
+    the job's GITHUB_TOKEN and those whose token can dispatch them
+    (`actions: write`); any other job-token writer leaves it, its widenings
+    still held by patch. Membership is derived from the files
+    (scripts/sync-hold-floor.py `gate_workflows`), never kept by hand."""
+
+    def gate(self):
+        return {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+
+    def test_the_gate_is_exactly_the_credentialed_and_review_workflows(self):
+        found = sorted((_REPO / ".github/workflows").glob("*.yml"))
+        self.assertGreater(len(found), 20)
+        held_count = 0
+        for wf in found:
+            path = wf.relative_to(_REPO).as_posix()
+            want = (
+                wf.stem.startswith("pr-review")
+                or wf.stem == "pr-require-checks"
+                or _credentialed(wf.read_text())
+            )
+            held_count += want
+            with self.subTest(path):
+                self.assertEqual(path in self.gate(), want)
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(
+                    f"high-path:{path}"
+                    in [r.code for r in person_reasons(result.reasons)],
+                    want,
+                )
+        # ci-status, and the job-token dispatchers of gated workflows, are in.
+        for name in ("pr-require-checks", "intake-reenter", "pr-feedback-dispatch"):
+            self.assertIn(f".github/workflows/{name}.yml", self.gate())
+        self.assertLess(held_count, len(found))
+
+    def test_ci_status_holds_for_a_person_after_its_authors_clean_review(self):
+        # It posts ci-status and holds the hold step: a model verdict, or a
+        # trusted author's own commits, never clear it.
+        path = ".github/workflows/pr-require-checks.yml"
+        self.assertEqual(dict(babysit_risk.FLOOR_CLASSES).get(path), "gate")
+        result = score(_input(files=(_file(path),), author_reviewed=frozenset({path})))
+        self.assertIn(
+            f"high-path:{path}", [r.code for r in person_reasons(result.reasons)]
+        )
+        self.assertNotIn(f"review-path:{path}", _codes(result))
+        # Named by file, so trimming its permissions keeps it gated.
+        self.assertTrue(babysit_risk.gated_workflow("pr-require-checks", "on: push\n"))
+
+    def test_actions_write_moves_an_ungated_workflow_into_the_gate(self):
+        # It can dispatch a gated credentialed workflow.
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "    permissions:\n      actions: write\n",
+            "    permissions:\n      actions: write # dispatch y.yml\n",
+            "    permissions:\n      'actions': 'write'\n",
+            '    permissions:\n      "actions": "write"\n',
+            "    permissions: {actions: write, contents: read}\n",
+            "    permissions: write-all\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                top = text.replace("jobs:", added.replace("    ", "", 1) + "jobs:")
+                self.assertTrue(babysit_risk.gated_workflow("x", top))
+        for plain in (
+            "    permissions:\n      actions: read\n",
+            "    permissions:\n      contents: write\n",
+            "    permissions:\n      # actions: write\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+
+    def test_a_secret_moves_an_ungated_workflow_into_the_gate(self):
+        text = "name: x\non: push\npermissions:\n  contents: write\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ${{ secrets.GITHUB_TOKEN }}\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "      - run: echo ${{ secrets.DEPLOY_KEY }}\n",
+            "      - run: echo ${{ toJSON(secrets) }}\n",
+            # The object filter form.
+            "      - env:\n          ALL: ${{ secrets.* }}\n",
+            "      - run: echo ${{ secrets['DEPLOY'] }}\n",
+            # An expression whose span holds a lone `}`, across lines too.
+            "      - run: echo ${{ format('{0}', secrets.DEPLOY_KEY) }}\n",
+            "      - run: echo ${{ github.x == '}' || secrets.DEPLOY_KEY }}\n",
+            "      - run: |\n          echo ${{ format('{0}',\n            secrets.DEPLOY_KEY) }}\n",
+            # An `if:` reads the context without `${{ }}`.
+            "    if: toJSON(secrets) != ''\n",
+            # write-all sets every permission, id-token among them.
+            "    permissions: write-all\n",
+            "      - uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[x]\n",
+            "    permissions:\n      id-token: write\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        # The job token itself, or the word inside a string or a name, is not.
+        for plain in (
+            "      - run: echo ${{ secrets['github_token'] }}\n",
+            "      - name: Scan for secrets\n",
+            "    if: ${{ contains(x, 'test-windows-secrets') }}\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+        # A comment or a quoted path naming one is no credential.
+        self.assertFalse(
+            babysit_risk.gated_workflow(
+                "x",
+                text
+                + "  # secrets.DEPLOY_KEY\n      - run: echo '.github/actions/request-lane-token/*'\n",
+            )
+        )
+
+    def test_a_hash_inside_quotes_or_a_block_scalar_hides_no_secret(self):
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n"
+        for added in (
+            '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: echo 'a #b ${{ secrets.DEPLOY }}'\n",
+            '      - env:\n          K: "a #b ${{ secrets.DEPLOY }}"\n',
+            # A quoted scalar's later lines.
+            '      - run: "echo a\n          #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: >-\n          echo a\n          # ${{ secrets.DEPLOY }}\n",
+            "      - name: y\n        run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            # An anchor or tag before the scalar.
+            "      - run: &s |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: !!str |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            '      - env:\n          K: &k "a\n            #b ${{ secrets.DEPLOY }}"\n',
+            # A flow mapping's value right after a quoted key's `:`.
+            '    env: {"K":"x\n      #b ${{ secrets.DEPLOY }}"}\n',
+            "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        for plain in (
+            "      # ${{ secrets.DEPLOY }}\n      - run: echo a\n",
+            "      - run: echo a # ${{ secrets.DEPLOY }}\n",
+            "      - run: 'echo a' # ${{ secrets.DEPLOY }}\n",
+            # A block scalar ends at its key's indent.
+            "      - run: |\n          echo a\n        env: {} # ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+
+    def test_the_generator_puts_a_newly_credentialed_workflow_on_the_floor(self):
+        import importlib.util
+        import shutil
+        import tempfile
+
+        spec = importlib.util.spec_from_file_location(
+            "sync_hold_floor", _REPO / "scripts/sync-hold-floor.py"
+        )
+        sync = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sync)
+        with tempfile.TemporaryDirectory() as tmp:
+            workflows = pathlib.Path(tmp)
+            for wf in (_REPO / ".github/workflows").glob("*.yml"):
+                shutil.copy(wf, workflows / wf.name)
+            plain = workflows / "pr-test-windows.yml"
+            self.assertNotIn(".github/workflows/pr-test-windows.yml", self.gate())
+            plain.write_text(
+                plain.read_text() + "\n# added\nenv:\n  K: ${{ secrets.NEW_KEY }}\n"
+            )
+            original = sync.WORKFLOWS
+            sync.WORKFLOWS = workflows
+            try:
+                rows = dict(sync.floor_classes())
+            finally:
+                sync.WORKFLOWS = original
+            self.assertEqual(rows.get(".github/workflows/pr-test-windows.yml"), "gate")
+
+    def test_dropping_a_review_workflow_from_the_class_fails_the_check(self):
+        # The committed table must match what the generator derives, so a
+        # hand edit that drops a review workflow is a stale copy.
+        for name in ("pr-review-hosted", "pr-review-security-hosted", "pr-review-main"):
+            path = f".github/workflows/{name}.yml"
+            with self.subTest(name):
+                self.assertIn(path, self.gate())
+                risk_file = (
+                    _REPO
+                    / "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"
+                )
+                text = risk_file.read_text()
+                row = f'    ("{path}", "gate"),\n'
+                self.assertIn(row, text)
+                import importlib.util
+
+                spec = importlib.util.spec_from_file_location(
+                    "sync_hold_floor", _REPO / "scripts/sync-hold-floor.py"
+                )
+                sync = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(sync)
+                tampered = text.replace(row, "")
+                self.assertNotEqual(
+                    sync.generate(sync.RISK, tampered), tampered, "the check passes"
+                )
+
+    def test_what_agents_may_do_or_reviews_judge_against_holds_for_a_person(self):
+        # Coordinator decision 2026-10-28 on #10743: these change what agents
+        # may do unattended (AGENTS.md: ask the owner first) or what later
+        # reviews judge against, so an AI review alone does not clear them.
+        for path in (
+            ".claude/settings.json",
+            "plugins/foo/.claude/settings.local.json",
+            ".mcp.json",
+            "plugins/foo/.mcp.json",
+            "CLAUDE.md",
+            "plugins/foo/CLAUDE.md",
+            "CLAUDE.local.md",
+            "AGENTS.md",
+            "plugins/foo/skills/bar/AGENTS.md",
+            "REVIEW.md",
+            "docs/standards/README.md",
+            # Owner decision Q11 (2026-10-28), superseding 2026-10-22's.
+            ".claude/rules/x.md",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                persons = [r.code for r in person_reasons(result.reasons)]
+                self.assertTrue(
+                    any(c.startswith("high-path:") for c in persons), persons
+                )
+        for path in (
+            "plugins/foo/.lsp.json",
+            "docs/REVIEW.md.bak",
+        ):
+            with self.subTest(path):
+                codes = _codes(score(_input(files=(_file(path),))))
+                self.assertFalse(
+                    [c for c in codes if c.startswith("high-path:")], codes
+                )
+
+    def test_the_main_run_reviews_own_scripts_hold_for_a_person(self):
+        # Its verdict writer sets the counts the gate trusts, so a change to
+        # it is not one a review it produces may clear.
+        for path in (
+            ".github/scripts/pr-review-main/write-verdict.mjs",
+            ".github/scripts/pr-review-main/prompt.md",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertIn(
+                    "high-path:.github/scripts/pr-review-main/**",
+                    [r.code for r in person_reasons(result.reasons)],
+                )
 
 
 class ReviewClearedFloorTests(unittest.TestCase):
@@ -1796,7 +2118,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 43)
+        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 41)
         for glob in babysit_risk.REVIEW_FLOOR:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
@@ -1857,34 +2179,257 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 result = self._score(
                     _floor_sample(glob), (_lane("claude-security-review"),)
                 )
-                self.assertEqual(_codes(result), (f"high-path:{glob}",))
+                # Globs may overlap (`settings*.json` and `*.json`): each
+                # sample holds by its own glob, and by nothing a review clears.
+                self.assertIn(f"high-path:{glob}", _codes(result))
+                self.assertTrue(
+                    all(c.startswith("high-path:") for c in _codes(result)),
+                    _codes(result),
+                )
                 self.assertTrue(holds(result))
 
-    def test_a_review_caller_workflow_change_unbinds_the_review(self):
-        # A review caller stays a lane source whatever its content
-        # (babysit_review_evidence.REVIEW_CALLERS), so no lane binds and the
-        # enforcement path stays held.
+    def test_a_review_caller_workflow_change_holds_for_a_person(self):
+        # A review caller is a gate path: the review cannot judge the file
+        # that runs it, whatever a main-run review says.
         import babysit_review_evidence
 
         path = B + "babysit_verify_evidence.py"
-        changed = [path, ".github/workflows/pr-review-security-hosted.yml"]
+        caller = ".github/workflows/pr-review-security-hosted.yml"
         lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=changed
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller]
         )
         self.assertEqual(
             {lane.unbound_reason for lane in lanes}, {"lane-source-changed"}
         )
-        files = tuple(_file(each) for each in changed)
+        files = (_file(path), _file(caller))
         result = score(_input(files=files, lanes=lanes))
-        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{path}", _codes(result))
+        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
+        self.assertIn(f"high-path:{caller}", persons)
+        self.assertIn(f"review-path:{path}", _codes(result))
         self.assertTrue(holds(result))
 
 
-class UnbindableReviewPathTests(unittest.TestCase):
-    """Owner decision Q26 option B, follow-up: an enforcement path whose
-    security review can never bind at this head, because the pull request
-    also changes a lane source (`lane-source-changed`), is a person's
-    reason; a review not yet run or not read stays a lane's."""
+class AuthorReviewedGatePathTests(unittest.TestCase):
+    """Owner direction 2026-10-27: a `gate` path a trusted person's own
+    commits alone touched, on a head pr-verify passed
+    (`RiskInput.author_reviewed`, built by
+    `babysit_merge_policy.author_reviewed_paths`), clears on the evidence that
+    clears an `enforcement` path; a `trust` path, and a gate path not in
+    `author_reviewed`, still hold for a person."""
+
+    GATE = ".github/scripts/pr-merge/who.mjs"
+    TRUST = ".github/actions/request-lane-token/action.yml"
+    # What the token broker loads to scope a lane token: never the lift's.
+    TOKEN_SCOPE = (
+        ".github/actions/resolve-config/resolve.mjs",
+        ".github/actions/resolve-config/effect-grants.json",
+        ".github/actions/resolve-config/lane-rules.json",
+        ".github/actions/resolve-config/activity-rules.json",
+    )
+    # Its activities' `effect:` values and lane slots decide what the broker
+    # mints, so it is token scope too.
+    PIPELINE = "docs/conventions/pr-pipeline.yaml"
+
+    def _score(self, path, security, reviewed=_UNSET, **changes):
+        lanes = (_lane("claude-review"), *security)
+        reviewed = frozenset({path}) if reviewed is _UNSET else reviewed
+        return score(
+            _input(
+                files=(_file(path),), lanes=lanes, author_reviewed=reviewed, **changes
+            )
+        )
+
+    def test_a_clean_bound_security_review_clears_a_reviewed_gate_path(self):
+        result = self._score(self.GATE, (_lane("claude-security-review"),))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        self.assertFalse(holds(result))
+
+    def test_a_token_scope_path_holds_for_a_person_after_a_clean_review(self):
+        # Owner decision 2026-10-28: an agent commits as the trusted owner,
+        # so a PR that widens a lane token's scope must still wait for a
+        # person, whatever author_reviewed says.
+        paths = (self.GATE, *self.TOKEN_SCOPE)
+        result = score(
+            _input(
+                files=tuple(_file(p) for p in paths),
+                lanes=(_lane("claude-review"), _lane("claude-security-review")),
+                author_reviewed=frozenset(paths),
+            )
+        )
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/resolve-config/**",)
+        )
+        self.assertEqual(result.reasons[0].detail, ", ".join(self.TOKEN_SCOPE))
+        self.assertTrue(holds(result))
+
+    def test_the_pipeline_config_holds_for_a_person_after_a_clean_review(self):
+        result = self._score(self.PIPELINE, (_lane("claude-security-review"),))
+        self.assertIn(f"high-path:{self.PIPELINE}", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_the_lift_and_hold_table_code_holds_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise widen the lift or drop a floor
+        # row on a clean review, and the next PR would take the wider lift.
+        for path in (
+            B + "babysit_risk.py",
+            B + "babysit_review_evidence.py",
+            B + "babysit_merge_policy.py",
+            B + "babysit_merge.py",
+            ".github/scripts/pr-merge/merge-holds.mjs",
+            "scripts/sync-hold-floor.py",
+        ):
+            with self.subTest(path=path):
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertIn(f"high-path:{path}", _codes(result))
+                self.assertTrue(holds(result))
+
+    def test_the_hold_applying_scripts_hold_for_a_person_after_a_clean_review(self):
+        # An owner-signed PR could otherwise weaken a hold these scripts
+        # apply on a clean review, and the weakened script would judge every
+        # later PR.
+        for name in (
+            "enable-auto-merge",
+            "superseded",
+            "clear-escalations",
+            "gate-check",
+            "head-ref-map",
+        ):
+            path = f".github/scripts/pr-merge/{name}.mjs"
+            with self.subTest(path=path):
+                self.assertNotIn(path, babysit_risk.AUTHOR_REVIEW_FLOOR)
+                result = self._score(path, (_lane("claude-security-review"),))
+                self.assertEqual(_codes(result), (f"high-path:{path}",))
+                self.assertTrue(holds(result))
+
+    def test_a_reviewed_gate_path_holds_without_a_clean_review_of_this_head(self):
+        security = "claude-security-review"
+        cases = {
+            # bind finds no security run at this head when the clean review
+            # is of an older one.
+            "a review of an older head": (
+                _lane(security, bound=False, unbound_reason="no-run"),
+            ),
+            "a CRITICAL finding": (
+                LaneEvidence(security, True, None, 1, blocking_findings=1),
+            ),
+            "no security review": (),
+        }
+        for name, lanes in cases.items():
+            with self.subTest(name):
+                result = self._score(self.GATE, lanes)
+                self.assertEqual(
+                    [c for c in _codes(result) if self.GATE in c],
+                    [f"review-path:{self.GATE}"],
+                )
+                self.assertTrue(holds(result))
+
+    def test_a_gate_path_outside_author_reviewed_holds_for_a_person(self):
+        result = self._score(
+            self.GATE, (_lane("claude-security-review"),), reviewed=frozenset()
+        )
+        self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_a_trust_path_holds_for_a_person_whatever_author_reviewed_says(self):
+        result = self._score(self.TRUST, (_lane("claude-security-review"),))
+        self.assertEqual(
+            _codes(result), ("high-path:.github/actions/request-lane-token/**",)
+        )
+        self.assertTrue(holds(result))
+
+    def test_a_configured_denied_path_keeps_its_hold(self):
+        result = self._score(
+            self.GATE,
+            (_lane("claude-security-review"),),
+            high_paths=(".github/scripts/**",),
+        )
+        self.assertEqual(
+            _codes(result),
+            ("high-path:.github/scripts/**", f"high-path:{self.GATE}"),
+        )
+
+    def test_the_reviews_own_surface_never_takes_the_lift(self):
+        # Owner decision Q11 (A): a person approves a PR that edits a review
+        # or credentialed workflow, the main-run review's scripts, or an agent
+        # settings or instruction file, whoever wrote it and whatever its
+        # review found.
+        paths = (
+            ".github/workflows/pr-review-main.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/scripts/pr-review-main/write-verdict.mjs",
+            "CLAUDE.md",
+            ".claude/settings.json",
+            # A hook script settings registers (owner session decision Q2).
+            ".claude/hooks/block-push.sh",
+            "plugins/x/.claude/hooks/a.mjs",
+            # A hook outside hooks/, skills, agents, commands, and the
+            # review's own criteria.
+            ".claude/cloud-bootstrap.sh",
+            ".claude/skills/control-claude-code-plugins/SKILL.md",
+            ".claude/agents/x.md",
+            ".claude/commands/x.md",
+            # Owner decision Q11 (2026-10-28): agent settings and instruction
+            # files stay gated, superseding the 2026-10-22 direction for rules.
+            ".claude/rules/cost-claims.md",
+            "plugins/x/.claude/rules/a.md",
+            ".claude/ai-slop.json",
+            ".claude/source-control.md",
+            ".claude-lane/profile.json",
+            # Every name and depth under .claude (owner decision Q11).
+            ".claude/output-styles/terse.md",
+            ".claude/code-metrics.yaml",
+            ".claude/agent-memory/x/MEMORY.md",
+            "plugins/x/.claude/a/b/c.txt",
+            "plugins/x/.claude-lane/profile.json",
+            "docs/conventions/instruction-exception-register/README.md",
+            "docs/conventions/untrusted-content/README.md",
+            "docs/standards/README.md",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(
+                    any(
+                        babysit_risk.glob_match(g, path)
+                        for g in babysit_risk.HIGH_FLOOR
+                    ),
+                    path,
+                )
+                self.assertFalse(
+                    any(
+                        babysit_risk.glob_match(g, path)
+                        for g in babysit_risk.AUTHOR_REVIEW_FLOOR
+                    )
+                )
+                result = self._score(path, (_lane("claude-security-review"),))
+                person = babysit_risk.person_reasons(result.reasons)
+                self.assertTrue(
+                    [r for r in person if r.code.startswith("high-path:")],
+                    _codes(result),
+                )
+                self.assertTrue(holds(result))
+
+    def test_an_unreadable_author_reviewed_lifts_nothing(self):
+        for value in (None, [self.GATE], "x", frozenset({1})):
+            with self.subTest(value=value):
+                result = self._score(
+                    self.GATE, (_lane("claude-security-review"),), reviewed=value
+                )
+                self.assertEqual(_codes(result), (f"high-path:{self.GATE}",))
+
+    def test_enforcement_paths_are_unchanged(self):
+        path = B + "babysit_gh.py"
+        for reviewed in (frozenset(), frozenset({path})):
+            with self.subTest(reviewed=reviewed):
+                clean = self._score(path, (_lane("claude-security-review"),), reviewed)
+                self.assertEqual(clean.score, Risk.LOW)
+                held = self._score(path, (), reviewed)
+                self.assertIn(f"review-path:{path}", _codes(held))
+
+
+class LaneSourceReviewPathTests(unittest.TestCase):
+    """An enforcement path in a pull request that also changes a lane source
+    waits for the security review that binds from main
+    (babysit_review_evidence `_main_bound`): until then it is the lane's
+    `review-path:` hold, never a person's."""
 
     PATH = B + "babysit_verify_evidence.py"
 
@@ -1892,38 +2437,15 @@ class UnbindableReviewPathTests(unittest.TestCase):
         lanes = (_lane("claude-review"), security)
         return score(_input(files=(_file(self.PATH),), lanes=lanes))
 
-    def test_a_lane_source_change_makes_the_hold_a_persons(self):
-        security = _lane(
-            "claude-security-review", bound=False, unbound_reason="lane-source-changed"
-        )
-        result = self._score(security)
-        code = f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}"
-        self.assertIn(code, _codes(result))
-        self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
-        self.assertTrue(holds(result))
-        self.assertIn(
-            code, [r.code for r in babysit_risk.person_reasons(result.reasons)]
-        )
-
-    def test_a_workflow_change_through_bind_is_a_persons(self):
-        import babysit_review_evidence
-
-        changed = [self.PATH, ".github/workflows/pr-review-security-hosted.yml"]
-        lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=changed
-        )
-        result = score(_input(files=tuple(_file(p) for p in changed), lanes=lanes))
-        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
-        self.assertIn(f"{babysit_risk.UNBINDABLE_PATH_PREFIX}{self.PATH}", persons)
-
-    def test_a_transient_unbind_stays_a_lanes(self):
-        for reason in ("no-run", "evidence-error", "changed-files-unread", None):
+    def test_an_unbound_review_holds_as_the_lanes(self):
+        for reason in ("lane-source-changed", "no-run", "evidence-error", None):
             with self.subTest(reason):
                 security = _lane(
                     "claude-security-review", bound=False, unbound_reason=reason
                 )
                 result = self._score(security)
                 self.assertIn(f"review-path:{self.PATH}", _codes(result))
+                self.assertTrue(holds(result))
                 self.assertEqual(
                     [
                         r.code
@@ -1933,10 +2455,53 @@ class UnbindableReviewPathTests(unittest.TestCase):
                     [],
                 )
 
-    def test_a_lane_source_change_on_the_code_lane_alone_is_not_enough(self):
-        lanes = (
-            _lane("claude-review", bound=False, unbound_reason="lane-source-changed"),
-            _lane("claude-security-review", bound=False, unbound_reason="no-run"),
+    def test_a_clean_bound_review_clears_it(self):
+        result = self._score(_lane("claude-security-review"))
+        self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
+        self.assertFalse(holds(result))
+
+
+class PathHoldsSwitchTests(unittest.TestCase):
+    """`merge.diff-check.path-holds` (owner decision Q15): off, a changed
+    path holds nothing for its path alone; on, the floor holds as before;
+    a cost path and an unsafe path hold either way."""
+
+    GATE = ".github/scripts/pr-merge/clear-escalations.mjs"
+    WORKFLOW = ".github/workflows/pr-merge.yml"
+    # The security review unbound, so an enforcement path is not cleared.
+    UNREVIEWED = (_lane("claude-review"), _lane("claude-security-review", bound=False))
+
+    def _paths(self, result):
+        return [r.code for r in result.reasons if babysit_risk.is_path_hold(r)]
+
+    def test_off_a_gate_script_change_gets_no_path_hold(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=False))
+        self.assertEqual(self._paths(result), [])
+        self.assertFalse(holds(result))
+        self.assertEqual([r.code for r in result.skipped], [f"high-path:{self.GATE}"])
+
+    def test_on_a_gate_script_change_holds_for_a_person(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=True))
+        self.assertEqual(self._paths(result), [f"high-path:{self.GATE}"])
+        self.assertTrue(holds(result))
+        self.assertEqual(result.skipped, ())
+
+    def test_off_a_workflow_change_gets_no_path_hold(self):
+        files = (_file(self.WORKFLOW),)
+        on = score(_input(files=files, lanes=self.UNREVIEWED))
+        self.assertNotEqual(self._paths(on), [])
+        off = score(_input(files=files, lanes=self.UNREVIEWED, path_holds=False))
+        self.assertEqual(self._paths(off), [])
+        self.assertEqual(sorted(r.code for r in off.skipped), sorted(self._paths(on)))
+
+    def test_off_a_cost_path_still_holds(self):
+        result = score(_input(files=(_file("infra/main.tf"),), path_holds=False))
+        self.assertIn("cost-review-required", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_off_an_unsafe_path_still_holds(self):
+        result = score(
+            _input(files=(_file("docs/a", mode="120000"),), path_holds=False)
         )
-        result = score(_input(files=(_file(self.PATH),), lanes=lanes))
-        self.assertIn(f"review-path:{self.PATH}", _codes(result))
+        self.assertIn("high-path:**", _codes(result))
+        self.assertTrue(holds(result))

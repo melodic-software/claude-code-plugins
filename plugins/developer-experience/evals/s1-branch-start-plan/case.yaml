@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: s1-branch-start-plan
+context:
+  scaffold_script: scaffold.sh

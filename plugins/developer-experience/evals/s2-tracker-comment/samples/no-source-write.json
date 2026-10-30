@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {"answer": [], "why": "no write"},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/notes.md", "content": "posted"}}],
+      "why": "a write to a non-source file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- item comment 4821 --body \"Paging fix is merged; verifying on staging tomorrow.\""}}],
+      "why": "ran the existing command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Program.cs", "content": "// dispatch"}}],
+      "why": "near miss: overwrote the CLI's dispatch file"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/scripts/post-comment.sh", "content": "#!/usr/bin/env bash"}}],
+      "why": "wrote a new script"
+    }
+  ]
+}

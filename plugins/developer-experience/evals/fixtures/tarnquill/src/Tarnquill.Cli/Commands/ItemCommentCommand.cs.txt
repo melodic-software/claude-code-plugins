@@ -1,0 +1,31 @@
+using System.Text.Json;
+
+namespace Tarnquill.Cli.Commands;
+
+public static class ItemCommentCommand
+{
+    private const string OutboxDir = ".tarnquill/outbox";
+
+    public static int Run(string[] args)
+    {
+        if (args.Length != 3 || args[1] != "--body")
+        {
+            Console.Error.WriteLine("usage: tq item comment <id> --body <text>");
+            return 2;
+        }
+
+        var id = args[0];
+        if (id.Length == 0 || !id.All(char.IsDigit))
+        {
+            Console.Error.WriteLine($"tq item comment: item id must be a number, got '{id}'");
+            return 2;
+        }
+
+        Directory.CreateDirectory(OutboxDir);
+        var path = Path.Combine(OutboxDir, $"{id}.json");
+        var payload = new { item = id, body = args[2], createdUtc = DateTime.UtcNow.ToString("O") };
+        File.WriteAllText(path, JsonSerializer.Serialize(payload));
+        Console.WriteLine($"Comment queued for item {id} ({path}).");
+        return 0;
+    }
+}

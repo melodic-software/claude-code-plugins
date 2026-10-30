@@ -262,7 +262,7 @@ finish_record() {
   [[ $r_nonempty -eq 1 ]] || return 0
 
   [[ -n "$r_id" ]] || invalid id "is required"
-  printf '%s' "$r_id" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?-r[0-9]{3,}$' ||
+  grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?-r[0-9]{3,}$' <<<"$r_id" ||
     invalid id "must be <plugin>-rNNN: '$r_id'"
   case "$SEEN_IDS" in
   *"
@@ -274,11 +274,11 @@ $r_id
 "
 
   [[ -n "$r_retired" ]] || invalid retired "is required"
-  printf '%s' "$r_retired" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' ||
+  grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' <<<"$r_retired" ||
     invalid retired "must be YYYY-MM-DD: '$r_retired'"
 
   [[ -n "$r_plugin_version" ]] || invalid plugin_version "is required"
-  printf '%s' "$r_plugin_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$' ||
+  grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$' <<<"$r_plugin_version" ||
     invalid plugin_version "must be semver: '$r_plugin_version'"
 
   case "$r_kind" in
@@ -297,7 +297,7 @@ $r_id
   . | ./ | ./. | */. | */./ | *//*) invalid path "must name a file or directory inside the repo, not the repo itself: '$r_path'" ;;
   *) ;;
   esac
-  printf '%s' "$r_path" | grep -Eq '(^|/)\.\.(/|$)' &&
+  grep -Eq '(^|/)\.\.(/|$)' <<<"$r_path" &&
     invalid path "must not contain a .. segment: '$r_path'"
 
   if [[ "$r_kind" == "line" ]]; then
@@ -309,7 +309,7 @@ $r_id
 
   if [[ -n "$r_heading" ]]; then
     [[ "$r_kind" == "line" ]] || invalid heading "is only allowed for kind line (kind is $r_kind)"
-    printf '%s' "$r_heading" | grep -Eq '^#{1,6}[[:space:]]+[^[:space:]]' ||
+    grep -Eq '^#{1,6}[[:space:]]+[^[:space:]]' <<<"$r_heading" ||
       invalid heading "must be an ATX heading (1-6 hashes, whitespace, title): '$r_heading'"
   fi
 

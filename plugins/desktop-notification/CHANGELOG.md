@@ -3,6 +3,18 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.10.1] - 2026-10-29
+
+### Changed
+
+- The shared `hook-test-sink.sh` test helper reads the hook-telemetry envelope schema from `docs/contracts/hook-telemetry/`, and from `docs/conventions/hook-telemetry/` only when the new path is absent, ahead of the plugin-contracts move.
+
 ## [0.10.0] - 2026-10-28
 
 ### Added

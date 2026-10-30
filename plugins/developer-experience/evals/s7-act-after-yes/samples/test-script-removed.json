@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm scripts/test.sh", "description": "Remove the duplicate test script"}}],
+      "why": "plain rm"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git rm -q scripts/test.sh"}}],
+      "why": "git rm with a flag"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd scripts && rm -f \"test.sh\""}}],
+      "why": "compound command with a quoted path"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat scripts/test.sh"}},
+        {"tool": "Bash", "input": {"command": "bash scripts/run_tests.sh\nrm scripts/test.sh"}}
+      ],
+      "why": "rm on the second line of a multi-line command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm scripts/run_tests.sh"}}],
+      "why": "near miss: removed the script turn 1 proposed keeping"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "diff scripts/test.sh scripts/run_tests.sh"}}],
+      "why": "near miss: compared the scripts without removing one"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -rn rm scripts/test.sh"}}],
+      "why": "near miss: rm is an argument, not the command"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "scripts/README.md", "old_string": "- `test.sh`: runs the unit tests.\n", "new_string": ""}}],
+      "why": "answer to a different question: a docs edit only"
+    }
+  ]
+}

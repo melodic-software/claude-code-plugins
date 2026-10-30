@@ -460,13 +460,14 @@ fi
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that never mentions .md costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" markdown-format PostToolBatch markdown-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/main.py"},"tool_use_id":"toolu_census","tool_response":"import os"}]}' \
     --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: a batch with no Markdown costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo
