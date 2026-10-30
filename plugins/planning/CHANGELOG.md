@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.127.3] - 2026-10-30
+
+### Changed
+
+- `/planning:setup` names `claude plugin configure planning@<marketplace> --values-stdin` as the preferred headless way to change `use_ask_user_question`, and keeps the `claude plugin install --config` rerun as the fallback for a Claude Code release without `plugin configure`, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
+## [0.127.2] - 2026-10-30
+
+### Changed
+
+- audit-answers, design, design-handoff, devils-advocate, plan and prd: the gather-block record link now points at the gather-block convention doc, at the same heading, instead of a file inside source-control's worktree skill.
+
 ## [0.127.1] - 2026-10-30
 
 ### Changed

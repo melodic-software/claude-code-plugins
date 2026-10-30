@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.8] - 2026-10-30
+
+### Changed
+
+- `/rate-limit-guard:setup` names `claude plugin configure rate-limit-guard@<marketplace> --values-stdin` as the preferred headless way to change an option, and keeps the `claude plugin install --config` rerun as the fallback for a Claude Code release without `plugin configure`, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
+## [2.1.7] - 2026-10-30
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
 ## [2.1.6] - 2026-10-30
 
 ### Changed

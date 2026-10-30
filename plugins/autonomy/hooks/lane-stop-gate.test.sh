@@ -156,7 +156,7 @@ OUT="$(run "$(build_input Stop "working on it" false)")"
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "first stop no-signal: exit 0"; else fail "first stop no-signal exit $RC"; fi
 if is_block "$OUT"; then ok "first stop no-signal → decision:block"; else fail "first stop no-signal → not blocked: $OUT"; fi
-if printf '%s' "$OUT" | jq -re '.reason' | grep -q 'LANE-STOP-OK'; then ok "block reason names the sentinel"; else fail "block reason missing sentinel: $OUT"; fi
+if grep -q 'LANE-STOP-OK' < <(jq -re '.reason' <<<"$OUT"); then ok "block reason names the sentinel"; else fail "block reason missing sentinel: $OUT"; fi
 
 # --- Case 3: sentinel alone on its own (final) line → allow (no block) ------
 OUT="$(run "$(build_input Stop "All queue items cleared.
@@ -799,7 +799,7 @@ rm -f "$SETTINGS"
 if ! mkfifo "$DATA_DIR/lane-arms/$ARM_ID_10.claim" 2>/dev/null; then
   ok "mkfifo unavailable; skip non-regular claim path hang case"
 elif ! command -v timeout >/dev/null 2>&1 ||
-  ! timeout --help 2>&1 | grep -Fq -- '--kill-after'; then
+  ! grep -Fq -- '--kill-after' < <(timeout --help 2>&1); then
   ok "GNU timeout unavailable; skip non-regular claim path hang case"
 else
   FIFO_INPUT=$(build_input Stop "no token" false "" "sess-fifo")

@@ -58,6 +58,15 @@ page leaving `llms.txt`.
 | <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | `docs/plugin-philosophy.md`, experiments.md (Desktop probe), `docs/contracts/mod-authoring/` |
 | <https://code.claude.com/docs/en/plugins/mods/gallery> | The interface elements with samples; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
 
+## Anthropic blog posts
+
+Nothing in this repository relies on these yet. Recheck trigger: a
+[go-no-go.md](go-no-go.md) run, as for every other row.
+
+| Link | What we used it for | As of | Used by |
+|---|---|---|---|
+| <https://claude.dev/blog/getting-started-with-claude-code-mods> | Not a pointer (correlate only): "Getting started with Claude Code mods", Addy Osmani, published 2026-10-01, which builds the Token Weather mod from an empty folder and tours Blast Radius and Replay Theater. For the topic, see [Mods overview](https://code.claude.com/docs/en/plugins/mods/overview). | 2026-10-30 | none yet |
+
 ## First-party source tree and binary
 
 | Link | What we used it for | As of | Used by |

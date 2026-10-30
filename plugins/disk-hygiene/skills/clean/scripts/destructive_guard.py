@@ -81,13 +81,39 @@ def _without_quoted_braces(command: str) -> str:
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": value,
             "permissionDecisionReason": reason,
         }
     }
+    notice = _unwritten_marker_notice()
+    if notice:
+        payload["systemMessage"] = notice
+    return payload
+
+
+# Set by `hooks/run-python-hook.sh` when this launch could neither remove the
+# guard-launch monitor's `<session>.seen` nor open its `<session>.launched`, so
+# the monitor's Stop row may skip a session this guard ran in.
+_UNWRITTEN_MARKER_ENV_VAR = "DISK_HYGIENE_UNWRITTEN_MARKER"
+
+
+def _unwritten_marker_notice() -> str | None:
+    """The ``systemMessage`` every output of this launch carries, or None.
+
+    Reads only the environment, so the watchdog thread may call it.
+    """
+    marker = os.environ.get(_UNWRITTEN_MARKER_ENV_VAR)
+    if not marker:
+        return None
+    return (
+        f"disk-hygiene: this guard launch could not be recorded in "
+        f"{_display_text(marker)}, so the end-of-turn check for a guard that "
+        "failed silently may skip it. Make that file writable; "
+        "/disk-hygiene:check diagnoses."
+    )
 
 
 def _telemetry_status_for_permission(value: str) -> str:
@@ -1145,8 +1171,8 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     marker is absent, an alias qualified with a drive other than the
     engine's (``D:alias``), and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
-    preview/approval-token containment (and to the skill-frontmatter belt for
-    the rest of the session once that belt has registered).
+    preview/approval-token containment (and to the skill-frontmatter belt
+    while a clean run is open).
     """
 
     bundled = _engine_script_path()
@@ -1353,9 +1379,9 @@ def resolve_mode() -> str:
     ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
     (with a small read-only supporting allowlist) and deletion-spelling PowerShell
     discipline. Claude Code registers skill-frontmatter ``PreToolUse`` hooks for
-    the rest of the session after the skill is invoked — not only while cleanup is
-    the active work — so this mode stays armed session-wide once registered
-    (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
+    the rest of the session after the skill is invoked (#2618), so this mode
+    denies only while a clean run is open and stands down otherwise
+    (``_run_open``). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
     engine invocations (kill switch + data-root authority must hold in every
     session), so any command that does not reference the engine defers instantly
     — a plugin-level hook must never tax unrelated work. An unrecognized or
@@ -2578,10 +2604,11 @@ def _bash_denial_guidance(
     """Explain a Bash deny in the words of the surface that issued it.
 
     ``engine-gate`` (the plugin-level always-on hook) denies this call only;
-    ``belt`` (the skill-frontmatter registration, and the default) lasts the
-    session. Both name what failed and point at ``/disk-hygiene:clean``, whose
-    body is the one prose copy of the allowed shapes. Unrecognized ``mode``
-    values fall back to ``belt``, matching ``resolve_mode``.
+    ``belt`` (the skill-frontmatter registration, and the default) holds while
+    a clean run is open (``_run_open``). Both name what failed and point at
+    ``/disk-hygiene:clean``, whose body is the one prose copy of the allowed
+    shapes. Unrecognized ``mode`` values fall back to ``belt``, matching
+    ``resolve_mode``.
     """
     resolved = resolve_mode() if mode is None else mode
     reason = _bash_denial_reason(command, authority)
@@ -2589,7 +2616,134 @@ def _bash_denial_guidance(
         return f"disk-hygiene: denied: {reason} Allowed shapes: /disk-hygiene:clean."
     return (
         f"disk-hygiene: denied by the /disk-hygiene:clean session belt: {reason} "
-        "Allowed shapes: /disk-hygiene:clean. The belt lasts until the session ends."
+        "Allowed shapes: /disk-hygiene:clean. The belt holds while a clean run is "
+        "open: from an engine preview until the run's apply or handoff-apply "
+        "writes its report or the preview ends in manual-handoff-lane or blocked, "
+        "and from each handoff-verify, until "
+        f"{_RUN_IDLE_TIMEOUT_SECONDS / 60:g} minutes pass with no engine call."
+    )
+
+
+# Claude Code keeps a skill-frontmatter hook registered for the rest of the
+# session, so the belt itself decides when it applies: only while this
+# session's clean run is open. A run opens when the belt admits a preview, an
+# apply or a handoff-apply, each naming in the session's marker the file whose
+# writing ends that step (the preview's plan, or the --report the mutation
+# writes), and when it admits a handoff-verify, which only the idle timeout
+# ends. The engine deletes the marker when the step ends the run (the report
+# is written, or the preview ends in manual-handoff-lane or blocked) and, on
+# any call, once the marker is past the idle timeout; the guard never deletes
+# one. Any other admitted engine call, a scan included, only restarts the idle
+# clock of an open run, so a completed or refused scan with no preview after
+# it is a scan-only outcome. Releasing the belt opens no engine delete path:
+# the engine gate and the approval token still gate every engine mutation,
+# and the manual lane's PowerShell deletes follow a handoff-verify, which
+# holds it. Outside a run, other Bash and PowerShell deletes answer to the
+# session's own permission rules.
+_RUN_MARKER_DIRNAME = engine_grammar.RUN_MARKER_DIRNAME
+_RUN_IDLE_TIMEOUT_SECONDS = engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
+
+
+def _run_marker_path(authority: str, session_id: str) -> Path:
+    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+    return Path(authority) / _RUN_MARKER_DIRNAME / f"{safe}.json"
+
+
+def _record_run_step(
+    command: str, command_kind: str, authority: str | None, session_id: str | None
+) -> None:
+    """Open, refresh or reset this session's run for an admitted engine call.
+
+    Total: a failed write leaves the run as it was, and never alters a verdict.
+    """
+    if not authority or not session_id:
+        return
+    try:
+        marker = _run_marker_path(authority, session_id)
+        words = _literal_shell_words(command) or []
+        ends_with: str | None
+        if command_kind == "preview":
+            ends_with = _argv_flag_value(words, "--plan")
+            if not ends_with:
+                return
+        elif command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+            ends_with = _argv_flag_value(words, "--report")
+            if not ends_with:
+                return
+        elif command_kind == "handoff-verify":
+            # A manual-lane delete follows each verify, and its PowerShell
+            # spelling gets its `ask` only from this belt. Nothing the engine
+            # writes marks the lane's end, so only the idle timeout ends it.
+            ends_with = None
+        else:
+            # Refresh only an open run: touching a timed-out marker would
+            # reopen it.
+            if _run_open(authority, session_id):
+                os.utime(marker)
+            return
+        if ends_with is not None and _manual_lane_open(marker, authority, session_id):
+            # A step that did not open the manual lane cannot name its end: a
+            # preview ending in manual-handoff-lane, or a report, would delete
+            # the marker and drop the `ask` on the lane's PowerShell deletes.
+            os.utime(marker)
+            return
+        if ends_with is not None:
+            ends_with = os.path.abspath(os.path.expanduser(ends_with))
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            json.dumps({"version": 1, "ends_with": ends_with}), encoding="utf-8"
+        )
+    except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
+        # Residual: an unwritable data root leaves no marker, so the belt
+        # stays off; the engine writes its snapshot and report there too.
+        pass
+
+
+def _manual_lane_open(marker: Path, authority: str, session_id: str) -> bool:
+    """Whether an open run was opened by a handoff-verify (no end file).
+
+    Fails closed: an open marker that cannot be read counts as one.
+    """
+    if not _run_open(authority, session_id):
+        return False
+    try:
+        return json.loads(marker.read_text(encoding="utf-8"))["ends_with"] is None
+    except Exception:  # noqa: BLE001 - an unreadable marker keeps the run
+        return True
+
+
+def _run_open(authority: str | None, session_id: str | None) -> bool:
+    """Whether this session has an open clean run, so the belt holds.
+
+    Fails closed: with no data root or session id the run cannot be looked up,
+    and a marker that cannot be read holds the belt like any other. A marker
+    holds it until the idle timeout, counted from its mtime; the engine
+    deletes it when the run ends, and once it is past the timeout.
+    """
+    if not authority or not session_id:
+        return True
+    try:
+        written = _run_marker_path(authority, session_id).stat().st_mtime
+    except FileNotFoundError:
+        return False
+    except Exception:  # noqa: BLE001 - an unreadable marker holds the belt
+        return True
+    return time.time() - written < _RUN_IDLE_TIMEOUT_SECONDS
+
+
+def _belt_released(
+    command: str, tool_name: str, session_id: str | None, enabled: bool
+) -> bool:
+    """Belt mode, execution enabled, no engine reference, and no open run.
+
+    The kill switch wins over the release: in audit-only mode the belt keeps
+    every lane's deletion deny whether or not a run is open.
+    """
+    return (
+        enabled
+        and resolve_mode() != _MODE_ENGINE_GATE
+        and not _engine_gate_relevant(command, tool_name)
+        and not _run_open(resolve_authorized_data_root(), session_id)
     )
 
 
@@ -2643,6 +2797,13 @@ def _emit_decision(payload: dict[str, object]) -> bool:
         _DECISION_EMITTED = True
         print(json.dumps(payload))
         return True
+
+
+def _emit_notice_only() -> None:
+    """Carry ``_unwritten_marker_notice`` on a branch that issues no decision."""
+    notice = _unwritten_marker_notice()
+    if notice:
+        _emit_decision({"systemMessage": notice})
 
 
 def _publish_command_for_watchdog(command: str) -> None:
@@ -3190,7 +3351,18 @@ _MUTATION_PROMPTS = {
 }
 
 
-def _decide(command: str, tool_name: str, start: float) -> int:
+def _stand_down(command: str, tool_name: str, start: float) -> int:
+    """Belt mode with no open run: no decision, so the session's own rules apply."""
+    _emit_guard_telemetry(start, tool_name, "ok")
+    _record_decision(
+        command, tool_name, guard_decision_log.DECISION_NONE, "belt-no-open-run"
+    )
+    return 0
+
+
+def _decide(
+    command: str, tool_name: str, start: float, session_id: str | None = None
+) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
     Every branch prints its decision (or nothing, for an instant plugin-level
@@ -3203,12 +3375,15 @@ def _decide(command: str, tool_name: str, start: float) -> int:
     ):
         # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
+        _emit_notice_only()
         return 0
 
     enabled = resolve_disk_hygiene_enabled()
 
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
+        if verdict and _belt_released(command, tool_name, session_id, enabled):
+            return _stand_down(command, tool_name, start)
         if verdict:
             _settle(
                 command,
@@ -3232,6 +3407,9 @@ def _decide(command: str, tool_name: str, start: float) -> int:
                 guard_decision_log.DECISION_NONE,
                 "powershell-no-flagged-spelling",
             )
+            # Last: the notice latches `_DECISION_EMITTED`, and a watchdog that
+            # finds it latched exits 0 where it would otherwise deny or ask.
+            _emit_notice_only()
         return 0
 
     authority = resolve_authorized_data_root()
@@ -3260,6 +3438,11 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
+    admitted = command_kind in _READONLY_ENGINE_SUBCOMMANDS or (
+        command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled
+    )
+    if admitted and resolve_mode() != _MODE_ENGINE_GATE:
+        _record_run_step(command, command_kind, authority, session_id)
     if command_kind in _READONLY_ENGINE_SUBCOMMANDS:
         return _settle(
             command,
@@ -3294,6 +3477,8 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
             "permitted.",
         )
+    if _belt_released(command, tool_name, session_id, enabled):
+        return _stand_down(command, tool_name, start)
     return _settle(
         command,
         tool_name,
@@ -3378,7 +3563,13 @@ def main() -> int:
             _record_decision("", str(tool_name), "deny", "unparsable-payload", reason)
             result = 0
             return result
-        result = _decide(command, tool_name, start)
+        session_id = payload.get("session_id")
+        result = _decide(
+            command,
+            tool_name,
+            start,
+            session_id if isinstance(session_id, str) else None,
+        )
         return result
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")

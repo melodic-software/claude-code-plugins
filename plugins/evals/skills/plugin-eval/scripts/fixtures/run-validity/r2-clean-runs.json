@@ -2,10 +2,11 @@
   "schemaVersion": 1,
   "claudeVersion": "2.1.287",
   "partial": false,
-  "suite": {"ablation": "with-without", "threshold": 1},
+  "suite": {"root": "/tmp/eval-r2/plugins/evals", "ablation": "with-without", "threshold": 1},
   "cases": [
     {
       "name": "control-no-trigger",
+      "dir": "evals/control-no-trigger",
       "runsPerCase": 3,
       "graders": [
         {"name": "names-conftest", "type": "regex"},
@@ -22,6 +23,7 @@
     },
     {
       "name": "measurable-criterion",
+      "dir": "evals/measurable-criterion",
       "runsPerCase": 3,
       "graders": [
         {"name": "four-properties", "type": "llm"},
@@ -38,6 +40,7 @@
     },
     {
       "name": "noise-before-gain",
+      "dir": "evals/noise-before-gain",
       "runsPerCase": 3,
       "graders": [
         {"name": "noise-verdict", "type": "llm"},

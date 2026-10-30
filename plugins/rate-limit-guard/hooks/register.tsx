@@ -443,18 +443,22 @@ const noticeShows = (st: State, surface: string) =>
   st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
 // The module's band row: rate-limit-guard: 5h <x>% | 7d <y>%, led by the plugin's name so the row says whose it is.
+// Before a reading every window shows -; after one, only the windows reported, since an account
+// with no 5-hour limit never reports that window.
 export const bandText = (reading: Reading | undefined) =>
-  `rate-limit-guard: ${WINDOWS.map(({ kind, short }) => {
-    const limit = reading?.get(kind)
-    return `${short} ${limit === undefined ? '-' : `${limit.percentUsed}%`}`
-  }).join(' | ')}`
+  `rate-limit-guard: ${WINDOWS.filter(({ kind }) => !reading?.size || reading.has(kind))
+    .map(({ kind, short }) => {
+      const limit = reading?.get(kind)
+      return `${short} ${limit === undefined ? '-' : `${limit.percentUsed}%`}`
+    })
+    .join(' | ')}`
 
 // What /rate-limit-guard with no argument prints.
 async function statusText($: EngineInterface, st: State, cfg: Config) {
   await refresh($, st, cfg)
   const windows = WINDOWS.map(({ kind, name }) => {
     const limit = st.reading?.get(kind)
-    if (limit === undefined) return `${name} window: no reading`
+    if (limit === undefined) return `${name} window: ${st.reading?.size ? 'not in the last response' : 'no reading'}`
     const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
     return `${name} window: ${limit.percentUsed}% used, ${modelVerdict(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
   })

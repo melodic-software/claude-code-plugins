@@ -18,13 +18,13 @@
       "id": 2,
       "name": "apply-points-only-never-writes",
       "prompt": "/guardrails:setup apply",
-      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq, missing node, or old Bash, and /plugin configure guardrails (or, headless, a plain claude plugin install ... --config rerun) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
+      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq, missing node, or old Bash, and /plugin configure guardrails (or, headless, claude plugin configure ... --values-stdin, with a claude plugin install ... --config rerun as the fallback) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
       "files": [],
       "expectations": [
         "Runs check before offering remediations",
-        "Points at /plugin configure, or headless at a plain `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` rerun, for toggle changes",
+        "Points at /plugin configure, or headless first at `claude plugin configure guardrails@<marketplace> --values-stdin` as the preferred route and second at a `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` rerun as its fallback, for toggle changes",
         "Never tells the operator to `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README's Options reference to its manifest default",
-        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, states the scope rule (pass the scope `claude plugin list` reports for this plugin, `user` from the home directory), says a rejected value still exits 0 so the output is what to read, and defers observation of the new value to rerunning check in a fresh session",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, states the scope rule (pass the scope `claude plugin list` reports for this plugin, `user` from the home directory), says a rejected `--config` value still exits 0 so its output is what to read while `--values-stdin` exits 1 and saves nothing, and defers observation of the new value to rerunning check in a fresh session",
         "Never installs system packages and never writes user settings or pluginConfigs"
       ]
     },

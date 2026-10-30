@@ -186,15 +186,24 @@ install command's exit code alone. For everything else `apply` only points:
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure markdown-format@<marketplace>`
-  any time, or headless
+  any time. Headless, preferred: run
+  `claude plugin configure markdown-format@<marketplace> --values-stdin < values.json` from the
+  project the plugin is installed in, with `values.json` holding
+  `{"markdown_format_enabled": "true"}` (every value a string, booleans included; keys left out
+  keep their saved values). Headless fallback, for a Claude Code release without
+  `plugin configure`: rerun
   `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
-  `project` or `local` scope run from that project's directory, so the rerun matches the existing
-  install record; from the home directory pass `user`. A rejected value prints a warning yet
-  exits 0, so read the output. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  manifest default. Either route stores the value in user settings. `claude plugin configure` has
+  no scope flag and finds only an install visible from the working directory. For the rerun, pass
+  the scope `claude plugin list` reports for this plugin, and for a `project` or `local` scope run
+  from that project's directory, so the rerun matches the existing install record; from the home
+  directory pass `user`. Check each route's own failure signal: `claude plugin configure` rejects a
+  bad value with exit 1 and saves nothing, but stores an empty string as `""`; the rerun prints a
+  warning for a rejected value yet exits 0, so read its output. This skill never writes user
+  settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
   the OLD value; report the observed effective value, never an unobserved change.
