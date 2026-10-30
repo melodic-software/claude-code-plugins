@@ -779,6 +779,32 @@
         "The body has a section headed Remaining holding one line that names the byte order mark as what this PR delivers and states the condition that closes #820",
         "No closing keyword (close, closes, fix, fixes, resolve, resolves) sits directly before #820 anywhere in the body"
       ]
+    },
+    {
+      "id": 59,
+      "name": "readiness-carries-review-across-empty-remerge-diff-merge",
+      "prompt": "/pull-request monitor 512. Earlier in this session /pull-request ready flipped PR 512: its base-merge step merged origin/main into the branch as merge commit 9f3c2a1, which is now the head; the head before it, 4b7e0d2, was reviewed by both CI review lanes, whose summaries and inline comments are written against 4b7e0d2. On 9f3c2a1 both review-lane checks are green but neither lane posted a summary, review or inline comment for it. All other checks are terminal and green, and no comment is unaddressed. `git show --remerge-diff 9f3c2a1` prints nothing at all. Run the readiness gate.",
+      "expected_output": "B2 and readiness Gate 5 apply the remerge-diff test to the base merge 9f3c2a1. Its output is fully empty, so the push changed no reviewed content and needs no fresh round: the latest productive review on the pre-merge head 4b7e0d2 satisfies each lane. Neither lane is classified ABSENT, no local substitute review (/review:fanout or /code-review) runs, and the `Review lanes:` line names the carried reviews on 4b7e0d2. The terminal-state wait still applies to every check.",
+      "files": [],
+      "expectations": [
+        "It runs or reads `git show --remerge-diff 9f3c2a1` for the base merge, not a diff against either parent",
+        "It treats the fully empty output as no fresh round needed and counts the reviews on 4b7e0d2 for both lanes",
+        "It does not classify either lane ABSENT and runs no local substitute review",
+        "The `Review lanes:` line names the reviews carried from 4b7e0d2"
+      ]
+    },
+    {
+      "id": 60,
+      "name": "readiness-substitutes-review-after-non-empty-remerge-diff-merge",
+      "prompt": "/pull-request monitor 512. Earlier in this session /pull-request ready flipped PR 512: its base-merge step merged origin/main into the branch as merge commit 9f3c2a1, which is now the head; the head before it, 4b7e0d2, was reviewed by both CI review lanes, whose summaries and inline comments are written against 4b7e0d2. On 9f3c2a1 both review-lane checks are green but neither lane posted a summary, review or inline comment for it. All other checks are terminal and green, and no comment is unaddressed. `git show --remerge-diff 9f3c2a1` prints a hunk in src/export/csv.ts, where the merge resolved a conflict. Run the readiness gate.",
+      "expected_output": "B2 and readiness Gate 5 apply the remerge-diff test to the base merge 9f3c2a1. It prints a conflict resolution, so the push changed reviewed content and needs a fresh round: the reviews on 4b7e0d2 do not carry. Each lane produced nothing for 9f3c2a1, so each is classified ABSENT, never PASS, and a local review over the pull request's diff stands in for it (/review:fanout, or /code-review against an explicit target for the correctness lane). The `Review lanes:` line names each absent lane and its substitute, and the gate does not clear before the substitutes ran.",
+      "files": [],
+      "expectations": [
+        "It runs or reads `git show --remerge-diff 9f3c2a1` and treats its non-empty output as a change to reviewed content",
+        "It does not count the reviews on 4b7e0d2 for the head 9f3c2a1",
+        "It classifies both lanes ABSENT and runs a local substitute review over the pull request's diff",
+        "The `Review lanes:` line names each absent lane and its substitute"
+      ]
     }
   ]
 }
