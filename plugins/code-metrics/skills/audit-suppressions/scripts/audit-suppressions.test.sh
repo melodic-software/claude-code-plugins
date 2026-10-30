@@ -110,7 +110,7 @@ assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRI
 
 # ---- --findings: the review-findings file ------------------------------------
 # Expected rows come from the fixture lines below and the two crosswalk rows in
-# docs/conventions/detector-findings/README.md (rule-no-reason fires on a line
+# docs/contracts/detector-findings/README.md (rule-no-reason fires on a line
 # with no reason; rule-no-rule-id on a reason with no rule id where the tool can
 # name one; both IMPORTANT, Confidence high).
 assert_not_contains() {

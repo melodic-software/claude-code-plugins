@@ -235,6 +235,54 @@ test("dispatch-full-run starts nothing within the cap, and anything outside it",
   assert.equal(evalStep(text, outs()), true);
 });
 
+// The merge job mints its lane token, and reads its mode, only while the
+// resolved merge-pr slot applies; a slot `enabled: false` or whose
+// `applies-when` does not match prints the skip reason instead (#7636).
+// A merge-job step's condition, with or without an `id:` line before it.
+const mergeIf = (name) => {
+  const body = job("merge").split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0];
+  const found = /(?:^|\n) {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(body);
+  assert.ok(found, `${name} has a condition`);
+  return (found[1] ?? found[2]).replaceAll("\n", " ");
+};
+const configured = (applies, outcome = "success") => ({ config: { outcome, outputs: { applies, "skip-reason": applies === "true" ? "" : "disabled-by-config" } } });
+
+test("the merge job requests its lane token and reads its mode only while the merge-pr slot applies", () => {
+  for (const name of ["Request the lane token", "Read report-only"]) {
+    const text = mergeIf(name);
+    assert.equal(evalStep(text, configured("true")), true, name);
+    assert.equal(evalStep(text, configured("false")), false, name);
+    assert.equal(evalStep(text, configured("")), false, name);
+    assert.equal(evalStep(text, configured("true", "failure")), false, name);
+  }
+});
+
+test("a merge-pr slot the config turns off prints its skip reason before the token request, and nothing after it runs", () => {
+  const merge = job("merge");
+  const names = [...merge.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.equal(names.indexOf("Report a lane the config turns off") + 1, names.indexOf("Request the lane token"));
+  const text = mergeIf("Report a lane the config turns off");
+  assert.equal(evalStep(text, configured("false")), true);
+  assert.equal(evalStep(text, configured("true")), false);
+  assert.equal(evalStep(text, configured("false", "failure")), false);
+  const block = merge.split("\n      - name: Report a lane the config turns off\n")[1].split("\n      - name: ")[0];
+  assert.match(block, /\n {10}REASON: \$\{\{ steps\.config\.outputs\.skip-reason \}\}\n/);
+  assert.match(block, /::notice::merge-pr does not apply \(\$\{REASON:-no reason\}\)/);
+  // Every step after the token request waits on a token, or on a step that does.
+  const after = names.slice(names.indexOf("Request the lane token") + 1);
+  for (const name of after) {
+    const condition = mergeIf(name);
+    const unminted = { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped" }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } };
+    const always = () => true;
+    const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "post-merge-dispatch": { result: "success", outputs: { "rate-limited": "" } } }, always);
+    // It reads the job's own token, and runs on a kill switch too.
+    if (name === "Log the API budget at job end") {
+      continue;
+    }
+    assert.equal(value, false, name);
+  }
+});
+
 test("post-merge-dispatch starts main's uncovered tip for any merge, outside the cap only", () => {
   const text = stepIf("post-merge-dispatch", "Start the full CI run on main");
   const expr = text;
@@ -647,14 +695,29 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
         NODE_OPTIONS: "--preserve-symlinks-main",
       };
+      let stdout = "";
       for (const name of ["Check who started the run", "Check for a newer run that does this work"]) {
         const step = stepOf(name);
         const run = /\n {8}run: (.*)/.exec(step)[1];
-        const status = await new Promise((resolve) =>
-          spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: "ignore" }).on("close", resolve),
-        );
+        const status = await new Promise((resolve) => {
+          const child = spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: ["ignore", "pipe", "ignore"] });
+          child.stdout.on("data", (chunk) => (stdout += chunk));
+          child.on("close", resolve);
+        });
         assert.equal(status, 0, name);
       }
+      // enable-auto-merge names each step (API_BUDGET_SCRIPT), so its job
+      // total splits by step: who's one read, superseded's two. The merge job
+      // names none.
+      assert.deepEqual(
+        stdout.match(/^::notice title=api-calls::script=.*$/gm) ?? [],
+        jobId === "enable-auto-merge"
+          ? [
+              "::notice title=api-calls::script=who github-token=1 lanes-app=0 not-modified=0 graphql=0",
+              "::notice title=api-calls::script=superseded github-token=2 lanes-app=0 not-modified=0 graphql=0",
+            ]
+          : [],
+      );
       assert.match(readFileSync(output, "utf8"), /^proceed=true$/m);
       assert.match(readFileSync(output, "utf8"), /^superseded=true$/m);
       const log = stepOf("Log the API budget at job end");
@@ -1483,4 +1546,15 @@ test("the bypass step runs only inside the cap after a check that judged, and th
   const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
   assert.match(config, /\n {2}full-run-cap-bypass: true\n/);
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.bypass/);
+});
+
+// Every enable-auto-merge step that counts its GitHub calls (API_BUDGET_TOKEN)
+// names itself (API_BUDGET_SCRIPT, rate-guard.mjs scriptCalls), each a name of
+// its own, so the job-end api-calls total splits by step.
+test("enable-auto-merge: every step that counts its calls names itself once", () => {
+  const steps = job("enable-auto-merge").split(/\n {6}- name: /).filter((step) => /^ {10}API_BUDGET_TOKEN: /m.test(step));
+  const names = steps.map((step) => /^ {10}API_BUDGET_SCRIPT: ([a-z][a-z0-9-]{0,39})$/m.exec(step)?.[1]);
+  assert.ok(steps.length > 0);
+  assert.ok(names.every(Boolean), names.join(" "));
+  assert.equal(new Set(names).size, names.length);
 });

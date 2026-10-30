@@ -191,7 +191,11 @@ scripts/lib/yaml-subset.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
-lib/yaml-subset.mjs -> plugins/*/scripts/lib/yaml-subset.mjs
+lib/yaml-subset.mjs -> plugins/*/scripts/lib/yaml-subset.mjs plugins/*/lib/yaml-subset.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/yaml-subset.mjs.
+lib/yaml-subset.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/config-cascade.mjs.

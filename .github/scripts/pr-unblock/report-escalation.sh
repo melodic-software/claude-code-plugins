@@ -14,7 +14,7 @@
 # - route `fail` (a stop the lane's own bounded retries did not mend): no
 #   human-gated label; the entry's `label` (needs-session), when it names one,
 #   puts the PR in the session-builder queue for a change the lane cannot
-#   make. One lanes App comment per activity, marked LANE_STOPPED, is posted
+#   make, written before the comment. One lanes App comment per activity, marked LANE_STOPPED, is posted
 #   once and edited in place after, naming the reason and the head; status
 #   mode (below) puts a failing commit status on that head. A new head carries
 #   no status, so the lane's next run there starts clean.

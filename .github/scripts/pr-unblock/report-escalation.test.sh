@@ -164,7 +164,7 @@ check "the routing table holds these for a person" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "hold") | .key' "$ROUTES" | sort)"
 check "the routing table queues these for a session builder, each a fail route" \
   "$(printf '%s\n' "${SESSION_REASONS[@]}" | sort)" "$(jq -r 'to_entries[] | select(.value.route == "fail" and .value.label == "needs-session") | .key' "$ROUTES" | sort)"
-check "the routing table names no other label" "" "$(jq -r 'to_entries[] | select(has("label") and .value.label != "needs-session") | .key' "$ROUTES")"
+check "the routing table names no other label" "" "$(jq -r 'to_entries[] | select(.value | has("label")) | select(.value.route != "fail" or .value.label != "needs-session") | .key' "$ROUTES")"
 for reason in "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}"; do
   check "$reason: the table's activity" "$(activity_of "$reason")" "$(jq -r --arg r "$reason" '.[$r].activity' "$ROUTES")"
 done
@@ -261,6 +261,44 @@ for reason in "${FAIL_REASONS[@]}"; do
   check "$reason, fail: reads no issue labels" 0 "$(grep -c '^GET repos/o/r/issues/42$' "$STUB/requests" || true)"
   check "$reason, fail: no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
+
+# Session-builder reasons: the needs-session label, then one lane-stopped
+# comment that names it; never the human-gated label.
+for reason in "${SESSION_REASONS[@]}"; do
+  setup '[]' '[]'
+  run "$reason"
+  want=$(activity_of "$reason")
+  check "$reason, session: exit 0" 0 "$RC"
+  check "$reason, session: the needs-session label, then one comment" \
+    $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+  has "$reason, session: label is needs-session" 'labels[]=needs-session' "$STUB/calls"
+  check "$reason, session: never needs-human" 0 "$(grep -c 'needs-human' "$STUB/bodies" "$STUB/calls" | awk -F: '{s+=$2} END {print s}')"
+  check "$reason, session: marker is the first line" "<!-- pr-unblock:lane-stopped activity=$want -->" "$(head -n 1 "$STUB/bodies")"
+  has "$reason, session: comment names the queue" 'labels it `needs-session` for a session builder' "$STUB/bodies"
+  has "$reason, session: names the failing status" "failing \`$(context_of "$reason")\` status" "$STUB/bodies"
+  has "$reason, session: gives the dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
+  setup '[]' '[]'
+  MODE=status run "$reason"
+  check "$reason, session, status mode: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+done
+
+# With needs-session already on, the comment goes up and the label is not written again.
+setup '[{"name":"needs-session"}]' '[]'
+run ci-fix-escalated
+check "session, already labeled: comment only" 'POST repos/o/r/issues/42/comments' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+
+# A session removed needs-session without a new head, and the lane stops
+# again with the same comment: the label goes back on, the comment is untouched.
+setup '[]' '[]'
+run ci-fix-escalated
+session_body=$(sed '/^=====$/d' "$STUB/bodies")
+setup '[]' "$(comment "$session_body" 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-escalated
+check "session, same head, label removed: exit 0" 0 "$RC"
+check "session, same head, label removed: label only" 'POST repos/o/r/issues/42/labels' "$(grep -E '^(POST|PATCH)' "$STUB/requests")"
+setup '[{"name":"needs-session"}]' "$(comment "$session_body" 'melodic-automation-lanes[bot]' Bot 77)"
+run ci-fix-escalated
+check "session, same head, still labeled: no write" 0 "$(writes)"
 
 # The fail comment is one per activity, edited in place: unchanged, nothing
 # is written; on a new head it is edited, never posted again.

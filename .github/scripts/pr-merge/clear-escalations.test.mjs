@@ -42,7 +42,7 @@ const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
 // `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"] }) {
   const calls = [];
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
@@ -67,14 +67,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { ref: "refs/heads/main", object: { sha: MAIN } };
     }
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
-      return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: [{ name: "needs-human" }] })) : [];
+      return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: listed.map((name) => ({ name })) })) : [];
     }
     const [, kind, number] = /^\/repos\/[^/]+\/[^/]+\/(issues|pulls)\/(\d+)(?:\/timeline)?$/.exec(route) ?? [];
     if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && numbers.includes(Number(number))) {
       return path.endsWith("page=1") ? timeline : [];
     }
     if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
-      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: [{ name: "needs-human" }], mergeable };
+      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
@@ -125,6 +125,20 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.match(comment.body.body, /`workflow-staged`/);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("an App-set needs-human on an item flagged security: outside-actor is never removed", async () => {
+  const flagged = ["needs-human", "security: outside-actor"];
+  for (const [listed, labels] of [
+    [flagged, flagged],
+    [["needs-human"], flagged],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated()], listed, labels });
+    const { code, logs } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes(), []);
+    assert.ok(logs.some((line) => /#7 kept: .*security: outside-actor/.test(line)), logs.join("\n"));
+  }
 });
 
 test("a needs-human a person added is kept", async () => {
@@ -1138,6 +1152,8 @@ const pushedBy = (actor, after = HEAD, at = "2026-10-18T11:00:00Z") => ({ actor,
 const run_ = (name, conclusion, id, status = "completed") => ({ id, name, status, conclusion, app: { slug: "github-actions" } });
 const GREEN = [run_("ci-status", "failure", 1), run_("test-node", "success", 2), run_("lint-repo", "skipped", 3)];
 
+const ACTIVITY = `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc&per_page=100`;
+
 // The job-token reads: branch activity, main's tip when the lane escalated,
 // whether the head contains it, and the head's check runs.
 function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = GREEN, calls = [] } = {}) {
@@ -1146,7 +1162,7 @@ function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = G
     if (method !== "GET") {
       throw new Error(`the reader writes nothing: ${method} ${path}`);
     }
-    if (path === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&per_page=100`) {
+    if (path === ACTIVITY) {
       return activityOf(pushes);
     }
     if (path === `/repos/${REPO}/commits?sha=main&until=${encodeURIComponent("2026-10-18T10:00:05.000Z")}&per_page=1`) {
@@ -1337,6 +1353,60 @@ test("workflow-staged stays when the activity page does not reach back to the la
   const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
   await run(w, TRUST_ENV);
   assert.deepEqual(w.writes(), []);
+});
+
+// The activity API ignores `page`: each next page is the Link rel="next"
+// cursor (merge-holds.mjs branchActivity). `rows` split into pages of 100;
+// `link` decides whether page n names page n + 1.
+const pagedReader = (rows, link = (n, pages) => n + 1 < pages.length) => {
+  const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / 100)) }, (_, n) => rows.slice(n * 100, n * 100 + 100));
+  return async (method, path) => {
+    if (!path.startsWith(ACTIVITY)) {
+      return readerFor()(method, path);
+    }
+    const n = Number(/&after=c(\d+)$/.exec(path)?.[1] ?? 0);
+    const page = [...(pages[n] ?? [])];
+    return Object.defineProperty(page, Symbol.for("github.link"), { value: link(n, pages) ? `<https://api.github.com/repositories/1/activity?after=c${n + 1}>; rel="next"` : null });
+  };
+};
+// `count` trusted pushes since the label, the newest landing the head, then the branch's creation.
+const longHistory = (count) => activityOf(Array.from({ length: count }, (_, i) => pushedBy(PERSON, i === count - 1 ? HEAD : "e".repeat(40), new Date(Date.parse("2026-10-18T11:00:00Z") + i * 1000).toISOString())));
+
+test("workflow-staged comes off when the trusted move reads past the first activity page, or ends on an empty one", async () => {
+  for (const [label, reader] of [
+    ["the branch creation on page 2", pagedReader(longHistory(100))],
+    ["an empty page after a full one", pagedReader(longHistory(99), (n) => n === 0)],
+  ]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", label);
+  }
+});
+
+test("workflow-staged stays at the activity cursor's end: a full page with no next link, or more than 20 pages", async () => {
+  for (const [label, reader] of [
+    ["no next link", pagedReader(longHistory(100), () => false)],
+    ["past 20 pages", pagedReader(longHistory(2000))],
+  ]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+  }
+});
+
+// Page 1 alone would clear the hold (the empty-page case above), so only a
+// read that stops at the failed page 2 keeps it.
+test("workflow-staged stays when a later activity page fails to read or is not a list", async () => {
+  const pages = pagedReader(longHistory(99), (n) => n === 0);
+  for (const [label, page2] of [
+    ["page 2 throws", () => Promise.reject(new Error("GET activity returned 500"))],
+    ["page 2 is not a list", async () => ({ message: "Not Found" })],
+  ]) {
+    const reader = (method, path) => (path.startsWith(ACTIVITY) && path.endsWith("&after=c1") ? page2() : pages(method, path));
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+  }
 });
 
 test("workflow-staged stays at the resume key, on a fork head, and without the trusted list or the job token", async () => {

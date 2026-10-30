@@ -80,7 +80,7 @@ divergence's blast radius.
 A project may record its chosen ways as paved paths: a standards index row
 whose Surface is `paved-path`, pointing at one file that names, per concern,
 the chosen way and the check that enforces it (the standards convention's
-"Paved paths" section, `docs/conventions/standards/README.md` in the
+"Paved paths" section, `docs/contracts/standards/README.md` in the
 marketplace repository). Read that file on demand, when the work in flight
 touches a concern it might list; do not load it otherwise. The index sits at
 `docs/standards/README.md` unless `.claude/standards.yaml` sets another

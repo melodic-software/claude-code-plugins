@@ -102,7 +102,7 @@ Close by pointing at each resolution. A rerun after everything passes changes no
   ```
 
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the
-  [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md),
+  [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md),
   which owns the verified-version record: interactive
   `/plugin configure context-budget@<marketplace>`, or headless
   `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`

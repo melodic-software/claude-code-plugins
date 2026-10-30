@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Self-contained assertion helpers for the repo-hygiene clean tests.
-# Duplicated across plugins by design: docs/conventions/shell-test-helpers/README.md.
+# Duplicated across plugins by design: docs/contracts/shell-test-helpers/README.md.
 #
 # Each test file owns its own FAILED / CASE_NUM counters and exits non-zero at
 # the end: `[[ $FAILED -eq 0 ]] || exit 1`.

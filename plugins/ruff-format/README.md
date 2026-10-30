@@ -95,7 +95,7 @@ The hook scripts run on Bash 3.2+.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
 session. Its launcher flag `--skip-unless-stdin-contains .py` closes before bash starts when the
 payload never mentions `.py`. Measured on WSL2 Ubuntu (bash 5.3.9, ruff 0.17.0, node 24) on
@@ -176,7 +176,7 @@ Three supported routes:
    {"ruff_format_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

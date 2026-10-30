@@ -82,7 +82,7 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
     if (method === "GET" && route === `/repos/${REPO}/compare/${MAIN}...${HEAD}`) {
       return { files: [{ filename: "plugins/x/y.py" }] };
     }
-    if (method === "GET" && route === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}`) {
+    if (method === "GET" && route === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc`) {
       return activity;
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {

@@ -61,4 +61,5 @@ test('hooks.json registers the gate on WebFetch in exec form', () => {
   const entry = cfg.hooks.PreToolUse[0]
   assert.equal(entry.matcher, 'WebFetch')
   assert.deepEqual(entry.hooks[0].args, ['${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs'])
+  assert.equal(entry.hooks[0].onFailure, 'block')
 })

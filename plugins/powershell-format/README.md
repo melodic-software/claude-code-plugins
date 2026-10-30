@@ -96,7 +96,7 @@ run stays skipped. A settings file without
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the plugin's always-on hook is the Stop row. With `powershell_format_end_of_turn` at its
 default (false) the `--require-true` gate closes inside the `node` launcher, so a turn end
 costs one process (`.performance/ratchets.json` holds that at 1 spawn).
@@ -178,7 +178,7 @@ Three supported routes:
    {"powershell_format_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

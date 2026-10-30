@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.8] - 2026-10-30
+
+### Changed
+
+- `yaml-subset.mjs` gains a `source` option that keeps each scalar as its source text. Default parsing is unchanged (#10131).
+
 ## [0.4.7] - 2026-10-29
 
 ### Changed

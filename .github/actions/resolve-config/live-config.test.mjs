@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
 
@@ -247,6 +248,42 @@ test("live config: review-dependency and its push job wait on needs-session", ()
   ]) {
     assert.equal(skipReason("pr-unblock", activity, { ...facts, labels: ["needs-session"] }), "awaiting-human", activity);
     assert.equal(selected("pr-unblock", activity, { ...facts, labels: [] }).applies, true, activity);
+  }
+});
+
+// security: outside-actor holds on its own: a lane escalation or a person
+// removing needs-human does not let a PR activity work it. The set is read from
+// the config, so a new PR activity without the label fails here.
+test("live config: every PR activity waits on security: outside-actor", () => {
+  const config = parse(FILES.config);
+  const prLanes = Object.entries(config.lanes).filter(([lane]) => lane.startsWith("pr-"));
+  // One activity can sit in several lanes (apply-patch), so a slot is keyed by lane too.
+  const slots = new Map();
+  for (const [lane, { slots: laneSlots }] of prLanes) {
+    for (const slot of laneSlots) slots.set(`${lane}/${slot.activity}`, { lane, activity: slot.activity, needs: slot.needs ?? [] });
+  }
+  const inLanes = new Set([...slots.values()].map(({ activity }) => activity));
+  for (const [activity, spec] of Object.entries(config.activities)) {
+    if ((spec.inputs ?? []).includes("pr")) assert.ok(inLanes.has(activity), `${activity} takes a pr input but sits in no pr-* lane`);
+  }
+  // Scripts that read every hold from merge-holds.mjs, not from applies-when.
+  const mergeHoldReaders = new Set(["merge-pr", "enable-auto-merge"]);
+  const lists = (activity) => (config.activities[activity]["applies-when"]?.["labels-absent"] ?? []).includes(OUTSIDE_ACTOR_LABEL);
+  // An activity with no applies-when of its own runs only after its needs in the same lane.
+  const gated = (lane, activity) => {
+    const { needs } = slots.get(`${lane}/${activity}`);
+    return lists(activity) || (config.activities[activity]["applies-when"] === undefined && needs.length > 0 && needs.every((need) => gated(lane, need)));
+  };
+  const checked = [];
+  for (const { lane, activity } of slots.values()) {
+    if (mergeHoldReaders.has(activity)) continue;
+    assert.ok(gated(lane, activity), `${lane}/${activity} neither lists ${OUTSIDE_ACTOR_LABEL} in labels-absent nor runs only after activities that do`);
+    if (!lists(activity)) continue;
+    checked.push(`${lane}/${activity}`);
+    assert.equal(skipReason(lane, activity, { mergeable: "clean", labels: [OUTSIDE_ACTOR_LABEL] }), "awaiting-human", `${lane}/${activity}`);
+  }
+  for (const slot of ["pr-refine/fix-docs", "pr-refine/apply-patch", "pr-unblock/resolve-conflicts", "pr-unblock/apply-conflict-patch", "pr-unblock/address-feedback", "pr-unblock/apply-feedback-patch", "pr-unblock/fix-ci", "pr-unblock/apply-patch"]) {
+    assert.ok(checked.includes(slot), `${slot} was not checked`);
   }
 });
 

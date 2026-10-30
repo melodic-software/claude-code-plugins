@@ -17,6 +17,5 @@ run({
   plugin: "discovery",
   schema: join(HERE, "..", "..", "..", "schemas", "discovery.schema.json"),
   reader: join(HERE, "parse-concern-value.sh"),
-  parser: join(HERE, "yaml-subset.awk"),
   report: wholeFileReport,
 });

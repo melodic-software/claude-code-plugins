@@ -100,7 +100,7 @@
       "title": "Resolution eligibility is a property of the whole thread",
       "canonical": "plugins/source-control/reference/review-discipline.md",
       "detect": "D7\\.5|resolve (that|the) thread|thread eligib",
-      "restates": "(carr(y|ies)|hold|must carry|needs)[^.]{0,30}(eligible|recorded)[^.]{0,10}disposition|one of (three|four) recorded dispositions",
+      "restates": "(carr(y|ies)|hold|must carry|needs)[^.]{0,30}(eligible|recorded)[^.]{0,10}disposition|one of (three|four|five) recorded dispositions",
       "qualifiers": [
         {
           "name": "every-finding-scope",

@@ -217,7 +217,7 @@ it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` 
 
 #### Measured cost
 
-Its share of the [hook budget](../../docs/conventions/hook-budget/README.md),
+Its share of the [hook budget](../../docs/contracts/hook-budget/README.md),
 counted as kernel process creations rather than wall time: the host that
 reported this hook timing out pays 0.3-0.9 s per spawn, so wall time there says
 more about contention than about the hook. Counted with
@@ -239,7 +239,7 @@ with no headroom, and proves itself non-vacuous against three mutants.
 #### Telemetry (opt-in)
 
 The hook emits one structured
-[hook-telemetry](../../docs/conventions/hook-telemetry/README.md) envelope per
+[hook-telemetry](../../docs/contracts/hook-telemetry/README.md) envelope per
 run to whatever `HOOK_TELEMETRY_SINK` names. Carrying `status` (`blocked` on a
 block, `ok` otherwise), `duration_ms`, and a `data` payload of labels only: the
 outcome and which body form was read (`body-literal`, `body-file`,
@@ -630,7 +630,7 @@ Three supported routes:
    {"pr_body_linkage_gate_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

@@ -281,11 +281,51 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
     pages: [[pr(50), pr(51)]],
     workflowRuns: [
       { id: 1, status: "in_progress", display_title: "pr-refine fix-docs #50" },
-      { id: 2, status: "completed", display_title: "pr-refine fix-docs #51" },
+      { id: 2, status: "completed", conclusion: "cancelled", display_title: "pr-refine fix-docs #51" },
       { id: 3, status: "queued", display_title: "pr-unblock fix-docs #51" },
     ],
   });
   assert.deepEqual(numbers(api), ["51"]);
+});
+
+const ran = (id, number, conclusion) => ({ id, status: "completed", conclusion, display_title: `pr-refine fix-docs #${number}` });
+
+test("a PR whose fix-docs run completed without a check run is not dispatched again, and its head is recorded without a history read", async () => {
+  // success: the run job stopped at its trigger gate or emitted an empty head;
+  // failure: a job failed before the report posted anything.
+  for (const conclusion of ["success", "failure", "skipped"]) {
+    const record = emptyRecord();
+    record.docsRuns.set(pr(54).headRefOid, ["9"]);
+    const { api, lines } = await run({ pages: [[pr(54)]], workflowRuns: [ran(9, 54, conclusion)] }, { record });
+    assert.deepEqual(numbers(api), [], conclusion);
+    assert.deepEqual(api.calls.history, [], conclusion);
+    assert.ok(isHandled(record, CHECK, pr(54).headRefOid), conclusion);
+    assert.equal(record.docsRuns.has(pr(54).headRefOid), false, conclusion);
+    assert.ok(lines.includes("skip fix-docs #54: a pr-refine.yml run for it already ended"), lines.join("\n"));
+  }
+});
+
+test("a PR whose only fix-docs run was lost without a check run is dispatched once more, and not after a second lost run", async () => {
+  for (const conclusion of ["cancelled", "timed_out", "startup_failure"]) {
+    const once = await run({ pages: [[pr(55)]], workflowRuns: [ran(10, 55, conclusion)] });
+    assert.deepEqual(numbers(once.api), ["55"], conclusion);
+    assert.equal(isHandled(once.record, CHECK, pr(55).headRefOid), false, conclusion);
+    const twice = await run({ pages: [[pr(55)]], workflowRuns: [ran(11, 55, "timed_out"), ran(10, 55, conclusion)] });
+    assert.deepEqual(numbers(twice.api), [], conclusion);
+    assert.ok(isHandled(twice.record, CHECK, pr(55).headRefOid), conclusion);
+  }
+  const mixed = await run({ pages: [[pr(56)]], workflowRuns: [ran(12, 56, "success"), ran(13, 56, "cancelled")] });
+  assert.deepEqual(numbers(mixed.api), [], "a lost run after one that ended is not retried");
+  const going = await run({ pages: [[pr(56)]], workflowRuns: [{ id: 15, status: "in_progress", display_title: "pr-refine fix-docs #56" }, ran(13, 56, "cancelled")] });
+  assert.deepEqual(numbers(going.api), [], "the retry already going holds the dispatch");
+  assert.equal(isHandled(going.record, CHECK, pr(56).headRefOid), false);
+});
+
+test("a same-repository PR whose fix-docs dispatch stopped at the trigger gate does not take a dispatch slot on later runs", async () => {
+  // Lowest number first: #57 would take the first of the two slots each run.
+  const { api, lines } = await run({ pages: [[pr(57), pr(58), pr(59)]], workflowRuns: [ran(14, 57, "success")] });
+  assert.deepEqual(numbers(api), ["58", "59"]);
+  assert.ok(!lines.some((line) => line.startsWith("defer fix-docs")), lines.join("\n"));
 });
 
 test("a fix-docs run an outage lost before its check gets a fresh dispatch from this dispatcher, never a re-run", async () => {

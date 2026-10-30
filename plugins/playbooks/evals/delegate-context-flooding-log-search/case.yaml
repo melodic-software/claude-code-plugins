@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: delegate-context-flooding-log-search
+description: "fable-5 delegation case 18 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Plans the trawl as context-flooding side work: raw output many times larger than the answer, read once. It plans to hand the trawl to a worker whose spec asks for a short return (the most common cause, its count, its first timestamp, and file and line evidence), keeps the main session for the fix, and says it will check the cited evidence itself before the answer drives the next edit. It starts no trawl."
+execution:
+  prompt: "/playbooks:fable-5. We are partway through fixing the checkout retry bug. Plan this side task, do not start yet: the last 30 days of production logs, about 2 GB under logs/prod/, hold a few thousand `RetryBudgetExceeded` errors. For each one, pull the surrounding request trace and classify its cause, so you can tell me which cause is most common and its first timestamp. Each trace takes a few reads to pull, and you will not need the logs again after this answer. Say how you will run it and what you will do with the answer."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans to hand the log trawl to a worker instead of reading the logs into the main session. Context, the reference answer: Plans the trawl as context-flooding side work: raw output many times larger than the answer, read once. It plans to hand the trawl to a worker whose spec asks for a short return (the most common cause, its count, its first timestamp, and file and line evidence), keeps the main session for the fix, and says it will check the cited evidence itself before the answer drives the next edit. It starts no trawl. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: The planned worker spec asks for a short return with file and line evidence, not the raw traces. Context, the reference answer: Plans the trawl as context-flooding side work: raw output many times larger than the answer, read once. It plans to hand the trawl to a worker whose spec asks for a short return (the most common cause, its count, its first timestamp, and file and line evidence), keeps the main session for the fix, and says it will check the cited evidence itself before the answer drives the next edit. It starts no trawl. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-3
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Says it will check the cited evidence itself before the answer drives an edit. Context, the reference answer: Plans the trawl as context-flooding side work: raw output many times larger than the answer, read once. It plans to hand the trawl to a worker whose spec asks for a short return (the most common cause, its count, its first timestamp, and file and line evidence), keeps the main session for the fix, and says it will check the cited evidence itself before the answer drives the next edit. It starts no trawl. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: dispatches-no-worker
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

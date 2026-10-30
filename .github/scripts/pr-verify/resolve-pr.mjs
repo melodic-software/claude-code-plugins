@@ -54,7 +54,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -527,6 +527,9 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
         body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
+        // A trusted target-subset part's Scope line (admit.mjs splitScope):
+        // its done-when lines apply only to these targets.
+        ...(!written(issue) && childBodies.has(issue.number) && splitScope(childBodies.get(issue.number)) !== null && { scope: splitScope(childBodies.get(issue.number)) }),
         comments: issue.comments.nodes.filter((comment) => written(comment) || comment === counted).map((comment) => String(comment.body ?? "")),
         // The body's done-when items that refinement lists as checks a
         // person runs (admit.mjs personChecks), each as written.

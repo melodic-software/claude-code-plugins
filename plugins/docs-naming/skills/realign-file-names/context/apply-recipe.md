@@ -94,8 +94,8 @@ one starts at step 1.
 ## On a decline
 
 Write `declined` into the record and stop. Then offer, once, the durable form:
-an entry under `file_names.exempt_paths` in the tracked
-`.claude/docs-naming.json`, which every checkout carries, unlike the artifact.
+an entry under `exempt_paths` in the tracked
+`docs/conventions/docs-naming.yaml`, which every checkout carries, unlike the artifact.
 
 Offer it; never take it. Declining this rename and agreeing never to be asked
 again are two decisions, and the operator makes the second one.

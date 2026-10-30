@@ -23,6 +23,7 @@
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"],
             "timeout": 10,
+            "onFailure": "block",
             "statusMessage": "Checking the drift-checker fetch host..."
           }
         ]
@@ -42,7 +43,8 @@
               "docs.anthropic.com",
               "www.anthropic.com"
             ],
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }

@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [1.10.6] - 2026-10-30
+
+### Changed
+
+- Setup reads `docs/conventions/<plugin>.yaml` with the bundled `yaml-subset.mjs` instead of running `yaml-subset.awk`. It accepts and refuses the same files, and parse errors now use `yaml-subset.mjs` wording, for example `line 2: duplicate key "x"` (#10131).
+
+## [1.10.5] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [1.10.4] - 2026-10-29
 
 ### Fixed

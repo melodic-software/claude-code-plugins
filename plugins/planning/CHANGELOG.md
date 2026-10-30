@@ -3,6 +3,59 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.127.0] - 2026-10-30
+
+### Added
+
+- `/planning:prd` gains a ninth required section, **Quality requirements**, in every tier template ([#8322](https://github.com/melodic-software/claude-code-plugins/issues/8322)). It takes its prompts from `/planning:interview`'s quality-requirement list and asks for a measurable target only where a wrong guess would change the design. A one-pager records only the prompts where the feature moves the product's current bar, a consumer feature covers every prompt it touches, and a B2B-internal PRD covers every prompt. Before, a PRD had no place for performance, reliability or security targets, so they first came up at interview or design time.
+
+### Changed
+
+- Setup reads `docs/conventions/<plugin>.yaml` with the bundled `yaml-subset.mjs` instead of running `yaml-subset.awk`. It accepts and refuses the same files, and parse errors now use `yaml-subset.mjs` wording, for example `line 2: duplicate key "x"` (#10131).
+
+## [0.126.12] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [0.126.11] - 2026-10-30
+
+### Fixed
+
+- `/planning:interview` recommendations now carry a `Flips if:` line after `Inference:` ([#11190](https://github.com/melodic-software/claude-code-plugins/issues/11190)). It names the condition that would change that recommendation, as a fact the user can confirm. Before, a round's one shared closing probe was the only invitation to name what would change an answer.
+
+## [0.126.10] - 2026-10-30
+
+### Changed
+
+- `/planning:interview` now runs a scope-cut round before it recommends `/planning:wayfind` for an effort plainly too big for its budget. For each capability it asks or applies the Must test (if this is not delivered, is the effort cancelled or worked around?) and recommends a MoSCoW bucket, keeping Must to about 60% of the effort or less. The rest goes to later work, or to wayfind once the fog trigger holds. The rule lives in the interview's `context/composition.md`, with a pointer from `context/routing.md`, and the eval case `interview-scope-cut-moscow` covers it. ([#11192](https://github.com/melodic-software/claude-code-plugins/issues/11192))
+
+## [0.126.9] - 2026-10-30
+
+### Fixed
+
+- `/planning:interview` now ends the Step 3 restatement by asking the user to confirm it or to name the `Q<N>` numbers of the items to change. A yes/no check such as "Sound good?" no longer closes it. When the recap command or the procedure check cannot be run, the restatement still goes out with that gap named, in place of setup questions.
+
+## [0.126.8] - 2026-10-30
+
+### Changed
+
+- `/planning:interview`, `/planning:prd` and `/planning:design` resolve their authoring-formats keys through one shared ladder in `context/authoring-formats.md` instead of three restated copies; no behavior change. New eval cases cover the `ears` path in interview and prd and the `dbml` path in design.
+
+## [0.126.7] - 2026-10-30
+
+### Fixed
+
+- An own answer on the interview page replaces the recommendation, so it no longer carries the recommendation's commitments. Confirm's "Tick these and confirm" list leaves them out, the question's pane labels them "replaced by your own answer", and the Brief names none of them, even one ticked before the own answer. Before, Confirm ticked a commitment the own answer had replaced, and the Brief listed it as confirmed beside a decision that contradicted it. The ledger row still keeps those ticks, so an import restores them.
+- `round.sh status` now lists a hedged question's unticked commitments on a `hedged, to confirm:` line, so it names the same commitments as the page's To confirm list.
+
+## [0.126.6] - 2026-10-30
+
+### Changed
+
+- The interview skill's EARS tags and `acceptance_criteria_format` resolution ladder now live in `context/ears.md`, and the acceptance-criteria coverage prompt with its register exemption in `context/coverage-prompt.md`. SKILL.md and the other context files keep a one-sentence pointer at each former site, and SKILL.md still states that the coverage prompt writes no register row and does not bring the register gate into scope.
+
 ## [0.126.5] - 2026-10-29
 
 ### Changed

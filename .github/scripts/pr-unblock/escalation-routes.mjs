@@ -1,8 +1,8 @@
 // escalation-routes.json, the one routing table: each stop reason's activity
-// and route (`hold` hands the PR to a person with the human-gated label; `fail`
-// ends in a failing status, plus the entry's `label`, needs-session for the
-// session-builder queue, when it names one), as report-escalation.sh reads it. No
-// network; imported by gate-source.mjs, the select and emitter scripts, and
+// and route (`hold` hands the PR to a person with the human-gated label;
+// `fail` ends in a failing status, plus the entry's `label`, needs-session for
+// the session-builder queue, when it names one), as report-escalation.sh reads
+// it. No network; imported by gate-source.mjs, the select and emitter scripts, and
 // apply-patch.mjs (which copies this file and the table beside its own copy).
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

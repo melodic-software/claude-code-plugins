@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The nine harness-ops audit rows put the payload's session_id into their
-# envelope `data` (additive, docs/conventions/hook-telemetry rule 1) so the
+# envelope `data` (additive, docs/contracts/hook-telemetry rule 1) so the
 # reference sink can route the line into the per-session log. One suite for
 # all of them: each row is driven black-box with a minimal payload that
 # carries a session_id, and once without one, and the captured envelope is

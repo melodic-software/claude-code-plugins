@@ -13,7 +13,7 @@
 # hook's `if` rule matches a tool call).
 #
 # No PostToolUse row: test-quality findings are report-only, so they come from
-# /testing:audit on demand, never per edit (docs/conventions/check-placement).
+# /testing:audit on demand, never per edit (docs/contracts/check-placement).
 #
 # Usage: gen-hook-filters.sh [--check]
 #   (no arg)  rewrite hooks/hooks.json

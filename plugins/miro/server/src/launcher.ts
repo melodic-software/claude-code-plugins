@@ -1,7 +1,7 @@
 // What src/launch.ts, the entry point Claude Code starts, runs. Installs the server's npm
 // dependencies from the committed lockfile into ${CLAUDE_PLUGIN_DATA} on first launch, then
 // runs the TypeScript source with Node's type stripping.
-// Rules: docs/conventions/on-demand-dependencies/README.md.
+// Rules: docs/contracts/on-demand-dependencies/README.md.
 //
 // Layout under the data directory:
 //   mcp-server/<lock hash>/node_modules   runtime dependencies, from `npm ci --omit=dev`

@@ -91,7 +91,7 @@ exclusions, and verification commands. This surface does not resolve user-global
 or `*.local.*` overlay layers. The bundled lane is the portable baseline, and
 personal variation is limited to lane names the team does not track: an uncommitted
 `.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
-[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md)).
+[config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md)).
 
 ## Safety model
 
@@ -218,7 +218,7 @@ Three supported routes:
    {"hard_exclusions": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

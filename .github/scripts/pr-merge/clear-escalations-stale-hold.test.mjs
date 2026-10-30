@@ -161,8 +161,12 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     throw new Error(`unexpected checks ${method} ${path}`);
   };
   const reader = async (method, path) => {
-    if (method === "GET" && path === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&per_page=100`) {
-      return pushes;
+    // Pages of 100 by the Link cursor, as GitHub serves the activity API.
+    const page = /^(.*?)(?:&after=c(\d+))?$/.exec(path);
+    if (method === "GET" && page[1] === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc&per_page=100`) {
+      const n = Number(page[2] ?? 0);
+      const next = pushes.length > (n + 1) * 100 ? `<https://api.github.com/repositories/1/activity?after=c${n + 1}>; rel="next"` : null;
+      return Object.defineProperty(pushes.slice(n * 100, n * 100 + 100), Symbol.for("github.link"), { value: next });
     }
     throw new Error(`unexpected reader ${method} ${path}`);
   };
@@ -218,6 +222,14 @@ test("the hold stays while the review lanes have not passed on the new head", as
   await assertKept(world({ lanes: { ...lanes, "pr-review-hosted.yml": { ...lanes["pr-review-hosted.yml"], notes: [] } } }), `claude-review recorded no one review of ${HEAD}`);
   const incremental = [completeNotice("claude-security-review", `scope=incremental since=${OLD}`)];
   await assertKept(world({ lanes: { ...lanes, "pr-review-security-hosted.yml": { ...lanes["pr-review-security-hosted.yml"], notes: incremental } } }), `claude-security-review reviewed only part of ${HEAD}`);
+});
+
+test("a hold comes off when the push that landed the held head is past the first activity page", async () => {
+  const between = Array.from({ length: 99 }, (_, i) => push(PERSON, "d".repeat(40), new Date(Date.parse("2026-10-18T10:59:00Z") - i * 1000).toISOString()));
+  const [head, ...rest] = basePushes();
+  const w = world({ pushes: [head, ...between, ...rest] });
+  await run(w);
+  assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
 });
 
 test("a lanes App push alone never clears the hold, even with both lanes passing", async () => {

@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [0.11.3] - 2026-10-30
+
+### Changed
+
+- **Stryker.NET exercised-scope filter limits stated** ([#9687](https://github.com/melodic-software/claude-code-plugins/issues/9687)). `audit/context/tool-test-restriction.md` now says the joined `test-case-filter` can match more tests than the set: a generic class's term has no trailing `.`, and a term can match in another listed project. Those extra tests can turn NoCoverage into Survived or Killed. It also stops claiming the probe measured which directory `test-projects` paths resolve against.
+
 ## [0.11.2] - 2026-10-30
 
 ### Changed
