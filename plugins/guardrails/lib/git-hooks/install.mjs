@@ -961,6 +961,8 @@ export function decline(info, plugin, entry, undo = false, global = false) {
 // An older git ignores the keys without a word.
 const CONFIG_HOOK_EVENTS = ["commit-msg"];
 const CONFIG_HOOK_FLOOR = [2, 54];
+// The worktree keyword is newer than config hooks; an older git skips such an include.
+const WORKTREE_INCLUDE_FLOOR = [2, 56];
 const INCLUDE_IF_RE = /^(?:gitdir|gitdir\/i|onbranch|worktree|worktree\/i|hasconfig:remote\.\*\.url):[^\n\0]+$/;
 const INCLUDE_FILE = "hooks.gitconfig";
 
@@ -975,17 +977,21 @@ function configHookDir(plugin) {
   return path.join(home, "git", "checks", plugin.name);
 }
 
-function hasConfigHooks(info) {
+function gitAtLeast(info, [floorMajor, floorMinor]) {
   const m = /(\d+)\.(\d+)/.exec(git(info.top, ["--version"]).out);
   if (!m) return false;
   const [major, minor] = [Number(m[1]), Number(m[2])];
-  return major > CONFIG_HOOK_FLOOR[0] || (major === CONFIG_HOOK_FLOOR[0] && minor >= CONFIG_HOOK_FLOOR[1]);
+  return major > floorMajor || (major === floorMajor && minor >= floorMinor);
 }
+
+const hasConfigHooks = (info) => gitAtLeast(info, CONFIG_HOOK_FLOOR);
 
 // The events this repository's git config gives the entry's config hook; an
 // empty value clears the ones before it.
 function configHookEvents(info, plugin, entry) {
-  const values = git(info.top, ["config", "--get-all", `hook.${hookName(plugin, entry)}.event`]).out.split("\n");
+  // --null keeps a trailing empty value, which git() would otherwise trim away.
+  const out = git(info.top, ["config", "--null", "--get-all", `hook.${hookName(plugin, entry)}.event`]).out;
+  const values = out.split("\0").slice(0, -1);
   return values.slice(values.lastIndexOf("") + 1);
 }
 
@@ -1012,6 +1018,9 @@ function includeText(plugin, entries, dir) {
 export function configHook(info, plugin, condition, force = false) {
   const entries = plugin.entries.filter((e) => CONFIG_HOOK_EVENTS.includes(e.event));
   if (!entries.length) throw new UsageError(`${plugin.name} has no ${CONFIG_HOOK_EVENTS.join(" or ")} entry`);
+  if (/^worktree(?:\/i)?:/.test(condition) && !gitAtLeast(info, WORKTREE_INCLUDE_FLOOR)) {
+    throw new UsageError(`this git does not support the ${condition.split(":")[0]} includeIf keyword; use gitdir`);
+  }
   const dir = configHookDir(plugin);
   if (/["$`\\\n]/.test(posix(dir))) throw new UsageError(`${dir} holds a character a hook command cannot quote`);
   const decisions = [];

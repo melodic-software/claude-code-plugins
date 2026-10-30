@@ -6,8 +6,8 @@ condition matches, and runs beside lefthook, husky, the pre-commit framework or 
 `core.hooksPath` setup, with no edit to any repository. Only the `commit-msg` entry installs
 this way; `pre-commit-content` and `reference-verify` keep the `local` and `shared` scopes.
 
-**Git floor: 2.54.** The install needs git 2.54 or later; a git below 2.54 ignores `hook.*` silently.
-The block loads, the hook never runs, and nothing reports it. Pointer:
+**Git floor: 2.54.** The installer's floor is 2.54. Below it, `config-hook` returns `git-too-old`
+and `verify` does not count the hook block: treat the hook as not running there. Pointer:
 <https://git-scm.com/docs/git-hook/2.54.0#_configuration>, as of 2026-10-29; recheck trigger: a
 git release that changes the `hook.<name>.*` keys.
 
@@ -27,7 +27,8 @@ git release that changes the `hook.<name>.*` keys.
 1. **Condition.** Ask the operator which repositories the hook covers, as an `includeIf`
    condition: `gitdir:~/work/` covers every repository under `~/work/`, and its linked worktrees
    too, since `gitdir` matches a worktree's git directory inside its main repository. Use
-   `gitdir/i:` on Windows. Pointer:
+   `gitdir/i:` on Windows. `config-hook` refuses `worktree:` and `worktree/i:` on a git older than
+   its worktree floor; use `gitdir:` there. Pointer:
    <https://git-scm.com/docs/git-config#_conditional_includes>, as of 2026-10-29; recheck trigger:
    a git release that changes the `includeIf` keywords. When nobody can answer, stop and report:
    never pick a condition.
