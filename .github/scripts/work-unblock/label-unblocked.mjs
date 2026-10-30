@@ -121,7 +121,7 @@
 // crash before the report, a run cancelled after admit passed and before any
 // resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
 // or a run that ended green at the read runner's `Stop on stale workflow files`
-// step (it waited in its slot past a lane workflow change, so no model ran).
+// step in any of its calls (it waited in its slot past a lane workflow change, so no model ran).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
 // admit never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired once per version
@@ -260,6 +260,9 @@ const MINT_STEP = "Request the lane token";
 // The read runner's step a run stops at, green, when its lane workflow files
 // differ from main's: no model ran and no outcome marker follows.
 const STALE_STEP = "Stop on stale workflow files";
+// work-resolve-issue.yml's calls of the read runner: the API key leg, then
+// the subscription and fallback legs a handoff starts.
+const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
 // The admit job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
@@ -1215,10 +1218,13 @@ async function stoppedUntrusted(jobsOf, runs) {
   return false;
 }
 
-// Whether one of `runs` ended green at the read runner's stale-workflow stop.
+// Whether one of `runs` ended green at the read runner's stale-workflow stop,
+// in any of its calls: a later leg waits for its slot after the first hands
+// off, so it can be the one that stops.
 async function stoppedStale(jobsOf, runs) {
   for (const run of runs.filter((item) => item.conclusion === "success" && RUN_ID.test(String(item.id)))) {
-    const resolve = namedJobs(await jobsOf(run), "resolve-issue");
+    const jobs = await jobsOf(run);
+    const resolve = RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name));
     if (resolve.some((job) => (job?.steps ?? []).some((step) => step?.name === STALE_STEP && step.conclusion === "success"))) {
       return true;
     }
