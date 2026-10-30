@@ -690,7 +690,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (i < s.length) parent.append(s.slice(i));
   }
   // The page builds its HTML as strings: the renderer's elements go in serialized, so their text stays escaped.
-  const MD = {heading: 3, repo: () => ({repo: S.doc.meta.repo}), text: qText}, mdBox = document.createElement("div");
+  const MD = {heading: 3, repo: () => ({repo: S.doc.meta.repo, commit: S.doc.meta.commit}), text: qText}, mdBox = document.createElement("div");
   const serialize = fill => { mdBox.replaceChildren(); fill(mdBox); return mdBox.innerHTML; };
   const lineHtml = raw => serialize(b => QuestionShape.inline(b, raw, MD));
   const mdHtml = src => '<div class="md">' + serialize(b => b.append(QuestionShape.markdown(src, MD))) + "</div>";

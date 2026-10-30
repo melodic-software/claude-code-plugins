@@ -3,6 +3,12 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.11] - 2026-10-30
+
+### Changed
+
+- `/ruff-format:setup`: the reconfiguration guidance names `claude plugin configure ruff-format@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
 ## [0.12.10] - 2026-10-30
 
 ### Changed

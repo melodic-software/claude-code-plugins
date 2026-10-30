@@ -116,7 +116,9 @@ the run continues.
 ### Entry points
 
 With a control skill, map each changed file to the features whose index `sources` globs match it,
-and drive every entry point those features list, not only the one the scenario names. The scenario
+and drive every entry point those features list, not only the one the scenario names. A matched hub
+line that names a module's `README.md` is not the feature: read the index lines under that
+README's `## Sub-features`, and the file maps to each feature whose own line's globs match it. The scenario
 still adds whatever it names on top. Before driving, write each entry point's expected outcome from
 the requirement or acceptance criterion ([context/e2e.md](context/e2e.md), workflow step 1).
 

@@ -330,6 +330,19 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
+A choice of means or a design detail is none of these reasons: the lane doing the work decides it
+on evidence, as the owner's standing direction "Decide from evidence" says. The issue lane's pre-edit pushback reaches the owner only when the run
+names `cause: intent` (or `intent-change`), a hold code (`security-risk`, `cost-risk`,
+`design-change`, `intent-change`) in its reason or its cause, or a `host-run` or `attended` code
+followed by text naming a security risk (owner decision 2026-10-29); a pushback opening with such
+a code and no security risk takes that code's route. Any other pushback goes back through intake
+triage once, whose own intent, security and cost rules decide whether it stops
+([`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)
+`pushback-means`, `retries: 1`); a second one fails. A pushback whose words (its reason, its
+summary or a not-done item) or cause name a security risk marks its intake comment `security`;
+when that intake round is spent, it holds for the owner as `security-risk`. The mark does not
+carry over to later runs: intake triage re-judged it before admitting the issue again.
+
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 
 <!-- spellchecker:off -->

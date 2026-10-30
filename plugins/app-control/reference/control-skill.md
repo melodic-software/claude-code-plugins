@@ -40,7 +40,7 @@ plugin) holds four sections, an optional `## Gotchas`, and an index:
 | `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
 | Integrated apps (above the sections) | One line per integrated app, per [Integrated apps](#integrated-apps), or none |
 
-Below them, an index with one line per feature file, in this form:
+Below them, an index with one line per feature file it indexes, in this form:
 
 ```text
 - <title> | features/<module>/<feature>/README.md | entry points: <n> | sources: <glob>[, <glob>]
@@ -49,6 +49,23 @@ Below them, an index with one line per feature file, in this form:
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
 the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
+
+Each folder level that has a `README.md` indexes the level below it. A module folder may hold its
+own `README.md`, whose `## Sub-features` points to each feature folder under it; the hub's index
+then names that `README.md` in place of a line per feature under the module. The module
+`README.md` is a feature file with all six sections of [Feature files](#feature-files). Its
+`## Entry points` repeats each entry point of the features under it, one line each, so the hub
+line keeps the form above: its `<n>` is the number of lines under the module `README.md`'s own
+`## Entry points`, which is the sum of the features' entry points, and its `sources` is the union
+of their globs, so a changed file under any of them still matches a hub line. Each feature's own
+`README.md` is the source of truth for its entry points: where the module `README.md`'s copy
+disagrees with a feature's, the module copy is wrong and is rewritten from the features. The module
+`README.md`'s `## Sub-features` holds one index line per feature under it, in the form above with
+that feature's own path, count and globs. A caller that maps a changed file to features reads the
+hub's lines, and for a matched module line reads the module `README.md`'s `## Sub-features` lines
+too: the file maps to each feature whose own line's `sources` match it, and that line's path gives
+the feature id (`features/auth/sign-in/README.md` is `auth/sign-in`). A module with no
+`README.md`, like a small app with no modules, keeps a hub index line per feature.
 
 A control skill can instead be a command file named `control-<app>`. The command file is the hub:
 it holds the sections and the index. Its commands folder is the top-level folder it loads from: a
@@ -101,7 +118,13 @@ records only what the run started.
 
 When the app's work runs on a server behind a browser, write a row per tier for each kind that records differently on each: a
 browser profile of a server-rendered app mostly shows the client runtime. Drive records each tier's
-row, one tool per tier, and the artifact name carries the tier.
+row, one tool per tier, and the artifact name carries the tier. The server tier's rows record the
+app's own process, never a wrapper shell's, through the runtime's diagnostics tools. Its `logs`
+row may name the runtime's counters recorder, which saves counter values (such as CPU use, GC and
+thread pool counts) over the run to a file, launching the app as its child: for .NET 5 or later,
+`dotnet-counters collect --format json -o <file> -- <command>`, where `<command>` starts the app
+itself (a self-contained executable or `dotnet exec <app.dll>`), never `dotnet run`, since the
+tool records the first .NET process that connects to it. A counters file is not a sampled profile.
 
 Write a `threads` command, and a `cpu` or `heap` command that targets a running process, with a
 `<pid>` placeholder and no elevation prefix, and with `<file>` where the tool takes an output path;
@@ -138,7 +161,9 @@ Manuals, each record a pointer, as-of date and recheck trigger:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>.
   As of 2026-10-23. Recheck on a .NET major release. dotnet-stack:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>. As
-  of 2026-10-27. Recheck on a .NET major release.
+  of 2026-10-27. Recheck on a .NET major release. dotnet-counters:
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-counters#dotnet-counters-collect>.
+  As of 2026-10-30. Recheck on a .NET major release.
 - Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
   <https://github.com/google/pprof>. As of 2026-10-23. Recheck on a Go minor release.
 - GDB: `thread apply all`
@@ -163,14 +188,15 @@ sections in this order:
 |---|---|
 | `## Parts` | The distinct behaviors inside the feature, one short line each |
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
-| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command |
+| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
 | `## Reset` | How to return the app's own data to a known state |
 | `## Drive` | The steps a user takes, one action per step |
 | `## Gotchas` | What has made a run lie or fail before |
 
 A feature is a goal a user comes to the app to reach, such as placing an order. A sub-feature is a
 state or branch inside that goal, such as an order paid with a saved card, never a separate goal.
-A state or branch with no feature file of its own is a line in `## Parts`.
+A state or branch with no feature file of its own is a line in `## Parts`. A module's `README.md`
+is the one exception: its `## Sub-features` points to the module's features, each its own goal.
 
 UI that differs by tenant or configuration, such as a control a setting turns off or a role
 hides, is a named precondition in `## Drive`, stating the tenant, setting or role the steps need,
@@ -373,7 +399,12 @@ through a shell.
 
 An integrated app is a system whose pages a journey crosses, such as a separate identity server.
 It gets its own control skill, in the repository that builds it, owning its steps, Launch and
-environments; this control skill never copies them. The hub lists each one above the sections:
+environments; this control skill never copies them. A journey belongs to the control skill of the
+app where the user starts and ends it: the pages it crosses in an integrated app are steps that
+app's control skill owns, included by reference. Every service the journey depends on, each
+integrated app included, is a dependency service in the selected environment's `services`
+([Environments](#environments)): a precondition the run's Ready checks before driving. The hub
+lists each integrated app above the sections:
 
 ```text
 - <app> | control-<app> | repository: <repository, or this one>

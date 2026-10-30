@@ -30,11 +30,18 @@ name: pr-verify
 # 401 or 402) and the check-intent-fallback job judges once on that token, on
 # a third VM; with it empty, nothing hands off past the subscription job. So
 # one job per run judges. Each later job repeats every step from a fresh
-# checkout. From check-intent the second reads only four outputs, each
-# compared to a fixed string in its `if` or in the fallback-reason expression
-# that picks one of three literals; none of them is written into a `run:`
-# script, and it takes no artifact or cache. run-claude-cli sets handoff and
-# lane-class after it restores the step files, so the model cannot set them.
+# checkout, but the subscription job takes check-intent's reads instead of
+# repeating them: four outputs, each compared to a fixed string in its `if` or
+# in the fallback-reason expression that picks one of three literals, and
+# `reads`, the resolved PR, spec and trusted text, which the "Hand the reads
+# on" step writes from base-side step files before the model runs and which
+# reaches resolve-pr.mjs only through env. It still runs the trigger gate
+# (2 reads), whose head the agree step compares with the carried one, and
+# reads everything again when the bundle is missing, malformed, too large or
+# from another run attempt (resolve-pr.mjs takeReads). None of them is written
+# into a `run:` script, and it takes no artifact or cache. run-claude-cli sets
+# handoff and lane-class after it restores the step files, so the model cannot
+# set them.
 # The job tokens can only read. Every script and local action comes from the
 # main checkout in .base; the Claude actions are ci-workflows', at main.
 #
@@ -86,6 +93,7 @@ jobs:
       handoff: ${{ steps.judge.outputs.handoff }}
       credential-present: ${{ steps.credential.outputs.present }}
       key-leg-clean: ${{ steps.key-leg.outputs.clean }}
+      reads: ${{ steps.carry.outputs.reads }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -206,6 +214,25 @@ jobs:
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+
+      # The reads the subscription job would repeat, from the files and
+      # outputs of the steps above, before the model runs: one job output
+      # (resolve-pr.mjs packReads), empty when too large or on any failure,
+      # which leaves that job to read again.
+      - name: Hand the reads on
+        id: carry
+        if: steps.agree.outcome == 'success'
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+        run: node .base/.github/scripts/pr-verify/resolve-pr.mjs carry
 
       # The judgment's model, turns and effort: the verify-pr route of the
       # base config's models block.
@@ -427,10 +454,12 @@ jobs:
           exit 1
 
   # The subscription leg, as its own job on a new VM: check-intent's
-  # processes, files and environment do not reach it. Its steps repeat
-  # check-intent's from a fresh checkout but for the credential and the
-  # key-leg check (workflow.test.mjs holds them equal), so the gates, the
-  # kill switch and the hardening run again. Only this job references the
+  # processes and environment do not reach it, and of its files only the
+  # pre-judge reads do, through the `reads` output. Its steps repeat
+  # check-intent's from a fresh checkout but for the credential, the
+  # key-leg check and the reads it takes from check-intent's `reads` output
+  # (workflow.test.mjs holds them equal), so the trigger gate, the kill
+  # switch and the hardening run again. Only this job references the
   # subscription token. needs adds success(): a check-intent that failed, a
   # denial on its key leg included, leaves this job skipped.
   check-intent-subscription:
@@ -499,6 +528,9 @@ jobs:
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+          # check-intent's reads, taken only when they hold (resolve-pr.mjs takeReads).
+          CARRIED: ${{ needs.check-intent.outputs.reads }}
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
@@ -542,8 +574,9 @@ jobs:
             exit 1
           fi
 
+      # Carried from check-intent when the resolver took its reads.
       - name: Select the trusted PR text
-        if: steps.agree.outcome == 'success'
+        if: steps.agree.outcome == 'success' && steps.pr.outputs.carried != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
