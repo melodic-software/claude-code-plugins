@@ -534,17 +534,17 @@ test("pr-verify still names its judge step as the reconciler reads it, in every 
 // A review leg whose step names drifted would lose its hold, and one whose
 // trigger check took no reconciler record would refuse every re-run.
 test("pr-review-main still names its review and write steps as the reconciler reads them, and takes its record, in every review leg", () => {
-  const legs = verifyLegs("pr-review-main.yml").filter(({ body }) => /^ {6}- name: Review the pull request$/m.test(body));
+  const legs = verifyLegs("pr-review-main.yml").filter(({ body }) => new RegExp(`^ {6}- name: ${REVIEW_STEP}$`, "m").test(body));
   assert.equal(legs.length, 3);
   for (const { name, body } of legs) {
     const steps = legSteps(body);
     const names = steps.map((s) => s.match(/^ {6}- name: (.+)$/m)[1]);
-    const review = steps.findIndex((s) => /^ {8}id: review$/m.test(s));
+    const review = steps.findIndex((s) => /^ {8}id: review-1$/m.test(s));
     assert.equal(names[review], REVIEW_STEP, name);
     assert.equal(names[review - 1], JUDGE_PREDECESSOR, name);
     const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
     assert.equal(writes.length, 1, name);
-    assert.match(writes[0], /\n[ ]+if: steps\.review\.outcome == 'success'/, name);
+    assert.match(writes[0], /\n[ ]+if: steps\.review-1\.outcome == 'success' && /, name);
     const trigger = steps.find((s) => s.startsWith("      - name: Check the trigger\n"));
     assert.match(trigger, /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/, name);
   }

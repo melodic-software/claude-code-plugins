@@ -235,6 +235,54 @@ test("dispatch-full-run starts nothing within the cap, and anything outside it",
   assert.equal(evalStep(text, outs()), true);
 });
 
+// The merge job mints its lane token, and reads its mode, only while the
+// resolved merge-pr slot applies; a slot `enabled: false` or whose
+// `applies-when` does not match prints the skip reason instead (#7636).
+// A merge-job step's condition, with or without an `id:` line before it.
+const mergeIf = (name) => {
+  const body = job("merge").split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0];
+  const found = /(?:^|\n) {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(body);
+  assert.ok(found, `${name} has a condition`);
+  return (found[1] ?? found[2]).replaceAll("\n", " ");
+};
+const configured = (applies, outcome = "success") => ({ config: { outcome, outputs: { applies, "skip-reason": applies === "true" ? "" : "disabled-by-config" } } });
+
+test("the merge job requests its lane token and reads its mode only while the merge-pr slot applies", () => {
+  for (const name of ["Request the lane token", "Read report-only"]) {
+    const text = mergeIf(name);
+    assert.equal(evalStep(text, configured("true")), true, name);
+    assert.equal(evalStep(text, configured("false")), false, name);
+    assert.equal(evalStep(text, configured("")), false, name);
+    assert.equal(evalStep(text, configured("true", "failure")), false, name);
+  }
+});
+
+test("a merge-pr slot the config turns off prints its skip reason before the token request, and nothing after it runs", () => {
+  const merge = job("merge");
+  const names = [...merge.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.equal(names.indexOf("Report a lane the config turns off") + 1, names.indexOf("Request the lane token"));
+  const text = mergeIf("Report a lane the config turns off");
+  assert.equal(evalStep(text, configured("false")), true);
+  assert.equal(evalStep(text, configured("true")), false);
+  assert.equal(evalStep(text, configured("false", "failure")), false);
+  const block = merge.split("\n      - name: Report a lane the config turns off\n")[1].split("\n      - name: ")[0];
+  assert.match(block, /\n {10}REASON: \$\{\{ steps\.config\.outputs\.skip-reason \}\}\n/);
+  assert.match(block, /::notice::merge-pr does not apply \(\$\{REASON:-no reason\}\)/);
+  // Every step after the token request waits on a token, or on a step that does.
+  const after = names.slice(names.indexOf("Request the lane token") + 1);
+  for (const name of after) {
+    const condition = mergeIf(name);
+    const unminted = { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped" }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } };
+    const always = () => true;
+    const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "post-merge-dispatch": { result: "success", outputs: { "rate-limited": "" } } }, always);
+    // It reads the job's own token, and runs on a kill switch too.
+    if (name === "Log the API budget at job end") {
+      continue;
+    }
+    assert.equal(value, false, name);
+  }
+});
+
 test("post-merge-dispatch starts main's uncovered tip for any merge, outside the cap only", () => {
   const text = stepIf("post-merge-dispatch", "Start the full CI run on main");
   const expr = text;

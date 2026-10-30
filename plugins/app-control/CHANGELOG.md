@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.9] - 2026-10-30
+
+### Fixed
+
+- `/app-control:drive` now keeps the per-run count of the control-skill contract's Sign-in floor, which the CLI cannot keep because it holds no count between calls. Drive calls `cli/ sign-in <account>` at most once per account in a run, unless committed config allows more. A failed sign-in ends every step that is not a finally step, and drive tries no other account in its place.
+
 ## [0.17.8] - 2026-10-30
 
 ### Changed
