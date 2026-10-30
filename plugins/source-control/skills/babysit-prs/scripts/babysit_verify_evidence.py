@@ -617,14 +617,19 @@ def split_child_body(
 # line, and whether `name` can be one of its targets over the task lines.
 SCOPE_PREFIX = "Scope: "
 SCOPE_BANNED = re.compile(r"[,<>`\r\n]")
+# What JavaScript String.prototype.trim strips: WhiteSpace and LineTerminator.
+JS_TRIM = "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 
 def scope_target(name: str, lines: set[str]) -> bool:
     """2 to 100 characters, no comma, angle bracket, backtick or line
-    break, no outer space, and verbatim text of one of `lines`."""
+    break, no outer space, and verbatim text of one of `lines`. Length and
+    outer space are JavaScript's (UTF-16 code units, String.prototype.trim),
+    since admit.mjs scopeTarget is the rule's one home."""
+    units = len(name.encode("utf-16-le")) // 2
     return (
-        2 <= len(name) <= 100
-        and name.strip() == name
+        2 <= units <= 100
+        and name.strip(JS_TRIM) == name
         and not SCOPE_BANNED.search(name)
         and any(name in line for line in lines)
     )

@@ -187,6 +187,15 @@
           "editor": null
         }
       ]
+    },
+    "unicode": {
+      "number": 5,
+      "author": {
+        "type": "User",
+        "id": 153232337
+      },
+      "body": "## Done when\n\n- [ ] Line 3 says nineteen\u001c.\n- [ ] Line 4 says AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA😀.",
+      "comments": []
     }
   },
   "cases": [
@@ -1292,6 +1301,48 @@
       "expect": {
         "trusted": false,
         "reason": "the target-subset header needs its Scope line"
+      }
+    },
+    {
+      "name": "a Scope target over 100 UTF-16 code units",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when lines below are copied from #5 as written, and the Scope line names the targets this part covers.\n\n## Done when\n\n- [ ] Line 3 says nineteen\u001c.\n- [ ] Line 4 says AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA😀.\nScope: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA😀",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "unicode",
+      "size": "small",
+      "expect": {
+        "trusted": false,
+        "reason": "a target's length counts UTF-16 code units, as JavaScript does, so 99 letters and an emoji are 101"
+      }
+    },
+    {
+      "name": "a Scope target ending in a control character JavaScript trim keeps",
+      "child": {
+        "author": {
+          "type": "Bot",
+          "id": 337595936
+        },
+        "body": "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when lines below are copied from #5 as written, and the Scope line names the targets this part covers.\n\n## Done when\n\n- [ ] Line 3 says nineteen\u001c.\n- [ ] Line 4 says AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA😀.\nScope: nineteen\u001c",
+        "last_edited_at": null,
+        "editor": null,
+        "parent": {
+          "number": 5
+        }
+      },
+      "parent": "unicode",
+      "size": "small",
+      "expect": {
+        "trusted": true,
+        "reason": "outer space is what JavaScript trim strips, and U+001C is not space to it"
       }
     }
   ]
