@@ -4,7 +4,7 @@
 # Resolve a consumer repository's convention home from the pointer line in its
 # root instruction file.
 #
-# WHY. The config-cascade expression doctrine (docs/conventions/config-cascade/
+# WHY. The config-cascade expression doctrine (docs/contracts/config-cascade/
 # README.md § Expression doctrine) binds a consumer's convention home with ONE
 # pointer line inside a marked, machine-owned region of the root instruction
 # file. The line IS the binding: there is no binding file, so every plugin that

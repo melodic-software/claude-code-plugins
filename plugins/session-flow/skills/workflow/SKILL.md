@@ -1,5 +1,5 @@
 ---
-description: "Staged workflow navigator (explore, research, design, plan, implement, test, review, verify, retro): suggests the next stage and routes end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+description: "Staged workflow navigator (explore, research, design, plan, implement, test, review, verify, retro): suggests the next stage and routes end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:recommend-skills."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -217,7 +217,7 @@ disambiguate. Precedence:
 **This rule governs STAGE routing, not option surfacing.** "Never present both" is about refusing to
 hand the user two candidate owners for one stage decision and letting them sort it out. It is not a
 prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
-annotated, for a human to choose from is a different job, and `/session-flow:show-options` owns it.
+annotated, for a human to choose from is a different job, and `/session-flow:recommend-skills` owns it.
 Reach for this skill when the user wants the next stage decided; reach for that one when they want
 the menu. When a request could be either, "what comes next" is a stage question and belongs here.
 

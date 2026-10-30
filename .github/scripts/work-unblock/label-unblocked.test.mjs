@@ -2338,7 +2338,10 @@ test("breaker trips at the mint never count toward the failed-mint bound", async
 // With request-lane-token's kill-switch-ok, the same refusal ends the mint
 // step green with no token and a `lane-token-stopped` notice: every step that
 // keys on the token, `Stage the activity from the base` first, skips, and the
-// run ends green. Only that shape in the job listing earns a log read.
+// run ends green. Only that shape in the job listing earns a log read. The
+// log's shape is job 120970852314's: the composite's one step sits between a
+// start-action and an end-action marker, and the step's own output follows
+// its script group.
 const stoppedJob = (id, name) => ({
   id,
   name,
@@ -2352,8 +2355,13 @@ const stoppedJob = (id, name) => ({
 });
 const stoppedLog = ({ stamp = "2026-10-30T01:57:51.9466327Z ", line = "lane-token-stopped: the broker refused the token because a lanes kill switch is on, a designed stop; this run takes no token and skips the rest" } = {}) =>
   [
-    "2026-10-30T01:57:50.6158116Z ##[group]Run request-lane-token",
+    "2026-10-30T01:57:50.6157454Z ##[group]Run ./.base/.github/actions/request-lane-token",
+    "2026-10-30T01:57:50.6159328Z ##[endgroup]",
+    "2026-10-30T01:57:50.6165385Z ##[start-action display=Request the lane token;id=lane-token.request]",
+    "2026-10-30T01:57:50.6182178Z ##[group]Run set -euo pipefail",
+    "2026-10-30T01:57:50.6340248Z ##[endgroup]",
     `${stamp}##[notice]${line}`,
+    "2026-10-30T01:57:51.9483644Z ##[end-action id=lane-token.request;outcome=success;conclusion=success;duration_ms=1331]",
     "2026-10-30T01:57:52.0000000Z ##[group]Run jq -n \\",
     "",
   ].join("\n");
@@ -2420,6 +2428,23 @@ test("a stopped mint whose log does not carry the kill-switch notice is a failed
     ["no log", undefined],
   ]) {
     const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: log === undefined ? {} : { [PATCH_MINT_ID]: log }, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+test("a kill-switch notice outside the mint step's section is a failed mint, never a breaker trip", async () => {
+  const [head, tail] = stoppedLog().split(/^.*##\[notice\].*\n/m);
+  const notice = stoppedLog().split("\n").find((line) => line.includes("##[notice]"));
+  const start = head.split("\n").find((line) => line.includes("##[start-action"));
+  const end = tail.split("\n").find((line) => line.includes("##[end-action"));
+  for (const [name, log] of [
+    ["in a later step", `${head}${tail}${notice}\n`],
+    ["before the mint step", `${notice}\n${head}${tail}`],
+    ["in a second mint block after the first", `${head}${tail}${start}\n${notice}\n${end}\n`],
+    ["with no end-action marker", `${head}${notice}\n`],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs: MINT_STOPPED, logs: { [PATCH_MINT_ID]: log }, conclusion: "success" });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), refired(30), name);
   }

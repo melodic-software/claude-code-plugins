@@ -2,9 +2,9 @@
   "skill": "discipline:use-your-skills",
   "plugin": "discipline",
   "skill_dir": "plugins/discipline/skills/use-your-skills",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the show-options menu skill, the inventory and skill-visibility audit skills, the sweep-all sibling and the skill-authoring playbook.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the recommend-skills menu skill, the inventory and skill-visibility audit skills, the sweep-all sibling and the skill-authoring playbook.",
   "competitors": [
-    "session-flow:show-options",
+    "session-flow:recommend-skills",
     "harness-ops:inventory",
     "harness-ops:audit-skill-visibility",
     "discipline:sweep-all",

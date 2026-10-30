@@ -2166,8 +2166,10 @@ jobs:
             if ((RESUME_BRANCH === '') !== (RESUME_TIP === '') || (RESUME_TIP !== '' && STARTED !== 'true')) return bad('resume-tip');
             if (STARTED === 'true' && BASE_SHA === '') return bad('base-sha');
             // Branches to prune: at most 20 distinct lane branches of the
-            // issue, none of them the reuse or resume branch. Not re-derived:
-            // the prune job re-checks each against GitHub before deleting.
+            // issue, none of them the reuse or resume branch. The checked step
+            // publishes only the names the re-derived earlier-work check also
+            // names, and the prune job re-checks each against GitHub before
+            // deleting.
             const prune = PRUNE_BRANCHES === '' ? [] : PRUNE_BRANCHES.split(' ');
             if (prune.length > 20 || new Set(prune).size !== prune.length
               || prune.some((name) => !BRANCH.test(name) || name === REUSE_BRANCH || name === RESUME_BRANCH)) return bad('prune-branches');

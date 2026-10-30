@@ -321,7 +321,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:check`](../plugins/review/skills/check/SKILL.md) | `review` | Report whether node resolves and the connected-page Artifact guard is registered. Never installs. |
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
 | [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
-| [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
+| [`/session-flow:recommend-skills`](../plugins/session-flow/skills/recommend-skills/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
 | [`/skill-quality:check-prerequisites`](../plugins/skill-quality/skills/check-prerequisites/SKILL.md) | `skill-quality` | Report whether the tools skill-quality declares resolve. Never installs. |
 | [`/source-control:check`](../plugins/source-control/skills/check/SKILL.md) | `source-control` | Report whether node and jq resolve for the source-control hooks. Never installs. |

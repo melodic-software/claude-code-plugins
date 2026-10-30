@@ -1,7 +1,7 @@
 // GENERATED from lib/plugin-options.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
 // Reads a plugin's userConfig options from the operator's own settings, channel F of
-// docs/conventions/hook-config-delivery: pluginConfigs["<name>@<marketplace>"].options in the
+// docs/contracts/hook-config-delivery: pluginConfigs["<name>@<marketplace>"].options in the
 // fixed-path managed settings files and in the user settings.json, the latter located only from
 // this install's own path. Nothing here reads the environment: a repository's settings env block
 // reaches every process a session starts and carries no provenance, so CLAUDE_CONFIG_DIR, HOME,

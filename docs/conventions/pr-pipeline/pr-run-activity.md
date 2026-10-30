@@ -635,7 +635,9 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
 2. After an act step that succeeded, in place of the clean-tree check, the collector writes
    everything the activity changed against the gated head (committed, staged, unstaged and
    untracked, ignored files and `.lane/` aside) as one `git diff --binary` patch, through a scratch index, with
-   every diff option that changes the patch's form passed explicitly. Its git runs against a fresh
+   every diff option that changes the patch's form passed explicitly. An exact rename (100%
+   similarity) is a rename header with no content, so a moved file adds a few lines to the patch
+   cap; a rename with edits is a deletion and an addition. Its git runs against a fresh
    repository that borrows only the checkout's objects, with no global or system config, so no
    filter, hook, fsmonitor or include the activity wrote into `.git` runs. A failed, cancelled or
    turnless act step collects nothing and the check fails as usual. The collector also leaves out
