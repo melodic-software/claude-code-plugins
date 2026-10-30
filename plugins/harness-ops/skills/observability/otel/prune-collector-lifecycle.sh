@@ -14,7 +14,8 @@ readonly COLLECTOR_SERVICE_NAME='otelcol-contrib'
 readonly POLL_INTERVAL_SECONDS=0.25
 readonly POLL_MAX_TRIES=40 # 40 * 0.25s = 10s
 # A prune stops the Collector for seconds to a few minutes; a lock older than this is a problem.
-readonly SENTINEL_MAX_AGE_MINUTES=60
+# CC_OTEL_SENTINEL_MAX_AGE_MINUTES overrides it; prune-otel-store.sh validates it.
+readonly SENTINEL_MAX_AGE_MINUTES="${CC_OTEL_SENTINEL_MAX_AGE_MINUTES:-60}"
 
 OWNER_ID=""
 # Trap state (script-level so the EXIT trap sees them).
@@ -55,40 +56,43 @@ proc_start() {
   fi
 }
 
-# Called when take_sentinel fails. Returns 0 after removing a stale sentinel (its holder is gone,
-# or it has no owner token and is older than SENTINEL_MAX_AGE_MINUTES), 1 while a holder is live
-# or the lock is young, 3 when a live holder has kept it past the bound. The stale sentinel is
-# renamed aside first: only one racer's rename succeeds, so two runs cannot both take it over.
-recover_stale_sentinel() {
-  local owner="" moved="" pid start old="" aside="$SENTINEL.stale.$$"
+# Judge the sentinel's holder: 0 = stale (holder gone, or no owner token and older than
+# SENTINEL_MAX_AGE_MINUTES), 1 = live or young, 3 = a live holder past the bound.
+sentinel_state() {
+  local owner="" pid start old
   { read -r owner <"$SENTINEL/owner"; } 2>/dev/null || true
   read -r pid start <<<"$owner" || true
   old="$(find "$SENTINEL" -maxdepth 0 -mmin "+$SENTINEL_MAX_AGE_MINUTES" 2>/dev/null)"
   if [[ -n "${pid:-}" && -n "${start:-}" ]]; then
-    if [[ "$(proc_start "$pid")" == "$start" ]]; then
-      [[ -n "$old" ]] && return 3
-      return 1
-    fi
-  elif [[ -z "$old" ]]; then
+    [[ "$(proc_start "$pid")" == "$start" ]] || return 0
+    [[ -n "$old" ]] && return 3
     return 1
   fi
-  mv "$SENTINEL" "$aside" 2>/dev/null || return 1
-  { read -r moved <"$aside/owner"; } 2>/dev/null || true
-  if [[ "$moved" != "$owner" ]]; then
-    mv "$aside" "$SENTINEL" 2>/dev/null || true
-    return 1
-  fi
-  rm -rf "${aside:?}"
-  err "took over a stale sentinel ($SENTINEL, owner: ${owner:-none}): its prune is gone"
+  [[ -n "$old" ]] || return 1
 }
 
-# Take the sentinel, recovering a stale one. Returns as recover_stale_sentinel does when held.
+# Take the sentinel, recovering a stale one; returns 1 or 3 (see sentinel_state) when it is held.
+# Recovery runs under a second token, so every recoverer judges the sentinel only after the last
+# one finished: a run that read the dead owner cannot then remove the lock a peer just took.
+# The guard is held for milliseconds, so one older than a minute is from a killed run.
 acquire_sentinel() {
   take_sentinel && return 0
-  local rc=0
-  recover_stale_sentinel || rc=$?
-  ((rc == 0)) || return "$rc"
-  take_sentinel
+  local guard="$SENTINEL.takeover" owner="" rc=0
+  if [[ -n "$(find "$guard" -maxdepth 0 -mmin +1 2>/dev/null)" ]]; then rm -rf "${guard:?}"; fi
+  mkdir "$guard" 2>/dev/null || true
+  (set -o noclobber && : >"$guard/owner") 2>/dev/null || return 1
+  if [[ -e "$SENTINEL" ]]; then
+    sentinel_state || rc=$?
+    if ((rc == 0)); then
+      { read -r owner <"$SENTINEL/owner"; } 2>/dev/null || true
+      rm -rf "${SENTINEL:?}"
+      err "took over a stale sentinel ($SENTINEL, owner: ${owner:-none}): its prune is gone"
+    fi
+  fi
+  ((rc != 0)) || take_sentinel || rc=1
+  rm -f "$guard/owner"
+  rmdir "$guard" 2>/dev/null || true
+  return "$rc"
 }
 
 lock_held_too_long() {
@@ -196,6 +200,11 @@ ensure_collector_running() {
 ensure_collector_briefly() {
   manages_collector || return 0
   local rc=0
+  # No store directory, so no prune can hold a lock in it.
+  if [[ ! -d "${SENTINEL%/*}" ]]; then
+    ensure_collector_running || rc=$?
+    return "$rc"
+  fi
   acquire_sentinel || rc=$?
   if ((rc == 3)); then lock_held_too_long; fi
   ((rc == 0)) || return $((rc == 3))

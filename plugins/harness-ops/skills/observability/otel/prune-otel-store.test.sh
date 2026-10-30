@@ -475,11 +475,73 @@ assert_contains "old ownerless sentinel: taken over" "$out" "took over a stale s
 assert_eq "old ownerless sentinel: Collector running" "running" "$(cat "$SVC")"
 assert_eq "old ownerless sentinel: released" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 
+# CC_OTEL_SENTINEL_MAX_AGE_MINUTES moves the bound: an ownerless sentinel two minutes old is young
+# under the default hour and stale under a one-minute bound; a bad value is rejected.
+mkdir "$S/.prune-in-progress"
+touch -t "$(date -d @$((NOW - 120)) +%Y%m%d%H%M.%S 2>/dev/null || date -r $((NOW - 120)) +%Y%m%d%H%M.%S)" "$S/.prune-in-progress"
+echo stopped >"$SVC"
+out="$(run_svc "$S")"
+assert_eq "bound default: two-minute ownerless sentinel respected" "stopped" "$(cat "$SVC")"
+out="$(CC_OTEL_SENTINEL_MAX_AGE_MINUTES=1 run_svc "$S")"
+assert_contains "bound override: two-minute ownerless sentinel taken over" "$out" "took over a stale sentinel"
+assert_eq "bound override: Collector running" "running" "$(cat "$SVC")"
+out="$(CC_OTEL_SENTINEL_MAX_AGE_MINUTES=0 run_svc "$S" --dry-run)"
+rc=$?
+assert_eq "bound override 0: rejected with exit 2" "2" "$rc"
+assert_contains "bound override 0: reported" "$out" "must be a positive integer"
+
 # --scrub-cold takes the same sentinel and restores the Collector the same way.
 echo stopped >"$SVC"
 out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$S" --scrub-cold)"
 assert_contains "scrub-cold no-op: reported" "$out" "action=noop-scrub-cold-keep-user-prompts"
 assert_eq "scrub-cold no-op: Collector running" "running" "$(cat "$SVC")"
+
+echo stopped >"$SVC"
+out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$S" --scrub-cold --dry-run)"
+assert_contains "scrub-cold dry-run no-op: reported" "$out" "action=noop-scrub-cold-keep-user-prompts"
+assert_eq "scrub-cold dry-run no-op: Collector left alone" "stopped" "$(cat "$SVC")"
+
+# Takeover runs under a guard token: while another recoverer holds it, a stale sentinel is left
+# alone; a guard left by a killed recoverer (over a minute old) is cleared and recovery proceeds.
+mkdir -p "$S/.prune-in-progress" "$S/.prune-in-progress.takeover"
+: >"$S/.prune-in-progress.takeover/owner"
+touch -t 200001010000 "$S/.prune-in-progress"
+out="$(run_svc "$S")"
+assert_not_contains "takeover guard held: no takeover" "$out" "took over"
+assert_eq "takeover guard held: stale sentinel left for the guard holder" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
+assert_eq "takeover guard held: Collector untouched" "stopped" "$(cat "$SVC")"
+touch -t 200001010000 "$S/.prune-in-progress.takeover"
+out="$(run_svc "$S")"
+assert_contains "old takeover guard: recovery proceeds" "$out" "took over a stale sentinel"
+assert_eq "old takeover guard: Collector running" "running" "$(cat "$SVC")"
+assert_eq "old takeover guard: guard and sentinel released" "no no" \
+  "$([[ -e "$S/.prune-in-progress.takeover" ]] && echo yes || echo no) $([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+
+# The store-absent paths restore it too, with or without a store directory.
+for S in "$TMP/store-absent-missing" "$(new_store absent-empty)"; do
+  echo stopped >"$SVC"
+  out="$(run_svc "$S")"
+  rc=$?
+  assert_eq "store absent (${S##*/}): exits 0" "0" "$rc"
+  assert_contains "store absent (${S##*/}): reported" "$out" "action=noop-store-absent"
+  assert_eq "store absent (${S##*/}): Collector running" "running" "$(cat "$SVC")"
+  assert_eq "store absent (${S##*/}): no sentinel left" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+done
+echo stopped >"$SVC"
+out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_svc "$TMP/store-absent-missing" --scrub-cold)"
+assert_eq "scrub-cold no-op, no store dir: Collector running" "running" "$(cat "$SVC")"
+
+# A failed recovery start fails the run and leaves no sentinel behind.
+S="$(new_store restore-startfail)"
+log_line "$RECENT" "$RECENT" >"$S/cc-logs.json"
+echo stopped >"$SVC"
+out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$SVC_STOP" CC_OTEL_START_CMD=false \
+  CC_OTEL_RUNNING_CMD="$SVC_RUNNING" CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
+  bash "$SCRIPT" 2>&1)"
+rc=$?
+assert_eq "failed recovery start: exits 1" "1" "$rc"
+assert_contains "failed recovery start: reported" "$out" "failed to start Collector service"
+assert_eq "failed recovery start: no sentinel left" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
 
 # --- 9. verify-before-mv: failed verify aborts, original untouched, exit 1 ---
 S="$(new_store verifyfail)"

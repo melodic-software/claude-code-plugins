@@ -109,6 +109,9 @@
 #   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
 #                          cold COPY+verify; must create <cold-temp> on success — test seam
 #                          (failure injection ONLY; real compaction is always duckdb)
+#   CC_OTEL_SENTINEL_MAX_AGE_MINUTES
+#                          age past which a sentinel with no owner token is stale and a live
+#                          holder fails the run (default: 60; a positive integer)
 #   CC_OTEL_TEST_ROOT      the test suites' temp dir: a store outside it is refused (exit 2), so
 #                          a test can never reach a real store
 
@@ -165,6 +168,8 @@ Env:
   CC_OTEL_COLD_KEEP_USER_PROMPTS
                                =1 keeps user_prompt bodies + prompt/prompt_text attributes in cold (default: off)
   CC_OTEL_COLD_KEEP_CONTENT    =0 scrubs the other content-class columns in cold (default: 1, kept)
+  CC_OTEL_SENTINEL_MAX_AGE_MINUTES
+                               stale-lock bound in minutes (default: 60)
   Lifecycle                    Windows service: otelcol-contrib (requires provisioning's scoped
                                SERVICE_STOP and SERVICE_START grant for the runtime user)
 EOF
@@ -357,6 +362,10 @@ main() {
     err "CC_OTEL_HOT_TOTAL_MAX_MB must be a non-negative integer (got: $hot_total_max_mb)"
     return 2
   fi
+  if [[ ! "$SENTINEL_MAX_AGE_MINUTES" =~ ^[1-9][0-9]*$ ]]; then
+    err "CC_OTEL_SENTINEL_MAX_AGE_MINUTES must be a positive integer (got: $SENTINEL_MAX_AGE_MINUTES)"
+    return 2
+  fi
   # Base 10, so a leading zero (08) is not read as octal.
   hot_max_mb=$((10#$hot_max_mb))
   hot_total_max_mb=$((10#$hot_total_max_mb))
@@ -386,7 +395,7 @@ main() {
     if keep_prompts && ! scrub_content; then
       printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and CC_OTEL_COLD_KEEP_CONTENT (unset or 1) keep prompts and content in cold; nothing scrubbed\n'
       printf 'action=noop-scrub-cold-keep-user-prompts\n'
-      ensure_collector_briefly
+      [[ "$dry_run" == true ]] || ensure_collector_briefly
       return
     fi
     if ! command -v duckdb >/dev/null 2>&1; then
