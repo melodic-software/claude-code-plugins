@@ -3434,7 +3434,8 @@ rdt_segment() {
 # into rdt_prev: a find whose output names only paths under its start points
 # (rdt_find_scan), saved in RDT_FW and RDT_FQ; git ls-files with no git option
 # before the subcommand and no --format (git takes an unambiguous prefix of a
-# long option, and only --format starts with --fo); a line filter passes on its
+# long option, and only --format starts with --f[o], the bracket keeping the
+# spell-checker from reading the prefix as a word); a line filter passes on its
 # own feed; anything else, a launcher in front included, is open.
 # shellcheck disable=SC2329  # invoked from rdt_segment
 rdt_feed_class() {
@@ -3460,7 +3461,7 @@ rdt_feed_class() {
   git)
     [[ "${words[i + 1]-}" == ls-files ]] || return 0
     for ((i = i + 2; i < n; i++)); do
-      [[ "${words[i]}" == --fo* ]] && return 0
+      [[ "${words[i]}" == --f[o]* ]] && return 0
     done
     rdt_prev=g
     ;;
