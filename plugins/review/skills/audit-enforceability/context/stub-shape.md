@@ -35,7 +35,7 @@ owner: <invocation, plugin name, or URL>
 
 ## Ratchet offer
 
-<present only on a counting rung while the offer is on: a non-zero violation count goes to /review:ratchet; a zero count lands the rule>
+<present only on a counting rung while the offer is on: a non-zero violation count goes to /toolchain:ratchet; a zero count lands the rule>
 
 ## Not done here
 
@@ -96,7 +96,7 @@ whose check reports how many places violate it: `editorconfig-severity`, `analyz
 `custom-analyzer`, `semgrep-rule` and `architecture-test`. `make-impossible` removes the state
 rather than counting it, and `action-guard` and `automated-review` produce no count, so those stubs never carry it.
 Under `off`, no stub carries it. The section is one fixed paragraph: once the rule exists, a count
-above zero goes to `/review:ratchet` as a CI ceiling, and a count of zero lands the rule with no
+above zero goes to `/toolchain:ratchet` as a CI ceiling, and a count of zero lands the rule with no
 ceiling.
 
 ## Filename

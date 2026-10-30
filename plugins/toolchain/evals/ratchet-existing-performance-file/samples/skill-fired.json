@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "review:ratchet", "args": "the count of type: ignore comments"}}],
+      "answer": [{"tool": "Skill", "input": {"skill": "toolchain:ratchet", "args": "the count of type: ignore comments"}}],
       "why": "the ratchet skill"
     }
   ],

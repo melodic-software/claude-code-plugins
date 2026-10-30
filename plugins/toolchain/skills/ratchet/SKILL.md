@@ -9,7 +9,7 @@ metadata:
   summary: Hold a count in CI with a checked-in ceiling a human merges
 ---
 
-**Arguments.** `[<counter, rule or claim>]`. e.g. /review:ratchet the no-floating-promises rule
+**Arguments.** `[<counter, rule or claim>]`. e.g. /toolchain:ratchet the no-floating-promises rule
 
 ## Purpose
 
@@ -238,3 +238,4 @@ Awaiting:  human approval of the files above
 - **A raised ceiling is a decision.** State the reason in the PR body; never raise one to turn a
   build green.
 - **A count measured warm fails on every fresh runner.** Pin the cache state in the command.
+- **A baseline or allowlist at zero entries is deleted** with its reading code: [reference/zero-entries.md](reference/zero-entries.md).
