@@ -40,7 +40,7 @@
 # plus .md/.json under plugins/*/skills/setup/ and the ai-briefing tree.
 #
 # Every OTHER .json in the repo — .github/recurring-schedule.json, the
-# docs/conventions/hook-telemetry/data/*.schema.json set, the runner-policy
+# docs/contracts/hook-telemetry/data/*.schema.json set, the runner-policy
 # tree — is a DATA file whose only gate is that something parses it. That is a
 # real but thin lane, and it is deliberately what this entry claims: no shell
 # suite covers JSON, and none should have to. A JSON fixture a suite actually
@@ -60,21 +60,23 @@
 # already sits under .github/*, so the entry bought nothing; *.yaml additionally
 # swept in 13 files that NO lane reads —
 # plugins/toolchain/reference/ecosystems/*.yaml (9) and
-# docs/conventions/ecosystem-commands/examples/*.yaml (4). Verified absent, not
+# docs/contracts/ecosystem-commands/examples/*.yaml (4). Verified absent, not
 # merely unattributed: there is no yamllint step anywhere in .github or scripts;
 # every check-jsonschema step names its files and none names these;
 # validate-plugin-contracts.mjs does not mention yaml at all; and
 # `git ls-files 'plugins/toolchain/**/*.test.sh'` is empty. The generic hygiene
 # steps (typos, editorconfig-checker, gitleaks) read the bytes but validate
 # nothing about these files' contract. So they now fail loud, which is this
-# tool working. To bring them back, give them a real lane first: they have a
-# schema already — docs/conventions/ecosystem-commands/ecosystem.schema.json —
-# and wiring a check-jsonschema step against it is the natural way to earn an
-# entry here.
+# tool working. The four ecosystem-commands examples have since earned a lane:
+# docs/contracts/ecosystem-commands/examples.test.sh names each one and checks
+# it against ecosystem.schema.json, so they map to that suite, not to an entry
+# here. The toolchain ecosystem YAMLs still have none.
 .github/*
 .gitattributes
+scripts/.gitattributes
 .gitignore
 .gitleaksignore
+.lycheeignore
 .editorconfig
 .shellcheckrc
 .node-version
@@ -212,3 +214,9 @@ docs/conventions/pr-pipeline.yaml
 docs/conventions/source-control.yaml
 docs/conventions/testing.yaml
 docs/conventions/work-items.yaml
+
+# Comment-only pointer stubs left at the ecosystem-commands examples' old home,
+# for installed plugin versions that still link there. They hold no example and
+# no lane reads them; examples.test.sh validates the real files under
+# docs/contracts/ecosystem-commands/examples/.
+docs/conventions/ecosystem-commands/examples/*

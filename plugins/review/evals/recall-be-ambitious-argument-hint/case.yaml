@@ -1,0 +1,16 @@
+# Recall case: a bug the review lanes missed, rebuilt offline. A Codex review
+# found it and a commit inside the same pull request fixed it before merge.
+# pr: melodic-software/claude-code-plugins#7617, at head 513c96b1c5690679805b8da5664e6588cc904ffc,
+#   where the code-review lane posted findings=0 and the security lane found no issue
+# base: c3bf05ae7b36eca01fafaed0821a5ea0e88d48ca
+# bug: plugins/discipline/skills/be-ambitious/SKILL.md:3 at 513c96b1c569 (same line in the scaffold).
+#   The frontmatter (lines 1-8) has no argument-hint, though the skill reads a
+#   request typed after the command. The fix inserts it before line 3; the
+#   Codex review that found it anchored line 4.
+# source: confirmed lane miss; fix commit 5dd311b1a9c3539c3058750374d33694f453e9ef
+# confirmed-by: verifier-agent (owner spot-check pending)
+# rebuilt: SKILL.md whole at 513c96b1c569; the PR's other 102 files are left out.
+schema_version: "1.1"
+name: recall-be-ambitious-argument-hint
+context:
+  scaffold_script: scaffold.sh

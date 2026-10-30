@@ -226,7 +226,8 @@ else
 fi
 
 # --- check_envelope: schema-driven envelope conformance ---------------------
-SCHEMA="$LIB_DIR/../docs/conventions/hook-telemetry/envelope.schema.json"
+SCHEMA="$LIB_DIR/../docs/contracts/hook-telemetry/envelope.schema.json"
+[[ -s "$SCHEMA" ]] || SCHEMA="$LIB_DIR/../docs/conventions/hook-telemetry/envelope.schema.json"
 CAP_E="$WORK/cap-e"
 sink_e=$(make_sink "cat >\"$CAP_E\"")
 emit_with_sink "$sink_e" "$WORK"
@@ -261,6 +262,42 @@ mutate() {
 expect_envelope pass "the real hook::emit_telemetry envelope against the real schema" "$ENV_GOOD"
 expect_envelope pass "an explicit schema-file argument" "$ENV_GOOD" "$SCHEMA"
 HOOK_ENVELOPE_SCHEMA="$SCHEMA" expect_envelope pass "the HOOK_ENVELOPE_SCHEMA override" "$ENV_GOOD"
+
+# --- check_envelope: the default schema under either contract home ----------
+# The contract moved from docs/conventions/ to docs/contracts/, leaving a stub
+# with no required list at the old path. The default schema resolves to the new
+# home when it exists and to the old one otherwise.
+# home_case <label> <home>... -> a fixture repo holding a copy of this library
+# and the real schema under each <home>, plus a stub at docs/conventions/ when
+# docs/contracts/ is among them; assert the default resolution passes.
+home_case() {
+  local label="$1" repo="$WORK/home-${RANDOM}" home
+  shift
+  mkdir -p "$repo/lib"
+  cp "$LIB_DIR/hook-test-sink.sh" "$repo/lib/"
+  for home in "$@"; do
+    mkdir -p "$repo/docs/$home/hook-telemetry"
+    cp "$SCHEMA" "$repo/docs/$home/hook-telemetry/envelope.schema.json"
+  done
+  if [[ " $* " == *" contracts "* ]]; then
+    mkdir -p "$repo/docs/conventions/hook-telemetry"
+    # shellcheck disable=SC2016  # $ref is a JSON key, not a shell expansion
+    printf '{"$ref": "../../contracts/hook-telemetry/envelope.schema.json"}\n' \
+      >"$repo/docs/conventions/hook-telemetry/envelope.schema.json"
+  fi
+  if (
+    unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+    git init -q "$repo" &&
+      . "$repo/lib/hook-test-sink.sh" &&
+      check_envelope "$ENV_GOOD" 2>"$WORK/home.err"
+  ); then
+    ok "check_envelope: the default schema resolves $label"
+  else
+    fail "check_envelope: the default schema should resolve $label: $(<"$WORK/home.err")"
+  fi
+}
+home_case "under docs/conventions/ alone (before the move)" conventions
+home_case "under docs/contracts/ past the stub at docs/conventions/ (after the move)" contracts
 
 mapfile -t REQUIRED < <(jq -r '.required[]' "$SCHEMA")
 if ((${#REQUIRED[@]} > 0)); then

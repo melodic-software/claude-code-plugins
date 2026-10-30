@@ -43,13 +43,23 @@ specific that must be current, check the source page instead.
   target, and ties to a user need. The target number is realistic only when a measured baseline, a
   prior result, a benchmark, or expert review justifies it; how severe a miss would be, or that a
   grader can check the number, does not. "Good performance" fails all four.
-- "Rewrite this criterion" The rewrite carries, inline, a number or defined scale, the set of
-  trials it is measured over, and a target grounded the way the Achievable property allows. When
-  the user gives no data, state the target as a quantity relative to the current baseline (for
-  example "at most half the current rate") over a trial set of stated size (for example "500
-  conversations"), without inventing the baseline's value; "lower than the baseline" is a
-  direction, not a target. Never present a made-up baseline figure or expert agreement as fact.
-  X/Y/Z placeholders and "set the target later" are not a usable criterion.
+- "Rewrite this criterion" Answer with this template, every slot filled:
+
+  ```text
+  quality: <the specific behavior measured, and the user need it serves>
+  measure: <the metric: a rate, a count or a defined scale>
+  trials: <the trial set and its size, for example "500 conversations">
+  target: <the threshold, taken from the basis>
+  basis: <measured baseline | prior result | benchmark | expert review | baseline-relative>
+  ```
+
+  The `basis:` slot takes one of those five values, and the target must follow from it. The
+  first four count only when the user supplied the figure or agreement; name it. When none
+  applies, the basis is `baseline-relative` and the target is written relative to the current
+  rate without inventing its value (for example "at most half the current rate over 500
+  trials"), never as a placeholder (X/Y/Z, "set the target later") or a bare direction ("lower
+  than the baseline"). Severity, or that a grader can check the number, is not a basis. Never
+  present a made-up baseline figure or expert agreement as fact.
 - "Which grading method?" The fastest, most reliable, most scalable that fits: code-based if the
   output can be constrained to allow it; LLM-graded for judgment; human only as a last resort.
 - "Can I automate this seemingly subjective eval?" Usually. Constrain the output format,

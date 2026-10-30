@@ -25,7 +25,7 @@ unmerged on 2026-10-06), so upstream changes arrive only as mirror commits.
 
 **Adaptation posture.** Ideas only. html-plan is not installed, vendored, wrapped or depended on,
 and no adapter renders our plans into its markup (#6917 constraint Q2). PLAN.md stays the record and
-HTML stays a view of it (`docs/conventions/rendered-views/README.md`). The one exception #6917 allows
+HTML stays a view of it (`docs/contracts/rendered-views/README.md`). The one exception #6917 allows
 is a temporary trial install during workstream W5, removed when the trial ends; its outcome is to
 be recorded in this file.
 

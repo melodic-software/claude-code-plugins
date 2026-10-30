@@ -75,7 +75,7 @@ test("live config: resolve-conflicts holds no write token; its push job may only
   assert.deepEqual(push.needs, ["resolve-conflicts"]);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["do-not-merge"] }).applies, false);
   // The write runner holds needs-human itself unless the select job read
-  // another lane's escalation (patch-fix-requested).
+  // another lane's escalation (patch-human-gate).
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["needs-human"] }).applies, true);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { draft: true }).applies, false);
 });
@@ -90,14 +90,21 @@ test("live config: resolve-conflicts waits for a human while do-not-merge is on 
   assert.equal(selected("pr-unblock", "resolve-conflicts", { labels: ["needs-human"] }).applies, true);
 });
 
-test("live config: resolve-conflicts does not apply to a draft or a clean PR", () => {
+// A clean PR applies so a hand dispatch can merge the default branch into a
+// head that is only behind; the select job skips one already up to date.
+test("live config: resolve-conflicts applies to a clean ready PR, and not to a draft", () => {
   assert.equal(
     skipReason("pr-unblock", "resolve-conflicts", { draft: true }),
     "not-applicable",
   );
   assert.equal(
-    skipReason("pr-unblock", "resolve-conflicts", { mergeable: "clean" }),
+    skipReason("pr-unblock", "resolve-conflicts", { draft: true, mergeable: "clean" }),
     "not-applicable",
+  );
+  assert.equal(selected("pr-unblock", "resolve-conflicts", { mergeable: "clean" }).applies, true);
+  assert.equal(
+    skipReason("pr-unblock", "resolve-conflicts", { mergeable: "clean", labels: ["do-not-merge"] }),
+    "awaiting-human",
   );
 });
 

@@ -185,12 +185,26 @@ export async function main(env = process.env, { github } = {}) {
   const pulls = SHA.test(env.AFTER ?? "") ? await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER }) : null;
   const summary = render({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY });
   appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
-  // One pull request gets the comment; none, several or a failed lookup gets none.
-  if (pulls?.length !== 1) {
+  // A comment is posted only when a survivor or an uncovered mutant needs action,
+  // and only on the one pull request that merged the head. Every other outcome is
+  // in the summary; an earlier comment from the same head stays as it is.
+  let actionable = false;
+  if (!parsed.error && !parsed.stop) {
+    const { count } = scores(parsed.result.mutants);
+    actionable = count.survived + count["no-coverage"] > 0;
+  }
+  if (!actionable) {
+    console.log("::notice::no pull request comment: no surviving or uncovered mutant needs action");
+  } else if (pulls?.length !== 1) {
     console.log(`::notice::no pull request comment: ${pulls === null ? "the merged pull request lookup failed" : `${pulls.length} pull requests merged the head`}`);
   } else if (env.COMMENT_PATH && env.GITHUB_OUTPUT) {
     writeFileSync(env.COMMENT_PATH, commentBody({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY, runId: env.GITHUB_RUN_ID }));
     appendFileSync(env.GITHUB_OUTPUT, `pull=${pulls[0]}\n`);
+  }
+  if (!parsed.error && !parsed.stop) {
+    const { outcome, mutants } = parsed.result;
+    if (outcome === "refused") console.log("::warning::the audit refused to run (a Phase 0 check stopped it); the run's summary has the report");
+    else if (mutants.length && mutants.every((m) => m.state === "not-run")) console.log("::warning::the audit reported no mutant run; every mutant is not-run");
   }
   if (parsed.error) {
     console.log(`::error::${parsed.error}`);

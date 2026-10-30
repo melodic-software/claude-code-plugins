@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Build the whole solution.
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+dotnet build "$root/Tarnquill.sln" --nologo
+echo "Build finished."

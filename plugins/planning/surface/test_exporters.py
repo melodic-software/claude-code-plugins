@@ -1247,9 +1247,23 @@ class TestSupersededCommitments(SessionCase):
             [question("Q1", commits=["PR 1 ships the parser", "PR 6 ships docs"])],
             [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")],
         )
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "One PR ships everything", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["One PR ships everything"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("risk: One PR ships everything (unconfirmed); from Q1", text)
@@ -1269,7 +1283,14 @@ class TestResolvedOwnAnswer(SessionCase):
             [question("Q1", commits=["Measure at p75"]), question("Q2")],
             [event(1, "Q1", "own", text=self.TYPED), event(2, "Q2", "accept")],
         )
-        rc, out = self.rp("reply", "Q1", "--resolution", self.READ)
+        ops = self.tmp / "reply.json"
+        ops.write_text(
+            json.dumps(
+                {"ops": [{"op": "reply", "id": "Q1", "resolution": self.READ}]}
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
 
     def row(self, ledger):
@@ -1339,7 +1360,8 @@ class TestResolvedOwnAnswer(SessionCase):
 
 class TestBriefIntent(SessionCase):
     """The Brief's Intent, above its Goal: the restated intent paragraph, then the user's own
-    words from each live ask, note and own event; an answered row's basis is its `why:` line."""
+    words from each live ask, note and own event and each note typed on a choice; an answered
+    row's basis is its `why:` line."""
 
     INTENT = "Ship it so I stop babysitting builds."
 
@@ -1385,6 +1407,52 @@ class TestBriefIntent(SessionCase):
             ["none stated", "", "- Q1 own answer: Second try."],
         )
         self.assertNotIn("First try.", text)
+
+    def test_a_note_typed_on_a_choice_is_listed_once_and_a_bare_choice_is_not(self):
+        events = [
+            event(1, "Q1", "ask", text="Does it cover forks?"),
+            event(2, "Q2", "accept", text="Fine  for\nnow."),
+            event(3, "Q3", "alt", alt="b", text="Only on weekends."),
+            event(4, "Q4", "hedged", text="Only if the lock is cheap."),
+            event(5, "Q5", "accept"),
+            event(6, "Q6", "own", text="Keep it on local disk."),
+            event(7, "Q3", "alt", alt="b", text="Only on weekends."),
+        ]
+        self.session([question(f"Q{i}") for i in range(1, 7)], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                "none stated",
+                "",
+                "- Q1 asked: Does it cover forks?",
+                "- Q2 accepted with note: Fine for now.",
+                "- Q3 chose (b) with note: Only on weekends.",
+                "- Q4 accepted on condition: Only if the lock is cheap.",
+                "- Q6 own answer: Keep it on local disk.",
+            ],
+        )
+
+    def test_a_repeated_ask_or_note_is_listed_each_time(self):
+        events = [
+            event(1, "Q1", "ask", text="Why?"),
+            event(2, None, "note", text="Nightly only."),
+            event(3, "Q1", "ask", text="Why?"),
+            event(4, None, "note", text="Nightly only."),
+        ]
+        self.session([question("Q1")], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                "none stated",
+                "",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+            ],
+        )
 
     def test_the_note_that_gave_the_intent_is_not_repeated(self):
         events = [
@@ -4307,9 +4375,23 @@ class TestUntickedCommitmentGate(SessionCase):
             ]
         )
         self.assertEqual(self.gate(), 0)
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "Two writers", "--commit", "Online", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["Two writers", "Online"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         self.assertEqual(
             self.row(),

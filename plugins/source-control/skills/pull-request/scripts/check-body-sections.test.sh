@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Regression test for the create-path required-sections gate (reference/create.md
-# §2.4.2.2). Runs the bash block exactly as create.md prints it, and the shared
-# hook checker (hooks/pr-linkage-validator.sh linkage::problems), over the same
-# bodies, and asserts both return the verdict the pinned ci-workflows
-# pr-contract analyzer returned for that body. Those verdicts were recorded by
-# running the analyzer itself over these bodies; they are the expected values
-# here, not anything either implementation computed.
+# §2.4.2.2). Runs the bash block exactly as create.md prints it over each body
+# and asserts it returns the verdict the pinned ci-workflows pr-contract
+# analyzer returned for that body. Those verdicts were recorded by running the
+# analyzer itself over these bodies; they are the expected values here, not
+# anything the implementation computed. The hooks do not judge sections, so
+# this gate is the only consumer of the shared section checker.
 
 set -uo pipefail
 export LC_ALL=C
@@ -13,7 +13,6 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CREATE_MD="$SKILL_DIR/reference/create.md"
-VALIDATOR="$SKILL_DIR/../../hooks/pr-linkage-validator.sh"
 
 PASS=0
 FAIL=0
@@ -46,26 +45,18 @@ skill_verdict() {
   ) >/dev/null 2>&1 && echo PASS || echo FAIL
 }
 
-hook_verdict() {
-  (
-    # shellcheck source=../../../hooks/pr-linkage-validator.sh
-    source "$VALIDATOR"
-    linkage::problems "$1"
-  ) >/dev/null 2>&1 && echo PASS || echo FAIL
-}
-
 tail_ok=$'## Fix\nfix\n\n## Verification\nran it\n\n## Related\nN/A'
 mk() { printf 'Closes #1\n\n## Summary\n%s\n\n%s' "$1" "$tail_ok"; }
+head_ok=$'Closes #1\n\n## Summary\nx\n\n## Fix\nx\n\n## Verification\nx\n\n'
 
 check() {
-  local name="$1" want="$2" body="$3" skill hook
+  local name="$1" want="$2" body="$3" skill
   skill=$(skill_verdict "$body" Summary Fix Verification Related)
-  hook=$(hook_verdict "$body")
-  if [[ "$skill" == "$want" && "$hook" == "$want" ]]; then
+  if [[ "$skill" == "$want" ]]; then
     echo "PASS: $name ($want)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: $name: want $want, create.md gate $skill, shared checker $hook"
+    echo "FAIL: $name: want $want, create.md gate $skill"
     FAIL=$((FAIL + 1))
   fi
 }
@@ -79,8 +70,15 @@ check "Summary holds an h1 and nothing else" FAIL "$(mk '# Not prose, an h1')"
 check "Summary holds prose" PASS "$(mk 'Real prose.')"
 check "lowercase ## summary heading" PASS "$(printf 'Closes #1\n\n## summary\nReal prose.\n\n%s' "$tail_ok")"
 check "heading with a trailing space" PASS "$(printf 'Closes #1\n\n## Summary \nReal prose.\n\n%s' "$tail_ok")"
+# Section bounds and tab-indented code: expected verdicts hand-transcribed from a
+# reading of the analyzer, not recorded by running it.
+check "Fix is only tab-indented code" FAIL "$(printf 'Closes #1\n\n## Summary\nx\n\n## Fix\n\tcode\n\n## Verification\nx\n\n## Related\nx')"
+check "a deeper subsection is Related's content" PASS "${head_ok}"$'## Related\n\n### Prior art\n\n- x\n\n## Test plan\n\n- ran it'
+check "a same-level heading terminates Related, leaving it empty" FAIL "${head_ok}"$'## Related\n## Extra\n\n- x'
+check "Related is matched case-insensitively" PASS "${head_ok}"$'##   RELATED\n\n- x'
+check "a Related heading with trailing text is not the section" FAIL "${head_ok}"$'## Related work\n\n- x'
 
-# The create path checks the headings config resolved, not the hook's fixed four.
+# The create path checks the headings config resolved, not a fixed four.
 check_configured() {
   local name="$1" want="$2" body="$3" got
   shift 3

@@ -15,12 +15,12 @@ a command line, in output or in an error (an API message quoting it prints it as
 prints one JSON line on stdout. Exit codes: 0 done; 1 refused (bad arguments, no token, an API
 error); 4 a clash: a record already named H, or more than one connector.
 
-Endpoints, bodies and the permissions each accepts, as of 2026-10-21:
+Endpoints, bodies and the permissions each accepts, as of 2026-10-28:
 https://developers.cloudflare.com/api/resources/zones/methods/get/ (DNS Read or Write among others),
 https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/ (DNS Read or Write),
 https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/create/ (DNS Write),
 https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/connections/methods/get/
-(Cloudflare Tunnel Read or Write); the record's shape is step 3 of
+("Cloudflare One Connector: cloudflared" or the older "Cloudflare Tunnel", Read or Write); the record's shape is step 3 of
 https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/.
 Recheck when one of those pages changes a path, a field or the permissions it accepts.
 """

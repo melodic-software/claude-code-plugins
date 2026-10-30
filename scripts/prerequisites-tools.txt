@@ -1,6 +1,6 @@
 # External tools scripts/check-declared-prerequisites.mjs looks for in plugin files.
 # One command name per line. A plugin whose files run one of these must declare it
-# in prerequisites.json (docs/conventions/prerequisites/README.md).
+# in prerequisites.json (docs/contracts/prerequisites/README.md).
 # git, bash, sh and the POSIX utilities are assumed present and are not listed.
 actionlint
 biome

@@ -1,0 +1,13 @@
+"""Fans one event out to every subscriber endpoint."""
+from webhooks.sender import DeliveryError, WebhookSender
+
+
+def notify_subscribers(endpoints, event):
+    sender = WebhookSender()
+    failed = []
+    for endpoint in endpoints:
+        try:
+            sender.send(endpoint, event)
+        except DeliveryError:
+            failed.append(endpoint)
+    return failed

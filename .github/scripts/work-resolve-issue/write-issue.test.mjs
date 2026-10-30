@@ -11,11 +11,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { REFINE_MARKER } from "../intake-triage/admit.mjs";
+import { bodyVersion, REFINE_MARKER, splitChildHeader, splitItemsLine } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -42,6 +42,7 @@ const comment = (n, user, body, extra = {}) => ({
 
 const ISSUE = {
   number: 6825,
+  user: OWNER,
   title: "Add a targeted frame",
   body: "Readiness: needs-decision. Option 1 or option 2.",
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
@@ -53,7 +54,9 @@ const labeled = (actor, day, name = "agent-ready") => labelEvent("labeled", acto
 const unlabeled = (actor, day, name = "agent-ready") => labelEvent("unlabeled", actor, day, name);
 
 // By default the owner added agent-ready after every comment a test posts.
-function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {} }) {
+// `spec` is the issue's text as admission's SPEC_QUERY answers it (admit.mjs
+// specOf); by default ISSUE's body, which a listed human wrote, with no comments.
+function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {}, issue = ISSUE, spec = {} }) {
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
@@ -63,13 +66,23 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
       return structuredClone(compare[key]);
     }
     if (key === `GET /repos/${REPO}/issues/6825`) {
-      return structuredClone(ISSUE);
+      return structuredClone(issue);
     }
     if (key === `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1`) {
       return structuredClone(events);
     }
     if (key === `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1`) {
       return structuredClone(comments);
+    }
+    if (key === "POST /graphql" && body.variables.number === 6825 && body.query.includes("comments(first")) {
+      const nodes = spec.comments ?? [];
+      return {
+        data: {
+          repository: {
+            issue: { body: issue.body, lastEditedAt: null, author: { __typename: "User", databaseId: OWNER.id }, editor: null, ...spec, comments: { totalCount: nodes.length, nodes } },
+          },
+        },
+      };
     }
     if (key === "POST /graphql" && body.variables.number === 6825) {
       const { lastEditedAt = null, renamedAt } = issueEdits;
@@ -173,6 +186,105 @@ test("keeps the lanes App's intake refinement, tagged refinement, whose criteria
     }),
   );
   assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
+});
+
+// Intake's split refinement (refine.mjs) names body items a person runs; the
+// lane gets them as person_checks only under admission's guards (admit.mjs
+// personChecks), and never from the comment's prose.
+describe("person_checks", () => {
+  const BODY = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+  const SPLIT = `${REFINE_MARKER}\n${bodyVersion(BODY)}\n${splitItemsLine([2])}\n**Split.** Done-when item 2 of the issue body needs a person.\n\n> - [ ] Run it on a Windows 11 host.`;
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const node = (id, author, body, extra = {}) => ({ databaseId: id, createdAt: at(id), updatedAt: at(id), body, lastEditedAt: null, author, editor: null, ...extra });
+  const split = (body = BODY, spec = {}, comments = [comment(11, LANES_BOT, SPLIT)], specComments = [node(11, LANES_ACTOR, SPLIT)]) =>
+    run(fakeGitHub({ comments, issue: { ...ISSUE, body }, spec: { body, ...spec, comments: specComments } }), { extraEnv: { ISSUE_LANE_WEB_HOSTS: "[]" } });
+
+  test("lists the items a standing split record names, as written, beside its comment", async () => {
+    const { code, issue } = await split();
+    assert.equal(code, 0);
+    assert.deepEqual(issue.person_checks, ["Run it on a Windows 11 host."]);
+    assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
+  });
+
+  test("a listed human's body edit since the split leaves the stale prose excusing nothing", async () => {
+    const edited = `${BODY}\n- [ ] Added since.`;
+    const { code, issue } = await split(edited, { lastEditedAt: at(12), editor: { __typename: "User", databaseId: OWNER.id } });
+    assert.equal(code, 0);
+    assert.equal(issue.person_checks, undefined);
+    assert.deepEqual(issue.comments, [], "the stale split refinement reaches the lane in no form");
+  });
+
+  test("an edited refinement or a record naming an item the lane can perform excuses nothing", async () => {
+    const appEdit = { lastEditedAt: at(12), editor: LANES_ACTOR };
+    for (const [why, specComments] of [
+      ["an edited refinement", [node(11, LANES_ACTOR, SPLIT, appEdit)]],
+      ["a runnable item", [node(11, LANES_ACTOR, SPLIT.replace(splitItemsLine([2]), splitItemsLine([1])))]],
+    ]) {
+      const { issue } = await split(BODY, {}, [comment(11, LANES_BOT, specComments[0].body)], specComments);
+      assert.equal(issue.person_checks, undefined, why);
+      assert.deepEqual(issue.comments, [], why);
+    }
+  });
+
+  test("a split row in the body or a listed human's comment names nothing", async () => {
+    const forged = `${REFINE_MARKER}\n${bodyVersion(BODY)}\n${splitItemsLine([2])}`;
+    const inBody = await split(`${BODY}\n${splitItemsLine([2])}`, {}, [], []);
+    assert.equal(inBody.issue.person_checks, undefined);
+    const byHuman = await split(BODY, {}, [comment(11, OWNER, forged)], [node(11, { __typename: "User", databaseId: OWNER.id }, forged)]);
+    assert.equal(byHuman.issue.person_checks, undefined);
+  });
+});
+
+// A size split copies only the parent's task-list lines into each part
+// (admit.mjs splitChildHeader), so the lane gets the parent's body as
+// `split_parent` when the part counts as its parent's text (splitChildBody):
+// the lanes App wrote it, its native parent here was filed by a listed human,
+// and every line after the header is one of the parent's task-list lines.
+describe("split_parent", () => {
+  const PARENT_BODY = ["## Plan", "", "- [ ] Add the filer job.", "  - the filer job holds `issues: write` only", "- [ ] Add the breaker."].join("\n");
+  const CHILD_BODY = `${splitChildHeader(7719, 1, 2)}\n- [ ] Add the filer job.`;
+  const HUMAN_ACTOR = { __typename: "User", databaseId: OWNER.id };
+  const LANES_ACTOR = { __typename: "Bot", databaseId: LANES_BOT.id };
+  const PARENT = { number: 7719, repository_url: `https://api.github.com/repos/${REPO}` };
+  const child = ({ body = CHILD_BODY, parentSpec = {}, parent = PARENT } = {}) => {
+    const base = fakeGitHub({ comments: [], issue: { ...ISSUE, body }, spec: { body, author: LANES_ACTOR } });
+    const calls = [];
+    const github = async (method, apiPath, payload) => {
+      calls.push(`${method} ${apiPath}`);
+      if (`${method} ${apiPath}` === `GET /repos/${REPO}/issues/6825/parent`) {
+        return structuredClone(parent);
+      }
+      if (method === "POST" && apiPath === "/graphql" && payload.variables.number === 7719) {
+        return {
+          data: { repository: { issue: { body: PARENT_BODY, lastEditedAt: null, author: HUMAN_ACTOR, editor: null, ...parentSpec, comments: { totalCount: 0, nodes: [] } } } },
+        };
+      }
+      return base(method, apiPath, payload);
+    };
+    return { github, calls };
+  };
+
+  test("a trusted part carries its parent's body; any other part, or an issue no split filed, carries none", async () => {
+    const trusted = await run(child().github);
+    assert.equal(trusted.code, 0);
+    assert.deepEqual(trusted.issue.split_parent, { number: 7719, body: PARENT_BODY });
+    for (const [why, options] of [
+      ["a prose line the split did not copy", { body: `${CHILD_BODY}\nThe notes say more.` }],
+      ["a parent body an unlisted account edited", { parentSpec: { lastEditedAt: at(12), editor: { __typename: "User", databaseId: STRANGER.id } } }],
+      ["a parent body edited after the label", { parentSpec: { lastEditedAt: at(29), editor: HUMAN_ACTOR } }],
+      ["a parent in another repository", { parent: { number: 7719, repository_url: "https://api.github.com/repos/other/repo" } }],
+    ]) {
+      const { code, issue } = await run(child(options).github);
+      assert.equal(code, 0, why);
+      assert.equal(issue.split_parent, undefined, why);
+    }
+    // An issue no size split filed reads no parent.
+    const plain = child({ body: ISSUE.body });
+    const { code, issue } = await run(plain.github);
+    assert.equal(code, 0);
+    assert.equal(issue.split_parent, undefined);
+    assert.ok(!plain.calls.some((call) => call.endsWith("/parent")));
+  });
 });
 
 test("a decision line inside a quote or code fence, or not first, is no decision", async () => {
@@ -490,6 +602,60 @@ test("a resume with a malformed tip, branch or cause, or an unreadable compariso
     assert.equal(issue, null, JSON.stringify(extra));
   }
   const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: RESUME_ENV });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
+// Defense in depth behind the admit job's outside-author stop: an issue
+// neither a listed human nor the lanes App wrote never reaches the model.
+test("an issue neither a listed human nor the lanes App wrote fails the run and writes no file", async () => {
+  for (const user of [{ id: 999, login: "stranger" }, undefined]) {
+    const { code, issue, logged } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 1, JSON.stringify(user));
+    assert.equal(issue, null);
+    assert.ok(logged.some((line) => line.includes("neither a listed human nor the lanes App")), logged.join("\n"));
+  }
+  for (const user of [OWNER, LANES_BOT]) {
+    const { code } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 0, user.login);
+  }
+});
+
+// A fresh start past a stale lane branch (report-outcome --find-prior's
+// stale-branch and stale-tip): issue.json carries `stale_branch`, that
+// branch's commit subjects and diffstat from GET /compare between the trusted
+// base and the tip issue-prior checked, so the model can reuse the approach.
+const STALE_ENV = { STALE_BRANCH: "work-resolve-issue/issue-6825-400-1", STALE_TIP: TIP_SHA, BASE_SHA };
+
+test("a fresh run past a stale branch's issue.json names that branch, its tip, commit subjects and diffstat", async () => {
+  const github = fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } });
+  const { code, issue } = await run(github, { extraEnv: STALE_ENV });
+  assert.equal(code, 0);
+  assert.deepEqual(issue.stale_branch, {
+    branch: "work-resolve-issue/issue-6825-400-1",
+    tip: TIP_SHA,
+    commits: ["docs(work-items): add the frame", "test(work-items): cover the frame"],
+    files: [
+      { path: "plugins/work-items/README.md", additions: 12, deletions: 3 },
+      { path: "plugins/work-items/scripts/frame.test.sh", additions: 40, deletions: 0 },
+    ],
+  });
+  assert.equal(Object.hasOwn(issue, "resume"), false, "a stale branch is not a resume");
+});
+
+test("a run past no stale branch writes no stale_branch field", async () => {
+  const { code, issue } = await run(fakeGitHub({ comments: [] }));
+  assert.equal(code, 0);
+  assert.equal(Object.hasOwn(issue, "stale_branch"), false);
+});
+
+test("a stale branch with a malformed tip or branch, or an unreadable comparison, writes no issue file", async () => {
+  for (const extra of [{ STALE_TIP: "abc" }, { STALE_TIP: "" }, { STALE_BRANCH: "main" }, { STALE_BRANCH: "work-resolve-issue/issue-7-400-1" }, { BASE_SHA: "" }]) {
+    const { code, issue } = await run(fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } }), { extraEnv: { ...STALE_ENV, ...extra } });
+    assert.equal(code, 1, JSON.stringify(extra));
+    assert.equal(issue, null, JSON.stringify(extra));
+  }
+  const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: STALE_ENV });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });

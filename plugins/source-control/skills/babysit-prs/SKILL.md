@@ -19,7 +19,7 @@ Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 <!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
 
-Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. The dated record for that composition claim is the `worktree` skill's [reference/gather-block.md](../worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. The dated record for that composition claim is the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
@@ -47,7 +47,7 @@ An invocation is `[mode] [scope]`; mode and scope are orthogonal. Combine them f
 | Mode | What it does |
 | --- | --- |
 | *(none)*, the configured `default_tier` (`safe` unless the consumer changed it) | Safe tier: discover in-scope PRs (your own, under the current repo's owner by default), check readiness, fix clear branch-owned issues and push, report blockers and the next cadence. Never resolves threads or merges. |
-| `worker` | Everything safe does, and additionally auto-resolves *pre-push-outdated* bot threads and merges PRs the merge gate proves 100% ready. Requires Python. For dedicated 24/7 loops over your own PRs. |
+| `worker` | Everything safe does, and additionally auto-resolves *pre-push-outdated* bot threads and merges PRs the merge gate proves 100% ready. On a PR you opened, it resolves only outdated bot threads a configured lane login already answered, never a CRITICAL or security thread and never one a person wrote or joined. Requires Python. For dedicated 24/7 loops over your own PRs. |
 | `autopilot` | Maximum autonomy for a solo owner: every open PR under the watched owners regardless of author; fix everything it can; resolve every thread it has addressed (bot, AI-review, and human); merge everything the gate proves ready. Requires Python. A deliberate power-user opt-in, never a default. |
 | `help` (or `?`) | Print the common flows and the effective configuration below; take no other action. |
 
@@ -291,7 +291,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | `auto`: repo convention, then squash |
 | `babysit_stacked_prs` | `${user_config.babysit_stacked_prs}` | `--stacked-prs` (merge gate, every form) when `true`; omit it otherwise | `false` (a stack layer is held for a human) |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
-| `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
+| `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier); `--own-pr-lane-logins` (resolve-thread, worker `--autonomous` forms) | tier refuses fail-closed when enabled; on your own PRs the resolver uses the repository's `merge.agent-identity` from its base and default branch, else resolves nothing |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier); omit it when unset | tier refuses fail-closed when enabled and the target repository declares none |
 | `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant |

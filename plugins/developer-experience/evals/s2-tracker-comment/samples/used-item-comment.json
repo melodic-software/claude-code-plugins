@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- item comment 4821 --body \"Paging fix is merged; verifying on staging tomorrow.\""}}],
+      "why": "the existing command through dotnet run"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "make tq ARGS=\"item comment 4821 --body 'Paging fix is merged; verifying on staging tomorrow.'\""}}],
+      "why": "the existing command through make"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- item comment \"4821\" --body \"Paging fix is merged; verifying on staging tomorrow.\""}}],
+      "why": "the id quoted"
+    }
+  ],
+  "fail": [
+    {"answer": [], "why": "no command ran"},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/.tarnquill/outbox/4821.json", "content": "{\"item\":\"4821\",\"body\":\"Paging fix is merged; verifying on staging tomorrow.\"}"}}],
+      "why": "near miss: wrote the outbox file by hand instead of running the command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- item comment 4812 --body \"Paging fix is merged; verifying on staging tomorrow.\""}}],
+      "why": "near miss: the wrong item id"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet build"}}],
+      "why": "built but never posted"
+    }
+  ]
+}

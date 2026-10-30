@@ -860,7 +860,24 @@ N_TARGETS=$k
 # blank: an extraction that did not complete would report a clean tree. It stops
 # the scan instead, and a run that returned fewer status rows than files fails
 # the same way.
-if ! LC_ALL=C awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"; then
+#
+# gawk has aborted this run on clean trees (exit 134, SIGABRT, after "fatal
+# error: internal error") and passed on an unchanged rerun, with no cause found.
+# That status alone earns one retry: an error in the program itself exits
+# otherwise and still stops the scan at once. The retry reads the same list, so
+# it truncates and rewrites each stream file the first run wrote, and the
+# status file.
+extract_prose() {
+  LC_ALL=C awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"
+}
+extract_prose
+extract_status=$?
+if [[ "$extract_status" -eq 134 ]]; then
+  echo "detect.sh: prose extraction aborted (awk exit 134); retrying once" >&2
+  extract_prose
+  extract_status=$?
+fi
+if [[ "$extract_status" -ne 0 ]]; then
   echo "detect.sh: prose extraction failed; nothing was scanned" >&2
   exit 2
 fi

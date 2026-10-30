@@ -1,25 +1,29 @@
 """The `cost-review-required` hold: a change that could start a real charge
 (billed infrastructure or billed runner minutes) waits for the owner unless
-the caller verified an owner decision. Spend that draws only on a
-subscription or prepaid credit (a schedule, a model flag or leg, a secret
-reference, a pipeline spend line, a raised timeout on a public repository) is
-the reported, non-holding `cost-finding` (owner rule 2026-10-26: cost is not
-a stop, only a real new charge is). Expected codes come from those rules,
-never from running the scorer."""
+the caller verified an owner decision. Cost means only what can bill: a
+model flag, and a schedule, raised timeout or raised retention on a public
+repository, report nothing; a pipeline spend line is the reported,
+non-holding `cost-finding`. A secret reference or model leg is a person's
+security hold. Expected codes come from those rules, never from running the
+scorer."""
 
 from __future__ import annotations
 
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import babysit_risk
 from babysit_risk import (
     AGENT_SURFACE_CODE,
     COST_CODE,
     COST_FINDING_CODE,
+    PERMISSION_WIDENING_CODE,
+    PRIVILEGED_TRIGGER_CODE,
     SECRET_EXPOSURE_CODE,
     Risk,
     holding,
@@ -30,6 +34,7 @@ from babysit_risk import (
 from test_babysit_risk import _codes, _file, _input
 
 WORKFLOW = ".github/workflows/nightly.yml"
+PIPELINE = "conventions/pr-pipeline.yaml"
 DECISION = "https://github.com/owner/repo/issues/40#issuecomment-1"
 
 
@@ -55,6 +60,12 @@ class _Finding(unittest.TestCase):
         self.assertEqual(
             [c for c in held if not c.startswith("high-path:")], [], result.reasons
         )
+
+    def assertNotCost(self, result):
+        """No charge and no spend: nothing that can bill."""
+        codes = _codes(result)
+        self.assertNotIn(COST_CODE, codes)
+        self.assertNotIn(COST_FINDING_CODE, codes)
 
     def assertSecurityHold(self, result, code):
         """A credential or agent-surface change: a person's hold, never cost."""
@@ -93,7 +104,7 @@ class CostHold(_Finding):
     def test_a_new_schedule_holds_unless_public(self):
         # A schedule runs hosted minutes, billed off a public repository.
         wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
-        self.assertReported(_cost([wf], public=True))
+        self.assertNotCost(_cost([wf], public=True))
         for public in (False, None):
             with self.subTest(public=public):
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
@@ -138,7 +149,7 @@ class CostHold(_Finding):
 
 
 MODEL_WORKFLOW = (
-    "jobs:\n  judge:\n    steps:\n"
+    "permissions: {}\njobs:\n  judge:\n    steps:\n"
     "      - uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@abc\n"
 )
 
@@ -239,7 +250,7 @@ class ModelSpendDetections(_Finding):
             with self.subTest(patch=patch):
                 wf = _file(WORKFLOW, patch=patch, contents=("", MODEL_WORKFLOW))
                 # Free minutes on a public repository; billed ones elsewhere.
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
 
@@ -254,7 +265,12 @@ class ModelSpendDetections(_Finding):
     def test_a_raised_timeout_on_an_unread_workflow(self):
         raised = _patch("+    timeout-minutes: 45")
         wf = _file(WORKFLOW, patch=raised, contents=None)
-        self.assertReported(_cost([wf], public=True))
+        result = _cost([wf], public=True)
+        self.assertNotCost(result)
+        # Unread text cannot show the token did not widen: a person's hold.
+        self.assertIn(
+            PERMISSION_WIDENING_CODE, [r.code for r in person_reasons(holding(result))]
+        )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
     def test_a_raised_artifact_retention_holds_unless_public(self):
@@ -268,7 +284,7 @@ class ModelSpendDetections(_Finding):
                 wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
 
     def test_an_added_retention_within_the_default_does_not_count(self):
         # GitHub keeps artifacts 90 days by default, so 7 stores less.
@@ -346,7 +362,7 @@ class ReviewFindings(_Finding):
         )
         self.assertNotIn(COST_CODE, _codes(_cost([within], public=True)))
 
-    def test_a_flow_style_schedule_is_reported(self):
+    def test_a_flow_style_schedule_holds_unless_public(self):
         for line in (
             "+  schedule: [{cron: '0 3 * * *'}]",
             "+on: {schedule: [{cron: '0 3 * * *'}]}",
@@ -354,7 +370,8 @@ class ReviewFindings(_Finding):
         ):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line))
-                self.assertReported(_cost([wf], public=True))
+                self.assertNotCost(_cost([wf], public=True))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_a_non_literal_or_unlisted_runner_holds_on_a_public_repository(self):
         for value in (
@@ -424,14 +441,16 @@ class ReviewFindings(_Finding):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
-    def test_model_flags_in_a_workflow_are_reported(self):
+    def test_model_flags_in_a_workflow_are_not_cost(self):
         for line in (
             "+          claude_args: --model opus",
             "+          claude_args: --max-turns 200",
         ):
             with self.subTest(line=line):
                 wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
-                self.assertReported(_cost([wf], public=True))
+                for public in (True, False, None):
+                    with self.subTest(public=public):
+                        self.assertNotCost(_cost([wf], public=public))
 
     def test_a_file_under_a_pulumi_project_holds(self):
         program = _file("infra/Program.cs")
@@ -503,13 +522,18 @@ class SecurityAndCostHolds(_Finding):
         self.assertSecurityHold(_cost([wf], public=True), AGENT_SURFACE_CODE)
 
     def test_a_raised_timeout_on_a_claude_code_base_action_workflow(self):
-        head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+        def text(minutes: str) -> str:
+            return (
+                f"permissions: {{}}\njobs:\n  a:\n    timeout-minutes: {minutes}\n"
+                "    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+            )
+
         wf = self._wf(
             "-    timeout-minutes: 30",
             "+    timeout-minutes: 45",
-            contents=(head, head),
+            contents=(text("30"), text("45")),
         )
-        self.assertReported(_cost([wf], public=True))
+        self.assertNotCost(_cost([wf], public=True))
         self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
 
     def test_the_multi_agent_role_defaults_are_no_charge(self):
@@ -523,14 +547,14 @@ class SecurityAndCostHolds(_Finding):
         self.assertIn(COST_CODE, _codes(_cost([_file("infra/main.tf")])))
 
     def test_a_real_charge_beside_subscription_spend_holds_and_reports(self):
-        wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
+        wf = _file(PIPELINE, patch=_patch("+      model: opus"))
         result = _cost([wf, _file("infra/main.tf")], public=True)
         self.assertIn(COST_CODE, _codes(result))
         self.assertIn(COST_FINDING_CODE, _codes(result))
         self.assertTrue(holds(result))
 
     def test_an_owner_decision_clears_the_hold_and_keeps_the_finding(self):
-        wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
+        wf = _file(PIPELINE, patch=_patch("+      model: opus"))
         files = [wf, _file("infra/main.tf")]
         result = _cost(files, public=True, cost_decision=DECISION)
         self.assertEqual(_codes(result), (COST_FINDING_CODE,))
@@ -548,6 +572,737 @@ class SecurityAndCostHolds(_Finding):
     def test_an_unlisted_base_tree_fails_closed(self):
         result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)
         self.assertIn(COST_CODE, _codes(result))
+
+
+def _jobs(a: str, b: str = "300", steps: str = "") -> str:
+    """Two jobs, `a` with a model leg, at the timeouts given ("" for none)."""
+    a_line = f"    timeout-minutes: {a}\n" if a else ""
+    b_line = f"    timeout-minutes: {b}\n" if b else ""
+    return (
+        "jobs:\n  a:\n    runs-on: ubuntu-24.04\n" + a_line + "    steps:\n" + steps
+        + "      - uses: anthropics/claude-code-action@v1\n"
+        "  b:\n    runs-on: ubuntu-24.04\n" + b_line + "    steps: []\n"
+    )  # fmt: skip
+
+
+class LowRatedShapes(_Finding):
+    """S&C's LOW-rated probe rows on #9224 (#9241): the timeout shapes that
+    bill off a public repository, a composite action's model leg, the secret
+    and runner gaps in checks the hold makes, and the accepted move."""
+
+    def assertCharge(self, wf):
+        """Billed minutes off a public repository."""
+        for public in (False, None):
+            with self.subTest(public=public):
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
+
+    def test_one_jobs_raise_is_not_hidden_by_another_jobs_value(self):
+        # 30 to 200 on `a`, with `b`'s unchanged 300 removed and re-added.
+        patch = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 200",
+            "-    timeout-minutes: 300",
+            "+    timeout-minutes: 300",
+        )
+        self.assertCharge(
+            _file(WORKFLOW, patch=patch, contents=(_jobs("30"), _jobs("200")))
+        )
+        unread = _file(WORKFLOW, patch=patch, contents=None)
+        self.assertIn(COST_CODE, _codes(_cost([unread], public=False)))
+
+    def test_a_timeout_swapped_between_jobs_counts_at_its_key_path(self):
+        patch = _patch(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 300",
+            "-    timeout-minutes: 300",
+            "+    timeout-minutes: 30",
+        )
+        contents = (_jobs("30", "300"), _jobs("300", "30"))
+        self.assertCharge(_file(WORKFLOW, patch=patch, contents=contents))
+
+    def test_a_removed_timeout_lets_the_default_apply(self):
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("-    timeout-minutes: 30"),
+            contents=(_jobs("30"), _jobs("")),
+        )
+        self.assertCharge(wf)
+
+    def test_a_removed_job_or_a_removed_timeout_above_the_default_does_not_count(self):
+        for base, head in ((_jobs("30") + "  c:\n    timeout-minutes: 5\n", _jobs("30")),
+                           (_jobs("400"), _jobs(""))):  # fmt: skip
+            with self.subTest(base=base):
+                wf = _file(WORKFLOW, patch=_patch("-    x: y"), contents=(base, head))
+                codes = _codes(_cost([wf], public=False))
+                self.assertNotIn(COST_CODE, codes)
+
+    def test_a_timeout_set_to_an_expression(self):
+        line = "+    timeout-minutes: ${{ inputs.minutes }}"
+        head = _jobs("${{ inputs.minutes }}")
+        self.assertCharge(
+            _file(WORKFLOW, patch=_patch(line), contents=(_jobs("30"), head))
+        )
+        self.assertCharge(_file(WORKFLOW, patch=_patch(line), contents=None))
+
+    def test_a_flow_style_timeout(self):
+        head = (
+            "jobs:\n  a: {runs-on: ubuntu-24.04, timeout-minutes: 90}\n"
+            "  b:\n    steps:\n      - uses: anthropics/claude-code-action@v1\n"
+        )
+        base = head.replace("90", "30")
+        patch = _patch(
+            "-  a: {runs-on: ubuntu-24.04, timeout-minutes: 30}",
+            "+  a: {runs-on: ubuntu-24.04, timeout-minutes: 90}",
+        )
+        self.assertCharge(_file(WORKFLOW, patch=patch, contents=(base, head)))
+
+    def test_a_raised_timeout_on_a_workflow_calling_a_local_workflow_or_action(self):
+        for call in ("./.github/workflows/judge.yml", "./.github/actions/judge"):
+            with self.subTest(call=call):
+                head = (
+                    "jobs:\n  a:\n    timeout-minutes: 90\n"
+                    f"    steps:\n      - uses: {call}\n"
+                )
+                wf = _file(
+                    WORKFLOW,
+                    patch=_patch(
+                        "-    timeout-minutes: 30", "+    timeout-minutes: 90"
+                    ),
+                    contents=(head.replace("90", "30"), head),
+                )
+                self.assertCharge(wf)
+
+    def test_a_step_added_before_a_model_step_does_not_move_its_timeout(self):
+        steps = "      - uses: actions/checkout@v4\n"
+        leg = (
+            "      - uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n          leg-timeout-minutes: 10\n"
+        )
+        base = _jobs("30", steps=leg)
+        head = _jobs("30", steps=steps + leg)
+        wf = _file(WORKFLOW, patch=_patch("+" + steps.rstrip()), contents=(base, head))
+        for public in (True, False):
+            codes = _codes(_cost([wf], public=public))
+            self.assertNotIn(COST_CODE, codes)
+            self.assertNotIn(COST_FINDING_CODE, codes)
+
+    def test_a_removed_step_or_a_lowering_timeout_does_not_count(self):
+        def leg(n: str) -> str:
+            return (
+                f"      - uses: o/r/.github/actions/run-claude-cli@{n}\n"
+                f"        with:\n          leg-timeout-minutes: {n}\n"
+            )
+
+        checkout = "      - uses: actions/checkout@v4\n        with:\n          x: 0\n"
+        local = "jobs:\n  a:\n{line}    steps:\n      - uses: ./.github/actions/setup\n"
+        for base, head, line in (
+            # A whole leg step removed beside steps that remain.
+            (_jobs("30", steps=checkout + leg("10") + leg("20")),
+             _jobs("30", steps=checkout + leg("20")), "-          leg-timeout-minutes: 10"),
+            # A leg step removed from the front, a step with `with:` shifting
+            # into its index.
+            (_jobs("30", steps=leg("10") + checkout), _jobs("30", steps=checkout),
+             "-          leg-timeout-minutes: 10"),
+            # A timeout added below the default on a local-call workflow.
+            (local.format(line=""), local.format(line="    timeout-minutes: 15\n"),
+             "+    timeout-minutes: 15"),
+            # A commented-out timeout.
+            (_jobs("30"), _jobs("30"), "+    # timeout-minutes: 600"),
+        ):  # fmt: skip
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
+                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=False)))
+
+    def test_a_timeout_added_at_or_below_the_highest_at_its_path_does_not_count(self):
+        # A local call, and a model leg, whose line pass once held every number.
+        for uses in (
+            "./.github/actions/judge",
+            "o/r/.github/actions/run-claude-cli@abc",
+        ):
+
+            def step(timeout: str = "", leg: str = "", uses: str = uses) -> str:
+                return (
+                    f"      - uses: {uses}\n"
+                    + (f"        timeout-minutes: {timeout}\n" if timeout else "")
+                    + (f"        with:\n          leg-timeout-minutes: {leg}\n" if leg else "")
+                )  # fmt: skip
+
+            def wf(*steps: str) -> str:
+                return "jobs:\n  a:\n    timeout-minutes: 30\n    steps:\n" + "".join(
+                    steps
+                )
+
+            for base, head, line in (
+                # A step timeout added at or below an existing step's.
+                (wf(step("10")), wf(step("10"), step("5")), "+        timeout-minutes: 5"),
+                (wf(step("10")), wf(step("10"), step("10")), "+        timeout-minutes: 10"),
+                # A leg timeout set where the base had none: a cap, not a raise.
+                (wf(step()), wf(step(leg="10")), "+          leg-timeout-minutes: 10"),
+            ):  # fmt: skip
+                with self.subTest(head=head):
+                    f = _file(WORKFLOW, patch=_patch(line), contents=(base, head))
+                    self.assertNotIn(COST_CODE, _codes(_cost([f], public=False)))
+            # Above the highest one at its path still counts.
+            raised = _file(
+                WORKFLOW,
+                patch=_patch("+        timeout-minutes: 20"),
+                contents=(wf(step("10")), wf(step("10"), step("20"))),
+            )
+            with self.subTest(uses=uses, raised=True):
+                self.assertCharge(raised)
+
+    def test_a_removed_leg_timeout_counts(self):
+        leg = (
+            "      - uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n          prompt: x\n"
+        )
+        base = _jobs("30", steps=leg + "          leg-timeout-minutes: 10\n")
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("-          leg-timeout-minutes: 10"),
+            contents=(base, _jobs("30", steps=leg)),
+        )
+        self.assertCharge(wf)
+
+    def test_a_step_edited_while_it_loses_its_timeout_counts(self):
+        leg = (
+            "      - name: {name}\n"
+            "        uses: o/r/.github/actions/run-claude-cli@abc\n"
+            "        with:\n{timeout}          prompt: x\n"
+        )
+        cap = "          leg-timeout-minutes: 10\n"
+        checkout = "      - uses: actions/checkout@v4\n"
+        for before, after in (
+            # Renamed in place.
+            (leg.format(name="Review", timeout=cap), leg.format(name="Review PR", timeout="")),
+            # Renamed, with a step deleted before it.
+            (checkout + leg.format(name="Review", timeout=cap),
+             leg.format(name="Review PR", timeout="")),
+            # Moved behind a step it used to precede, then renamed.
+            (leg.format(name="Review", timeout=cap) + checkout,
+             checkout + leg.format(name="Review PR", timeout="")),
+        ):  # fmt: skip
+            with self.subTest(before=before, after=after):
+                wf = _file(
+                    WORKFLOW,
+                    patch=_patch("-          leg-timeout-minutes: 10"),
+                    contents=(_jobs("30", steps=before), _jobs("30", steps=after)),
+                )
+                self.assertCharge(wf)
+
+    def test_a_model_leg_in_a_composite_action_holds_for_security(self):
+        action = ".github/actions/judge/action.yml"
+        for line in (
+            "+    - uses: anthropics/claude-code-action@v1",
+            "+      run: npx @anthropic-ai/claude-code -p hi",
+        ):
+            with self.subTest(line=line):
+                result = _cost([_file(action, patch=_patch(line))], public=True)
+                self.assertSecurityHold(result, AGENT_SURFACE_CODE)
+        repin = _patch(
+            "-    - uses: anthropics/claude-code-action@aaa",
+            "+    - uses: anthropics/claude-code-action@bbb",
+        )
+        codes = _codes(_cost([_file(action, patch=repin)], public=True))
+        self.assertNotIn(AGENT_SURFACE_CODE, codes)
+
+    def test_a_composite_action_with_no_patch_holds_for_security(self):
+        for action in (
+            ".github/actions/judge/action.yml",
+            ".github/actions/judge/action.yaml",
+        ):
+            with self.subTest(action=action):
+                result = _cost([_file(action, patch=None)], public=True)
+                self.assertSecurityHold(result, AGENT_SURFACE_CODE)
+        other = _file(".github/actions/judge/run.mjs", patch=None)
+        self.assertNotIn(AGENT_SURFACE_CODE, _codes(_cost([other], public=True)))
+        renamed_and_edited = _file(
+            ".github/actions/judge2/action.yml",
+            status="renamed",
+            previous_path=".github/actions/judge/action.yml",
+            patch=None,
+        )
+        copied = _file(
+            ".github/actions/judge2/action.yml",
+            status="copied",
+            previous_path=".github/actions/judge/action.yml",
+            additions=0,
+            deletions=0,
+            patch=None,
+        )
+        renamed_in = _file(
+            ".github/actions/judge/action.yml",
+            status="renamed",
+            previous_path="tools/judge/action.yml",
+            additions=0,
+            deletions=0,
+            patch=None,
+        )
+        for held in (renamed_and_edited, copied, renamed_in):
+            with self.subTest(status=held.status, previous=held.previous_path):
+                self.assertSecurityHold(_cost([held], public=True), AGENT_SURFACE_CODE)
+
+    def test_a_composite_action_moved_deleted_or_re_moded_with_no_patch_passes(self):
+        action = ".github/actions/judge/action.yml"
+        for changed in (
+            _file(
+                ".github/actions/judge2/action.yml",
+                status="renamed",
+                previous_path=action,
+                additions=0,
+                deletions=0,
+                patch=None,
+            ),
+            _file(action, status="removed", additions=0, deletions=40, patch=None),
+            _file(
+                action,
+                additions=0,
+                deletions=0,
+                mode="100755",
+                previous_mode="100644",
+                patch=None,
+            ),
+        ):
+            with self.subTest(status=changed.status):
+                codes = _codes(_cost([changed], public=True))
+                self.assertNotIn(AGENT_SURFACE_CODE, codes)
+
+    def test_new_secret_reference_shapes_hold_for_security(self):
+        for lines in (
+            ("+  ALL: ${{ secrets }}",),
+            ("+    if: ${{ contains(secrets, 'LANE_TOKEN') }}",),
+            ("+  K: >-", "+    ${{ secrets", "+    .LANE_TOKEN }}"),
+            ("+  K: ${{", "+    secrets.LANE_TOKEN }}"),
+            ("+  ALL: ${{ toJSON(secrets.*) }}",),
+            # A `}}` inside a string literal does not end the expression.
+            ("+    if: ${{ '}}' || contains(secrets, 'LANE_TOKEN') }}",),
+            # However many lines pad a split reference.
+            ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
+            # An expression still open at the end of the added lines.
+            ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
+            # A quote a comment leaves open does not hide a later expression.
+            ("+# ${{ '", "+  K: ${{ secrets }}'"),
+            ("+  # ${{ '", "+  K: ${{ format('{0}{1}', secrets, 'a') }}"),
+            # Nor does it move where a split expression is joined.
+            (
+                "+# ${{ '",
+                "+  K: >-",
+                "+    ${{ format('{0}}}',",
+                "+    secrets, 'a') }}",
+            ),
+            # A `${{` inside a literal starts a new read but keeps the old one.
+            ("+  K: ${{ format('{0}{1}', secrets, '${{') }}",),
+            # A literal still open where the read ends holds unread.
+            ("+  # ${{ '",),
+            ("+  K: ${{ 'a", "+  # ${{ x }}"),
+            # An `if:` value is an expression without `${{ }}`, at job and
+            # step level, quoted or as a block scalar.
+            ("+    if: contains(secrets, 'LANE_TOKEN')",),
+            ("+      - if: contains(secrets, 'LANE_TOKEN')",),
+            ("+        if: format('{0}{1}', secrets, 'x') != ''",),
+            ("+    if: format('{0}', secrets) != ''",),
+            ('+    if: "secrets != null"',),
+            ("+    if: 'contains(secrets, ''LANE_TOKEN'')'",),
+            ("+  a: {runs-on: ubuntu-24.04, if: \"contains(secrets, 'X')\"}",),
+            (
+                "+    if: >-",
+                "+      github.event_name == 'push' &&",
+                "+      contains(secrets, 'X')",
+            ),
+        ):
+            with self.subTest(lines=lines):
+                wf = _file(WORKFLOW, patch=_patch(*lines), contents=("", "jobs: {}\n"))
+                self.assertSecurityHold(_cost([wf], public=True), SECRET_EXPOSURE_CODE)
+
+    def test_secrets_in_prose_or_as_a_key_does_not_hold(self):
+        for line in (
+            "+      - name: Rotate keys, secrets, tokens",
+            "+    secrets:",
+            "+      run: echo secrets are masked",
+            "+    if: ${{ contains(fromJSON(needs.a.outputs.jobs || '[]'), 'x-secrets') }}",
+            "+    if: ${{ needs.x.outputs.has-secrets }}",
+            "+    if: ${{ steps.secrets-check.outputs.ok }}",
+            "+    if: contains(fromJSON(needs.a.outputs.jobs || '[]'), 'x-secrets')",
+            "+    if: needs.x.outputs.has-secrets",
+            "+      - if: steps.secrets-check.outputs.ok",
+            "+    if: github.event_name == 'push'  # secrets stay unread",
+            "+          if-no-files-found: secrets",
+            "+    run-if: secrets",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                codes = _codes(_cost([wf], public=True))
+                self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
+
+    def test_a_secret_reference_moved_within_one_file_passes(self):
+        # Accepted: `_net_added` counts only what the patch gains over what it
+        # removes, so a move is net zero.
+        moved = (
+            "@@ -1,2 +1,1 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
+            "@@ -40,1 +39,2 @@\n context\n+      K: ${{ secrets.LANE_TOKEN }}"
+        )
+        split = (
+            "@@ -1,2 +1,3 @@\n context\n-  K: ${{ secrets.LANE_TOKEN }}\n"
+            "+  K: >-\n+    ${{ secrets\n+    .LANE_TOKEN }}"
+        )
+        unclosed = (
+            "@@ -1,2 +1,1 @@\n context\n-  # ${{ '\n"
+            "@@ -40,1 +39,2 @@\n context\n+      # ${{ '"
+        )
+        for patch in (moved, split, unclosed):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
+                codes = _codes(_cost([wf], public=True))
+                self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
+                self.assertNotIn(COST_CODE, codes)
+
+    def test_a_runner_expression_gaining_a_larger_runner_holds(self):
+        matrix = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n        os: [{os}]\n"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        block = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n"
+            "          - os: ubuntu-24.04\n{extra}"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        inputs = (
+            "on:\n  workflow_call:\n    inputs:\n      runner:\n"
+            "        type: string\n        default: {os}\n"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        options = (
+            "on:\n  workflow_dispatch:\n    inputs:\n      runner:\n"
+            "        type: choice\n        options:\n          - ubuntu-24.04\n{extra}"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        big = "ubuntu-24.04-16-cores"
+        for base, head in (
+            (
+                matrix.format(os="ubuntu-24.04"),
+                matrix.format(os=f"ubuntu-24.04, {big}"),
+            ),
+            (block.format(extra=""), block.format(extra=f"          - os: {big}\n")),
+            (inputs.format(os="ubuntu-24.04"), inputs.format(os=big)),
+            (options.format(extra=""), options.format(extra=f"          - {big}\n")),
+        ):
+            with self.subTest(head=head):
+                wf = _file(
+                    WORKFLOW, patch=_patch(f"+        - {big}"), contents=(base, head)
+                )
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_runner_expression_gaining_a_free_label_does_not_hold(self):
+        head = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n"
+            "        os: [ubuntu-24.04, macos-26]\n"
+            "    runs-on: ${{ matrix.os }}\n    steps: []\n"
+        )
+        base = head.replace(", macos-26", "")
+        wf = _file(WORKFLOW, patch=_patch("+        - macos-26"), contents=(base, head))
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_matrix_growth_behind_another_expression_adds_no_runner_value(self):
+        def text(runs_on: str, matrix: str) -> str:
+            return (
+                f"jobs:\n  build:\n    strategy:\n      matrix:\n        {matrix}\n"
+                f"    runs-on: {runs_on}\n    steps: []\n"
+            )
+
+        for runs_on, before, after in (
+            ("${{ matrix.config.os }}",
+             "config:\n          - {os: ubuntu-latest, cc: gcc}",
+             "config:\n          - {os: ubuntu-latest, cc: gcc}\n"
+             "          - {os: ubuntu-latest, cc: clang}"),
+            ("${{ matrix.platform.os }}",
+             "platform: [{os: ubuntu-latest, arch: x64}]",
+             "platform: [{os: ubuntu-latest, arch: x64}, {os: ubuntu-latest, arch: arm64}]"),
+            ("${{ matrix.os == 'win' && 'windows-latest' || 'ubuntu-latest' }}",
+             "os: [win]", "os: [win, linux]"),
+        ):  # fmt: skip
+            with self.subTest(runs_on=runs_on):
+                contents = (text(runs_on, before), text(runs_on, after))
+                wf = _file(WORKFLOW, patch=_patch("+        - x"), contents=contents)
+                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_flow_style_include_entry_gaining_a_larger_runner_holds(self):
+        def text(extra: str) -> str:
+            return (
+                "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n"
+                f"          - {{os: ubuntu-24.04}}\n{extra}"
+                "    runs-on: ${{ matrix.os }}\n    steps: []\n"
+            )
+
+        big = "          - {os: ubuntu-24.04-16-cores}\n"
+        wf = _file(
+            WORKFLOW, patch=_patch("+" + big.rstrip()), contents=(text(""), text(big))
+        )
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_wrapped_flow_list_gaining_a_larger_runner_holds(self):
+        matrix = (
+            "jobs:\n  build:\n    strategy:\n      matrix:\n"
+            "        os: [ubuntu-24.04,\n             {os}]\n"
+            "    runs-on: ${{{{ matrix.os }}}}\n    steps: []\n"
+        )
+        options = (
+            "on:\n  workflow_dispatch:\n    inputs:\n      runner:\n"
+            "        type: choice\n        options: [ubuntu-24.04,\n                  {os}]\n"
+            "jobs:\n  build:\n    runs-on: ${{{{ inputs.runner }}}}\n    steps: []\n"
+        )
+        runs_on = (
+            "jobs:\n  build:\n    runs-on: [ubuntu-24.04,\n              {os}]\n"
+            "    steps: []\n"
+        )
+        big = "ubuntu-24.04-16-cores"
+        for text in (matrix, options, runs_on):
+            with self.subTest(text=text):
+                contents = (text.format(os="ubuntu-22.04"), text.format(os=big))
+                wf = _file(
+                    WORKFLOW, patch=_patch(f"+             {big}]"), contents=contents
+                )
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+
+def _workflow(perms: str, job_perms: str = "", on: str = "on: push\n") -> str:
+    """Workflow text: `perms` at the top level, `job_perms` on its one job."""
+    return f"{on}{perms}jobs:\n  build:\n{job_perms}    runs-on: ubuntu-24.04\n"
+
+
+READ_ONLY = _workflow("permissions:\n  contents: read\n")
+
+
+class WorkflowPrivilegeHolds(_Finding):
+    """A workflow change that widens its token or adds a privileged trigger is
+    a person's hold (owner direction 2026-10-28: an AI review alone must not
+    clear it), and no cost decision clears it."""
+
+    def _change(self, base, head, patch="", status="modified", **kw):
+        wf = _file(WORKFLOW, status=status, patch=patch, contents=(base, head))
+        return _cost([wf], public=True, **kw)
+
+    def assertHeld(self, result, code):
+        self.assertIn(code, [r.code for r in person_reasons(holding(result))])
+
+    def assertNotHeld(self, result, code):
+        self.assertNotIn(code, _codes(result))
+
+    def test_a_scope_raised_to_write_holds(self):
+        head = _workflow("permissions:\n  contents: write\n")
+        self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_write_all_and_a_flow_mapping_grant_hold(self):
+        for head in (
+            _workflow("permissions: write-all\n"),
+            _workflow("permissions: { contents: read, issues: write }\n"),
+            _workflow("permissions: {}\n", "    permissions:\n      id-token: write\n"),
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_dropping_the_permissions_block_holds(self):
+        # The job then runs on the repository default, which may write.
+        self.assertHeld(
+            self._change(READ_ONLY, _workflow("")), PERMISSION_WIDENING_CODE
+        )
+
+    def test_a_new_workflow_that_writes_holds_and_a_read_only_one_does_not(self):
+        added = self._change(
+            None, _workflow("permissions:\n  pull-requests: write\n"), status="added"
+        )
+        self.assertHeld(added, PERMISSION_WIDENING_CODE)
+        quiet = self._change(None, _workflow("permissions: read-all\n"), status="added")
+        self.assertNotHeld(quiet, PERMISSION_WIDENING_CODE)
+        self.assertNotHeld(quiet, PRIVILEGED_TRIGGER_CODE)
+
+    def test_lowering_or_keeping_a_scope_does_not_hold(self):
+        writes = _workflow("permissions:\n  contents: write\n")
+        self.assertNotHeld(self._change(writes, READ_ONLY), PERMISSION_WIDENING_CODE)
+        same = writes.replace("on: push\n", "on: push\nname: renamed\n")
+        self.assertNotHeld(self._change(writes, same), PERMISSION_WIDENING_CODE)
+
+    def test_an_added_privileged_trigger_holds(self):
+        for on in (
+            "on: pull_request_target\n",
+            "on: [push, workflow_run]\n",
+            "on:\n  push:\n  workflow_run:\n    workflows: [ci]\n",
+            "on:\n  push:\n  issue_comment:\n    types: [created]\n",
+            "on: [push, issues]\n",
+            "on:\n  - push\n  - issues\n",
+            # The mapping form, whose key `issues` is also a permissions scope.
+            "on:\n  push:\n  issues:\n    types: [opened]\n",
+            "on:\n  push:\n  pull_request_review_comment:\n",
+            "on:\n  push:\n  discussion:\n",
+            "on:\n  push:\n  repository_dispatch:\n",
+        ):
+            with self.subTest(on=on):
+                head = _workflow("permissions: {}\n", on=on)
+                base = _workflow("permissions: {}\n")
+                self.assertHeld(self._change(base, head), PRIVILEGED_TRIGGER_CODE)
+
+    def test_an_existing_trigger_its_expressions_and_comments_do_not_hold(self):
+        on = "on:\n  workflow_run:\n    workflows: [ci]\n"
+        base = _workflow("permissions: {}\n", on=on)
+        patch = _patch(
+            "+    if: github.event.workflow_run.conclusion == 'success'",
+            "+# pull_request_target would run the base copy; we do not use it",
+        )
+        result = self._change(base, base, patch=patch)
+        self.assertNotHeld(result, PRIVILEGED_TRIGGER_CODE)
+        self.assertNotHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_an_issues_permission_is_not_an_issues_trigger(self):
+        base = _workflow("permissions:\n  issues: read\n")
+        head = _workflow("permissions:\n  issues: none\n")
+        patch = _patch("-  issues: read", "+  issues: none")
+        self.assertNotHeld(
+            self._change(base, head, patch=patch), PRIVILEGED_TRIGGER_CODE
+        )
+
+    def test_an_added_trigger_line_holds_even_when_the_text_reads_alike(self):
+        # The raw-text backstop: the patch adds the trigger whatever the text.
+        base = _workflow("permissions: {}\n")
+        result = self._change(base, base, patch=_patch("+  pull_request_target:"))
+        self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+        result = self._change(base, base, patch=_patch("+      issues: write"))
+        self.assertHeld(result, PERMISSION_WIDENING_CODE)
+
+    def test_unreadable_text_holds(self):
+        for head in (
+            "on: push\non: pull_request\njobs: {}\n",
+            "x: &a 1\ny: *a\njobs: {}\n",
+            "on: push\njobs: [1]\n",
+        ):
+            with self.subTest(head=head):
+                self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
+
+    def test_a_cost_decision_or_a_skipped_cost_branch_does_not_clear_it(self):
+        head = _workflow("permissions: write-all\n", on="on: pull_request_target\n")
+        for kw in ({"cost_decision": DECISION}, {"pulumi_dirs": None}):
+            with self.subTest(kw=kw):
+                result = self._change(READ_ONLY, head, **kw)
+                self.assertHeld(result, PERMISSION_WIDENING_CODE)
+                self.assertHeld(result, PRIVILEGED_TRIGGER_CODE)
+
+    def test_an_object_form_secrets_reference_holds(self):
+        for added in ("${{ secrets.* }}", "${{ toJSON(secrets) }}"):
+            with self.subTest(added):
+                head = READ_ONLY + f"    env:\n      K: {added}\n"
+                wf = _file(
+                    WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head)
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
+    def test_a_secret_the_head_text_gains_holds_without_a_patch(self):
+        head = READ_ONLY + "    env:\n      K: ${{ secrets.DEPLOY_KEY }}\n"
+        wf = _file(WORKFLOW, has_patch=False, patch=None, contents=(READ_ONLY, head))
+        result = _cost([wf], public=True, cost_decision=DECISION)
+        self.assertHeld(result, SECRET_EXPOSURE_CODE)
+
+    def test_a_secret_after_a_hash_in_quotes_or_a_block_scalar_holds(self):
+        steps = READ_ONLY + "    steps:\n"
+        for added in (
+            '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(added):
+                wf = _file(
+                    WORKFLOW,
+                    has_patch=False,
+                    patch=None,
+                    contents=(steps, steps + added),
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertHeld(result, SECRET_EXPOSURE_CODE)
+        for comment in (
+            "      # ${{ secrets.DEPLOY }}\n",
+            "      - run: echo a # ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(comment):
+                wf = _file(
+                    WORKFLOW,
+                    has_patch=False,
+                    patch=None,
+                    contents=(steps, steps + comment),
+                )
+                result = _cost([wf], public=True, cost_decision=DECISION)
+                self.assertNotHeld(result, SECRET_EXPOSURE_CODE)
+
+
+class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):
+    """The same holds where PyYAML is not installed: the raw-text reading."""
+
+    def setUp(self):
+        patcher = mock.patch.object(babysit_risk, "_yaml", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class LongLineHolds(unittest.TestCase):
+    """A pull request the main-run review binds (`needs_main_review`) whose
+    patch holds a line longer than that review reads whole holds for a person
+    (`long-line-review:`)."""
+
+    LONG = "+" + "x" * 2500
+    SHORT = "+" + "x" * 1000
+
+    def codes(self, *files):
+        return [
+            r.code
+            for r in babysit_risk.person_reasons(score(_input(files=files)).reasons)
+        ]
+
+    def test_a_2500_byte_line_beside_a_lane_source_holds_for_a_person(self):
+        for files in (
+            # The long line in the lane source itself.
+            (_file(".claude/rules/a.md", patch=_patch(self.LONG)),),
+            # In an ordinary file of a pull request that changes a lane source.
+            (_file("app.py", patch=_patch(self.LONG)), _file(".claude/rules/a.md")),
+            # A removed or context line is given to the review too.
+            (_file(".claude/rules/a.md", patch="@@ -1 +1 @@\n" + " " + "y" * 2500),),
+        ):
+            with self.subTest(paths=[f.path for f in files]):
+                long = [
+                    c for c in self.codes(*files) if c.startswith("long-line-review:")
+                ]
+                self.assertEqual(len(long), 1, long)
+
+    def test_a_1000_byte_line_does_not_hold(self):
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch(self.SHORT)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    def test_multibyte_text_counts_bytes(self):
+        # 700 three-byte characters are 2,100 bytes.
+        codes = self.codes(_file(".claude/rules/a.md", patch=_patch("+" + "€" * 700)))
+        self.assertIn("long-line-review:.claude/rules/a.md", codes)
+
+    def test_a_pull_request_without_a_lane_source_is_not_this_hold(self):
+        codes = self.codes(_file("app.py", patch=_patch(self.LONG)))
+        self.assertFalse([c for c in codes if c.startswith("long-line-review:")])
+
+    @unittest.skipUnless(babysit_risk._yaml(), "PyYAML not installed")
+    def test_only_a_path_the_main_run_review_binds_holds(self):
+        # A read-only workflow binds through the pull_request lanes, which read
+        # the whole diff, so its long line is no hold (`needs_main_review`).
+        from test_babysit_review_evidence import BASE, READ_ONLY
+        from test_babysit_review_evidence import WORKFLOW as LINT_DOCS
+
+        line = "-" + "x" * 2000
+
+        def codes(head, base_sha=BASE):
+            wf = _file(LINT_DOCS, patch=_patch(line), contents=(READ_ONLY, head))
+            result = score(_input(files=(wf,), base_sha=base_sha))
+            return [c for c in _codes(result) if c.startswith("long-line-review:")]
+
+        self.assertEqual(codes(READ_ONLY), [])
+        # A write scope, or no base to prove the read, needs the main-run review.
+        writer = READ_ONLY.replace(
+            "  contents: read\njobs:", "  contents: write\njobs:"
+        )
+        self.assertNotEqual(writer, READ_ONLY)
+        self.assertEqual(codes(writer), [f"long-line-review:{LINT_DOCS}"])
+        self.assertEqual(codes(READ_ONLY, None), [f"long-line-review:{LINT_DOCS}"])
 
 
 if __name__ == "__main__":

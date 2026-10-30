@@ -60,7 +60,7 @@ file, so a lane never reads a partial context and the model step does not run. U
 which exit 0 with `proceed=false`, a failure here is an error a human should see.
 
 Kept text is still data to the model, never instructions
-([`untrusted-content`](../../../docs/conventions/untrusted-content/README.md)): a listed bot can
+([`untrusted-content`](../../../docs/contracts/untrusted-content/README.md)): a listed bot can
 quote text a stranger wrote, and the model can fetch unfiltered comments itself. ADR 0049's
 Consequences record both.
 
