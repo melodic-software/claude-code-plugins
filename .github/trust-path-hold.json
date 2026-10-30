@@ -43,6 +43,6 @@
     "docs/standards/*"
   ],
   "apps": [
-    "melodic-agent[bot]"
+    "trust-path-hold-off[bot]"
   ]
 }

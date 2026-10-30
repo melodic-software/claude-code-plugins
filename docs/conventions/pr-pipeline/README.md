@@ -398,7 +398,10 @@ ends the run unless that retry's patch applied cleanly: the retry's own reason, 
 `ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
 status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
 through a path the lane token may not push, or by weakening a required check), which go to a
-person. A cancelled run applies no label: the write
+person. `ci-fix-escalated` also queues the PR with `needs-session` on each such stop, while the
+dispatcher's same-head retry still runs: a session builder makes the change the lane could not,
+and the session that finds the head green or lands the fix removes the label; no lane removes it.
+A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
 pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
 person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
@@ -652,7 +655,8 @@ security-review `SUGGESTION` is adjudicated like a code-review finding), or any 
 and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
 holds it for a person. Every other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
-no label, a failing commit status on the head the activity gated (`pr-unblock/conflict` for
+no human-gated label (an entry naming `"label": "needs-session"` adds that label first, the
+session-builder queue, which no merge gate reads), a failing commit status on the head the activity gated (`pr-unblock/conflict` for
 `resolve-conflicts`, `pr-unblock/<activity>` otherwise; `report-stop-status` posts it), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
 naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
@@ -1464,7 +1468,8 @@ except six:
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
 COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
-veto from <logins>`). That person lifts the hold with any later comment that does not say it, such
+veto from <logins>`). Writing "the `do-not-merge` label" is not a veto; any other
+`do-not-merge`, a comma list included, is. That person lifts the hold with any later comment that does not say it, such
 as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
 does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
 review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from
@@ -2523,15 +2528,21 @@ them on every `pull_request` run, contract-only runs included:
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
   trust-gate path (the hold-paths above less the security review's own files, matched
   case-insensitively), since no lane
-  reviews it; a person merges it. The same holds a same-repository PR that changes a trust-gate
+  reviews it; a person merges it. While `merge.diff-check.path-holds` is false (this repository's
+  setting, owner decision Q21, 2026-10-29), `scripts/sync-hold-floor.py` writes a guard after
+  `hold_patterns` that empties it for every author but Dependabot, so only a Dependabot PR is held
+  for its paths: its action-pin bumps bring in third-party code (owner decision Q24). The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
-  `[bot]` logins; this repository names the agent App, `melodic-agent[bot]`) opened it, is the
+  `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
+  the hold is off) opened it, is the
   author or committer of one of its commits by account or noreply address, or pushed to its head
   branch (the repository activity API), since its head can rewrite the review callers; a person
   merges it. Such a PR still needs both lanes when no trust-gate path changed. ci-status reads the
   App list, the PR's commits and the branch's push history only once a trust-gate path matched,
   and an unreadable one, a commit list shorter than the PR, or a full page of pushes fails closed.
-  A draft is exempt.
+  A draft is exempt. Restoring the App hold takes three steps: list `melodic-agent[bot]` again, set
+  `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`, because ci-status's inline hold runs only while `path-holds` is
+  true; listing the App alone restores only ci-workflows' `pr-require-checks-trust-paths` hold.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's

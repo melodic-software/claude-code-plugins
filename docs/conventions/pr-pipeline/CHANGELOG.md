@@ -1,5 +1,51 @@
 # Changelog for the PR pipeline convention
 
+## [8.6.1] - 2026-10-30
+
+### Changed
+
+- The agent App trust-path hold is off (owner decision Q21, 2026-10-29: path holds stay off until
+  open issues and pull requests reach zero). `merge.trust-path-hold-apps` names only
+  `trust-path-hold-off[bot]`, a login no App holds, in place of `melodic-agent[bot]`, so neither
+  ci-status's inline hold nor ci-workflows' `pr-require-checks-trust-paths` (through the regenerated
+  `.github/trust-path-hold.json`) holds an agent App pull request for a person, except that both
+  still fail closed on a read they cannot finish: a pull request past 250 commits or 3000 files, or
+  a branch history past 2000 entries. The list keeps one entry because the shared workflow fails on
+  an empty one. Restoring both holds takes three steps: list `melodic-agent[bot]` again, set
+  `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`. Listing the App alone
+  restores only ci-workflows' hold, since ci-status's inline hold runs only while `path-holds` is
+  true.
+- ci-status no longer holds a release-App or standards-sync-App pull request for changing a
+  trust-gate path, and still holds a Dependabot one, whose action-pin bumps bring in third-party
+  code (owner decisions Q21 and Q24). While `merge.diff-check.path-holds` is false, as this
+  repository sets the new key, `scripts/sync-hold-floor.py` writes a guard after ci-status's
+  exempt-author `hold_patterns` that empties the list for every author but Dependabot. Setting
+  it true holds all three again. These authors still get no review lane.
+
+### Fixed
+
+- ci-status and the auto-merge arming step no longer read a member writing "the `do-not-merge` label" as a veto. Any other `do-not-merge`, a comma list included, and a sentence that says not to merge still hold the merge.
+
+## [8.6.0] - 2026-10-30
+
+### Added
+
+- A Node step that sets `API_BUDGET_SCRIPT` ends with its own api-calls notice,
+  `::notice title=api-calls::script=<name> github-token=N lanes-app=N not-modified=M graphql=K`, counted
+  from the readings the rate guard appends for the job-end notice, so a job's total splits by step.
+  pr-merge's enable-auto-merge job names its eight counting steps (who, superseded, head-ref-map,
+  listing-carry, carry-run-cache, verify-answers, lane-records, enable-auto-merge). No request
+  changes.
+
+### Fixed
+
+- `address-feedback` now works a review thread a trusted person with write access opened when
+  that person's own `PR-fix lane: please fix this finding` line is in it. Before, a fix request
+  counted only as a reply on a thread a review bot opened, so a maintainer could not ask the lane
+  to fix a failing check on a PR no review bot commented on, and the lane stopped with
+  `feedback-untaken-threads`. A thread an account off the trusted-actor list opened, one a person
+  without write access opened, or one with no fix request is still left alone.
+
 ## [8.5.1] - 2026-10-30
 
 ### Fixed
