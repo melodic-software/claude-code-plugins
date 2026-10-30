@@ -159,8 +159,7 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     .replace(/github\./g, "ctx.")
     .replace(/([!=])=/g, "$1==");
   const admits = new Function("ctx", "C", "F", `return (${js});`);
-  // Actions' contains is case-insensitive on a string.
-  const C = (list, value) => (typeof list === "string" ? list.toLowerCase().includes(value.toLowerCase()) : list.includes(value));
+  const C = (list, value) => list.includes(value);
   const F = (pattern, ...args) => pattern.replace(/\{(\d+)\}/g, (_, i) => String(args[Number(i)]));
 
   const step = alert.slice(alert.indexOf("\n      - name: File or comment on the demotion issue\n"));
@@ -194,31 +193,26 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     ["feature", "o/r"],
     ["main", "fork/r"],
   ];
-  // Head commit subjects: one the revert prefilter admits in either case, one
-  // it does not.
-  const messages = ["fix: a change (#1)", "revert: undo it (#2) Reverts #1", "feat: REVERTS nothing (#3)"];
   const cases = [];
   for (const pair of pairs) {
     const [name, event] = pair.split(":");
     for (const conclusion of conclusions) {
       for (const attempt of [1, 2, 3]) {
         for (const [branch, repo] of places) {
-          for (const message of messages) {
-            cases.push({ name, event, conclusion, attempt, branch, repo, message });
-          }
+          cases.push({ name, event, conclusion, attempt, branch, repo });
         }
       }
     }
   }
   const driver = [
     `step() {\n${script}\n}`,
-    "while IFS=$'\\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_ATTEMPT RUN_BRANCH RUN_REPO RUN_COMMIT_MESSAGE; do",
-    "  export RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_ATTEMPT RUN_BRANCH RUN_REPO RUN_COMMIT_MESSAGE",
+    "while IFS=$'\\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_ATTEMPT RUN_BRANCH RUN_REPO; do",
+    "  export RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_ATTEMPT RUN_BRANCH RUN_REPO",
     "  ( step >/dev/null 2>&1; exit 42 )",
     "  case $? in 42) echo acts ;; 0) echo exits ;; *) echo error ;; esac",
     "done",
   ].join("\n");
-  const input = cases.map((c) => [c.name, c.event, c.conclusion, c.attempt, c.branch, c.repo, c.message].join("\t")).join("\n") + "\n";
+  const input = cases.map((c) => [c.name, c.event, c.conclusion, c.attempt, c.branch, c.repo].join("\t")).join("\n") + "\n";
   // The step's one gh call answers as an unauthenticated gh does (exit 4), so
   // the run makes no network call and gh writes no state under the cwd.
   const home = mkdtempSync(path.join(tmpdir(), "demotion-alert-gh-"));
@@ -250,15 +244,7 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     const ctx = {
       event_name: "workflow_run",
       repository: "o/r",
-      wr: {
-        name: c.name,
-        event: c.event,
-        conclusion: c.conclusion,
-        run_attempt: c.attempt,
-        head_branch: c.branch,
-        head_repository: { full_name: c.repo },
-        head_commit: { message: c.message },
-      },
+      wr: { name: c.name, event: c.event, conclusion: c.conclusion, run_attempt: c.attempt, head_branch: c.branch, head_repository: { full_name: c.repo } },
     };
     return admits(ctx, C, F) !== (acted[i] === "acts");
   });
