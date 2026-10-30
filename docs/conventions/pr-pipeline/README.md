@@ -1268,9 +1268,9 @@ the rules that only tighten in
     `*.tf`, `*.tf.json`, `*.tfvars`, `*.tfvars.json`, `*.bicep` or `*.bicepparam` file, any ARM
     template under the names
     [Azure's quickstart samples use](https://github.com/Azure/azure-quickstart-templates/blob/master/1-CONTRIBUTION-GUIDE/README.md)
-    (`azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json`), and any file under a
-    directory that holds a Pulumi project file at the base. A base tree the gate cannot list whole
-    holds every file;
+    (`azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json`, `*.azuredeploy.*.json`), and
+    any file under a directory that holds a Pulumi project file at the base. A base tree the gate
+    cannot list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a runner value the workflow's head text gains over its base text, or an added inline
     `runs-on:` value: on a public repository only one that is not a free literal (GitHub's

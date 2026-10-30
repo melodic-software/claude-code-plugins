@@ -207,6 +207,7 @@ PATHS = [
     "deploy/azuredeploy.json",
     "deploy/AzureDeploy.Parameters.json",
     "deploy/prereq.azuredeploy.json",
+    "deploy/prereqs/prereq.azuredeploy.parameters.json",
     "deploy/azuredeploy.md",
     ".infra/net/main.TF",
     "a.tf/inside.txt",

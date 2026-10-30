@@ -96,6 +96,7 @@ class CostHold(_Finding):
             "deploy/azuredeploy.parameters.json",
             "deploy/azuredeploy.parameters.us.json",
             "deploy/prereq.azuredeploy.json",
+            "deploy/prereqs/prereq.azuredeploy.parameters.json",
         ):
             with self.subTest(path=path):
                 result = _cost([_file(path)])

@@ -216,6 +216,7 @@ export const COST_PATHS = Object.freeze([
   "**/azuredeploy.json",
   "**/azuredeploy.*.json",
   "**/*.azuredeploy.json",
+  "**/*.azuredeploy.*.json",
   // END hold-floor COST_PATHS
 ]);
 

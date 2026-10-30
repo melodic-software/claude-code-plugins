@@ -991,6 +991,7 @@ COST_PATHS: tuple[str, ...] = (
     "**/azuredeploy.json",
     "**/azuredeploy.*.json",
     "**/*.azuredeploy.json",
+    "**/*.azuredeploy.*.json",
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
