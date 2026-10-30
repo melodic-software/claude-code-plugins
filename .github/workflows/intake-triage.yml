@@ -845,8 +845,9 @@ jobs:
           4. When the items cannot be split into whole changes because each one repeats over many named
              targets (plugins, skills, files), set `parts` to an empty list and `groups` to between 2 and
              `size_split.max_parts` lists of target names instead. Copy each name exactly as it appears
-             inside one item's text, name each target once, and put one target plus anything every target
-             shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
+             inside one item's text after its checkbox, name each target once, never one that sits inside
+             another target's text or holds `@` or `#`, make every item name at least one target, and put one
+             target plus anything every target shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
              and a line naming its group's targets.
           5. When neither fits, set both `parts` and `groups` to empty lists: the script then posts the
              reason on the issue.
@@ -1162,8 +1163,9 @@ jobs:
           4. When the items cannot be split into whole changes because each one repeats over many named
              targets (plugins, skills, files), set `parts` to an empty list and `groups` to between 2 and
              `size_split.max_parts` lists of target names instead. Copy each name exactly as it appears
-             inside one item's text, name each target once, and put one target plus anything every target
-             shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
+             inside one item's text after its checkbox, name each target once, never one that sits inside
+             another target's text or holds `@` or `#`, make every item name at least one target, and put one
+             target plus anything every target shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
              and a line naming its group's targets.
           5. When neither fits, set both `parts` and `groups` to empty lists: the script then posts the
              reason on the issue.
