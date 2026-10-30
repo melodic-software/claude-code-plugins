@@ -42,6 +42,7 @@ const comment = (n, user, body, extra = {}) => ({
 
 const ISSUE = {
   number: 6825,
+  user: OWNER,
   title: "Add a targeted frame",
   body: "Readiness: needs-decision. Option 1 or option 2.",
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
@@ -601,6 +602,60 @@ test("a resume with a malformed tip, branch or cause, or an unreadable compariso
     assert.equal(issue, null, JSON.stringify(extra));
   }
   const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: RESUME_ENV });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
+// Defense in depth behind the admit job's outside-author stop: an issue
+// neither a listed human nor the lanes App wrote never reaches the model.
+test("an issue neither a listed human nor the lanes App wrote fails the run and writes no file", async () => {
+  for (const user of [{ id: 999, login: "stranger" }, undefined]) {
+    const { code, issue, logged } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 1, JSON.stringify(user));
+    assert.equal(issue, null);
+    assert.ok(logged.some((line) => line.includes("neither a listed human nor the lanes App")), logged.join("\n"));
+  }
+  for (const user of [OWNER, LANES_BOT]) {
+    const { code } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 0, user.login);
+  }
+});
+
+// A fresh start past a stale lane branch (report-outcome --find-prior's
+// stale-branch and stale-tip): issue.json carries `stale_branch`, that
+// branch's commit subjects and diffstat from GET /compare between the trusted
+// base and the tip issue-prior checked, so the model can reuse the approach.
+const STALE_ENV = { STALE_BRANCH: "work-resolve-issue/issue-6825-400-1", STALE_TIP: TIP_SHA, BASE_SHA };
+
+test("a fresh run past a stale branch's issue.json names that branch, its tip, commit subjects and diffstat", async () => {
+  const github = fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } });
+  const { code, issue } = await run(github, { extraEnv: STALE_ENV });
+  assert.equal(code, 0);
+  assert.deepEqual(issue.stale_branch, {
+    branch: "work-resolve-issue/issue-6825-400-1",
+    tip: TIP_SHA,
+    commits: ["docs(work-items): add the frame", "test(work-items): cover the frame"],
+    files: [
+      { path: "plugins/work-items/README.md", additions: 12, deletions: 3 },
+      { path: "plugins/work-items/scripts/frame.test.sh", additions: 40, deletions: 0 },
+    ],
+  });
+  assert.equal(Object.hasOwn(issue, "resume"), false, "a stale branch is not a resume");
+});
+
+test("a run past no stale branch writes no stale_branch field", async () => {
+  const { code, issue } = await run(fakeGitHub({ comments: [] }));
+  assert.equal(code, 0);
+  assert.equal(Object.hasOwn(issue, "stale_branch"), false);
+});
+
+test("a stale branch with a malformed tip or branch, or an unreadable comparison, writes no issue file", async () => {
+  for (const extra of [{ STALE_TIP: "abc" }, { STALE_TIP: "" }, { STALE_BRANCH: "main" }, { STALE_BRANCH: "work-resolve-issue/issue-7-400-1" }, { BASE_SHA: "" }]) {
+    const { code, issue } = await run(fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } }), { extraEnv: { ...STALE_ENV, ...extra } });
+    assert.equal(code, 1, JSON.stringify(extra));
+    assert.equal(issue, null, JSON.stringify(extra));
+  }
+  const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: STALE_ENV });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });

@@ -49,6 +49,10 @@
 //   .github/recurring-schedule.json, does not set
 //   requires_operator_confirmation (operatorConfirmation);
 // - the body was not edited after the lane comment the verdict came from;
+// - on the work-unblock sweep, which passes no verdict comment, a deferred
+//   issue carries neither do-not-merge nor needs-human, and neither gained
+//   `area: security` nor had its body edited since its newest
+//   admission-deferred add (deferralLapsed);
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval (trigger probes and before-and-after eval numbers
@@ -743,12 +747,59 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   return names(labels).includes(UNTRUSTED) || removedByOther;
 }
 
+// Whether the issue's author (`issue.user`) is one intake admits: a listed
+// human (`humans`, ids) or the lanes App (`appId`, a number when set). An
+// issue with no author is neither. Admission, the issue lane's gate and
+// intake re-entry all judge the author here. Pure.
+export function authorAdmitted(issue, humans, appId) {
+  const author = issue?.user?.id;
+  return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
+}
+
 // Whether the newest add of `label` (a `labeled` event) is a listed human's
 // (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
 // `attended`. Pure.
 export function addedByTrusted(events, label, humans, appId) {
   const actor = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1)?.actor;
   return humans.has(actor?.id) || (appId !== undefined && actor?.id === appId);
+}
+
+// A deferred issue's labels that refuse its re-admission whatever the rules
+// say: a person's hold.
+const DEFERRAL_HOLDS = ["do-not-merge", "needs-human"];
+// The security area: a deferral judged the issue without it when it was added later.
+export const SECURITY_AREA = "area: security";
+
+// Why a deferred issue (admission-deferred) may not be re-admitted on the
+// admission it was deferred from, each {reason, kind, hold}, in order:
+// `not-ready` when it lost status: ready; `held` when it carries do-not-merge
+// or needs-human, or untrustedHold holds it; `stale` when the security area
+// was added, or its body (`editedAt`, GraphQL lastEditedAt or null) edited,
+// after the newest add of admission-deferred in `events`, or with no such
+// add. `hold` marks a reason a person settles: a held one, or the security
+// area. The work-unblock sweep and decide both judge a deferral here. Pure.
+export function deferralLapsed({ labels, events, editedAt, humans, appId }) {
+  const lower = names(labels).map((name) => String(name).toLowerCase());
+  const newestAdd = (label) => (events ?? []).filter((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === label).at(-1);
+  const deferredAt = Date.parse(newestAdd(DEFERRED)?.created_at);
+  const since = (at) => !Number.isFinite(deferredAt) || !(Date.parse(at) <= deferredAt);
+  const found = [];
+  if (!lower.includes(READY)) {
+    found.push({ reason: `it lost ${READY} while deferred`, kind: "not-ready", hold: false });
+  }
+  for (const label of DEFERRAL_HOLDS.filter((name) => lower.includes(name))) {
+    found.push({ reason: `it carries ${label}`, kind: "held", hold: true });
+  }
+  if (untrustedHold({ labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
+    found.push({ reason: `${UNTRUSTED} work needs a person`, kind: "held", hold: true });
+  }
+  if (lower.includes(SECURITY_AREA) && since(newestAdd(SECURITY_AREA)?.created_at)) {
+    found.push({ reason: `${SECURITY_AREA} was added after it was deferred, so the admission it was deferred from did not judge it`, kind: "stale", hold: true });
+  }
+  if (editedAt != null && since(editedAt)) {
+    found.push({ reason: "its body was edited after it was deferred, so the admission it was deferred from judged an older body", kind: "stale", hold: false });
+  }
+  return found;
 }
 
 // Whether `attended` still holds though the label is off: its newest label
@@ -849,8 +900,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
-  const author = issue.user?.id;
-  if (!(humans.has(author) || (appId !== undefined && author === appId))) {
+  if (!authorAdmitted(issue, humans, appId)) {
     refuse.push("the author is neither a listed human nor the lanes App");
     hold = true;
   }
@@ -953,6 +1003,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     if (labels.includes(label)) {
       refuse.push(`it carries ${label}`);
       hold ||= PERSON_LABELS.has(label);
+    }
+  }
+  // The sweep re-admits a deferred issue on no fresh verdict, so what changed
+  // since its deferral refuses, whatever the rules say (deferralLapsed).
+  if (verdict.writtenAt === undefined && labels.includes(DEFERRED)) {
+    for (const lapsed of deferralLapsed({ labels: issue.labels, events, editedAt: spec?.lastEditedAt, humans, appId })) {
+      if (!refuse.includes(lapsed.reason)) {
+        refuse.push(lapsed.reason);
+      }
+      hold ||= lapsed.hold;
     }
   }
   const confirm = operatorConfirmation({ schedule, labels, title: issue.title });

@@ -3847,6 +3847,16 @@ class LaneConfig(unittest.TestCase):
         self.assertFalse(hasattr(config, "c2_contradictions"))
         self.assertEqual(self.diff_check(["c2-contradictions: false"]).notes, ())
 
+    def test_path_holds_are_off_unless_set_true(self) -> None:
+        # Owner decision Q15: absent or false, no path holds; any other
+        # value keeps them, as every switch here reads.
+        self.assertIs(self.diff_check([]).path_holds, False)
+        self.assertIs(self.diff_check(["path-holds: false"]).path_holds, False)
+        self.assertIs(self.diff_check(["path-holds: true"]).path_holds, True)
+        config = self.diff_check(["path-holds: maybe"])
+        self.assertIs(config.path_holds, True)
+        self.assertEqual(len(config.notes), 1)
+
     def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
         config = self.diff_check(["high-path-floor: maybe"])
         self.assertIs(config.high_path_floor, True)
@@ -6388,6 +6398,7 @@ merge:
   diff-check:
     denied-paths: [".github/**"]
     high-path-floor: false
+    path-holds: false
     max-changed-lines: 500
 """
 STRICT_PIPELINE = """\
@@ -6407,6 +6418,7 @@ merge:
   diff-check:
     denied-paths: [".github/**", "docs/**"]
     high-path-floor: true
+    path-holds: true
     max-changed-lines: 100
     max-changed-files: 0
 """
@@ -6470,6 +6482,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "report_only": True,
             "require_verifier_verdict": True,
             "high_path_floor": True,
+            "path_holds": True,
             "max_changed_lines": 100,
             "max_changed_files": 0,
             "dependabot_mode": "report",

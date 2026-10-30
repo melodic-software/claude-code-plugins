@@ -11,7 +11,8 @@
 # Remove a row once its suite's median is under 150 s.
 plugins/guardrails/hooks/block-root-delete-target.test.sh 480
 plugins/planning/shared/tests/align.test.sh 480
-plugins/planning/shared/tests/ui.test.sh 480
+plugins/planning/shared/tests/ui-a.test.sh 480
+plugins/planning/shared/tests/ui-c.test.sh 480
 plugins/planning/surface/surface-journey.test.sh 480
 plugins/planning/surface/surface-ui-c.test.sh 480
 plugins/planning/surface/surface.test.sh 480

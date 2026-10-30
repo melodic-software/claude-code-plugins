@@ -18,7 +18,11 @@
 # 2026-10-28 from whole-tree runs 40653674557, 40663973538 and 40674471154
 # (align.test.sh kept: its leg had no Chromium there, so it skipped), and the
 # unlisted post-merge-demotion-alert.test.sh 2026-10-29 from whole-tree run
-# 40892244877: a shell
+# 40892244877. The three ui-<part>.test.sh rows are estimates from 2026-10-29,
+# kept until a whole-tree run measures them: each part's suites scheduled
+# slowest first on 6 jobs from ui-timings.txt, a suite it does not list at
+# 53 s, the figure that brings the whole set to the 404 s measured before the
+# split. A shell
 # suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
@@ -448,7 +452,9 @@ plugins/planning/shared/tests/test_share.py 158
 plugins/planning/shared/tests/test_tunnel.py 64
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
-plugins/planning/shared/tests/ui.test.sh 404
+plugins/planning/shared/tests/ui-a.test.sh 187
+plugins/planning/shared/tests/ui-b.test.sh 139
+plugins/planning/shared/tests/ui-c.test.sh 154
 plugins/planning/surface/surface-journey.test.sh 290
 plugins/planning/surface/surface-ui-c.test.sh 153
 plugins/planning/surface/surface.test.sh 195

@@ -187,6 +187,7 @@ from babysit_gh import (
     collect_lane_runs,
     collect_main_review_counts,
     main_review_critical,
+    main_review_stop,
     collect_main_reviews,
     compare_shows_behind,
     fetch_base_compare,
@@ -3174,11 +3175,20 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
+    head_sha = str(head.get("sha"))
+    head_file = _head_file(repo, head_sha)
+    base_sha = json_object(pr.get("base")).get("sha")
+    # A lane-source pull request binds the code lane on a main-run review
+    # alone (`bind()`), so only the security lane's runs, which its carried
+    # blocking count reads, are listed.
+    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
     runs = collect_lane_runs(
         repo,
         number,
         str(head.get("ref")),
-        review_evidence.LANES.values(),
+        [review_evidence.LANES[review_evidence.SEVERITY_LANE]]
+        if main
+        else review_evidence.LANES.values(),
         str(pr.get("created_at") or ""),
         read_env,
     )
@@ -3192,9 +3202,6 @@ def _lane_evidence(
             permission=permission,
         )
 
-    head_sha = str(head.get("sha"))
-    head_file = _head_file(repo, head_sha)
-    base_sha = json_object(pr.get("base")).get("sha")
     main_reviews, main_context = _main_reviews(
         repo,
         number,
@@ -3204,6 +3211,7 @@ def _lane_evidence(
         base_sha,
         read_env,
         [str(item.get("sha")) for item in commits],
+        main=main,
     )
     lanes = review_evidence.bind(
         head_sha,
@@ -3230,14 +3238,19 @@ def _main_reviews(
     base_sha: Any,
     read_env: Mapping[str, str] | None,
     pull_request_heads: Sequence[str] = (),
+    *,
+    main: bool | None = None,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
     read from the commit, the default branch, and per lane the most CRITICAL
     findings the record job's check runs carry on any head of the pull
     request: its commits and the heads force pushes replaced), or
-    (None, None) when the pull request changes none, so no read is spent."""
-    if not review_evidence.needs_main_review(changed_paths, head_file, base_sha):
+    (None, None) when the pull request changes none, so no read is spent.
+    `main` is the caller's `needs_main_review` answer, computed when None."""
+    if main is None:
+        main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+    if not main:
         return None, None
     branch = repository_default_branch(repo)
     if not branch:
@@ -3260,12 +3273,21 @@ def _main_reviews(
     checks = {
         lane: review_evidence.main_review_check(lane) for lane in review_evidence.LANES
     }
+    # The security lane's CRITICAL carries from every head of the pull
+    # request. The code lane binds only beside its record on the head, and
+    # `_main_lane` never reads its carried count but for None, so its other
+    # heads cost no read.
+    every = [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)]
     counts = collect_main_review_counts(
         repo,
-        [head_sha, *pull_request_heads, *_force_pushed_heads(repo, number)],
+        {
+            lane: every if lane == review_evidence.SEVERITY_LANE else [head_sha]
+            for lane in checks
+        },
         checks,
         read_env,
     )
+    on_head = counts.get(head_sha, {})
     return reviews, {
         "repo": repo,
         "pr": number,
@@ -3275,7 +3297,19 @@ def _main_reviews(
         # The record job's counts on this head: a verdict binds only beside
         # one that matches it, so a run cancelled before `record` binds none.
         "head_records": {
-            lane: [list(c) for c in counts.get(head_sha, {}).get(lane, ()) if c]
+            lane: [
+                list(c)
+                for c in on_head.get(lane, ())
+                if c is not None and main_review_stop(c) is None
+            ]
+            for lane in checks
+        },
+        # The designed stops the record job posted on this head (a diff the
+        # review cannot read whole): they name why no verdict binds.
+        "head_stops": {
+            lane: sorted(
+                {s for c in on_head.get(lane, ()) if (s := main_review_stop(c))}
+            )
             for lane in checks
         },
     }
@@ -3559,11 +3593,12 @@ def score_unattended(
     # The manifest review compares base and head text; the cost hold reads a
     # workflow's head text for its model legs.
     files = merge_policy.with_contents(repo, pr, files)
-    # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the manifest review and both caps. HIGH_FLOOR holds in both.
+    # The pr-merge lane's switches (owner decisions Q624 and Q15); the local
+    # lane keeps the manifest review, both caps and every path hold.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
+            "path_holds": config.path_holds,
             "max_changed_files": config.max_changed_files,
             "lines_optional": True,
         }
@@ -3605,6 +3640,11 @@ def score_unattended(
             "reasons": [
                 {"code": r.code, "severity": r.severity.name, "detail": r.detail}
                 for r in risk.reasons
+            ],
+            # The path holds merge.diff-check.path-holds turned off, counted
+            # by the rollup.
+            "pathHoldsSkipped": [
+                {"code": r.code, "detail": r.detail} for r in risk.skipped
             ],
         },
         "evidence": [
@@ -4300,7 +4340,9 @@ def unattended_writes(
             # Recorded first, so a failed write never toggles twice at a head.
             if report["wholeReview"] == {"toggle": True}:
                 node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
-                report["wholeReview"] = whole_review.toggle(node_id)
+                report["wholeReview"] = whole_review.toggle(
+                    node_id, human_gated=human_gated_label(repo)
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
         if report.get("wholeReview") is None:
@@ -4379,10 +4421,7 @@ def _whole_review_record(
     `MAX_TOGGLES` in all (record lines and the identity's conversions to
     draft on the timeline), is recorded when this sweep's limits allow it."""
     text = _normalized((prior or {}).get("body"))
-    lines = whole_review.record_lines(text)
-    kept = whole_review.with_records(body, lines)
-    if whole_review.recorded(text, head):
-        return kept, None
+    kept = whole_review.with_records(body, whole_review.record_lines(text))
     inputs = policy.inputs or {}
     pr = json_object(inputs.get("pr"))
     user = json_object(pr.get("user"))
@@ -4396,21 +4435,15 @@ def _whole_review_record(
         or text.endswith(RISK_ESCALATION_LINE)
     ):
         return kept, None
-    if len(lines) >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
-    # The timeline, not the comment the lane token can edit, holds the count.
-    toggled = whole_review.lane_toggles(
-        str(pr.get("node_id") or ""), str(inputs.get("identity") or "")
+    lines, answer = whole_review.request(
+        repo,
+        text,
+        head,
+        str(pr.get("node_id") or ""),
+        str(inputs.get("identity") or ""),
+        _now(),
     )
-    if toggled is None:
-        return kept, {"toggled": False, "skipped": "toggle-cap:unread"}
-    if toggled >= whole_review.MAX_TOGGLES:
-        return kept, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
-    refusal = whole_review.limits(repo)
-    if refusal is not None:
-        return kept, {"toggled": False, "skipped": refusal}
-    line = whole_review.record_line(head, _now())
-    return whole_review.with_records(body, [*lines, line]), {"toggle": True}
+    return whole_review.with_records(body, lines), answer
 
 
 def _identity_queue_entries(

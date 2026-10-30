@@ -45,6 +45,7 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
       return {
         number: 42,
         state: "open",
+        ...("author" in subject ? subject.author !== undefined && { user: subject.author } : { user: HUMAN }),
         labels: (subject.labels ?? []).map((name) => ({ name })),
         ...(subject.summary && { sub_issues_summary: subject.summary }),
       };
@@ -78,6 +79,9 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
 const SKIP = { proceed: "false", untrusted: "false" };
 const RUN = { proceed: "true", untrusted: "false" };
 const FINAL = { proceed: "false", untrusted: "true" };
+// The outside-author stop: FINAL, plus the mark report-skip reads to tell the
+// issue's author is outside the trusted list.
+const OUTSIDER = { ...FINAL, outsider: "true" };
 
 test("an open blocker skips the run with a notice naming it, and writes nothing", async () => {
   const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed"), issue(9, "open", { repo: "o/other" })]);
@@ -132,7 +136,7 @@ test("a merged pull request blocker costs no trust read, so a read that would fa
       throw new Error("GET failed: 502");
     }
     if (path === "/repos/o/r/issues/42") {
-      return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
+      return { number: 42, state: "open", user: HUMAN, labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     }
     if (path.includes("/events")) {
       return [];
@@ -170,6 +174,24 @@ test("the label removed by someone neither a listed human nor the App still stop
   assert.deepEqual((await run([], { subject: { events: [added, labelEvent("unlabeled", APP)] } })).outputs, RUN);
 });
 
+test("an issue neither a listed human nor the lanes App wrote stops the run for good, before its events or blockers are read, and marks it for report-skip", async () => {
+  for (const author of [STRANGER, undefined]) {
+    const { code, calls, lines, outputs } = await run([], { subject: { author } });
+    assert.equal(code, 0);
+    assert.deepEqual(outputs, OUTSIDER, JSON.stringify(author));
+    assert.deepEqual(calls, ["GET /repos/o/r/issues/42"]);
+    const notice = lines.find((line) => line.startsWith("::notice"));
+    assert.match(notice, /neither a listed human nor the lanes App/);
+    assert.match(notice, /re-file/);
+  }
+});
+
+test("an issue a listed human or the lanes App wrote still runs", async () => {
+  for (const author of [HUMAN, APP]) {
+    assert.deepEqual((await run([], { subject: { author } })).outputs, RUN, author.login);
+  }
+});
+
 test("labels or events it cannot read skip the run with a warning, not for good", async () => {
   const failed = new Error("GET failed: 502");
   for (const subject of [{ issue: failed }, { events: failed }]) {
@@ -185,7 +207,7 @@ test("a blocker list it cannot read skips the run with a warning and exits 0", a
     if (path.includes("/dependencies/")) {
       throw new Error("GET failed: 502");
     }
-    return path.includes("/events") ? [] : { number: 42, labels: [] };
+    return path.includes("/events") ? [] : { number: 42, user: HUMAN, labels: [] };
   });
   assert.equal(code, 0);
   assert.deepEqual(outputs, SKIP);
@@ -207,7 +229,7 @@ test("an issue number that is not one, no trusted list, or no App id skips the r
 test("a split parent the lanes App closed after a listed human closed every part no longer blocks; an open part keeps it blocking", async () => {
   const record = { id: 61, user: APP, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [50, 51] })}` };
   const world = (partState) => (path) => {
-    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
+    if (path === "/repos/o/r/issues/42") return { number: 42, state: "open", user: HUMAN, labels: [], sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 } };
     if (path.startsWith("/repos/o/r/issues/42/events")) return [];
     if (path.includes("/42/dependencies/blocked_by")) return [issue(7, "closed", { closer: APP })];
     if (path === "/repos/o/r/issues/7") return issue(7, "closed", { closer: APP });
@@ -270,7 +292,7 @@ describe("an umbrella issue", () => {
         throw new Error("GET failed: 502");
       }
       if (path === "/repos/o/r/issues/42") {
-        return { number: 42, state: "open", labels: [], sub_issues_summary: summary(2, 0) };
+        return { number: 42, state: "open", user: HUMAN, labels: [], sub_issues_summary: summary(2, 0) };
       }
       return [];
     });

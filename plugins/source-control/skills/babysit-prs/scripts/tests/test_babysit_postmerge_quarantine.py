@@ -855,7 +855,7 @@ class SuiteFailures(unittest.TestCase):
         log = (FIXTURES / "job-log-bash-ui-fail.txt").read_text(encoding="utf-8")
         self.assertEqual(
             pm.suite_failures(log, "bash"),
-            frozenset({"plugins/planning/shared/tests/ui.test.sh"}),
+            frozenset({"plugins/planning/shared/tests/ui-a.test.sh"}),
         )
 
     def test_bash_names_a_suite_that_never_reported(self) -> None:
