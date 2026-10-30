@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines } from "./admit.mjs";
+import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -2337,4 +2337,34 @@ describe("authorAdmitted", () => {
       assert.equal(authorAdmitted({ user: { id: 303 } }, humans, appId === 303 ? undefined : appId), false, String(appId));
     }
   });
+});
+
+// resolve-config's splitChild fact: the issue lane's budget for a trusted
+// size-split sub-issue rated Large (pr-pipeline.yaml split-child-size).
+test("trustedSplitChild reads the issue and its native parent and applies splitChildBody", async () => {
+  const LANES = 337595936;
+  const HUMAN_ID = 153232337;
+  const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
+  const node = (body, author) => ({ body, lastEditedAt: null, author, editor: null, comments: { totalCount: 0, nodes: [] } });
+  const human = { __typename: "User", databaseId: HUMAN_ID };
+  const app = { __typename: "Bot", databaseId: LANES };
+  const childBody = `${splitChildHeader(5, 1, 2)}\n${lines[0]}`;
+  const fake = (child, parent = { number: 5, repository_url: "https://api.github.com/repos/o/r" }) => async (method, path, body) => {
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: body.variables.number === 5 ? node(lines.join("\n"), human) : child } } };
+    }
+    if (path === "/repos/o/r/issues/8/parent") {
+      if (parent === null) {
+        throw Object.assign(new Error("404"), { status: 404 });
+      }
+      return parent;
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  const humansSet = new Set([HUMAN_ID]);
+  assert.equal(await trustedSplitChild(fake(node(childBody, app)), "o/r", 8, humansSet, LANES, "- [ ] "), true);
+  assert.equal(await trustedSplitChild(fake(node(`${childBody}\n- [ ] Invented.`, app)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "a line the parent lacks");
+  assert.equal(await trustedSplitChild(fake(node(childBody, human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "not the lanes App's");
+  assert.equal(await trustedSplitChild(fake(node(childBody, app), null), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no parent");
+  assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
 });

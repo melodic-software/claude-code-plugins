@@ -777,6 +777,10 @@ models:
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split
+    # A trusted size-split sub-issue rated Large (admission takes it whatever
+    # its Size, owner Q93) runs at this size instead of split-required: it
+    # never splits again, so holding it would park it for good.
+    split-child-size: medium
     complexity:
       # Base turns as they are: a small low-complexity issue runs as before.
       low: 1

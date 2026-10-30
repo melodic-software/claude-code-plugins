@@ -1272,6 +1272,19 @@ export async function splitParentOf(github, repository, parent, appId) {
   return { number: parent.number, spec: await specOf(github, repository, parent.number), appId };
 }
 
+// Whether issue `number` is a trusted size-split sub-issue: the lanes App
+// (`appId`) filed it with SPLIT_CHILD_MARKER and splitChildBody counts it
+// against its native parent. resolve-config reads it as the splitChild fact
+// (pr-pipeline.yaml models.issue-dimensions.split-child-size). Reads only.
+export async function trustedSplitChild(github, repository, number, humans, appId, taskList) {
+  const spec = await specOf(github, repository, number);
+  if (appId === undefined || spec.author?.__typename !== "Bot" || spec.author.databaseId !== appId || !spec.body.startsWith(SPLIT_CHILD_MARKER)) {
+    return false;
+  }
+  const parent = await splitParentOf(github, repository, await parentOf(github, `/repos/${repository}/issues/${Number(number)}`), appId);
+  return parent !== undefined && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
+}
+
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in

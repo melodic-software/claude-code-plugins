@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const HUMAN = 153232337;
@@ -155,3 +155,21 @@ for (const [why, config] of [
     assert.throws(() => checkDimensions(config), (error) => error instanceof Rejection && error.code === "undefined-dimension");
   });
 }
+
+// A trusted size-split sub-issue rated with a split size takes
+// split-child-size; nothing else changes.
+test("splitChildDims gives a trusted split child of a split size the split-child size, and leaves everything else", () => {
+  const config = { ...CONFIG, "split-child-size": "medium" };
+  const large = { size: "large", complexity: "low", uncertainty: "known" };
+  assert.deepEqual(splitChildDims(large, config, true), { ...large, size: "medium" });
+  assert.deepEqual(splitChildDims(large, config, false), large);
+  assert.deepEqual(splitChildDims(large, CONFIG, true), large, "no split-child-size, no change");
+  assert.deepEqual(splitChildDims({ ...large, size: "small" }, config, true), { ...large, size: "small" });
+  assert.deepEqual(splitChildDims({ ...large, size: null }, config, true), { ...large, size: null });
+});
+
+test("checkDimensions refuses a split-child-size that names no size that runs", () => {
+  for (const size of ["huge", "large"]) {
+    assert.throws(() => checkDimensions({ ...CONFIG, "split-child-size": size }), /split-child-size/, size);
+  }
+});
