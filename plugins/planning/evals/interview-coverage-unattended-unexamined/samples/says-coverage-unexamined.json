@@ -11,6 +11,14 @@
     {
       "answer": "Unexamined: unwanted-behavior and state-driven acceptance-criteria coverage.",
       "why": "unexamined first"
+    },
+    {
+      "answer": "- **Coverage check skipped:** nobody checked whether the criteria lack a failure case (if a delete errors, then ...) or a state-dependent case (while a job runs, ...).",
+      "why": "plain-language halves with skipped"
+    },
+    {
+      "answer": "- **Not asked:** with nobody to answer, I did not ask whether the criteria miss what happens when a step fails, or what holds during a particular state.",
+      "why": "plain-language halves with not asked"
     }
   ],
   "fail": [
@@ -25,6 +33,10 @@
     {
       "answer": "Are the criteria missing an unwanted-behavior case or a state-driven case?",
       "why": "asks the prompt on an unattended run instead of reporting it unexamined"
+    },
+    {
+      "answer": "Skipped: the NFR prompts.\nAC3: If a delete fails, the job logs it.\nState-driven criteria: none.",
+      "why": "the three parts sit on different lines, not one coverage note"
     }
   ]
 }

@@ -1,5 +1,6 @@
 ---
 type: regex
-pattern: '[Uu]nwanted[- ]behavior[^\n]{0,200}[Ss]tate[- ]driven[^\n]{0,200}(?:unexamined|not (?:been )?examined|unchecked)|(?:[Uu]nexamined|not (?:been )?examined|[Uu]nchecked)[^\n]{0,120}[Uu]nwanted[- ]behavior[^\n]{0,200}[Ss]tate[- ]driven'
+pattern: '^(?=[^\n]*(?:[Uu]nwanted[- ]behavior|[Ff]ail\w*|\bIF\b))(?=[^\n]*(?:[Ss]tate[- ](?:driven|dependent)|particular state|\bWHILE\b))(?=[^\n]*(?:[Uu]nexamined|not (?:been )?examined|[Uu]nchecked|[Ss]kipped|[Nn]ot [Aa]sked|didn.t (?:check|ask)|did not (?:check|ask)))'
+flags: m
 arm: both
 ---
