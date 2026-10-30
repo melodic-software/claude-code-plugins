@@ -7,7 +7,7 @@
 # bare-vs-guarded discrimination on live files, not only synthetic ones.
 #
 # Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
-# not a plugin library. See docs/conventions/shell-test-helpers/README.md.
+# not a plugin library. See docs/contracts/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal skill content in single quotes; expansion is never wanted
 set -uo pipefail
 

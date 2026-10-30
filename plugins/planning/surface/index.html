@@ -773,14 +773,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return s;
   }
   const byClaude = (q, i) => (q.commitsConfirmed || []).find(c => String(c.index) === String(i));
-  const accepted = q => ["accept", "hedged", "own"].includes(stateOf(q)); // alt and defer carry none, and neither does a held question
-  function commitRows(){ // commitments carried by accept (or reconfirmed accept), hedged and own decisions
+  const accepted = q => ["accept", "hedged"].includes(stateOf(q)); // an own answer and an alt replace the recommendation and carry none, defer carries none, and neither does a held question
+  function commitRows(){ // commitments carried by accept (or reconfirmed accept) and hedged decisions
     const out = [];
     S.doc.questions.slice().sort(byIdCmp).forEach(q => { if (!accepted(q)) return; const cf = confirmed(q); (q.commits || []).forEach((c, i) => out.push({q, i, c, on: cf.has(String(i))})); });
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
-  const tickRows = () => commitRows().filter(r => !r.on && ["accept", "own"].includes(stateOf(r.q))); // what Tick these and confirm ticks; a hedged accept's condition is still open
+  const tickRows = () => commitRows().filter(r => !r.on && stateOf(r.q) === "accept"); // what Tick these and confirm ticks; a hedged accept's condition is still open
   function acceptTally(){ // the live answers, and those that took the recommendation as it stood
     const all = S.doc.questions.filter(q => live(q) && isAnswered(stateOf(q))).sort(byIdCmp);
     return {all, acc: all.filter(q => stateOf(q) === "accept")};
@@ -1410,7 +1410,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
-      h += '<section class="blk"><h4>Accepting commits you to: confirm each' + (acc ? "" : " once accepted") + '</h4><div class="crows">' + q.commits.map((c, i) => {
+      h += '<section class="blk"><h4>Accepting commits you to: ' + (acc ? "confirm each" : stateOf(q) === "own" ? "replaced by your own answer" : "confirm each once accepted") + '</h4><div class="crows">' + q.commits.map((c, i) => {
         const on = cf.has(String(i)), id = "cf-" + esc(q.id) + "-" + i, by = byClaude(q, i);
         return '<div class="crow' + (on ? " ok" : "") + '"><input type="checkbox" id="' + id + '" data-confirm="' + i + '" data-cq="' + esc(q.id) + '"' + (on ? " checked" : "") + (acc ? "" : " disabled") + '><label for="' + id + '">' + lineHtml(c) +
           (by ? ' <span class="kbd">Confirmed by Claude: ' + esc(by.reason) + "</span>" : "") + "</label>" +
@@ -1597,7 +1597,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let h = all.length ? '<p id="acceptTally">' + acc.length + " of " + all.length + " answers accepted as recommended</p>" : "";
     if (all.length && acc.length === all.length) h += '<p class="kbd" id="auditOffer">Every answer took the recommendation. Agents can check them before you confirm. <button type="button" class="tbtn small" data-auditaccepted="1" data-submit="1"' + (S.api >= 2 && send.length ? "" : " disabled") + ">Have agents check these answers</button>" +
       (left.length ? " Left out: " + esc(left.join(", ")) + "." : "") + "</p>";
-    if (rows.length) h += '<div id="uTick"><p class="kbd">Not ticked yet on your accepted and own answers; Tick these and confirm ticks them:</p><ul>' + rows.map(r => "<li>" + refHtml(r.q.id) + " " + lineHtml(r.c) + "</li>").join("") + "</ul></div>";
+    if (rows.length) h += '<div id="uTick"><p class="kbd">Not ticked yet on your accepted answers; Tick these and confirm ticks them:</p><ul>' + rows.map(r => "<li>" + refHtml(r.q.id) + " " + lineHtml(r.c) + "</li>").join("") + "</ul></div>";
     return h;
   }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box

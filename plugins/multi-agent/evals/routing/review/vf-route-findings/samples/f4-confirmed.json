@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: refuted\nF2: confirmed\nF3: refuted\nF4: confirmed - the workload is tested against ROLES, so `code` is noted as undeclared and the route prints default\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "4. F4: Confirmed - WORKLOADS is never read\n",
+      "why": "a numbered line"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F4: refuted - the workload check is correct\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F2: confirmed\nF4: refuted\n",
+      "why": "confirmed sits on another finding's line"
+    },
+    {
+      "answer": "F4: unclear - confirmed only if WORKLOADS was meant\n",
+      "why": "a hedged verdict"
+    }
+  ]
+}

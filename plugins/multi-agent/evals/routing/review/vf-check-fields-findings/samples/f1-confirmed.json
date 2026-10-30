@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "F1: confirmed - the default list is evaluated once at def time and validate never passes one, so findings accumulate across calls\nF2: refuted - finditer is non-overlapping\nF3: refuted - a dict iterates its keys\nF4: confirmed - bool subclasses int\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "- **F1:** Confirmed. `validate` relies on the shared default.\n",
+      "why": "a bold label"
+    },
+    {
+      "answer": "1) F1 - CONFIRMED - mutable default argument\n",
+      "why": "numbered with a parenthesis, upper case"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F1: refuted - the list is rebuilt on each call\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F4: confirmed\nF1: refuted\n",
+      "why": "confirmed sits on another finding's line"
+    },
+    {
+      "answer": "F1: unconfirmed without a test run\n",
+      "why": "a different word that contains the verdict"
+    }
+  ]
+}

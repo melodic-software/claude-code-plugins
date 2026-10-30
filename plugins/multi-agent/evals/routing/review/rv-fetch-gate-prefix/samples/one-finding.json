@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "finding: hooks/fetch-gate.mjs decide - the startsWith fast path allows https://docs.claude.com.example.net/\n",
+      "why": "one finding"
+    },
+    {
+      "answer": "Findings:\n\n- **finding:** `hooks/fetch-gate.mjs` `decide` - the prefix fast path skips the host, userinfo and query checks\n\nThe Buffer.concat change in main parses the same input.\n",
+      "why": "a Findings heading and a closing remark do not count"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: hooks/fetch-gate.mjs decide - the fast path allows lookalike hosts\nfinding: hooks/fetch-gate.mjs main - Buffer.concat changes how stdin is decoded\n",
+      "why": "the decoy flagged as a second finding"
+    },
+    {
+      "answer": "1. finding: hooks/fetch-gate.mjs decide - lookalike hosts pass the fast path\n2. finding: hooks/fetch-gate.mjs decide - a query string passes the fast path\n",
+      "why": "one defect split over two lines"
+    },
+    {
+      "answer": "The decide fast path is a prefix match.\n",
+      "why": "no finding line"
+    }
+  ]
+}

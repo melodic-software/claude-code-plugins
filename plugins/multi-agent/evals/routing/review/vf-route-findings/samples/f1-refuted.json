@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "F1: refuted - set -e ignores a failed command inside an && list, and is_member runs under `if !`\nF2: confirmed - unquoted glob\nF3: refuted - expands to every element\nF4: confirmed - ROLES for WORKLOADS\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "- **F1:** Refuted. The `[[ ]] && return 0` list is exempt from errexit.\n- **F2:** Confirmed.\n",
+      "why": "bold labels and capitals"
+    },
+    {
+      "answer": "1. F1 - refuted: errexit does not apply to the left side of &&\n2. F2 - confirmed\n",
+      "why": "numbered lines with a dash"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F1: confirmed - set -e exits on the first failed test\nF2: confirmed\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F1: not refuted - the script can exit early\n",
+      "why": "a negated verdict"
+    },
+    {
+      "answer": "F2: refuted\nF1: confirmed\n",
+      "why": "refuted sits on another finding's line"
+    },
+    {
+      "answer": "F1 is refuted because set -e skips && lists.\n",
+      "why": "not in the requested form"
+    }
+  ]
+}
