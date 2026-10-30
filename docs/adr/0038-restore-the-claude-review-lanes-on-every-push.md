@@ -9,8 +9,9 @@
 ## Context
 
 The operator requires a code review and a security review on every pull request, visible in CI.
-"Mandatory" here means a review runs on every pull request and a failed review shows red. It does
-not mean a review blocks a merge.
+"Mandatory" here means a review runs on every pull request and a failed review shows red. When this
+record was written it did not mean a review blocks a merge; it does now, through `ci-status` (see
+the 2026-10-30 addendum).
 
 This rule is the operator's. Anthropic does not document review on every pull request as a
 requirement. Its launch post says it runs Code Review "on nearly every PR at Anthropic"
@@ -68,8 +69,8 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
    `security-review / claude-security-review-status`. Each goes red and names the failure class
    (`auth`, `rate-limit`, `overloaded`, `no-delivery`, `other`) when the review fails.
 5. **No review check is required.** `ci-status` stays the only required check. The lanes, their
-   evidence guards and the status checks are advisory per ADR 0002 and must never be added to
-   required status checks.
+   evidence guards and the status checks must never be added to required status checks;
+   `ci-status` requires the lanes instead (2026-10-30 addendum).
 6. **The seat layer stays as a second layer.** The `pr_skill_evidence` map, the ready step, and
    the three advisory readers from ADR 0037 keep running beside the lanes.
 
@@ -95,6 +96,11 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
   `synchronize` on one lane, and record which.
 - The autonomy security-review policy's floors change so that a class below C3 must not run the
   security lane → reintroduce `paths-file`, and record why.
+- Rounds-to-pass (the address-feedback rounds a pull request takes before its review threads
+  clear), once measured, shows pull requests regularly reaching the round cap
+  (`loop.review-rounds: 3` in `docs/conventions/pr-pipeline.yaml`) → check whether per-push
+  review finds new defects or re-reports old ones, narrow the per-push scope, and record which
+  ([2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080)).
 
 ## Addendum (2026-09-24): the security lane runs on every pull request
 
@@ -220,3 +226,16 @@ Revisit when a defect lands that an incremental review missed and a whole review
 request would have flagged: set `incremental-review: false` on both caller components in
 melodic-software/standards (its runner-policy contracts for these reusables allow that input),
 let the sync carry it here, and record why.
+
+## Addendum (2026-10-30): the lanes gate merges through ci-status
+
+The owner's [2026-10-24 direction](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362) makes the review lanes the gate that decides whether a pull request is mergeable
+or needs a person, and the [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080) amends this record to match. No ruleset requires a review check,
+but `ci-status` fails a non-draft pull request unless both lanes reviewed its head, and fails while
+a lane's hold label stands until a trusted person lifts it, with the exceptions the last step's comment lists (`.github/workflows/pr-require-checks.yml`,
+the `Require both review lanes on this head`, `Fail a pull request carrying the human-gated label`
+and `Fail a review-lane hold an untrusted account lifted` steps). [ADR 0002's 2026-10-30
+addendum](0002-default-on-ai-review-advisory-with-earned-promotion.md#addendum-2026-10-30-the-review-lanes-gate-merges-through-ci-status)
+states the exemptions. The Context's "does not mean a review blocks a merge" and Decision 5's
+advisory wording are amended to match; Decision 5's rule that no lane check is added to the
+required status checks stands.
