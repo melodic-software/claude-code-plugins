@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.3] - 2026-10-30
+
+### Added
+
+- An `/implementation:implement` eval case and its fixture repository. In the case, a non-engineer asks in one line for a morning sales email, and the case passes when the change follows the repository's scheduled-job and outbound-email paved paths and adds no second way for either.
+
 ## [0.33.2] - 2026-10-29
 
 ### Changed

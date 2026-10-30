@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "finding: hooks/fetch-gate.mjs decide - the startsWith fast path returns null before parsing, so https://docs.claude.com.example.net/ or https://code.claude.com/?d=secret is allowed\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "- **finding:** `hooks/fetch-gate.mjs` `decide()` - prefix match bypasses the host, userinfo and query checks (`https://code.claude.com@example.net/`)\n",
+      "why": "bold label and code spans"
+    },
+    {
+      "answer": "Reviewed change.diff.\n\n1. finding: hooks/fetch-gate.mjs decide - fast path skips the query-string check, so data can leave in a query\n",
+      "why": "a numbered line after a preamble"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: none\n",
+      "why": "missed the defect"
+    },
+    {
+      "answer": "finding: hooks/fetch-gate.mjs main - Buffer.concat throws when stdin has an encoding set\n",
+      "why": "flags the decoy instead"
+    },
+    {
+      "answer": "The fast path in decide lets https://docs.claude.com.example.net/ through.\n",
+      "why": "right defect, not on a finding line"
+    },
+    {
+      "answer": "finding: hooks/fetch-gate.mjs main - stdin is read into chunks\nThe decide fast path is fine.\n",
+      "why": "decide named only on another line"
+    }
+  ]
+}
