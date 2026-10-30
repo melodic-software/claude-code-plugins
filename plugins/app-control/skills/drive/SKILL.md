@@ -212,7 +212,8 @@ Attaching reaches into a process the person owns, so it runs only in an interact
   `--attach-pid <pid>`, which
   binds the pid's uid, start time and command line hash for the script to recheck
   ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)), show the
-  builder's full output, and run the script only after a yes. The script writes the capture into the run directory and hands it back to
+  builder's full output, and only after a yes run that printed output on stdin, never the file
+  it wrote, as pid-binding.md says. The script writes the capture into the run directory and hands it back to
   the person's user; read its exit status and output before reporting. Cleanup deletes the script
   and its temporary directory, never the run directory or the capture.
 

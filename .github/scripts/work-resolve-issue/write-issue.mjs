@@ -28,7 +28,9 @@
 // --find-prior), `resume` says so: the branch, why that run ended, the tip the
 // new branch starts at, each commit's subject (the earlier run's words, data)
 // and the files it changed with their line counts, from GET /compare between
-// the trusted base and the tip.
+// the trusted base and the tip. When the run starts fresh past an earlier
+// run's lane branch that is behind the default branch, `stale_branch` lists
+// that branch's work the same way, for the model to reuse its approach.
 //
 // Environment:
 //   GITHUB_TOKEN          the lane token, which can read the issue
@@ -43,6 +45,9 @@
 //   RESUME_BRANCH, RESUME_TIP, RESUME_CAUSE
 //                         the resumed lane branch, its tip and the earlier
 //                         run's outcome, or empty when the run resumes nothing
+//   STALE_BRANCH, STALE_TIP
+//                         the stale lane branch the run starts fresh past and
+//                         its checked tip, or empty
 //   BASE_SHA              the trusted base the comparison starts from
 //   ISSUE_LANE_WEB_HOSTS  the issue lane's web hosts as JSON (admit.mjs
 //                         webHostsFrom); unset allows only GitHub hosts
@@ -137,23 +142,43 @@ async function readAdmittedAt(github, repository, number, label, senderId, lanes
 const SHA = /^[0-9a-f]{40}$/;
 export const MAX_RESUME_COMMITS = 50;
 export const MAX_RESUME_FILES = 100;
+const laneShape = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`);
 async function readResume(github, env) {
   const { RESUME_BRANCH: branch = "", RESUME_TIP: tip = "", RESUME_CAUSE: cause = "", BASE_SHA: base = "" } = env;
   if (!branch && !tip && !cause) {
     return undefined;
   }
-  const lane = new RegExp(`^work-resolve-issue/issue-${env.ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$`);
-  if (!lane.test(branch) || !SHA.test(tip) || !SHA.test(base) || !RESUMABLE.has(cause)) {
+  if (!laneShape(env.ISSUE_NUMBER).test(branch) || !SHA.test(tip) || !SHA.test(base) || !RESUMABLE.has(cause)) {
     throw new Error("the resume branch, tip, cause or base is malformed");
   }
+  return { branch, cause, tip, ...(await branchWork(github, env, base, tip)) };
+}
+
+// The stale-branch record, or undefined when the run started past none: the
+// lane branch issue-prior would have resumed but for being behind the default
+// branch, at the tip it checked every commit of, which this run does not start
+// from. Any value that is not its expected shape, or a failed comparison,
+// throws.
+async function readStale(github, env) {
+  const { STALE_BRANCH: branch = "", STALE_TIP: tip = "", BASE_SHA: base = "" } = env;
+  if (!branch && !tip) {
+    return undefined;
+  }
+  if (!laneShape(env.ISSUE_NUMBER).test(branch) || !SHA.test(tip) || !SHA.test(base)) {
+    throw new Error("the stale branch, tip or base is malformed");
+  }
+  return { branch, tip, ...(await branchWork(github, env, base, tip)) };
+}
+
+// Each commit's subject (the earlier run's words, data) and the files it
+// changed with their line counts, from GET /compare between the trusted base
+// and `tip`, capped.
+async function branchWork(github, env, base, tip) {
   const comparison = await github("GET", `/repos/${env.GITHUB_REPOSITORY}/compare/${base}...${tip}`);
   if (!Array.isArray(comparison?.commits) || !Array.isArray(comparison?.files)) {
-    throw new Error("the resumed branch's comparison has an unexpected shape");
+    throw new Error("the earlier branch's comparison has an unexpected shape");
   }
   return {
-    branch,
-    cause,
-    tip,
     commits: comparison.commits
       .slice(-MAX_RESUME_COMMITS)
       .map((item) => firstLine(String(item?.commit?.message ?? "")).slice(0, 200)),
@@ -275,6 +300,10 @@ export async function main({ env = process.env, github, log = console.log, write
     const resume = await readResume(client, env);
     if (resume) {
       issue.resume = resume;
+    }
+    const stale = await readStale(client, env);
+    if (stale) {
+      issue.stale_branch = stale;
     }
     writeFileSync(file, `${JSON.stringify(issue, null, 2)}\n`);
     log(`write-issue: kept ${issue.comments.length} comment(s), dropped ${JSON.stringify(dropped)}`);
