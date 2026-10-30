@@ -1560,10 +1560,15 @@ RED_MAIN_RECORD = re.compile(
 # The holds a red-main record's later green lifts: how it was closed, never
 # what its edit history or a failed read says.
 RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
+# Green full runs on main of one event created since a record, a page at a
+# time: the whole window is read, so its earliest run stays put as newer runs
+# arrive, and other events never take its slots.
 GREEN_RUNS = (
     "repos/{}/{}/actions/workflows/pr-require-checks.yml/runs"
-    "?branch=main&status=success&per_page=10"
+    "?branch=main&event={}&status=success&created={}&per_page=100&page={}"
 )
+GREEN_EVENTS = ("schedule", "workflow_dispatch")
+GREEN_PAGES = 5
 
 
 @dataclass(frozen=True)
@@ -1684,11 +1689,11 @@ def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str |
 
 class _GreenMain:
     """`_recovered_at`'s reads, shared by the records of one `read_demotion`:
-    one listing, one read of main's tip, and each compare once."""
+    each record time's listing, one read of main's tip, and each compare once."""
 
     def __init__(self, owner: str, name: str) -> None:
         self.owner, self.name = owner, name
-        self.runs: list[dict[str, Any]] | None = None
+        self.runs: dict[str, list[dict[str, Any]]] = {}
         self.tip: str | None = None
         self.compares: dict[tuple[str, str], str | None] = {}
 
@@ -1698,22 +1703,40 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def listed(self) -> list[dict[str, Any]]:
-        """The newest ten green full runs on main, oldest first, kept as
-        newer-green.bash and `babysit_postmerge._Context.superseded` keep
-        them: attempt 1, this repository's main, and a schedule or the lane's
-        github-actions[bot] dispatch (a person dispatching until a run
+    def _window(self, since: str) -> list[dict[str, Any]]:
+        """Every green schedule and workflow_dispatch full run on main
+        created at or after `since`; more than `GREEN_PAGES` pages of either
+        raises, so the earliest is never a guess."""
+        found: list[dict[str, Any]] = []
+        created = quote(f">={since}", safe=":")
+        for event in GREEN_EVENTS:
+            for page in range(1, GREEN_PAGES + 1):
+                answer = self._read(
+                    GREEN_RUNS.format(self.owner, self.name, event, created, page)
+                )
+                runs = json_array(json_object(answer).get("workflow_runs"))
+                found += map(json_object, runs)
+                if len(runs) < 100:
+                    break
+            else:
+                raise PolicyReadError(
+                    f"{event} green runs: more than {GREEN_PAGES} pages"
+                )
+        return found
+
+    def listed(self, since: datetime) -> list[dict[str, Any]]:
+        """The green full runs on main created since `since`, oldest first,
+        kept as newer-green.bash and `babysit_postmerge._Context.superseded`
+        keep them: attempt 1, this repository's main, and a schedule or the
+        lane's github-actions[bot] dispatch (a person dispatching until a run
         passes is no recovery)."""
-        if self.runs is None:
+        stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if stamp not in self.runs:
             repo = f"{self.owner}/{self.name}"
-            answer = self._read(GREEN_RUNS.format(self.owner, self.name))
-            self.runs = sorted(
+            self.runs[stamp] = sorted(
                 (
                     run
-                    for run in map(
-                        json_object,
-                        json_array(json_object(answer).get("workflow_runs")),
-                    )
+                    for run in self._window(stamp)
                     if run.get("conclusion") == "success"
                     and run.get("run_attempt") == 1
                     and run.get("head_branch") == "main"
@@ -1732,7 +1755,7 @@ class _GreenMain:
                 ),
                 key=lambda run: _time(run.get("created_at")),
             )
-        return self.runs
+        return self.runs[stamp]
 
     def ahead(self, base: str, head: str) -> bool:
         """Whether `head` has `base` in its history and is a later commit."""
@@ -1759,7 +1782,7 @@ def _recovered_at(
     issue: dict[str, Any], human: Callable[[Any], bool], green: _GreenMain
 ) -> datetime | None:
     """When main went green again past a red-main record (owner decision,
-    2026-10-30): the creation of the earliest listed green full run
+    2026-10-30): the creation of the earliest green full run
     (`_GreenMain.listed`) created after the record, at a commit after the
     record's SHA and on main's history. None for any other record, one a
     non-human edited (the SHA comes from its body), or no such run; a failed
@@ -1769,7 +1792,7 @@ def _recovered_at(
     if marker is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
-    for run in green.listed():
+    for run in green.listed(created):
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])

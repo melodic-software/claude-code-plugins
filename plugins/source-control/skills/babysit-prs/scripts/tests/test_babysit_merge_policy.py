@@ -718,10 +718,20 @@ class IsHuman(unittest.TestCase):
 FAILED_HEAD = "b" * 40
 GREEN_HEAD = "c" * 40
 MAIN_TIP = "d" * 40
-GREEN_RUNS = (
-    f"repos/{REPO}/actions/workflows/pr-require-checks.yml/runs"
-    "?branch=main&status=success&per_page=10"
-)
+GREEN_RUNS_PATH = f"repos/{REPO}/actions/workflows/pr-require-checks.yml/runs"
+
+
+def green_runs(event: str, page: int = 1, since: str = "2026-10-12T10:00:00Z") -> str:
+    """The listing of `event`'s green full runs on main created since the
+    record (`demotion_fake`'s `createdAt`), page `page`."""
+    return (
+        f"{GREEN_RUNS_PATH}?branch=main&event={event}&status=success"
+        f"&created=%3E%3D{since}&per_page=100&page={page}"
+    )
+
+
+SCHEDULE_RUNS = green_runs("schedule")
+DISPATCH_RUNS = green_runs("workflow_dispatch")
 
 
 def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
@@ -766,7 +776,7 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
     # No green full run since: an open red-main record keeps holding.
-    gh.rest[GREEN_RUNS] = {"workflow_runs": []}
+    gh.rest[SCHEDULE_RUNS] = gh.rest[DISPATCH_RUNS] = {"workflow_runs": []}
     return gh
 
 
@@ -1066,7 +1076,9 @@ class AutoClearOnGreen(unittest.TestCase):
     def fake(self, body: str = DEMOTION_BODY, runs: Any = None, **issue: Any) -> GhFake:
         issue = {"state": "OPEN", "timelineItems": {"nodes": []}} | issue
         gh = demotion_fake(self, body=body, **issue)
-        gh.rest[GREEN_RUNS] = {"workflow_runs": [green_run()]} if runs is None else runs
+        gh.rest[DISPATCH_RUNS] = (
+            {"workflow_runs": [green_run()]} if runs is None else runs
+        )
         gh.rest[f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}"] = {
             "status": "ahead"
         }
@@ -1160,7 +1172,8 @@ class AutoClearOnGreen(unittest.TestCase):
 
     def test_any_failed_read_stays(self) -> None:
         for endpoint in (
-            GREEN_RUNS,
+            SCHEDULE_RUNS,
+            DISPATCH_RUNS,
             f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}",
             f"repos/{REPO}/git/ref/heads/main",
             f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}",
@@ -1224,19 +1237,54 @@ class AutoClearOnGreen(unittest.TestCase):
             result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
         )
 
-    def test_a_clear_costs_one_listing_one_tip_read_and_two_compares(self) -> None:
+    def test_a_clear_costs_two_listings_one_tip_read_and_two_compares(self) -> None:
         gh = self.fake()
         read_demotion()
         rest = [c[1] for c in gh.calls if c[:2] != ["api", "graphql"]]
         self.assertEqual(
             rest,
             [
-                GREEN_RUNS,
+                SCHEDULE_RUNS,
+                DISPATCH_RUNS,
                 f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}",
                 f"repos/{REPO}/git/ref/heads/main",
                 f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}",
             ],
         )
+
+    def test_newer_runs_do_not_move_the_clear(self) -> None:
+        # A full newest page of later greens pushes the earliest to page 2;
+        # the whole window is read, so the clear stays at the earliest.
+        gh = self.fake()
+        first = read_demotion().cleared_at
+        newer = [
+            green_run(
+                id=600 + i, created_at=f"2026-10-13T{i // 60:02d}:{i % 60:02d}:00Z"
+            )
+            for i in range(100)
+        ]
+        gh.rest[DISPATCH_RUNS] = {"workflow_runs": newer}
+        gh.rest[green_runs("workflow_dispatch", 2)] = {"workflow_runs": [green_run()]}
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(result.cleared_at, first)
+        self.assertEqual(first, policy.datetime.fromisoformat("2026-10-12T11:00:00Z"))
+
+    def test_other_events_never_take_the_listing(self) -> None:
+        # Each listing names its event, so pull_request runs (a fork's main
+        # included) are never read and cannot crowd out a qualifying run.
+        gh = self.fake()
+        self.assertFalse(read_demotion().active)
+        listings = [c[1] for c in gh.calls if c[1].startswith(GREEN_RUNS_PATH)]
+        self.assertEqual(listings, [SCHEDULE_RUNS, DISPATCH_RUNS])
+
+    def test_more_than_the_page_bound_stays(self) -> None:
+        gh = self.fake()
+        full = {"workflow_runs": [green_run()] * 100}
+        for page in range(1, policy.GREEN_PAGES + 1):
+            gh.rest[green_runs("schedule", page)] = full
+        result = read_demotion()
+        self.assertEqual((result.active, result.reason), (True, "#9 open"))
 
 
 class RecordsFake:
@@ -1254,7 +1302,7 @@ class RecordsFake:
         self.queries: list[str] = []
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        if args[1] == GREEN_RUNS:
+        if args[1].startswith(GREEN_RUNS_PATH):
             # No green full run since: an open red-main record keeps holding.
             return ok({"workflow_runs": []})
         query = next(a for a in args if a.startswith("query="))

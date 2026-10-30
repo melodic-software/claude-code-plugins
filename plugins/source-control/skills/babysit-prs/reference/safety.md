@@ -1193,8 +1193,8 @@ Named residuals:
   human's token passes there. Lanes hold only the identity token (D9), which closes it for lanes.
 - A human close of any demotion record restarts the floor in full: earlier auto-merges that were
   never verified are no longer judged. A red-main record cleared by main's green run restarts it
-  at that run's creation, which moves later as older green runs leave the listing of the newest
-  ten while the record stays open.
+  at that run's creation: the earliest qualifying run of every green schedule and dispatch run
+  created since the record, so newer runs never move it.
 - A demotion record transferred out of the repository or deleted stops holding the rung. Only a
   person with write permission can do either; a failure the post-merge check still finds refuses on
   its own and files a new record.

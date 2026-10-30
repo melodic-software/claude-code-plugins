@@ -1004,10 +1004,10 @@ the rules that only tighten in
   It holds the rung at `off` until a human closes it directly. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,
-  open or not, once main is green at a later commit: one of the newest ten green
-  `pr-require-checks` runs on main, attempt 1, from a schedule or a `github-actions[bot]` dispatch,
-  created after the record, at a commit ahead of the record's SHA and on main's history. That
-  run's creation is the clear time. Canary and read-back records stay human-close. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
+  open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
+  attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
+  commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
+  clear time, read from every such run since the record, so newer runs never move it. Canary and read-back records stay human-close. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
   removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
