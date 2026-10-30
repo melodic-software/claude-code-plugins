@@ -100,6 +100,12 @@ IMPORT = re.compile(
 )
 
 
+# The trusted-actor list is held outside the floor table: the trust gate
+# rates it HIGH, and every review caller's hold-paths lists it first.
+def floor_or_trust_gate(path: str) -> bool:
+    return path == risk.TRUSTED_ACTORS_PATH or any(risk.glob_match(g, path) for g in risk.FLOOR)
+
+
 def import_closure(entries: tuple[str, ...]) -> list[str]:
     seen: set[str] = set()
     todo = [ROOT / entry for entry in entries]
@@ -428,7 +434,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
@@ -441,7 +447,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )

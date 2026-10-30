@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing edited"},
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "ReadLine", "path": "src/Tarnquill.Cli/Commands/CommitCommand.cs"}}],
+      "why": "searched the command, no Edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Commands/CommitCommand.cs", "old_string": "public", "new_string": "/// <summary>Prompts for type and message.</summary>\npublic"}}],
+      "why": "near miss: documented the command in its source instead of explaining it"
+    }
+  ]
+}
