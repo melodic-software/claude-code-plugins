@@ -5,7 +5,7 @@ bump: patch
 ### Fixed
 
 - A review finding whose only ask is to run tests CI runs no longer stops the address-feedback
-  round. The adjudicator gains a `tests-only` verdict. On an `UNCERTAIN` reply in a round that
+  round. The adjudicator gains a `tests-only` verdict. On an `UNCERTAIN` reply to a non-security finding in a round that
   pushed no fix, the reply job settles it from the head's CI, which the select job records in
   `run.json`'s `ci`. The select job runs `scripts/plan-test-lanes.sh` over the pull request's
   files and reads the latest real run of each covering check: every planned `test-bash` and

@@ -739,6 +739,10 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       if (disposition !== "UNCERTAIN") {
         log(`${thread}: a tests-only verdict settles only an UNCERTAIN reply, not ${disposition}; left open`);
         raise("feedback-unadjudicated");
+      } else if (minorSecurity(comments)) {
+        // Green CI says nothing about whether a security finding holds.
+        log(`${thread}: a tests-only verdict does not settle a security-review finding; left open`);
+        raise("feedback-unadjudicated");
       } else if (pushed) {
         // ci is the select job's read of the head before this round's fix
         // commit, so it proves nothing about the head the thread now sits on.

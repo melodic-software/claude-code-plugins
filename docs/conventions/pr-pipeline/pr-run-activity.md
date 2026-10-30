@@ -1210,7 +1210,7 @@ SHA-256; a round that pushed a fix still applies them. The posted replies are fi
 lane's validated evidence; no model text reaches the pull request.
 
 A `tests-only` verdict (the finding asks only that tests or checks CI runs be run) is settled with no
-model text, and only on an `UNCERTAIN` reply in a round that pushed no fix (the snapshot is of the
+model text, and only on an `UNCERTAIN` reply to a finding that is not security-review's, in a round that pushed no fix (the snapshot is of the
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
 `scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and

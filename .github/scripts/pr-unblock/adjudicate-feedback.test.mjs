@@ -967,7 +967,7 @@ const RUNS = [
   { name: "test-bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
   { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/12" },
 ];
-const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only", pushed = false } = {}) => {
+const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only", pushed = false, current = thread("PRRT_a") } = {}) => {
   const posts = [];
   let resolved = false;
   const result = await settleDisputes({
@@ -983,7 +983,7 @@ const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", r
     posted: [{ thread: "PRRT_a", disposition }],
     replies: [{ thread: "PRRT_a", disposition, evidence: [] }],
     shown: new Map([["PRRT_a", { comment_ids: [1] }]]),
-    now: new Map([["PRRT_a", thread("PRRT_a")]]),
+    now: new Map([["PRRT_a", current]]),
     verdicts: new Map([["PRRT_a", { verdict, question: "none" }]]),
     ci,
     pushed,
@@ -1046,6 +1046,14 @@ test("settleDisputes leaves a tests-only finding open when this round pushed a f
     assert.deepEqual(posts, []);
     assert.equal(resolved, false);
   }
+});
+
+// Green CI says nothing about a security finding, however minor (#11041 review).
+test("settleDisputes leaves a tests-only verdict on a security-review finding open, even on a green head", async () => {
+  const { result, posts, resolved } = await settleTests({ current: ratedThread("PRRT_a", RATED_FIRST) });
+  assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" });
+  assert.deepEqual(posts, []);
+  assert.equal(resolved, false);
 });
 
 test("verdictOf takes tests-only with no question", () => {
