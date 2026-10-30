@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.3] - 2026-10-29
+
+### Changed
+
+- **`audit-comment-residue`'s detector no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `detect.sh` reads a file's first lines through process substitution when it looks for a generated-file marker. The script does not set `pipefail`, so its output is unchanged; the rewrite only keeps it in the form the repository's pipefail gate requires.
+
 ## [0.32.2] - 2026-10-29
 
 ### Changed
