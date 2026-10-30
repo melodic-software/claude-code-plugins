@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: refuted - set -e ignores a failed command inside an && list\nF2: confirmed - unquoted glob\nF3: refuted - expands to every element\nF4: confirmed - ROLES for WORKLOADS\n",
+      "why": "one verdict per finding"
+    },
+    {
+      "answer": "1. **F1:** Refuted.\n2. **F2:** Confirmed.\n3. **F3:** Refuted.\n4. **F4:** Confirmed.\n\nTwo of the four findings hold.\n",
+      "why": "numbered bold lines and a closing remark"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F1: refuted\nF1: confirmed\nF2: confirmed\nF3: refuted\nF4: confirmed\n",
+      "why": "contradictory verdicts for F1"
+    },
+    {
+      "answer": "F1: refuted\nF2: confirmed\nF3: refuted\nF3: not refuted\nF4: confirmed\n",
+      "why": "a negated second verdict for F3"
+    },
+    {
+      "answer": "F1: refuted\nF2: confirmed\nF3: refuted\n",
+      "why": "a finding left without a verdict"
+    }
+  ]
+}

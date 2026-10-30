@@ -647,14 +647,29 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
         GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
         NODE_OPTIONS: "--preserve-symlinks-main",
       };
+      let stdout = "";
       for (const name of ["Check who started the run", "Check for a newer run that does this work"]) {
         const step = stepOf(name);
         const run = /\n {8}run: (.*)/.exec(step)[1];
-        const status = await new Promise((resolve) =>
-          spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: "ignore" }).on("close", resolve),
-        );
+        const status = await new Promise((resolve) => {
+          const child = spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: ["ignore", "pipe", "ignore"] });
+          child.stdout.on("data", (chunk) => (stdout += chunk));
+          child.on("close", resolve);
+        });
         assert.equal(status, 0, name);
       }
+      // enable-auto-merge names each step (API_BUDGET_SCRIPT), so its job
+      // total splits by step: who's one read, superseded's two. The merge job
+      // names none.
+      assert.deepEqual(
+        stdout.match(/^::notice title=api-calls::script=.*$/gm) ?? [],
+        jobId === "enable-auto-merge"
+          ? [
+              "::notice title=api-calls::script=who github-token=1 lanes-app=0 not-modified=0 graphql=0",
+              "::notice title=api-calls::script=superseded github-token=2 lanes-app=0 not-modified=0 graphql=0",
+            ]
+          : [],
+      );
       assert.match(readFileSync(output, "utf8"), /^proceed=true$/m);
       assert.match(readFileSync(output, "utf8"), /^superseded=true$/m);
       const log = stepOf("Log the API budget at job end");
@@ -1483,4 +1498,15 @@ test("the bypass step runs only inside the cap after a check that judged, and th
   const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
   assert.match(config, /\n {2}full-run-cap-bypass: true\n/);
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.bypass/);
+});
+
+// Every enable-auto-merge step that counts its GitHub calls (API_BUDGET_TOKEN)
+// names itself (API_BUDGET_SCRIPT, rate-guard.mjs scriptCalls), each a name of
+// its own, so the job-end api-calls total splits by step.
+test("enable-auto-merge: every step that counts its calls names itself once", () => {
+  const steps = job("enable-auto-merge").split(/\n {6}- name: /).filter((step) => /^ {10}API_BUDGET_TOKEN: /m.test(step));
+  const names = steps.map((step) => /^ {10}API_BUDGET_SCRIPT: ([a-z][a-z0-9-]{0,39})$/m.exec(step)?.[1]);
+  assert.ok(steps.length > 0);
+  assert.ok(names.every(Boolean), names.join(" "));
+  assert.equal(new Set(names).size, names.length);
 });

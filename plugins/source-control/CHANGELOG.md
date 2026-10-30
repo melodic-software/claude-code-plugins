@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.1] - 2026-10-30
+
+### Fixed
+
+- The merge gate's risk scorer no longer holds a file the files API sends no patch for when its blob ids show no unread content: a rename, mode change or modification that keeps its blob, and an empty file added or removed, now score the mergeable MED `no-patch:<path>`. A mode that gains execute, a copy, changed bytes, and a missing or malformed blob id still hold for a person as `unreviewed-patch:<path>`. `changed_files` reads each side's blob id from the trees it already reads for modes. ([#10873](https://github.com/melodic-software/claude-code-plugins/issues/10873))
+
+- `babysit_verify_evidence.py` gains `capped_close` and a `capped-close` command. They close a
+  lanes App pull request the verifier refuses for good (`VERIFY_FINAL`: `verify:repeated-fail`,
+  `verify:too-old`) for a fresh attempt at its issue, with each FAILed head's findings from its
+  `verdict.json`, or park the issue past `merge.verify-cap-attempts`. A pull request whose issue
+  link `Reader.link_refusal` refuses, or whose issue carries an issue hold label, stays open. The
+  gate calls it from
+  `unattended_writes`. Neither refusal needs a person (`NEEDS_HUMAN` holds only
+  `verify:untrusted-spec`). The cap's `verify:repeated-fail` detail now lists the FAILed heads.
+- The cross-pull-request FAIL count leaves out a pull request the lanes App's capped-close record on
+  the issue names, once it is closed. An unreadable sibling FAIL run refuses with the `SIBLING_UNREADABLE` detail.
+
+## [4.2.0] - 2026-10-30
+
+### Changed
+
+- `/source-control:babysit-prs`: the merge hold floor lists `.github/scripts/lib/stop-reason.mjs`, which the issue lane's report-outcome now imports, as enforcement, so a pull request that changes it holds for a person as one changing report-outcome does, and `.github/scripts/lib/done-evidence.mjs`, which now decides whether the lanes App's already-done close is trusted, as trust.
+
+- `/source-control:worktree cleanup` run outside a repository now removes worktrees across repositories ([#11120](https://github.com/melodic-software/claude-code-plugins/issues/11120)). It finds the repositories `audit` finds, shows the candidates grouped by owning repository behind one confirm, and runs every guard and each removal with `git -C` on the owning repository, leaving the caller's working directory unchanged. Stranded, superseded and unknown rows stop as they do in a single-repository run, and `--dry-run` removes nothing.
+
+### Security
+
+- The babysit-loop lane takes its `Lane telemetry: babysit-loop` issue only when the lane's write identity opened it. An exact-title issue another account opened is skipped and named in the cycle report, and with none left the lane creates its own.
+
 ## [4.1.2] - 2026-10-30
 
 ### Changed

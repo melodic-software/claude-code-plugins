@@ -103,7 +103,7 @@
 // answers them all; a run whose verifier read did not come never narrows a
 // person's comment that already names its reasons. The
 // comment is the record; only a cause a person must clear
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
 // provenance or an untrusted spec, a security finding, a high path, a
 // trusted-actor widening, a real charge or a listing too long to check, see
@@ -562,6 +562,12 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
+// The verifier refusals that never clear for the pull request
+// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap and an old pull
+// request. decide closes such a pull request for a fresh attempt at its
+// issue (pythonClose), never adding a person's label.
+export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
+
 // How verifyHold opens the reason for each answer that refuses: the issue
 // link, the verifier verdict and the risk score.
 export const READER_HOLDS = Object.freeze({
@@ -583,7 +589,10 @@ export function verifyHold(evidence, head) {
     return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
   }
   if (evidence.refusal !== null) {
-    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)})`;
+    // A refusal that never clears names the reader's detail (the cap's FAILed
+    // heads), so the close log says what closed it.
+    const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
+    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
   }
   // A line without the link's or the reviews' answer read neither: it allows nothing.
   if (evidence.ineligible !== null) {
@@ -601,7 +610,7 @@ export function verifyHold(evidence, head) {
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner;
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner;
 // cost and trust holds stay a person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)
@@ -1204,6 +1213,36 @@ export function pythonRoom(env, spawn = spawnSync) {
   };
 }
 
+// The close of a pull request decide answers `close` for: the reader's
+// `capped-close` (babysit_verify_evidence.py capped_close), which judges the
+// head again, posts the FAIL findings on the pull request and its issue,
+// closes it, and starts the issue's fresh attempt or parks it. Its writes run
+// under GH_TOKEN, the lanes App token; its Actions reads under
+// BABYSIT_VERIFY_GH_TOKEN, as the verify reads. `holds`: labels that keep the
+// pull request open. Throws when it exits non-zero.
+export function pythonClose(env, spawn = spawnSync) {
+  return ({ number, headRefOid: head, baseRefOid: base }, holds) => {
+    if (!SHA.test(String(base))) {
+      throw new Error("its base commit is not a commit SHA");
+    }
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    for (const label of holds) {
+      args.push("--hold-label", label);
+    }
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    let answer = null;
+    try {
+      answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+    } catch {
+      answer = null;
+    }
+    if (done.status !== 0) {
+      throw new Error(`capped-close exited ${done.status ?? done.signal}: ${answer?.error ?? String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return answer;
+  };
+}
+
 // The gate's whole-review request (babysit_whole_review.py), on the lane token
 // for its writes and the job token for its limits, as the merge job runs it:
 // `request` answers the record line for the head, the prior comment on stdin,
@@ -1375,6 +1414,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     return { action: "verify", reason: "its verifier verdict is not read yet" };
   }
   const unverified = verifyHold(detail.verify, pull.headRefOid);
+  // A refusal that never clears at the head read: closed for a fresh attempt
+  // at its issue, the hold labels above having let it through.
+  if (unverified !== null && detail.verify?.head === pull.headRefOid && VERIFY_FINAL.includes(detail.verify?.refusal)) {
+    return { action: "close", reason: unverified };
+  }
   if (unverified !== null) {
     const clears = verifyClears(detail.verify, pull.headRefOid);
     // A lane's risk hold, the only one here, that a clean whole review of the
@@ -1536,7 +1580,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, actions, verify, room, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
+export async function main({ env = process.env, github, actions, verify, room, close, whole, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random, latch, now = Date.now, mainInputs } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -2023,6 +2067,40 @@ export async function main({ env = process.env, github, actions, verify, room, w
             : answered && standing !== null
               ? { action: "none", reason: standing.join("\n"), clears: "person", comment: undefined, withdraw: undefined, partial: true }
               : { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined });
+      }
+      // A pull request the verifier refuses for good closes for a fresh
+      // attempt; a failed close leaves it for the next run, which finds what
+      // this one wrote.
+      if (action === "close") {
+        if (!write) {
+          console.log(`enable-auto-merge: #${pull.number} would close for a fresh attempt (report-only): ${escapeCommand(reason)}`);
+          continue;
+        }
+        let closed = false;
+        try {
+          // An armed one is disarmed first, so a close that fails leaves it unarmed.
+          if (pull.autoMergeRequest != null) {
+            await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+            console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
+          }
+          close ??= pythonClose(env);
+          const result = await close(pull, ["do-not-merge", humanGated]);
+          closed = result?.closed === true;
+          console.log(
+            closed
+              ? `enable-auto-merge: #${pull.number} closed for a fresh attempt (${escapeCommand(reason)}); restarted ${JSON.stringify(result.restarted ?? [])}, parked ${JSON.stringify(result.parked ?? [])}`
+              : `enable-auto-merge: #${pull.number} left open: ${escapeCommand(result?.reason ?? "the close answered nothing")}`,
+          );
+        } catch (error) {
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} capped close: ${describe(error)}`);
+        }
+        // Left open, it sits unarmed: the lane's refusal note and its
+        // pr-merge/unarmed status, never a person's label.
+        if (!closed) {
+          await note(pull, detail, { clears: "lane", reason, cached, partial, answered });
+        }
+        continue;
       }
       // Only an arm, a disarm or nothing goes on from here.
       if (action === "verify") {
