@@ -202,6 +202,7 @@ work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--r
 work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
 work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
 work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
+work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
@@ -254,6 +255,21 @@ GitHub adapter implements it, from the same `GET /orgs/{org}/issue-fields` listi
 validates against (same `read:org` need). An adapter that declares no `get-field-options` key exits
 `6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
 
+`status-storage` is a CORE-side derivation that reports where the tracker stores an item's
+status: in the `Work status` single-select issue field, or in labels. No adapter implements it,
+so it needs no manifest key. It prints `{schema_version, storage, field, reason}`, where
+`storage` is `field` or `labels`, `field` is `"Work status"` when `storage` is `field` and
+`null` otherwise, and `reason` is free text saying why. Core runs the adapter's
+`get-field-options --field "Work status"` (passing `--repo` on) and reports `field` when that
+lists at least one option. It reports `labels`, exit `0`, when the adapter declares no
+`get-field-options` (`local-markdown` always lands here), when the listing has no such field
+or the field has no options, and when the read is refused: exit `5`, or exit `4` for an HTTP
+403 that is not a rate limit (on GitHub: a user-owned repository has no organization listing,
+and a token without `read:org` cannot read it). Without `--repo`, a refused read of the working
+directory's repository lands here too. Any other failure, such as a rate limit, a session that
+is not logged in, or exit `8` for an unreachable provider, exits with the adapter's code and
+its stderr, since a provider that did not answer has not said status lives in labels.
+
 `claim --ttl-minutes <n>` (0–59) **adds to** `--ttl-hours`, it never replaces it: `--ttl-hours 24
 --ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.
 
@@ -302,9 +318,9 @@ frontier. Passing both is a usage error (exit `2`), not a silent drop.
 ## Adapter contract
 
 Adapters live at `adapters/<provider>/` as verb-per-script (`<verb>.sh`) plus a
-`capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`**
-(`list-items` and `list-sub-items` are both core and adapter verbs: each has a native
-counterpart, unlike the core-derived `list-frontier`):
+`capabilities.json` manifest. Adapter verb set = core public set **minus the core-derived
+`list-frontier` and `status-storage`** (`list-items` and `list-sub-items` are both core and
+adapter verbs: each has a native counterpart, unlike the core-derived `list-frontier`):
 
 ```text
 adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
@@ -479,6 +495,7 @@ Per-verb result objects:
 | `add-sub-item` | `id, parent_id, linked: true` |
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
+| `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar

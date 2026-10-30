@@ -57,8 +57,10 @@ export const FILING = "?";
 export const HANDED = "handed";
 const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?|handed) -->/;
 // work-unblock's comment when it hands an issue back to triage after its lane
-// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker).
-const HAND_BACK = /^<!-- work-unblock handed triage #[1-9][0-9]* -->/;
+// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
+// and the issue lane's when a stop's intake route sends it back
+// (report-outcome.mjs, outcome=intake).
+const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-resolve-issue outcome=intake[ >])/;
 // The visible text of the hand-off comment, which the search matches.
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
@@ -164,25 +166,32 @@ async function search(call, query, pick) {
 // 50 issues that also returns each hit's first 100 comments, so a hit costs no
 // REST read. The search only finds issues where github-actions commented and
 // some comment, by anyone, holds the hand-off text, so a hit counts only when
-// the bot's own state comment reads filed=handed and no Bot's work-unblock
-// hand-back is newer than it; anything else is read and judged as usual. A
-// failed search excludes nothing.
+// the bot's own state comment reads filed=handed and no work-unblock hand-back
+// by the lanes App (`appId`, as readState takes it) is newer than it; anything
+// else is read and judged as usual. A failed search excludes nothing.
 const HANDED_QUERY = `query($q: String!, $after: String) {
   search(query: $q, type: ISSUE, first: 50, after: $after) {
     pageInfo { hasNextPage endCursor }
-    nodes { ... on Issue { number comments(first: 100) { nodes { author { __typename login } body createdAt updatedAt } } } }
+    nodes { ... on Issue { number comments(first: 100) { nodes { author { __typename login ... on Bot { databaseId } } body createdAt updatedAt } } } }
   }
 }`;
 const isActionsBot = (author) => author?.__typename === "Bot" && author.login === "github-actions";
 
-export function handedInComments(comments) {
+export function handedInComments(comments, appId = null) {
   const state = comments.find((c) => isActionsBot(c.author) && STATE.test(String(c.body ?? "")));
   if (STATE.exec(String(state?.body ?? ""))?.[2] !== HANDED) return false;
   const at = Date.parse(state.updatedAt ?? state.createdAt);
-  return !comments.some((c) => c.author?.__typename === "Bot" && HAND_BACK.test(String(c.body ?? "")) && !(Date.parse(c.createdAt) <= at));
+  return !comments.some(
+    (c) =>
+      appId !== null &&
+      c.author?.__typename === "Bot" &&
+      String(c.author.databaseId) === String(appId) &&
+      HAND_BACK.test(String(c.body ?? "")) &&
+      !(Date.parse(c.createdAt) <= at),
+  );
 }
 
-async function handedInSweepComments(call, repo) {
+async function handedInSweepComments(call, repo, appId) {
   const numbers = new Set();
   const q = `repo:${repo} is:issue is:open commenter:app/github-actions in:comments "${HANDED_TEXT}"`;
   let after = null;
@@ -192,7 +201,7 @@ async function handedInSweepComments(call, repo) {
       const found = answer?.data?.search;
       if (!found || answer.errors) return new Set();
       for (const node of found.nodes ?? []) {
-        if (Number.isInteger(node?.number) && handedInComments(node.comments?.nodes ?? [])) numbers.add(node.number);
+        if (Number.isInteger(node?.number) && handedInComments(node.comments?.nodes ?? [], appId)) numbers.add(node.number);
       }
       if (!found.pageInfo?.hasNextPage) break;
       after = found.pageInfo.endCursor;
@@ -208,11 +217,11 @@ async function handedInSweepComments(call, repo) {
 // older sweep filed a hand-off issue for (only a title the bot wrote counts),
 // and those whose own state comment hands them off (handedInSweepComments).
 // The caller skips them only while they carry needs-triage.
-async function handedOff(call, repo) {
+async function handedOff(call, repo, appId) {
   const filed = await search(call, `repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`, (item) =>
     item.user?.login === BOT ? Number(FILED_TITLE.exec(String(item.title ?? ""))?.[1] ?? 0) : 0,
   );
-  return new Set([...filed, ...(await handedInSweepComments(call, repo))]);
+  return new Set([...filed, ...(await handedInSweepComments(call, repo, appId))]);
 }
 
 // One pass. `call` returns null for a GET that 404s.
@@ -226,7 +235,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   }
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds });
-  const filed = selected.length > 0 ? await handedOff(call, repo) : new Set();
+  const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && names(i).includes(FLOOR)));
   result.candidates = candidates.length;
   const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });

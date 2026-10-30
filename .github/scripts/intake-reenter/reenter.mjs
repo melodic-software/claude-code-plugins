@@ -4,15 +4,22 @@
 //
 // - `status: needs-decision` and a decision comment (select-trusted-text's
 //   isDecisionComment, the rule write-issue.mjs marks `decision: true` by):
-//   remove `status: needs-decision` and `needs-human`;
+//   remove `status: needs-decision`;
 // - `status: confirmed`, where admission parks a refusal no person must
 //   answer, and a decision comment: remove `status: confirmed`;
 // - `status: needs-info` and a comment by the issue's author or a listed
 //   human, not posted through an App: remove `status: needs-info`;
 // - EVENT_NAME `issues` (no comment): a listed human removed `needs-human` and
-//   the issue carries no `status:` label, `agent-ready`, `needs-human` or
-//   `needs-triage`. The newest `needs-human` removal in the issue's events
-//   must be that person's; nothing is removed, as the label is already gone;
+//   the issue carries no `status:` label but `status: needs-decision`, and no
+//   `agent-ready`, `needs-human` or `needs-triage`. The newest `needs-human`
+//   removal in the issue's events must be that person's; remove
+//   `status: needs-decision` when the issue carries it;
+//
+// A decision on an issue that carries `needs-human` changes nothing: only a
+// listed human removes that label (docs/contracts/loop-lane/README.md, the
+// label table), and their removal re-enters an issue at
+// `status: needs-decision` (owner decision on #10735). At `status: confirmed`
+// it re-enters nothing, so the decision is posted again after it;
 //
 // then add `needs-triage` and dispatch intake-triage.yml once, only for an
 // issue whose author intake admits (a listed human or the lanes App). Anything else
@@ -128,14 +135,15 @@ async function lastLifter(github, base) {
   throw new Error(`the issue's events exceed ${MAX_EVENT_PAGES} pages`);
 }
 
-// A listed human lifted `needs-human` and left the issue parked nowhere: true
-// when intake should take it again.
+// A listed human lifted `needs-human` and left the issue parked nowhere or at
+// `status: needs-decision`: true when intake should take it again.
 async function liftReenters({ github, base, issue, humans, lanesAppId }) {
   if (issue.pull_request || issue.state !== "open") {
     return false;
   }
   const labels = labelNames(issue);
-  if (labels.some((name) => name?.startsWith("status:")) || [NEEDS_HUMAN, NEEDS_TRIAGE, "agent-ready"].some((name) => labels.includes(name))) {
+  const parked = labels.some((name) => name?.startsWith("status:") && name !== NEEDS_DECISION);
+  if (parked || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY].some((name) => labels.includes(name))) {
     return false;
   }
   if (!authorAdmitted(issue, humans, lanesAppId)) {
@@ -178,6 +186,12 @@ export async function main({ env = process.env, github, log = console.log } = {}
         log("intake-reenter: not a listed human's lift of needs-human on an issue awaiting intake; nothing changed");
         return 0;
       }
+      // At status: needs-decision, removing it is the claim, as for a comment.
+      const decided = labelNames(issue).includes(NEEDS_DECISION);
+      if (decided && !(await removeLabel(client, base, NEEDS_DECISION))) {
+        log(`intake-reenter: ${NEEDS_DECISION} is already gone; nothing dispatched`);
+        return 0;
+      }
       try {
         await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
         await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
@@ -185,10 +199,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
           inputs: { "issue-number": String(issue.number) },
         });
       } catch (error) {
-        await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+        if (decided) {
+          await restore({ client, base, labels: [NEEDS_DECISION], addedTriage: true, log });
+        } else {
+          await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+        }
         throw error;
       }
-      log(`intake-reenter: ${NEEDS_HUMAN} lifted, added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
+      log(`intake-reenter: ${NEEDS_HUMAN} lifted, ${decided ? `removed ${NEEDS_DECISION}, ` : ""}added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
       return 0;
     }
     const comment = await client("GET", `/repos/${repository}/issues/comments/${env.COMMENT_ID}`);
@@ -200,6 +218,15 @@ export async function main({ env = process.env, github, log = console.log } = {}
       log("intake-reenter: not an answer to a parked issue; nothing changed");
       return 0;
     }
+    const had = labelNames(issue);
+    if (kind !== "info" && had.includes(NEEDS_HUMAN)) {
+      const next =
+        kind === "decision"
+          ? `a listed human's removal of ${NEEDS_HUMAN} sends it back to triage`
+          : `a listed human removes ${NEEDS_HUMAN} and posts the decision again, since a removal re-enters no issue at ${CONFIRMED}`;
+      log(`intake-reenter: ${NEEDS_HUMAN} holds the issue, so a decision changes nothing; ${next}`);
+      return 0;
+    }
     const status = { decision: NEEDS_DECISION, parked: CONFIRMED, info: NEEDS_INFO }[kind];
     if (!(await removeLabel(client, base, status))) {
       log(`intake-reenter: ${status} is already gone; nothing dispatched`);
@@ -207,13 +234,8 @@ export async function main({ env = process.env, github, log = console.log } = {}
     }
     // Past the claim, a failed call puts the labels back as they were, so a
     // re-run of the job finds the issue parked and the answer is not lost.
-    const had = labelNames(issue);
-    let removedHuman = false;
     try {
       await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-      if (kind === "decision") {
-        removedHuman = await removeLabel(client, base, NEEDS_HUMAN);
-      }
       // Intake admits an issue only from a listed human or the lanes App; any
       // other issue waits in needs-triage for a person, so its author cannot
       // start a model run with each reply.
@@ -226,7 +248,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
         inputs: { "issue-number": String(issue.number) },
       });
     } catch (error) {
-      await restore({ client, base, labels: [status, ...(removedHuman ? [NEEDS_HUMAN] : [])], addedTriage: !had.includes(NEEDS_TRIAGE), log });
+      await restore({ client, base, labels: [status], addedTriage: !had.includes(NEEDS_TRIAGE), log });
       throw error;
     }
     log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
