@@ -59,6 +59,11 @@ const FALLBACK_READY = [
   '            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"',
   "          fi",
 ].join("\n");
+// check-intent's reads, which the subscription job's resolver takes through
+// env only (resolve-pr.mjs takeReads).
+const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
+const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
+const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}";
 const KEY_REPORT_IF =
   "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
@@ -267,12 +272,13 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
   // No status function, so GitHub adds success(): a failed key job skips it.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
-  // The key job's outputs reach only that if and the record's fallback
-  // reason, which they pick between three literals; never a run: script.
+  // The key job's outputs reach only that if, the resolver's env and the
+  // record's fallback reason, which they pick between three literals; never a
+  // run: script.
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [`          fallback-reason: ${FALLBACK_REASON}`],
+    [CARRIED, `          fallback-reason: ${FALLBACK_REASON}`],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
@@ -283,6 +289,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       "      handoff: ${{ steps.judge.outputs.handoff }}",
       "      credential-present: ${{ steps.credential.outputs.present }}",
       "      key-leg-clean: ${{ steps.key-leg.outputs.clean }}",
+      "      reads: ${{ steps.carry.outputs.reads }}",
       "",
     ].join("\n"),
   );
@@ -392,9 +399,11 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .join("\n");
   const normalize = (blocks) =>
     blocks
-      .filter((s) => s.name !== "Check the key leg" && s.name !== "Check the subscription leg")
+      .filter((s) => s.name !== "Check the key leg" && s.name !== "Check the subscription leg" && s.name !== "Hand the reads on")
       .map((s) =>
         lines(s.block)
+          .replace(`\n${CARRY_ENV.join("\n")}`, "")
+          .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
           .replace(`\n${FALLBACK_PRESENT}`, "")
           .replace(`\n${FALLBACK_READY}`, "")
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
@@ -408,8 +417,9 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/ && steps\.sub-leg\.outcome != 'success'$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
-  // The fallback job's credential step reads the fallback token where the
-  // subscription job's reads the role's.
+  // The fallback job reads everything again, as the key job does; its
+  // credential step reads the fallback token where the subscription job's
+  // reads the role's.
   const fallback = STEPS[FB].map((s) => ({
     ...s,
     block: s.block
@@ -417,7 +427,39 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}")
       .replace(`\n          fallback-reason: ${FB_REASON}`, `\n          fallback-reason: ${FALLBACK_REASON}`),
   }));
-  assert.deepEqual(normalize(fallback), normalize(STEPS[SUB]));
+  assert.deepEqual(normalize(fallback), normalize(STEPS[KEY]));
+});
+
+// check-intent hands its reads on only from steps that finish before the
+// model runs, and the subscription job takes them only through env, then
+// still runs the trigger gate, whose head the agree step compares.
+test("the subscription job takes check-intent's pre-judge reads and still runs the trigger gate", () => {
+  const carry = step("Hand the reads on");
+  assert.ok(index("Hand the reads on") > index("Select the trusted PR text"), "after the trusted text");
+  assert.ok(index("Hand the reads on") > index("Assert the gate and the resolver agree"));
+  assert.ok(index("Hand the reads on") < index("Judge the pull request"), "before the model");
+  assert.match(carry, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
+  assert.match(carry, /^ {8}continue-on-error: true$/m);
+  assert.match(carry, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/resolve-pr\.mjs carry$/m);
+  for (const expression of carry.match(/\$\{\{[^}]*\}\}/g)) {
+    assert.match(expression, /^\$\{\{ (steps\.pr\.outputs\.[a-z-]+|github\.workspace) \}\}$/, expression);
+  }
+  // Every key job output comes from a step before the judge or from the
+  // launcher's and the key-leg check's own outputs.
+  const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(KEY))[1];
+  assert.match(outputs, /^ {6}reads: \$\{\{ steps\.carry\.outputs\.reads \}\}$/m);
+  const resolve = step("Resolve the pull request", SUB);
+  for (const line of CARRY_ENV) assert.ok(resolve.split("\n").includes(line), line);
+  assert.doesNotMatch(/^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(resolve)[1], /\$\{\{/);
+  assert.equal(/^ {8}if: (.*)$/m.exec(step("Select the trusted PR text", SUB))[1], `steps.agree.outcome == 'success'${NOT_CARRIED}`);
+  for (const name of ["Check the trigger", "Assert the gate and the resolver agree", "Write the diff"]) {
+    assert.doesNotMatch(step(name, SUB), /carried/, name);
+  }
+  for (const job of [KEY, FB]) {
+    assert.doesNotMatch(jobText(job), /CARRIED|outputs\.carried/, job);
+  }
+  assert.equal(index("Hand the reads on", SUB), -1);
+  assert.equal(index("Hand the reads on", FB), -1);
 });
 
 test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
