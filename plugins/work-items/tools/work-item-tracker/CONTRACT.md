@@ -555,7 +555,8 @@ backs off, and a lane run that finds a live local lease backs off without starti
 - A lease with `renewed_at` more than 300 s after now is not live.
 - A lease whose TTL exceeds 168 h is not live.
 - The GitHub adapter counts a lease comment only from an `OWNER`, `MEMBER` or `COLLABORATOR`
-  author, or from `github-actions[bot]` (the issue lane's lease).
+  author, or from a bot (an App installed on the repository: the issue lane's `github-actions[bot]`
+  or a `gh-bot.sh` App).
 - `renew-lease` renews **only a live lease**. A lease that is still the active
   (non-superseded) lease but already **expired**, meaning `renewed_at + ttl_hours` elapsed with
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a

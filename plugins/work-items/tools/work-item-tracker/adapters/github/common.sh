@@ -405,13 +405,14 @@ wit_patch_lease_comment() {
 
 # wit_list_lease_comments <owner> <repo> <number> — JSON array of
 # {id, node_id, body, created_at, author_association, user} for lease-marker
-# comments, ascending id. Only an owner's, member's or collaborator's comment, or
-# github-actions[bot]'s (the lane lease, association NONE), counts: anyone can
-# comment on a public repository.
+# comments, ascending id. Only an owner's, member's or collaborator's comment, or a
+# bot's (association NONE; only an App installed on the repository can comment, such
+# as the lane's github-actions[bot] or a gh-bot.sh App), counts: anyone can comment
+# on a public repository.
 wit_list_lease_comments() {
   local owner="$1" repo="$2" number="$3"
   wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
-    --jq '[.[] | select(.body | startswith("<!-- work-item-lease v1")) | {id, node_id, body, created_at, author_association, user: {login: .user.login}}]'
+    --jq '[.[] | select(.body | startswith("<!-- work-item-lease v1")) | {id, node_id, body, created_at, author_association, user: {login: .user.login, type: .user.type}}]'
   jq -cs 'add // [] | map(select(.author_association == "OWNER" or .author_association == "MEMBER"
-    or .author_association == "COLLABORATOR" or .user.login == "github-actions[bot]"))' <<<"$WIT_GH_OUT"
+    or .author_association == "COLLABORATOR" or .user.type == "Bot"))' <<<"$WIT_GH_OUT"
 }

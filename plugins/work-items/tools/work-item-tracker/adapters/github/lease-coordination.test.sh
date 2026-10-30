@@ -458,14 +458,16 @@ assert_not_contains "release under --holder does not supersede a local lease" "$
 cleanup_scenario
 
 # [lease author] a lease comment counts only from a member, collaborator or owner,
-# or from github-actions[bot] (the lane's GITHUB_TOKEN, association NONE).
+# or from a bot (an App installed on the repository, association NONE): the lane's
+# github-actions[bot] or a consumer's gh-bot.sh App. author_case <label> <association>
+# <login> <expected-rc> [user-type]
 author_case() {
   new_scenario
   : >"$GH_STUB_DIR/stateful"
   printf 'alice\n' >"$GH_STUB_DIR/login"
   printf '[]\n' >"$GH_STUB_DIR/assignees"
-  jq -cn --arg b "$(marker "$3" "$FUTURE" 24)" --arg a "$2" --arg u "$3" \
-    '[{id:1, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:$a, user:{login:$u}}]' \
+  jq -cn --arg b "$(marker "$3" "$FUTURE" 24)" --arg a "$2" --arg u "$3" --arg t "${5:-User}" \
+    '[{id:1, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:$a, user:{login:$u, type:$t}}]' \
     >"$GH_STUB_DIR/lease-comments"
   rc=0
   bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
@@ -473,7 +475,8 @@ author_case() {
   cleanup_scenario
 }
 author_case "an outsider-planted lease is ignored: the local claim succeeds (0)" NONE mallory 0
-author_case "a github-actions[bot] lease wins: the local claim backs off (7)" NONE "github-actions[bot]" 7
+author_case "a github-actions[bot] lease wins: the local claim backs off (7)" NONE "github-actions[bot]" 7 Bot
+author_case "a gh-bot.sh App's lease wins: the local claim backs off (7)" NONE "acme-agent[bot]" 7 Bot
 author_case "a member's lease wins: the local claim backs off (7)" MEMBER bob 7
 author_case "a collaborator's lease wins: the local claim backs off (7)" COLLABORATOR bob 7
 
