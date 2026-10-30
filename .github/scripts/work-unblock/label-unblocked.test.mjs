@@ -2624,6 +2624,23 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
   tripped(recent.calls);
 });
 
+// A later leg asks the broker again after the API key leg hands off: its
+// broker-check's refusal or kill-switch skip is the run's breaker trip too.
+const LEG_RAN = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill on the API key", conclusion: "success" }] }];
+const legCheck = (leg, job) => ({ ...job, name: `${leg} / broker-check` });
+
+test("a later leg's broker-check refused or skipped for the kill switch is a breaker trip", async () => {
+  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+    const refused = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, BROKER_REFUSED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], logs: CHECK_KILLED });
+    assert.equal(await sweep({ github: refused.github, actions: refused.actions }), 0, leg);
+    tripped(refused.calls);
+    assert.deepEqual(logReads(refused.calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`], leg);
+    const skipped = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, KILL_SKIPPED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], conclusion: "success" });
+    assert.equal(await sweep({ github: skipped.github, actions: skipped.actions }), 0, leg);
+    tripped(skipped.calls);
+  }
+});
+
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
   const [kill, ask] = KILL_SKIPPED[2].steps;
   const check = (steps) => ({ ...KILL_SKIPPED[2], steps });

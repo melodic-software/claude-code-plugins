@@ -1101,8 +1101,10 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const named = (name) => namedJobs(jobs, name);
-    const killed = named("resolve-issue").some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
-    const checked = named("resolve-issue").find((job) => failedAt(job, BROKER_STEP));
+    // Any call's broker-check: a later leg asks the broker again for its slot.
+    const calls = RESOLVE_CALLS.flatMap(named);
+    const killed = calls.some((job) => endedAt(job, KILL_STEP, "success") && endedAt(job, BROKER_STEP, "skipped"));
+    const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const minting = jobs.find((job) => failedAt(job, MINT_STEP));
     const stopped = jobs.find(stoppedAt);
     const capped =
