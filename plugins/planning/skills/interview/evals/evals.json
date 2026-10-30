@@ -529,6 +529,19 @@
         "The row names the overlap with the user's existing release captain role and recommends the name release captain",
         "The run returns to Step 2 while that row is `open` and does not lock the contract over it"
       ]
+    },
+    {
+      "id": 38,
+      "name": "person-deferred-routes-to-questionnaire",
+      "prompt": "/planning:interview me — add a purge job that deletes closed support tickets after their retention window.\n\n[Session state: an engineering session. The frontier is empty and the assumption sweep has run. It returned `S1 | hidden-default | person | Q3 recommendation, retention window | depends: Q3 | blocking: yes | hidden-default: yes`: the draft fixes a 90-day retention window, and the user said in round 2 that the window is set by Dana, the team's DBA, and that they cannot answer for Dana. No document or connected system records the window.]",
+      "expected_output": "The sweep item is a `person` item the user cannot answer, so it gets the next contiguous register row and is `deferred` to the Brief's Deferred questions with its arbiter tag naming Dana, the DBA. No retention window is resolved on Dana's behalf: the 90-day default is not recorded as answered or captured as an assumption. At the Step 5 handoff the run recommends /planning:questionnaire to turn the deferred question into a document Dana fills in, beside the next pipeline step rather than in place of it, and it neither invokes /planning:questionnaire nor sends anything to Dana itself.",
+      "files": [],
+      "expectations": [
+        "The retention-window item is registered at the next contiguous `Q<N>`, with no `S1` id in the register, and is `deferred` to the Brief's Deferred questions with an arbiter tag naming the DBA",
+        "No retention window is recorded as answered or captured as an assumption: the 90-day value is not resolved on the DBA's behalf",
+        "The Step 5 handoff recommends /planning:questionnaire for the deferred retention-window question, alongside the next pipeline step, not in place of it",
+        "The run does not invoke /planning:questionnaire or send anything to the DBA itself"
+      ]
     }
   ]
 }
