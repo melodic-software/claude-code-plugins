@@ -6,7 +6,10 @@
 // run was reviewed, unless the head's newest pr-unblock /
 // apply-dependency-verdict check run skipped no-model-turn: the
 // review-dependency check runs that started before it handled nothing, so the
-// head is dispatched again. The model job's own selection decides the round
+// head is dispatched again. A verdict check that is a lane stop (a reason
+// escalation-routes.json routes to a failing status) or a kill-switch stop
+// releases them the same way, until `limits.limit-stops-per-head` such stops stand on the head, as
+// in dispatch.mjs. The model job's own selection decides the round
 // cap, and every such round posts its round marker. A limit stop holds the
 // head only until its limit resets, at most `limits.limit-stops-per-head`
 // times (limit-stop.mjs), as in dispatch.mjs. Logs carry PR numbers, SHAs and
@@ -22,7 +25,8 @@
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
-import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
+import { anyHandles, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
@@ -128,7 +132,11 @@ export async function dispatchDependencyReviews({
         continue;
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      // A round whose verdict job skipped no-model-turn handled nothing: the
+      // A round whose verdict job skipped no-model-turn handled nothing, and
+      // one whose verdict job stopped on a reason routed to a failing status,
+      // or that the kill switch stopped (limit-stop.mjs releasesHead), is
+      // retried on the same head, a fresh model session, until
+      // limit-stops-per-head such stops stand on it: either way the
       // review-dependency check runs that started before that verdict job
       // stop counting, so this run dispatches the head again. A limit stop is
       // not released that way, though its round's verdict also finds no model
@@ -138,8 +146,14 @@ export async function dispatchDependencyReviews({
         verdicts = await api.listCheckRuns({ sha: node.headRefOid, checkName: verdictCheckName, appId });
         const newest = verdicts.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), verdicts[0]);
         if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
-          const cut = startOf(newest);
-          existing = existing.filter((run) => limitResetsAt(run, limits) !== null || !(startOf(run) < cut));
+          existing = releasedBy(existing, startOf(newest), limits);
+        } else {
+          const cap = (limits ?? LIMIT_DEFAULTS)["limit-stops-per-head"];
+          const { cut, stops } = stopRelease(verdicts, cap);
+          existing = releasedBy(existing, cut, limits);
+          if (cut === null && stops >= cap) {
+            log(`::warning::#${node.number}: head ${node.headRefOid}'s ${verdictCheckName} stopped ${stops} time(s), the most one head gets; no review-dependency retry until a new push`);
+          }
         }
       }
       // Until a verdict check started after the newest review-dependency

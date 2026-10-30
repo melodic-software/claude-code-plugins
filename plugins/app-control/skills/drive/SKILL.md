@@ -70,7 +70,10 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
    file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
-3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
+3. **Read, never invoke.** Read each kept file as data. A `SKILL.md`'s base directory is its
+   folder; a command file's is `control-<app>/` in the parent of the top-level commands folder it
+   loads from, and for a file a manifest's `commands` key names as a file (directly or as a map
+   entry's `source`), `control-<app>/` in the plugin root, per the contract's Hub.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
    beats every plugin file for it.
@@ -91,7 +94,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source (`project` or `plugin`) with its path.
 8. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
-   the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
+   the chosen skill's base directory (step 3; never the commands folder that holds a command
+   file): `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
@@ -212,7 +216,8 @@ Attaching reaches into a process the person owns, so it runs only in an interact
   `--attach-pid <pid>`, which
   binds the pid's uid, start time and command line hash for the script to recheck
   ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)), show the
-  builder's full output, and run the script only after a yes. The script writes the capture into the run directory and hands it back to
+  builder's full output, and only after a yes run that printed output on stdin, never the file
+  it wrote, as pid-binding.md says. The script writes the capture into the run directory and hands it back to
   the person's user; read its exit status and output before reporting. Cleanup deletes the script
   and its temporary directory, never the run directory or the capture.
 

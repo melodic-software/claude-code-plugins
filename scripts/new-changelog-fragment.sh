@@ -89,7 +89,7 @@ for plugin in "${names[@]}"; do
     exit 2
   fi
   if ! changelog_fragments::root_of "$plugin" >/dev/null; then
-    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing) and no convention docs/conventions/$plugin/CHANGELOG.md." >&2
+    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing) and no convention docs/contracts/$plugin/CHANGELOG.md or docs/conventions/$plugin/CHANGELOG.md." >&2
     exit 2
   fi
   changelog_fragments::in_mode "$plugin"

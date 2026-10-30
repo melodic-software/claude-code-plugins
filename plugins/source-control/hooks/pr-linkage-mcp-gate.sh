@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block an MCP-created PR whose BODY would fail the consuming
-# repository's own PR-contract CI gate.
+# PreToolUse hook: block an MCP-created or MCP-updated PR whose BODY carries a
+# negated closing reference.
 #
 # WHY IT EXISTS — cloud/remote sessions create PRs through the GitHub MCP
 # server (`mcp__github__create_pull_request` /
@@ -15,21 +15,13 @@
 # field — so the extraction caveats (heredocs, dynamic values, directory
 # changes) don't exist on this surface, and the fail-open set is much smaller.
 #
-# WHAT IT ENFORCES — the five requirements of the linkage contract. The
-# semantics were ported from the reusable melodic-software/ci-workflows
-# pr-issue-linkage validator, which is RETIRED (deleted in ci-workflows#569,
-# released as v0.23.0); the live artifact carrying the same contract is that
-# repo's `.github/actions/pr-contract` composite step. After
-# stripping HTML comments (terminated spans, then an unterminated `<!--`
-# swallowing the rest), the body must carry
-#   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
-#       `owner/repo#N`), a non-closing `Refs: #N` / `Relates to: #N` marker on
-#       its own line, OR the literal `No linked issue` / `No related issue:`;
-#       and no negated closing reference (`does not close #N`) anywhere, which
-#       GitHub's negation-blind parser would still close on merge;
-#   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
-#       `## Verification`, `## Related` — where a DEEPER heading (`### ...`)
-#       is that section's content, not its terminator.
+# WHAT IT ENFORCES — no negated closing reference (`does not close #N`)
+# anywhere in the body, which GitHub's negation-blind parser would still close
+# on merge, judged as the consuming repository's `.github/actions/pr-contract`
+# composite step (melodic-software/ci-workflows) judges it, after stripping HTML
+# comments and masking Markdown code. The rest of that contract (a closing line
+# and non-empty `## Summary`, `## Fix`, `## Verification` and `## Related`
+# sections) is advisory in CI, so a body missing any of it is allowed.
 #
 # SCOPE GUARDS —
 #   - enforcement is keyed to the repository's OWN policy: the gate runs only
@@ -49,9 +41,9 @@
 #
 # FAIL-OPEN ON EXTRACTION, FAIL-CLOSED ON A DETERMINABLE BAD BODY — unreadable
 # stdin, missing jq, or an undeterminable target repo allow (policy gate, not a
-# security guard). A present-but-failing body blocks. A `create_pull_request`
-# with NO body field is a determinable bad body (GitHub opens the PR with an
-# empty body, which the CI gate rejects) and blocks.
+# security guard). A body carrying a negated closer blocks. A
+# `create_pull_request` with NO body field is judged as an empty body, which
+# carries none, and allows.
 #
 # LOCALE — matching runs under LC_ALL=C and the JavaScript-`\s`-only Unicode
 # whitespace characters are normalized to plain spaces first, so the verdict
@@ -60,7 +52,7 @@
 #
 # Kill switch: pr_linkage_mcp_gate_enabled userConfig option.
 #
-# BLOCKING: exits 2 naming every missing or empty requirement plus the lines to add.
+# BLOCKING: exits 2 naming each negated closer plus the `Refs: #N` line to use.
 
 set -uo pipefail
 
@@ -112,18 +104,17 @@ hook::require jq "PreToolUse" "source-control" "$INPUT"
 # BODY IS DELIBERATELY NOT TAKEN FROM THIS BATCH. hook::jq_fields CR-strips
 # every value it returns, and the validator only strips a CR at end of line; a
 # body carrying a MID-LINE CR would therefore be judged against different text
-# than before, and stripping is the permissive direction — `## Sum<CR>mary`
-# becomes a section that was previously missing, turning a BLOCK into an ALLOW.
+# than before, and stripping can be the permissive direction — a CR alone between
+# a negation and its closing keyword is a word break, and dropping it glues the
+# two into one word that is no closer at all, turning a BLOCK into an ALLOW.
 # The batch reports whether the raw body holds a CR at all and the next block
 # re-reads it losslessly only in that case, which no real payload hits.
 #
 # THE CR PROBE IS TOTAL OVER EVERY JSON TYPE. `contains` errors on a non-string,
-# one erroring filter fails the WHOLE batch, and a failed batch used to exit 0
-# here — so a body of `5`, `true`, `{"a":1}` or `["x"]`, which the per-field
-# reader rendered as text and BLOCKED, was let through by the very guard that
-# exists to close the permissive direction. `tostring` first makes the probe
-# total; the value the batch hands back is already tostring'ed by
-# hook::jq_fields, so a non-string body is judged as text, as before.
+# and one erroring filter fails the WHOLE batch. `tostring` first makes the
+# probe total; the value the batch hands back is already tostring'ed by
+# hook::jq_fields, so a body of `5`, `true`, `{"a":1}` or `["x"]` is judged as
+# the same text the per-field reader rendered.
 #
 # A batch that STILL fails — a `tool_input` or a payload root that is not an
 # object — falls back to the per-field reads this batch replaced rather than
@@ -299,7 +290,7 @@ fi
 # shellcheck source=pr-linkage-validator.sh
 source "$HOOK_DIR/pr-linkage-validator.sh"
 # shellcheck disable=SC2310  # the return status IS the verdict
-if linkage::problems "$BODY"; then
+if linkage::blocking_problems "$BODY"; then
   emit_tel "ok"
   exit 0
 fi

@@ -94,7 +94,7 @@
       "id": 6,
       "name": "lane-limits-and-out-of-scope-ecosystems",
       "prompt": "Report the Go and shell lanes over evals/fixtures/gopls-hints.txt, evals/fixtures/dead-and-dynamic.go and evals/fixtures/dead-and-dynamic.sh, and say what you would do for the Rust and C# projects in the same repository.",
-      "expected_output": "Reports deadHandler from the Go capture and states the lane's coverage limit plainly: gopls hints unexported symbols only, so ExportedEntry is never a candidate however unreferenced it is — a stated limit, not a defect — and gopls exits 0 even carrying a hint, so its exit code is not run health and its degradation produces false negatives rather than knip's false positives. For the shell fixture it reports format_legacy_row as dead and does NOT condemn handle_alpha, which is invoked through the constructed name in main and is therefore invisible to a literal reference search — the grep lane's acknowledged recall limit. It does not run a building detector for Rust or C#. Their source files can still be unreferenced-file candidates, and a computed path or glob that loads one is uncertain, not dead.",
+      "expected_output": "Reports deadHandler from the Go capture and states the lane's coverage limit plainly: gopls hints unexported symbols only, so ExportedEntry is never a candidate however unreferenced it is — a stated limit, not a defect — and gopls exits 0 even carrying a hint, so its exit code is not run health and its degradation produces false negatives rather than knip's false positives. For the shell fixture it reports format_legacy_row as dead and does NOT condemn handle_alpha, which is invoked through the constructed name in main and is therefore invisible to a literal reference search — the grep lane's acknowledged recall limit. It does not run a building detector for Rust or C#. C# gets the grep lane's text-only declaration pass (cs-unreferenced-private and cs-unreferenced-symbol, both tier 2). Source files in either language can still be unreferenced-file candidates, and a computed path or glob that loads one is uncertain, not dead.",
       "files": [
         "evals/fixtures/gopls-hints.txt",
         "evals/fixtures/dead-and-dynamic.go",
@@ -106,7 +106,7 @@
         "Output states that gopls exits 0 with findings, so the exit code is not run health, and that its failure mode is false negatives",
         "format_legacy_row is reported as dead in the shell fixture",
         "handle_alpha is NOT verdicted dead, and the indirect invocation through the constructed handler name is cited",
-        "Rust and C# get no building detector; their source files can still be unreferenced-file candidates, and a computed path or glob is uncertain rather than dead"
+        "Rust and C# get no building detector; C# is covered by the grep lane's text-only declaration pass, source files in either language can still be unreferenced-file candidates, and a computed path or glob is uncertain rather than dead"
       ]
     },
     {
@@ -124,6 +124,28 @@
         "Performs no install, fetch, or build without an explicit yes, and shows the detector and its install command before installing",
         "Records the precision of any chosen detector as unmeasured",
         "Edits and writes no file"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "csharp-lane-reflection-scanning-markup",
+      "prompt": "The grep lane's C# pass ran over evals/fixtures/cs-orders.cs, evals/fixtures/cs-program.cs and evals/fixtures/OrderCounter.razor.cs, with evals/fixtures/OrderCounter.razor and evals/fixtures/OrderPage.razor in the reference search. Besides two unreferenced-file candidates, it emitted six tier-2 symbol candidates: _staleCounter, FormatLegacyOrder and OnAudit (cs-unreferenced-private), and LegacyOrderExporter, AuditRequestHandler and Sku (cs-unreferenced-symbol). Read those files and adjudicate every candidate.",
+      "expected_output": "Verdicts _staleCounter, FormatLegacyOrder and LegacyOrderExporter dead. OnAudit is uncertain or alive, citing the reflection call in cs-program.cs that builds the method name from \"On\" + \"Audit\". AuditRequestHandler is uncertain or alive, citing the assembly scan in cs-program.cs that creates every IRequestHandler implementation. Sku is uncertain or alive, citing JsonSerializer.Serialize, which reads the property without naming it. It notes that HandleRefresh and Total were never candidates because the Razor markup names them, and that the dead private Clamp was missed because the live QuantityRules.Clamp shares its name. It runs no dotnet or MSBuild command and edits nothing.",
+      "files": [
+        "evals/fixtures/cs-orders.cs",
+        "evals/fixtures/cs-program.cs",
+        "evals/fixtures/OrderCounter.razor.cs",
+        "evals/fixtures/OrderCounter.razor",
+        "evals/fixtures/OrderPage.razor"
+      ],
+      "expectations": [
+        "_staleCounter, FormatLegacyOrder and LegacyOrderExporter are verdicted dead",
+        "OnAudit is NOT verdicted dead, and the reflection call that builds its name at run time is cited",
+        "AuditRequestHandler is NOT verdicted dead, and the assembly scan over IRequestHandler implementations is cited",
+        "Sku is NOT verdicted dead, and the JsonSerializer call that reads it is cited",
+        "HandleRefresh and Total are explained as saved by the Razor markup that names them, not reported as candidates",
+        "No dotnet, MSBuild or other build command is run",
+        "No file is edited"
       ]
     }
   ]

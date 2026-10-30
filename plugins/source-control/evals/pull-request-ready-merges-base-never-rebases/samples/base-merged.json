@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": ["src/extra.ts"], "why": "the merge brought main's new file into the workspace"}
+  ],
+  "fail": [
+    {"answer": [], "why": "the merge command ran but failed, so main's file never landed"},
+    {"answer": ["src/extra.ts.orig"], "why": "a backup file is not main's file"},
+    {"answer": ["../eval-linked/src/extra.ts"], "why": "the linked worktree's copy is not this checkout's merge"}
+  ]
+}

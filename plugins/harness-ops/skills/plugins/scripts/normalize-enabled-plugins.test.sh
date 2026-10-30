@@ -71,7 +71,12 @@ MISSING="$TEST_TMPDIR/no-such.json"
 rc=0
 out="$(bash "$NORM" --file "$MISSING")" || rc=$?
 assert_exit "missing file is a no-op" 0 "$rc"
-assert_eq "missing file reports already-sorted" "already-sorted keys=0" "$out"
+assert_eq "missing file reports missing-file, not already-sorted" "missing-file keys=0" "$out"
+assert_eq "missing file is not created" "false" "$([[ -e "$MISSING" ]] && echo true || echo false)"
+rc=0
+out="$(bash "$NORM" --file "$MISSING" --check)" || rc=$?
+assert_exit "--check on a missing file exits 0" 0 "$rc"
+assert_eq "--check on a missing file reports missing-file" "missing-file keys=0" "$out"
 
 SORTED="$TEST_TMPDIR/sorted.json"
 printf '%s\n' '{"enabledPlugins":{"ai-slop@m":false,"x@m":true}}' >"$SORTED"
@@ -87,13 +92,13 @@ printf '%s\n' '{"other":1,"enabledPlugins":{"x@m":true,"ai-slop@m":false,"contex
 rc=0
 out="$(bash "$NORM" --file "$UNSORTED" --check)" || rc=$?
 assert_exit "--check on unsorted exits 1" 1 "$rc"
-assert_eq "--check reports would-normalize" "would-normalize keys=3" "$out"
+assert_eq "--check reports would-normalize with the moved count" "would-normalize moved=1 keys=3" "$out"
 assert_contains "--check does not rewrite" "$(cat "$UNSORTED")" '"x@m":true,"ai-slop@m":false'
 
 rc=0
 out="$(bash "$NORM" --file "$UNSORTED")" || rc=$?
 assert_exit "unsorted write exits 0" 0 "$rc"
-assert_eq "write reports normalized" "normalized keys=3" "$out"
+assert_eq "write reports normalized with the moved count" "normalized moved=1 keys=3" "$out"
 assert_eq "keys are alphabetical after the write" \
   '["ai-slop@m","context-budget@m","x@m"]' \
   "$(jq -c '.enabledPlugins | keys_unsorted' "$UNSORTED")"
@@ -104,6 +109,21 @@ assert_eq "sibling keys survive" "1" "$(jq -r '.other' "$UNSORTED")"
 assert_eq "compact input stays compact" \
   '{"other":1,"enabledPlugins":{"ai-slop@m":false,"context-budget@m":true,"x@m":true}}' \
   "$(tr -d '\n' <"$UNSORTED" | tr -d '\r')"
+
+# One appended key in a longer map moves one key, though three keys change index.
+TAIL="$TEST_TMPDIR/tail.json"
+printf '%s\n' '{"enabledPlugins":{"a@m":true,"c@m":true,"d@m":true,"e@m":true,"b@m":true}}' >"$TAIL"
+rc=0
+out="$(bash "$NORM" --file "$TAIL")" || rc=$?
+assert_exit "appended-key write exits 0" 0 "$rc"
+assert_eq "one appended key reports 1 moved of 5" "normalized moved=1 keys=5" "$out"
+
+# A reversed map keeps only one key in place.
+REV="$TEST_TMPDIR/reversed.json"
+printf '%s\n' '{"enabledPlugins":{"d@m":true,"c@m":true,"b@m":true,"a@m":true}}' >"$REV"
+rc=0
+out="$(bash "$NORM" --file "$REV" --check)" || rc=$?
+assert_eq "a reversed map reports 3 moved of 4" "would-normalize moved=3 keys=4" "$out"
 
 CRLF="$TEST_TMPDIR/crlf.json"
 printf '%s\r\n' '{"enabledPlugins":{"z@m":true,"a@m":false}}' >"$CRLF"

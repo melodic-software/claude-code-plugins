@@ -1,784 +1,88 @@
-# Detector findings: reaching the apply relay from outside `review:fanout`
+# Detector findings: reaching the apply relay from outside review:fanout
+
+This contract moved to [`docs/contracts/detector-findings/`](../../contracts/detector-findings/README.md). This page keeps its
+headings so links from installed plugin versions still reach each section.
 
 ## Contents
 
-- [Why the contract is format-only](#why-the-contract-is-format-only)
-- [Where the file goes](#where-the-file-goes)
-- [Boundary](#boundary)
-- [The four producer-owned fields](#the-four-producer-owned-fields)
-- [Rule ids and thresholds](#rule-ids-and-thresholds)
-- [The severity crosswalk](#the-severity-crosswalk)
-- [When the remediation is not at `Location`](#when-the-remediation-is-not-at-location)
-- [When the remediation is owned by the producer's own skill](#when-the-remediation-is-owned-by-the-producers-own-skill)
-- [Auto-applicability is settled per rule, at contract time](#auto-applicability-is-settled-per-rule-at-contract-time)
-- [The remedy is pinned by an assertion, in every scope it fires in](#the-remedy-is-pinned-by-an-assertion-in-every-scope-it-fires-in)
-- [A candidate that is not a finding](#a-candidate-that-is-not-a-finding)
-- [Coexisting with other producers](#coexisting-with-other-producers)
-- [Emitting more than once](#emitting-more-than-once)
-- [What a minimally conforming producer may omit](#what-a-minimally-conforming-producer-may-omit)
-- [Liveness](#liveness)
-- [Many emitters, one statement of each mechanic](#many-emitters-one-statement-of-each-mechanic)
-- [Enforceability](#enforceability)
-- [Adopters](#adopters)
-- [Versioning](#versioning)
-- [External authority](#external-authority)
-
-Owner doc for **how a component that is not `review:fanout` persists findings that the fanout `fix`
-action will consume**. One rule: a producer writes a file conforming to the findings-file shape into
-the current branch's findings directory, and nothing else. No fanout edit, no registration, no
-dispatch wiring.
-
-The shape is owned by
-[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md)
-"Findings-file shape". **This doc never restates it.**
-What this doc owns is everything the shape alone does not settle: which fields a non-fanout producer
-must compute for itself, what coexistence between producers means, and where the boundary sits.
-
-It was published as a stub ahead of its depth, on `plugin-philosophy.md`
-[Convention registry](../../plugin-philosophy.md#convention-registry): "A new cross-plugin
-convention lands in an owner doc **before a second plugin adopts it**". That is a deadline rather
-than a license to author late. The depth below is the first detector pilot's evidence, and the
-crosswalk is written from it: a rule whose tier cannot be argued from `severity.md`'s test is not
-admitted, which is a bar no table of thresholds can clear on its own.
+Moved to [this section](../../contracts/detector-findings/README.md#contents).
 
 ## Why the contract is format-only
 
-Nothing authenticates the writer. The `fix` action locates its input purely by frontmatter, files
-declaring `type: review-findings` whose `branch:` matches the current branch exactly, never by
-provenance. That is not an oversight and it is the cheapest wiring path in the fleet: a skill, a
-script, a hook, or an agent all reach the apply relay by writing one file.
-
-It matters because the fleet's gap is **detectors, not apply capability**. Deterministic detectors
-exist and produce real findings; what they lack is a route to a remediation surface. Conforming to a
-file format is that route.
+Moved to [this section](../../contracts/detector-findings/README.md#why-the-contract-is-format-only).
 
 ## Where the file goes
 
-The destination is the current branch's findings directory in the **memory slice**
-(`.work/reviews/<branch-slug>/` by default), never committed. A producer writes where the consumer
-scans. `/review:fanout` "Shared inputs" (`plugins/review/skills/fanout/SKILL.md`) owns the home and
-the branch slug, and a producer resolves them the way that skill does, so a producer and the
-consumer read one text rather than two that have to be reconciled. The file shape is owned by
-[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md).
-
-What the owner leaves to a producer, stated as consequences rather than as a second statement of
-its rules:
-
-- **Write to the branch's own directory.** A file written anywhere else is a directory the `fix`
-  action never scans, and nothing reports the miss.
-- **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
-  frontmatter, never the directory it sits in. The branch-slug rule says why.
-- **Findings are checkout-local.** A producer never commits one.
+Moved to [this section](../../contracts/detector-findings/README.md#where-the-file-goes).
 
 ## Boundary
 
-This doc owns the **producer-side contract** for non-fanout findings. It does not own:
-
-- **The findings-file schema.** Owned by `findings-file-shape.md` "Findings-file shape". Pointer,
-  never a copy. A second statement of a table is a second thing to drift.
-- **The consumer algorithm.** How the merge set is built, subtracted, deduplicated, and applied is
-  owned by `/review:fanout fix`, at its merge-set step. A producer never needs to read it; it is
-  named here so a reader chasing consumption behavior lands in one place.
-- **Normalization and ranking.** The five-stage pipeline `/review:fanout` runs before it writes is
-  that skill's own internal reduction. A detector emits final values, not pipeline inputs.
-- **Whether a detector should exist.** Candidate selection, guardrail class, and promotion are the
-  `autonomy` plugin's routine-catalog concern.
-- **Findings that never reach a relay.** A component that only reports to a human is out of scope;
-  this contract begins at the decision to persist.
+Moved to [this section](../../contracts/detector-findings/README.md#boundary).
 
 ## The four producer-owned fields
 
-A detector has no severity crosswalk, no confidence filter, and no normalization stage behind it.
-These four are therefore computed by the producer, and each has a failure mode that is silent:
-
-1. **`Tier` is LOOKED UP from the rule, never chosen per finding.** Read it off the rule's row in
-   [the severity crosswalk](#the-severity-crosswalk) below, so every finding of a rule carries that
-   rule's tier. A detector picking a tier per run makes rank order meaningless across runs. Note what
-   this does and does not promise: the lookup is fixed, while *which rule a candidate selects* may
-   itself be a judgment. See the crosswalk's admission test, which is where that is bounded. The
-   **vocabulary** is not this doc's to define: it is owned by
-   [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) "Severity
-   tiers", whose consumer-precedence rule binds a producer too. When the consuming project defines
-   its own severity vocabulary, map to the project's tiers rather than the baseline's. A detector
-   emitting a vocabulary of its own invention is non-conforming.
-2. **`Confidence` is `high` or OMITTED, never `low`.** The enum and its rank order are defined by
-   [`severity.md`](../../../plugins/review/context/severity.md) "Confidence axis": `high` >
-   `medium` > `low` > `unscored`, where `unscored` means "absence of a score is NOT low
-   confidence". A deterministic detector that fired is `high`. A detector has no evidence scale
-   below that: `medium` and `low` grade a reviewer's partial verification, which a scan does not
-   perform, so anything less certain omits the field and ranks as `unscored`, last in that order,
-   which is the honest place for a claim nobody graded. In a merged report, where tier and
-   agreement count are equal, an omitted-`Confidence` detector row therefore ranks below a
-   reviewer's `low` row, and that ranking is intended.
-   **`Confidence` is confidence-of-realness, not confidence in the fix.** A detector can be certain a
-   defect is real while its remediation needs human judgment; say that in `Tier` and in the `Action`
-   wording, never by downgrading `Confidence`. That would rank a real finding below findings less
-   certain to be real.
-3. **`Location` is a repo-relative `file:line`.** The relativization rule is stated by
-   `findings-file-shape.md` "Findings-writer contract". What is producer-specific is the reason it is
-   not optional: the fix action fences each remediation to its finding's `Location`, and an absolute
-   path is not portable to the checkout that applies the fix.
-4. **Cell escaping is the producer's job.** Apply `findings-file-shape.md`'s "Cell-escaping rule" as
-   written there. It is called out here, without restating the characters, because detector output
-   routinely contains pipes: shell pipelines, type unions, regex alternation. That makes this the
-   single most likely way a first detector ships a file that parses *wrong* rather than not at all.
+Moved to [this section](../../contracts/detector-findings/README.md#the-four-producer-owned-fields).
 
 ## Rule ids and thresholds
 
-A `Tier` nobody can re-derive is a `Tier` nobody can audit. Two obligations make it re-derivable from
-the emitted file alone, without re-reading the detector:
-
-- **A rule id is `<plugin>/<skill>/rule-<slug>`**, lowercase `[a-z0-9-]` in each segment. **One form,
-  everywhere**: the crosswalk's own column, the emitted `Finding` cell, and any prose. There is no
-  short form: this crosswalk is a cross-producer registry, so an unqualified id in it would be a
-  collision waiting for the second detector, and the gate this enables (Enforceability, below)
-  resolves an emitted id against a row by exact match. Qualification makes that resolution correct by
-  construction rather than by a uniqueness rule nothing enforces. The `rule-` segment is kept so the
-  id stays self-identifying wherever it appears.
-- **Every emitted row leads its `Finding` cell with that id and the threshold that fired.** No column
-  is added, since the shape is not this doc's to change, and the leading position is what keeps the
-  id greppable without one.
-- **The threshold is the condition that fired in the run's own values**, not the rule's definition
-  restated. `depth 7, limit 5` is auditable; `over the limit` is not.
-
-**The id shares its shape with, without being identical to,
-[`finding-suppression`](../finding-suppression/README.md)'s `check:` constituent**, which that
-contract hashes into a `finding_id`. The two compose because they are built the same way, and a
-consumer may legitimately qualify checks at a **finer** granularity than the rule: the first adopter
-keys a suppression `check:` to the mutation operator, because a suppression retires per mutant while
-a crosswalk rule classifies a disposition. Do not assume a `check:` value is a rule id.
+Moved to [this section](../../contracts/detector-findings/README.md#rule-ids-and-thresholds).
 
 ## The severity crosswalk
 
-**Rule id to tier, with the test each mapping is argued from.**
-[`severity.md`](../../../plugins/review/context/severity.md) "Severity tiers" decides a tier by test,
-first match winning, and says outright that resemblance to an illustrative finding is not that
-argument. A bare threshold cannot evaluate those tests, because a number is not an input to "you can
-name a concrete input, caller, or subsequent otherwise-correct change that the defect makes produce a
-wrong result", so a threshold-to-tier table with no argument in it is nominal closure. **The argument is
-the row.**
+Moved to [this section](../../contracts/detector-findings/README.md#the-severity-crosswalk).
 
-**What this table makes deterministic is the MAPPING, not the input.** Given a rule id, the tier, the
-disposition and the auto-applicability are fixed here and are never re-derived per finding.
-Re-deriving them is the failure the contract names: a detector picking a tier per run out of the
-finding's prose. It does
-**not** claim that the same tree always selects the same rule, and for at least one admitted producer
-it demonstrably does not: `mutation-testing:audit` classifies each survivor through a fresh-context
-reviewer, and `SKILL.md` "Phase 4" says plainly that the difference between its classes is a
-judgment. Saying otherwise here would be the same defect this table exists to catch, one level up.
+## When the remediation is not at Location
 
-Admission test for a crosswalk row:
-
-1. **The mapping is fixed and published.** The row states it, and the producer looks it up rather
-   than deciding it.
-2. **A rule set whose selection involves judgment is fail-safe toward EMITTING.** Selection may be a
-   judgment; what may not vary is which way an unresolved one falls. Every non-emitting rule states
-   the positive evidence its selection requires, and absence of that evidence selects an **emitting**
-   rule. That is what bounds the cost of a judgment: it can move a finding between emitting rules or
-   make a run noisier, but it can never silently withhold one. **Check it on EVERY withholding
-   boundary, not the one that is easiest to argue.** The pilot's set has two, and its second was
-   admitted with the bar stated only on the first, which is exactly how a criterion passes on a
-   worked example while leaving the gap it was written for open. Both now fall through to
-   `mutation-testing/audit/rule-survivor-unclassified`, which emits at IMPORTANT. A rule set where
-   an unresolved judgment falls toward silence is not admitted, whatever its rows argue.
-
-   **The fall-through must take effect before the producer's FIRST output.** This binds an outcome,
-   one candidate gets one disposition on **every** surface the producer emits to, and deliberately
-   not a structure: a producer with a single output surface satisfies it by construction and owes no
-   separate classification step, phase, or bar of any named shape. What fails it is a producer with
-   more than one surface applying the fall-through on the path to only some of them, so a human
-   reading one artifact and the relay reading another are told different things about the same
-   candidate. The pilot hit exactly that. Its report is written before its findings file, so a bar
-   placed at persist time would have said "arid" in one and "unclassified" in the other, and that
-   is why its bar sits at classification. **The placement is the pilot's answer, not the rule.**
-
-   The bar this reaches is **instruction-strength, not mechanism-strength**: the fall-through is
-   stated imperatively and no gate computes whether a cited demonstration is real. Saying so is the
-   point. A criterion that claimed more than the mechanism delivers would be the failure this
-   contract is about.
-3. **An emitting rule argues its tier in the row from `severity.md`'s tests, first match winning.** A
-   rule that emits **no** row argues instead that its finding never reaches the relay: the
-   Boundary's "Findings that never reach a relay" case, which sits outside the tier vocabulary
-   entirely. The two grounds are not interchangeable, and a non-emitting row must say which it is
-   using: reaching for a tier test to justify a non-emission is how a row looks argued while arguing
-   nothing, because a tier test can only ever return a tier.
-4. Its auto-applicability is settled here rather than per finding at apply time (below).
-
-**A rule failing 3 is not a row with a missing cell. It is a rule this contract does not admit**,
-and its detector reports to a human instead, which is the same Boundary case reached from the other
-side.
-
-| Rule id | What fires it | The test the disposition is argued from | Tier or disposition | Auto-applicable |
-|---|---|---|---|---|
-| mutation-testing/audit/rule-survivor-productive | A surviving mutant classed productive, whose survival demonstrates a gap in what the suite asserts | CRITICAL's test is that you can name a concrete input, caller, or subsequent otherwise-correct change that the defect makes produce a wrong result, an unsafe one, or none at all. A survivor satisfies no limb: it is evidence that the suite fails to detect a change, not that anything produces a wrong, unsafe or absent result. The third limb is the near miss and still fails, because the defect it needs is one in the source while a survivor is evidence about the tests. IMPORTANT's second limb then matches, behavior the change ADDS that no test covers, and the "adds" clause is satisfied because the diff scope mutates only the change, so the mutated node is inside the change under review. Under the exercised scope (`--exercised`) the change is the tests and the mutated node sits outside it, so that limb's "adds" clause does not hold; IMPORTANT's degradation-with-a-named-trigger limb matches instead, for every survivor cause: the first regression that changes the result for an input the changed tests do not use, in a function they exercise, ships green. First match wins in both scopes, on the same tier. | IMPORTANT | No, the remediation is the covering test, not `Location` |
-| mutation-testing/audit/rule-survivor-unclassified | Any non-emitting verdict, equivalence OR aridity, claimed without the positive evidence its own rule requires. This is the fall-through both withholding rules land in, which is what makes them fail-safe rather than silent. | The tests are evaluated against what the run demonstrated, never what it asserted. With no evidence the run has shown exactly what the productive rule shows, namely that a mutant survived inside the diff, so IMPORTANT's added-behavior-no-test-covers limb matches on identical facts. Under the exercised scope the mutant survived in a function the changed tests exercise, and the degradation limb the productive row argues from matches on the same facts with the same trigger: the first regression that changes the result for an input the changed tests do not use, in a function they exercise, ships green. Admitting a lower tier on an undemonstrated assertion would let the assertion decide the tier instead of the test, which is the standard way this technique manufactures false confidence. | IMPORTANT | No, same off-site remediation |
-| mutation-testing/audit/rule-survivor-arid | **Aridity demonstrated**: the proposed suppression entry is complete (all five keys, id derived from them), its claim names a node kind from the producer's enumerated vocabulary, and its reason names the specific behavior the suite deliberately does not assert on. "Killing this would not improve the suite" asserted from inspection is not that demonstration. An arid call that cannot show it is not arid. It selects the unclassified rule above, which emits. | Argued from the Boundary, NOT from a tier test, and the row says so because the tier tests do not decide it: applied literally, IMPORTANT's added-behavior-no-test-covers limb WOULD match an arid survivor and first-match-wins would land on IMPORTANT. What withholds the row is that its only remediation is a suppression entry an operator must accept, so the finding never reaches the relay at all: the Boundary's "Findings that never reach a relay" case. Handing a consent-gated write to an apply relay would launder that gate. | No row, proposed suppression | Not applicable, no row |
-| mutation-testing/audit/rule-survivor-equivalent | Equivalence demonstrated: identical observable behavior across the differential cases the rule names, with the mutated state shown dead or idempotent | Argued from the Boundary, not from a tier test, and not by claiming the tests are unreachable, because SUGGESTION is a catch-all ("neither test holds") that any finding can reach. The ground is that every tier presupposes a defect to act on and a demonstrated equivalent mutant is not one: no behavior changed, so nothing failed to detect it. Being not a finding, it never reaches the relay; emitting a row would manufacture one. | No row, declined candidate | Not applicable, no row |
-| testing/audit/rule-zero-assertion | A runnable test body containing zero assertion tokens (threshold: 0). Selection is a mechanical token scan with no withholding verdict, so the fail-safe criterion is met by construction. The one decline is evidence-stated: an in-file `cant-fail-ok: <reason>` annotation marks a deliberate case, which is declined at selection and counted in `## Surfaces`, never silently dropped. | CRITICAL's test fails on every limb: a test that cannot fail makes nothing produce a wrong, unsafe, or absent result. It is evidence about the suite's oracle, not about the source, and the third limb's subsequent-change clause needs a source defect this finding does not assert. IMPORTANT's degradation-with-a-named-trigger limb then matches: the test's existence is a coverage claim nothing backs, and the trigger is nameable: the first regression in the behavior this test exercises ships under a green run. First match wins there. | IMPORTANT | No, contained to `Location`'s file, but the repair encodes the intended oracle (which assertion the behavior deserves), a call for judgment Step 4 surfaces rather than auto-applies |
-| testing/audit/rule-recomputed-expectation | An equality assertion whose actual and expected sides are the identical expression, so the expected value is recomputed by the code under test rather than stated (threshold: at least 1; v1 detects the decidable core, textually identical sides). Mechanical selection, no withholding verdict; the `cant-fail-ok:` decline evidence above applies identically. | Same first-match walk as the zero-assertion row: CRITICAL fails every limb because the assertion holds for every implementation of the expression: no input, caller, or subsequent otherwise-correct change can make it produce a wrong result, the oracle being the defect. IMPORTANT's degradation limb matches with the same named trigger: a regression in the recomputed expression's behavior passes green. | IMPORTANT | No, same contained-but-oracle-judgment repair as the zero-assertion row |
-| testing/audit/rule-mock-only-oracle | A mock-constructing test whose every recognized assertion is a mock-interaction assertion, none on a real collaborator (threshold: 100%). Selection is mechanical; what is uncertain is defect-hood: a deliberate interaction-style test is the known benign case. That uncertainty resolves TOWARD emitting: the row is emitted with `Confidence` omitted (the high-or-omitted rule), never withheld, so this rule needs no fall-through. The `cant-fail-ok:` decline evidence above is how a deliberate case is recorded. | CRITICAL's test fails every limb. The test can still fail (an interaction change fails it), and nothing produces a wrong result; what is defective, when it is, is that the oracle restates the implementation's interactions. IMPORTANT's degradation limb matches: a behavioral regression in the real collaborator ships green while the interactions hold, and that trigger is nameable. The benign-case uncertainty lives in `Confidence` and the consumer's gating, never in the tier. A per-finding tier drop is exactly what a rule-keyed map forbids. | IMPORTANT | No, contained to `Location`, but choosing the real-collaborator oracle over the interaction contract is design judgment; Step 4 surfaces it |
-| testing/audit/rule-flaky-passes-suite | A Playwright config whose counted `retries` is a literal above zero or an expression while depth-1 `failOnFlakyTests` is absent or literal `false` (threshold: retries > 0 or an expression, failOnFlakyTests absent or literal false); one finding per config, at the first counted `retries`. Selection is a mechanical read of the config object, and **every withholding boundary requires its evidence PRESENT**: `spread-undecidable` requires a depth-1 spread token, `variadic-undecidable` a second `defineConfig` argument, `key-below-top-level` the only occurrence of the key read below depth 1 (reported as a fact about where the key sits, with no claim about what the run does), `key-set` `failOnFlakyTests` read as `true` or as an expression, and the `cant-fail-ok:` decline the annotation in the file. `retries-not-configured` is the one decline an absence can select, and it is evidence-stated too: it requires a fully anchored config object carrying no depth-1 spread and no second argument, every depth-1 and `projects[]` key read, and either no counted `retries` at all or every counted one a literal `0` (an expression fires, it never declines). The complete read IS the positive evidence, and an absent `retries` resolves to `0` at runtime, so the decline rests on a provable zero rather than on an unresolved judgment. A config whose object literal cannot be anchored is not a decline at all: it is counted in `## Surfaces` as enumerated and not examined, the same coverage statement the test-file denominator makes about a file of another ecosystem. Every decline is counted per rule. | CRITICAL's test fails on every limb: a runner setting makes no concrete input, caller, or subsequent otherwise-correct change produce a wrong result, an unsafe one, or none at all. What it changes is whether a failure the suite already detected is reported. IMPORTANT's degradation-with-a-named-trigger limb then matches, and it matches on a PRESENT configuration state rather than a hypothetical chain: retries are configured now and `failOnFlakyTests` is not, so the run is already one that reports green on a recovered failure. The trigger is one nameable event, the first regression that fails and then passes on a retry, which ships under a green run and an unread flaky marker. First match wins there. `Confidence` is omitted rather than `low`, per the high-or-omitted rule, because defect-hood is contested: a team may accept flaky tolerance deliberately, and the `cant-fail-ok:` annotation is how that decision is recorded. The contest lives in `Confidence` and in the `--strict` gating, never in the tier. | IMPORTANT | No, the remediation is a config line the team chooses (`failOnFlakyTests: true`, which needs Playwright 1.52 or later, or `retries: 0` where the suite is meant to be deterministic). `Location` is the config, so the site is contained, but failing a run on flaky tests is a policy decision the Action proposes and the relay surfaces |
-| testing/audit/rule-only-not-forbidden | A Playwright config whose depth-1 `forbidOnly` is absent (Location the config object's anchor line) or literal `false` (Location that line), threshold: forbidOnly absent or literal false. The same mechanical read of the same object, under the same withholding boundaries, each requiring its evidence PRESENT: `spread-undecidable` a depth-1 spread token, `variadic-undecidable` a second `defineConfig` argument, `key-below-top-level` the only `forbidOnly` read below depth 1 (again a placement fact, no runtime claim), `key-set` `forbidOnly` read as `true` or as an expression (`!!process.env.CI` is the documented scaffold idiom, so any non-`false` expression passes), and the `cant-fail-ok:` decline the annotation. Absence of the key is the FINDING here rather than a decline, so this rule carries no absence-selected withholding at all. An unanchorable config is again a coverage boundary and not a decline: enumerated, not examined, counted in `## Surfaces`. | CRITICAL fails every limb on the same walk as the row above: nothing is made to produce a wrong, unsafe, or absent result; what changes is what a run reports. IMPORTANT's degradation limb matches, and the present state carries it: the `npm init playwright` scaffold ships the `forbidOnly` guard, so its absence is a guard removed from the shipped shape now, not a guard nobody considered. The trigger is one event, the first commit carrying a `test.only` that reaches a run, after which the suite IS that one passing test and every other test goes unreported under a green exit. SUGGESTION's catch-all is never reached, because the alternatives do not both work: without the guard a green run is not evidence the suite ran. `Confidence` is omitted for the same contested defect-hood as the row above, a team may trust review to catch a committed `.only`, and that contest stays in `Confidence` and the `--strict` gating rather than moving the tier. | IMPORTANT | No, the Action proposes the scaffold idiom `forbidOnly: !!process.env.CI` in the config, and whether the guard binds on CI only, everywhere, or not at all is the team's call. Contained to `Location`, judgment to apply |
-| testing/audit/rule-inert-assertion | An assertion statement that never evaluates (threshold: at least 1): an async matcher nothing awaits or returns (a Playwright web-first matcher, `.resolves`/`.rejects`, `expect.poll`, `assert.rejects`, an xUnit/NUnit/MSTest `*Async` assertion), an `expect(...)` with no matcher or an uncalled one, a bare `.Should();`, MSTest `Assert.IsTrue(true)`, xUnit and NUnit `Assert.True(true)` and `Assert.False(false)`, a `typeof` or `nameof` constant asserted not null or compared to another (`Assert.NotNull(typeof(T))`, `Assert.True(nameof(T) == typeof(T).Name)`), a Python tuple assert or a Mock attribute such as `called_once_with`, a bats `run` whose result nothing checks or a `!` command that is not the test's last line, a harness `[ ]` whose status nothing reads, a bare Pester comparison, a Go branch that only logs. Selection is a statement-initial token match with no withholding verdict; the `cant-fail-ok:` decline evidence above applies. Report-only in Release 1: it prints and never gates `--check`, `--strict` included, until a precision run shows 0 false positives. | CRITICAL fails every limb: a statement that never evaluates makes nothing produce a wrong, unsafe, or absent result; it is evidence about the suite's oracle, not the source. IMPORTANT's degradation limb matches with a named trigger, as for the zero-assertion row: the behavior the statement appears to check can regress under a green run, because the check never runs. The report-only gate is a rollout decision about `--check`, not a tier drop. | IMPORTANT | No, contained to `Location`, but the repair (await it, call the matcher, drop the tuple, check what `run` captured) chooses the oracle the behavior deserves; Step 4 surfaces it |
-| testing/audit/rule-constant-restatement | An equality assertion whose one side is a constant (SCREAMING_SNAKE, bare or ending a member access, no call; a shell name only when nothing in the file assigned it) and whose other side is a literal, or, in JS and Python, a subject rooted in a name the same test bound to a literal while calling nothing but assertions (threshold: at least 1). Mechanical selection, no withholding verdict; a contract constant is declined by the `cant-fail-ok:` evidence above, counted in `## Surfaces`. Report-only. | CRITICAL fails every limb, and so does IMPORTANT's degradation limb: this test CAN fail, on a rename or a changed value, so it is a change detector rather than a can't-fail test, and no named trigger ships a regression green that a missing test would not ship too. No stated rule this repository adopted forbids it. SUGGESTION's catch-all matches: the test's cost is maintenance and a false sense of coverage, and a contract constant is the known benign case, which is why `Confidence` is omitted. | SUGGESTION | No, contained to `Location`, but replacing the restatement with a behavior assertion, or recording the constant as a contract, is judgment |
-| testing/audit/rule-source-text-read | A test reading a file by a static path (`readFileSync`, `open(...).read()`, `Path(...).read_text()`, `File.ReadAllText`, `os.ReadFile`, `Get-Content`, `cat`/`grep`/`sed`/`awk`/`head`) that resolves to a git-tracked, non-test source file (threshold: at least 1). Every withholding boundary requires evidence PRESENT: a path from a variable, a glob or a walk (`find`, `glob`, `readdir`, `Get-ChildItem`, `os.walk`) on the line, a temp, fixture or testdata path, or a target git does not track. The engine proposes candidates and the driver keeps only tracked targets; `cant-fail-ok:` declines are counted. Report-only. | The same walk as the constant-restatement row: the test can fail, on a reformat or a rename in the source text, so CRITICAL and IMPORTANT both fail, and SUGGESTION's catch-all matches. Codegen and lint-style tests over one file are the known benign case, so `Confidence` is omitted. | SUGGESTION | No, contained to `Location`, but exercising the code instead (render, call, run) is a redesign of the test's oracle |
-| testing/audit/rule-conditional-assertion | A test block whose every assertion sits inside an `if`, a `catch` (`.catch(...)` included) or a loop over a value the same test computed (threshold: 100% of its assertions). Every withholding boundary requires its evidence PRESENT: an `else` in the block, a length or count check (`toHaveLength`, `len(`, `.Count`, `-HaveCount`), a loop over a literal table or a name bound outside the test, a failing call (`fail(`, `Assert.Fail`, `t.Errorf`, `throw`) whose branch IS the assertion, or the `cant-fail-ok:` annotation, counted. Report-only. | CRITICAL fails every limb: code that may skip its assertions makes nothing produce a wrong, unsafe, or absent result; it is evidence about the suite's oracle. IMPORTANT's degradation limb matches with a named trigger: the first change that empties the result or stops the throw leaves the test asserting nothing under a green run. `Confidence` is omitted because a branch that always runs is the benign case the text cannot rule out. | IMPORTANT | No, contained to `Location`, but whether to assert the length, the throw, or the branch taken is the oracle the behavior deserves |
-| testing/audit/rule-recomputed-derived | An equality whose expected side rebuilds the value from the arguments of the call on the other side with an operator or an aggregate (`items.reduce(...)`, `sum(xs)`, `a + b`, `Measure-Object -Sum`), directly or through the test's one binding of a name; every free identifier must be an argument of that call (threshold: at least 1). Withholding boundaries, each requiring evidence PRESENT: a property-test marker in the file (`@given`, `fc.assert`, `fc.property`, FsCheck, CsCheck, `testing/quick`, `rapid`), the adapter's `rules_off` (Playwright, whose expected values come from seed data), or the `cant-fail-ok:` annotation. Report-only. | CRITICAL and IMPORTANT fail: the test CAN fail (an `add` that subtracts fails `expect(add(a, b)).toBe(a + b)`), so it is not a can't-fail test, and no stated rule this repository adopted forbids it. SUGGESTION's catch-all matches: the expectation repeats the algorithm, so a mistake the test and the code share passes green, and no specified value is checked. `Confidence` is omitted because a contract stated as a formula is the known benign case. | SUGGESTION | No, contained to `Location`, but the independent expected value is a judgment about what the behavior should produce |
-| testing/audit/rule-snapshot-only | A test block whose every assertion is a snapshot call (`toMatchSnapshot`, `toMatchInlineSnapshot`, `toMatchAriaSnapshot`, syrupy `== snapshot`, `assertMatchSnapshot`, statement-initial `Verify(`, `t.assert.snapshot`, `snaps.MatchSnapshot`, cupaloy), finding text `snapshot is the only oracle: review it as code` (threshold: 100%). An image comparison (`toHaveScreenshot`) is never a snapshot; the `cant-fail-ok:` decline is counted. Report-only. | CRITICAL and IMPORTANT both fail: the test CAN fail when the output changes, and a reviewed snapshot is a legitimate oracle, so no named trigger ships a regression that a missing test would not. SUGGESTION's catch-all matches: an unreviewed approval is the risk, and review is the remedy. `Confidence` is omitted for the reviewed-snapshot case. | SUGGESTION | No, contained to `Location`, but which value deserves a literal beside the snapshot is judgment |
-| testing/audit/rule-weak-oracle | A test block whose every assertion is a weak matcher (`toBeDefined`, `toBeTruthy`, `not.toBeNull`, `is not None`, `assertIsNotNone`, `Assert.NotNull`, `Is.Not.Null`, `Should -Not -BeNullOrEmpty`, a Go `== nil` check whose branch only fails) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`, `assertRaises(Exception)`, `Assert.ThrowsAny<Exception>`, a bare `Should -Throw`, a single-argument `assert.throws`) (threshold: 100%); a weak matcher beside any other assertion never fires, and the `cant-fail-ok:` decline is counted. Report-only. | CRITICAL and IMPORTANT fail: the test CAN fail (a missing value or no throw fails it), so it is not a can't-fail test, and no stated rule this repository adopted forbids it. SUGGESTION's catch-all matches: most wrong answers still pass, and presence being the whole contract is the known benign case, which is why `Confidence` is omitted. | SUGGESTION | No, contained to `Location`, but naming the exact value or exception the code should produce is judgment |
-| testing/audit/rule-throw-only-oracle | A C# test block whose every assertion checks only that a value the test built with `new` exists or has its type (`Assert.NotNull`, `Assert.IsNotNull`, `Assert.IsType<T>`, `Assert.That(x, Is.Not.Null)`, the adapters' `assertion.exists` list), so only a throwing constructor fails it (threshold: 100%); a check of any other value stays the weak or strong oracle it was, and the `cant-fail-ok:` decline is counted. Report-only. | CRITICAL and IMPORTANT fail: the test CAN fail (a constructor that throws fails it), so it is not a can't-fail test, and no stated rule this repository adopted forbids it. SUGGESTION's catch-all matches: anything the constructor sets wrong still passes, and a smoke test kept to prove construction or wiring succeeds is the known benign case, which is why `Confidence` is omitted. | SUGGESTION | No, contained to `Location`, but naming what the constructed value should hold is judgment |
-| testing/judge/rule-restated-expectation | A FLAG verdict from the testing plugin's task-end judge, a headless model run of a class that differs from every model that wrote the test, on a test block the session created or changed: the block's expected value restates the implementation (copied from the code's output, rebuilt with the code's algorithm, or taken from a stub or snapshot the test derived from the code). Threshold: a FLAG whose every quoted line appears verbatim, whitespace trimmed, in the current test file or another file of its repository (the implementation line the expected value restates is often the best evidence) and whose proposed diff passes `git apply --check` touching only that file. Selection is a model's judgment, so the relay requires that **validated outcome**: a FLAG failing either check is relayed to the human as UNKNOWN with the failed check as its reason and never reaches the table. Every non-emitting verdict stays on the human report: a PASS must quote the independent source it found (a PASS quoting nothing, or a quote found in no file of the repository, becomes UNKNOWN), and PASS and UNKNOWN verdicts are listed with their evidence in the file's own verdict section and counted in `## Surfaces`, so nothing falls toward silence. `Confidence` is omitted because a judgment selected the row. | CRITICAL and IMPORTANT fail: the test CAN fail (an `add` that subtracts fails `expect(add(a, b)).toBe(a + b)`), so it is not a can't-fail test, and no stated rule this repository adopted forbids it. SUGGESTION's catch-all matches: the expected value repeats what the code computes, so a mistake the test and the code share passes green and no specified value is checked. The same walk as `testing/audit/rule-recomputed-derived`, the mechanical detector of the textual core of this defect; this rule reaches the shapes no token scan can (a stub pass-through, a hand-derived snapshot inside the block) and so lands on the same tier. | SUGGESTION | No, contained to `Location`'s file, but the independent expected value is a judgment about what the behavior should produce; the judge's proposed diff is shown for a human to approve and is never applied |
-| ai-slop/audit/rule-em-dash | An em dash in prose outside code fences, inline code, in-file ignore markers, and config-declared exempt documents (zero-tolerance: any occurrence; per-document exemption only, never a threshold). Selection is a byte-sequence scan with no withholding verdict, fail-safe by construction; declines carry stated evidence (marker, config path, code fence) and are counted per rule in `## Surfaces`. | CRITICAL fails every limb: prose punctuation makes no input, caller, or subsequent change produce a wrong result. IMPORTANT fails: the shipped default names no stated rule of the consuming repo, and a style tell has no degradation trigger to name. A repo that declares a no-em-dash rule is enforcing its own convention through config, which does not move the baseline tier. SUGGESTION's test holds: a preference among alternatives that all work. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. The repair rewords the sentence (comma, colon, period, or restructure), a judgment call, not a mechanical swap |
-| ai-slop/audit/rule-emoji-formatting | An emoji in formatting position (line start, heading lead, or list-marker lead) on a prose line, outside the exempt contexts above. Mechanical selection, no withholding verdict; same counted decline evidence. | Same walk as rule-em-dash: no wrong result (CRITICAL fails), no stated baseline rule or nameable degradation trigger (IMPORTANT fails), a formatting preference among working alternatives (SUGGESTION holds). | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Removing a formatting emoji changes the line's structure; the repair is a small rewrite, not a strip |
-| ai-slop/audit/rule-curly-artifacts | A curly quote, curly apostrophe, zero-width space, or no-break space in prose (chat-interface paste residue), outside the exempt contexts above. Mechanical byte-class selection, no withholding verdict; counted declines. | No wrong result is producible from typography bytes (CRITICAL fails). IMPORTANT fails at baseline: whether straight quotes are the rule is the consuming repo's convention, not this contract's, and no degradation trigger attaches to a rendered curly quote. SUGGESTION holds: a preference between typographic and typewriter punctuation, both of which work. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Most swaps are mechanical, but apostrophes inside contractions and deliberate typography make the safe form a reviewed edit |
-| ai-slop/audit/rule-significance-inflation | A stock significance phrase ("stands as a testament", "pivotal moment", "reflects broader", "evolving landscape", and the catalog's list) on a prose line, outside the exempt contexts above. Mechanical phrase-list selection, no withholding verdict; counted declines. | The phrase asserts importance, it does not compute anything: CRITICAL fails every limb. IMPORTANT fails: no stated rule, and inflated register carries no nameable degradation trigger. SUGGESTION holds: plain statement and inflated statement both function; the finding is a register preference backed by the source catalog. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. The repair deflates a claim, which changes what the sentence asserts; semantic judgment, never auto-applied |
-| ai-slop/audit/rule-negative-parallelism | A "not just X but Y" or "isn't X; it's Y" construction on a prose line, outside the exempt contexts above (the source's third pattern, "X rather than Y", is deliberately not selected in V1, being too common in ordinary prose; recorded in the catalog). Mechanical selection, no withholding verdict; counted declines. | A rhetorical construction produces no wrong result (CRITICAL fails). No stated rule or degradation trigger (IMPORTANT fails). SUGGESTION holds: the construction and its plain restatement both work; the finding is a register tell. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Collapsing the parallelism is a rewrite of the sentence's emphasis; judgment |
-| ai-slop/audit/rule-challenges-conclusion | The outline-formula conclusion ("Despite its X, faces challenges", "challenges remain/ahead") on a prose line, outside the exempt contexts above. Mechanical selection, no withholding verdict; counted declines. | No computation, no wrong result (CRITICAL fails); no stated rule or nameable trigger (IMPORTANT fails); SUGGESTION holds: the formula and a substantive close both work, and the finding is the formula. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Replacing a formulaic close requires writing an actual conclusion; judgment |
-| ai-slop/audit/rule-knowledge-cutoff-disclaimer | An assistant-frame provenance phrase ("as of my knowledge cutoff", "as of my last update", "as an AI model") in committed prose, outside the exempt contexts above. Mechanical phrase selection, no withholding verdict; counted declines. The known benign class (prose ABOUT model cutoffs) is recorded in the catalog's calibration record and declines only via marker or config with that stated evidence. | CRITICAL fails: the sentence computes nothing. IMPORTANT's degradation limb matches with a named trigger: the disclaimer asserts a provenance and freshness caveat that is false of the committed document, and the trigger is the first reader who acts on the caveat as if it governed the document (treating current content as stale or unverifiable). The cost is reader-facing degradation of the document's authority, not a preference between working alternatives, so the SUGGESTION catch-all is never reached. | IMPORTANT | No, remediated by `/ai-slop:audit fix`. The repair usually deletes the sentence, but deciding whether surrounding prose depended on it is a read |
-| ai-slop/audit/rule-llm-citation-artifacts | Model-internal citation residue (`oaicite`, `[cite:`, `grok_card`, `attached_file`, `contentReference`, `filecite`) in prose, outside the exempt contexts above. Mechanical fixed-string selection, no withholding verdict; counted declines. | CRITICAL fails: broken reference text computes nothing and breaks no caller. IMPORTANT's degradation limb matches with a named trigger: the residue renders as a dangling reference token where a citation was meant to be, and the trigger is the first reader chasing the reference the token pretends to be. That is reader-visible breakage, not a style preference, so SUGGESTION is never reached. | IMPORTANT | No, remediated by `/ai-slop:audit fix`. Deleting the token leaves the claim uncited; whether to drop, replace, or source the citation is judgment |
-| ai-slop/audit/rule-utm-params | A `utm_*=` tracking parameter inside a URL in prose, outside the exempt contexts above. Mechanical selection, no withholding verdict; counted declines. | CRITICAL fails: the link resolves identically without the parameter, so no wrong result is producible, which is also the auto-applicability argument. IMPORTANT fails: no stated rule, and the maintenance cost has no nameable trigger (the link works). SUGGESTION holds: URL with and without tracking both work; stripping is hygiene. | SUGGESTION | Yes, contained to `Location`, and the strip is meaning-preserving by the same argument that fails CRITICAL: the URL's resolution is unchanged |
-| ai-slop/audit/rule-ai-vocabulary | AI-vocabulary density at or above the effective threshold (default 3.0 matches per 1000 words, minimum 3 matches; word list config-tunable) in a file's prose, outside the exempt contexts above. The fired condition carries the run's own values (density, threshold, hits, words). Mechanical selection, no withholding verdict; counted declines. | Word choice produces no wrong result (CRITICAL fails). No stated baseline rule, no degradation trigger (IMPORTANT fails). SUGGESTION holds: every listed word has a working plain alternative; the finding is a distributional register tell from the source catalog. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Replacing vocabulary requires choosing each replacement in context; judgment |
-| ai-slop/audit/rule-copulative-avoidance | Copulative-substitute density ("serves as", "functions as", "represents a", and the catalog's list) at or above the effective threshold (default 4.0 per 1000 words, minimum 3 matches), same exempt contexts and fired-condition form as the vocabulary rule. Mechanical, no withholding verdict; counted declines. | Same walk as rule-ai-vocabulary: no wrong result, no stated rule or trigger, a register preference between "serves as" and "is" where both work. SUGGESTION holds. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Same in-context replacement judgment |
-| ai-slop/audit/rule-rule-of-three | Nothing, having been demoted from the script roster to the judgment rubric (catalog reclass, 2026-08-25). The density heuristic could not see the catalog's own boundary ("enumerating three actual things is not a tell"): a full dogfood fix pass ended with every residual finding on an enumeration of three actual things, and the shipped ERE matched only single-word triads, selecting for exactly the terse operative lists the boundary protects. | Argued from the producer boundary, not from a tier test: rubric verdicts never enter the findings file (the V1 relay boundary), so there is no row to tier. The tell itself stays catalogued and rubric-applied; what changed is that a reader now makes the rhythm-versus-enumeration call a regex demonstrably cannot. | No row, rubric-demoted | Not applicable, no row |
-| ai-slop/audit/rule-chatbot-artifacts | A chat-turn or sycophancy phrase ("I hope this helps", "let me know if you", "great question", "you're absolutely right", and the catalog's list) on a prose line, outside the exempt contexts above. Mechanical phrase selection, no withholding verdict; counted declines. | CRITICAL fails: a stray chat phrase computes nothing and breaks no caller. IMPORTANT's degradation limb matches with a named trigger, on the same walk as rule-knowledge-cutoff-disclaimer's: the phrase asserts a conversational exchange that is false of the committed document, since there is no chat partner to "let know", and the trigger is the first reader who takes the document as an unedited assistant transcript and discounts its authority accordingly. Reader-visible generation residue, not a preference among working phrasings, so the SUGGESTION catch-all is never reached. | IMPORTANT | No, remediated by `/ai-slop:audit fix`. The sentence usually deletes, but chat residue can carry real content ("let me know if the retry loop misbehaves") that must survive in document register |
-| ai-slop/audit/rule-filler-phrases | A multiword filler phrase with a shorter exact equivalent ("in order to", "due to the fact that", "it is important to note that", and the catalog's list) on a prose line, outside the exempt contexts above. Mechanical phrase selection, no withholding verdict; counted declines. | Filler wording produces no wrong result (CRITICAL fails every limb). IMPORTANT fails: the shipped default names no stated rule of the consuming repo, and verbosity carries no nameable degradation trigger. SUGGESTION holds: "in order to" and "to" both work; the finding is a concision preference from the source catalog. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. The word swaps are near-mechanical, but the deletable phrases ("it is important to note that") change sentence emphasis when removed |
-| ai-slop/audit/rule-stacked-hedging | Two stacked hedges in one phrase ("could potentially", "might possibly", and the catalog's list) on a prose line, outside the exempt contexts above. Mechanical phrase selection, no withholding verdict; counted declines. | A doubled hedge produces no wrong result and weakens no caller (CRITICAL fails). IMPORTANT fails: no stated rule, and redundant hedging has no nameable degradation trigger. The claim's uncertainty is stated either way. SUGGESTION holds: one hedge and two hedges both express the uncertainty; the finding is a redundancy preference. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Choosing which hedge states the real uncertainty is a claim-strength judgment |
-| ai-slop/audit/rule-model-era-phrases | A model-era stock construction from the catalog's "Model-era additions" roster ("the part most people skip", "the/my honest take", "that's the unlock"; config-extended via `phrase_add`/`phrase_remove`) on a prose line, outside the exempt contexts above. Mechanical phrase selection, no withholding verdict; counted declines; config-supplied fragments are validated at read time and an invalid or empty fragment is skipped with a stderr note, never allowed to error the rule into a silent zero. | A stock construction produces no wrong result and breaks no caller (CRITICAL fails every limb). IMPORTANT fails on the same walk as rule-filler-phrases: unlike the chat-turn residue row above, these constructions assert nothing false of the committed document, with no conversational exchange and no absent chat partner, and era-marked phrasing carries no nameable degradation trigger; the shipped default names no stated rule of the consuming repo. SUGGESTION holds: "that's the unlock" and a sentence naming the mechanism both work; the finding is a register preference among working phrasings, from a dated, evidence-graded catalog section. | SUGGESTION | No, remediated by `/ai-slop:audit fix`. Stating the point without the stock construction is a rewrite judgment (the deleted punchline sometimes carries the claim) |
-| harness-config/audit-instructions/rule-coercive-emphasis | A forced-compliance emphasis marker (`CRITICAL:`, `IMPORTANT:`, `You MUST`, `MANDATORY`, `ALWAYS use`, `NEVER skip`) on an instruction line, **body-scoped**: frontmatter is fenced out, as is any body line quoting a `'trigger phrase'` that appears in the file's own `description`. Case-sensitive, because the all-caps marker IS the signal (threshold: any occurrence; the fired marker travels in the `Finding` cell). Mechanical byte-sequence selection with no withholding verdict, so the fail-safe criterion is met by construction; the criteria row's carve-outs (emphasis guarding a destructive or security gate, a stated hard precondition, a document *about* the pattern) are the model lane's, and every fence decline is counted in `## Surfaces`. | CRITICAL fails every limb: instruction prose computes nothing, so no concrete input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result. What the emphasis changes is how likely a trigger is to fire, which is a distribution over behavior rather than a determined result. IMPORTANT's degradation-with-a-named-trigger limb then matches, and the trigger is nameable rather than hypothetical: the first session in which the over-emphasized instruction fires on input its actual condition does not cover, spending a tool or skill invocation the condition never warranted. Official guidance supplies the mechanism, not merely a preference: prompting written against undertriggering "may now overtrigger", so this is a stated upstream rule the surface violates, not a choice among phrasings that all work. SUGGESTION's catch-all is therefore never reached: the alternatives do not both work, one overtriggers. | IMPORTANT | No, contained to `Location`, but the repair is a **downgrade, never a deletion**: the directive survives verbatim and only its volume changes, and deciding the normal-conditional phrasing that preserves the instruction is a rewrite judgment. Verbatim survival is asserted apart from **sentence-initial capitalization forced by dropping a leading wrapper** (`…MUST resolve` → `Resolve`), a change the official source's own worked example makes too (`use` → `Use`); any other wording change means the remediation overreached |
-| harness-config/audit-instructions/rule-blanket-tool-default | A blanket tool default ("default to using/running/calling", "if in doubt, use", "always use", "use even when") on an instruction line, under the identical body-scope fences and counted declines as the emphasis rule above. Mechanical phrase-list selection, case-folding, no withholding verdict. | The same walk, on the same mechanism and the same official source, which is why the two rules share a tier: a blanket default is the second arm of one defect: prompting written against undertriggering that no longer exists. CRITICAL fails identically (the phrasing determines no wrong result). IMPORTANT's degradation limb matches with the same nameable trigger, sharpened by the guide stating the consequence outright: "Instructions like 'If in doubt, use [tool]' will cause overtriggering". So the cost is a named behavioral one, not a register preference, and SUGGESTION is never reached. | IMPORTANT | No, contained to `Location`, but the repair replaces the blanket with the targeted condition it stood in for; recovering that condition is judgment, and the instruction itself is kept, never deleted |
-| harness-config/audit-instructions/rule-description-restatement | An H2 section whose every content unit is recoverable from the file's own `description` (the capability sentence; Use-when / Not-for is stripped before comparison), **body-scoped**: the scanner never points at frontmatter, and the writer independently declines any body row quoting a `'trigger phrase'` from the file's own `description` / `when_to_use`. Selection is mechanical token-containment with a length floor, no withholding verdict; a section with one unique content token is not a finding (threshold: wholly recoverable; the fired shape travels in the `Finding` cell). | CRITICAL fails every limb: restated prose computes nothing, so no concrete input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result. The description is already in context, and the body copy is a second load of the same bytes. IMPORTANT's degradation-with-a-named-trigger limb then matches: the trigger is the next session that pays the listing `description` *and* the body restatement for the same fact, spending tokens on content the model already has loaded. SUGGESTION is never reached. Keeping both copies is not a working alternative, it is the defect. | IMPORTANT | No, contained to `Location`, but the repair is a **cut of the body only**: the description, `when_to_use`, and every quoted trigger phrase must survive verbatim, because check-skill.sh check 3 hard-FAILs a dropped trigger phrase. Deciding that a near-match is still wholly recoverable is a rewrite judgment the relay surfaces. |
-| harness-config/audit-instructions/rule-sibling-restatement | An H2 section whose every content unit is recoverable from a sibling H2 section of the same file, under the identical body-scope fences and counted declines as the description-restatement rule. Footer headings (`Cross-references`, `Sources`, `History`, `External authority`, `Recheck triggers`) are sources for the comparison and are never themselves a finding. | The same walk on the same mechanism, a second load of bytes already in the file, which is why the two I29 rules share a tier. CRITICAL fails identically. IMPORTANT's degradation limb matches with the same nameable trigger, sharpened by the sibling being three lines above the copy (the #3122 morning-brief shape): the reader pays twice for one fact inside one invocation. SUGGESTION is never reached. | IMPORTANT | No, contained to `Location`, and the same body-only cut: the source section stays; only the restating copy is removed. |
-| harness-config/audit-instructions/rule-trigger-less-stamp | A claim carrying an as-of date ("verified 2026-07-13", "as of 2.1.240") with no observable event that would re-open it, selected by a model lane and emitted through `emit-findings.sh --from-lane` (threshold: three of the four record parts present, the recheck trigger absent; the fired shape travels in the `Finding` cell). The catalog tiers it `mechanical`, but no scanner seeds it, so selection is the lane's, and **every withholding boundary requires its evidence PRESENT**: a trigger living in an owner record requires the site to name that record, the history exemption requires the file to be a CHANGELOG or an ADR, and date-as-data requires the date to sit in a data position such as a release table. A candidate showing none of them emits. Body-scoped under the identical fences and counted declines as the rules above, and `Confidence` is omitted because a judgment selected the row. | CRITICAL fails every limb: a stamp missing its trigger makes no input, caller, or subsequent otherwise-correct change produce a wrong, unsafe, or absent result. IMPORTANT's stated-rule limb then matches directly: this fleet adopted the upstream-drift record (a pointer, an as-of date, and an observable recheck trigger beside the decision) in writing, in the upstream-drift convention and `.claude/rules/skill-bodies-state-current-rules.md`, so a trigger-less stamp violates a rule the fleet states rather than one phrasing among several. This is the walk `attribution/audit/rule-trigger-less-stamp` makes on the same record. SUGGESTION is never reached. | IMPORTANT | No, contained to `Location`, but writing the missing trigger is a judgment about which observable event obliges re-derivation, and the stamp itself is kept |
-| harness-config/audit-instructions/rule-migration-relative-phrasing | Migration-relative phrasing ("now works differently", "no longer", "instead of the old", "since the change") in a file on the surfaces [`criteria.md`](../../../plugins/harness-config/skills/audit-instructions/reference/criteria.md) `### I31` defines, describing a diff against a version the reader never saw, selected by a model lane and emitted through `--from-lane` (the fired shape travels in the `Finding` cell). Behavioral and unseeded, so selection is a judgment, and **every withholding boundary requires its evidence PRESENT**: the structural-contrast exemption requires the sentence to name two current mechanisms, the history exemption requires a CHANGELOG or an ADR, and the four-part-record exemption requires all four parts with a trigger naming the prior state. A candidate showing none of them emits. A row outside the surfaces `### I31` defines is declined by the writer (`reason=outside-rule-surfaces`) and counted: that is where the remedy is offered, not a verdict on the text. Body-scoped under the identical fences; `Confidence` omitted. | CRITICAL fails every limb: the phrasing computes nothing, so no input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result. IMPORTANT's degradation-with-a-named-trigger limb matches: the trigger is the first session that loads the spoke, where "no longer counts" states only the negation of a prior state the reader never loaded, so the current rule must be inferred from half a diff. That is a named cost, not a register preference, so SUGGESTION is never reached. | IMPORTANT | No, the remediation can lie outside `Location`'s file: the sentence is restated at `Location`, and any history worth keeping moves to the owning plugin's `CHANGELOG.md` or an ADR, which every emitted row names in `Action` |
-| harness-config/audit-instructions/rule-route-to-absent-skill | A `/<plugin>:<skill>` or `<plugin>:<skill>` reference in routing text whose target has no `plugins/<plugin>/skills/<skill>/SKILL.md`, or a routing sentence naming a plugin where a skill is required, selected by a model lane and emitted through `--from-lane` (the named target travels in the `Finding` cell). The rule has two arms, from [`criteria.md`](../../../plugins/harness-config/skills/audit-instructions/reference/criteria.md) `### I32`: the marketplace arm (`Location` under `plugins/`), which is the reference described above, and the user and project arm, which `### I32` defines. The tier follows the arm. Unseeded, so selection is the lane's, and **every withholding boundary requires its evidence PRESENT**: the bundled-skill exemption requires the reference to be marked bundled, the capability-by-class exemption requires the sentence to carry no binding, and the example exemption requires a fence around it. A candidate showing none of them emits. **Body-scoped**: the catalog row reaches descriptions and frontmatter routing clauses, but the relay is body-scoped, so a frontmatter-located row is declined by the writer (`reason=frontmatter`) and counted, never silently dropped, and stays in the human report (at least one measured row sits on a `SKILL.md` description line). `Confidence` omitted. | **Marketplace arm.** CRITICAL's none-at-all limb matches, and the input is nameable: a request matching the routing clause, in a session that follows the route, invokes a skill that does not exist, so the routed path produces no result at all. Unlike an emphasis or restatement row this is not a shift in how likely a behavior is: every session that follows the route reaches the same absent target. First match wins there, so the IMPORTANT and SUGGESTION tests are not reached. **User and project arm.** CRITICAL's limb is not established, for the reason `### I32` gives for this arm's `warning` severity: one session's skill listing is not every session's, so a skill absent from the listing the run saw can be present where the surface is read, and the evidence in hand names no session whose route reaches nothing. `### I32` sets this arm at `warning`, the catalog severity of `### I31` too, whose row is IMPORTANT; `criteria.md` is the authority for the tier, and this row states no argument beyond the reason it gives. | CRITICAL on the marketplace arm (`Location` under `plugins/`), IMPORTANT on the user and project arm | No, contained to `Location`, but choosing which existing skill the route means, or rephrasing it by capability class, is a judgment about intent; the routing sentence is kept and repointed |
-| harness-config/audit-instructions/rule-spoke-self-description | The opener of a spoke on the surfaces [`criteria.md`](../../../plugins/harness-config/skills/audit-instructions/reference/criteria.md) `### I33` defines, describing its own role or loading ("this file is read by step 3", "the hub links here") instead of stating its content, one finding per spoke keyed on the opener sentence's excerpt anchor, selected by a model lane and emitted through `--from-lane` (the fired shape travels in the `Finding` cell). Behavioral and unseeded, so selection is a judgment, and **every withholding boundary requires its evidence PRESENT**: the scope-note exemption requires one line bounding the file's subject, the index exemption requires the text to be the hub's own index table, and the frontmatter exemption requires a frontmatter position, which the writer also re-fences. A candidate showing none of them emits. A row outside the surfaces `### I33` defines is declined (`reason=outside-rule-surfaces`) and counted. `Confidence` omitted. | CRITICAL fails every limb: a self-description computes nothing and routes nothing. IMPORTANT fails: the catalog row is house guidance that no fleet rule adopts in writing, and its cost has no nameable degradation trigger, since the content below the opener loads and is followed either way. SUGGESTION holds: a spoke with and without the self-description both work, and the finding is a preference for spending the opener on content, which matches the catalog row's `info` severity. | SUGGESTION | No, the remediation can lie outside `Location`'s file: the opener is deleted at `Location`, and when the hub's index row does not already carry the loading condition it is added there, the hub every emitted row names in `Action` |
-| attribution/audit/rule-verbatim-copy | A fingerprint-confirmed matched span (fired values: containment, span words, source URL, identity check). Deterministic confirmation over a resolved source, no withholding verdict; the copy-class judgment verdicts around it (`source-fetched-similar`, `llm-suspected`, split rubric outcomes) have no rows because they never reach the relay (a restated-fact finding is a different class and reaches it only under its own rule, `rule-restated-upstream-fact` below), and every one of them falls toward a report-only human surface rather than toward silence. | CRITICAL fails every limb: copied prose computes nothing, so there is no input, caller, or subsequent otherwise-correct change the copy makes produce a wrong result, an unsafe one, or none at all. IMPORTANT matches twice over: the stated-rule limb (the org standard `documentation-and-citations.md` says prefer citing and fetching at read time over storing a snapshot, so a retained copy violates a rule the org already adopted in writing) and the degradation limb with a named trigger (the upstream page's next content change strands the local copy; the first reader trusting the stale copy acts on drifted facts under this repo's authority). SUGGESTION is never reached. | IMPORTANT | No, remediated by `/attribution:audit fix`. Choosing the disposition, clearing the semantic-diff guard, and verifying pointer liveness before writing are producer-owned |
-| attribution/audit/rule-stamp-expired | A stamped record (pointer, as-of date, observable recheck trigger) whose as-of date exceeds the configured window (fired values: date, window, days over). Deterministic date arithmetic, no withholding verdict; a stamp whose date form does not parse is declined with the form named and counted on the run's own surface rather than folded into the clean count. | CRITICAL fails on the same walk as the copy rule: a lapsed stamp computes nothing, so no input, caller, or subsequent otherwise-correct change is made to produce a wrong result by it. IMPORTANT's degradation limb matches with a named trigger: the record's currency ceiling has lapsed, and the first reader acting on the stamped claim without the re-fetch the convention requires acts on an assertion nobody has re-derived. Because that limb matches, SUGGESTION is never reached. | IMPORTANT | No, the repair is re-deriving the record against its pointer and restamping, or replacing the restatement with a pointer, and which of the two applies is a judgment the relay surfaces rather than applies |
-| attribution/audit/rule-trigger-less-stamp | Repo-override only: a dated stamp whose surface states no recheck trigger. The portable default is OFF, and a repo turns it on by adopting the upstream-drift required parts; over the enabled corpus selection is mechanical, with no withholding verdict. | CRITICAL fails first: a stamp missing its trigger produces no wrong result, unsafe result, or absent one. IMPORTANT then matches on the stated-rule limb directly: the consuming repo that enables this check has adopted the upstream-drift required parts, and a trigger-less stamp violates part 4, a rule that repo adopted in writing. So SUGGESTION is never reached. The portable default stays off because the fleet's stamp forms are not uniformly greppable and a guessing gate converts signal to noise; that is a selection decision, and it is stated here so it is not read as part of the tier argument. | IMPORTANT | No, writing the missing trigger is a judgment about which observable event obliges re-derivation (upstream-drift required part 4) |
-| attribution/audit/rule-restated-upstream-fact | A passage restating a fact an external source owns (a constant, default, version pin, field list, or the semantics of a named external product) with neither a pointer at the point of use nor a whole stamped record (pointer, as-of date, observable recheck trigger). Selection is a model panel's judgment, so the relay requires a **declared outcome**: the finding's class is `restated-fact`, the panel graded it unanimous STANDS under the restated-fact rubric, and the refutation pass (a fresh-context adversary told to default to refute) returned SURVIVES. A split panel, a REFUTED finding, an UNKNOWN grade, and a restated-fact finding declaring no such outcome are not emitted: they stay on the human report and are counted in `## Surfaces`. The declared outcome decides, never the evidence tier: a restated-fact finding maps by fixed rule to `source-fetched-similar`, `llm-suspected` or `not-found` and is never `fingerprint-confirmed`, and no tier name reaches the file (fired values: the panel size and the refutation outcome, plus the source URL when one was fetched). `Confidence` is omitted because a judgment selected the row. | CRITICAL fails every limb: restated prose computes nothing, so no input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result by the sentence existing. IMPORTANT's degradation limb matches with a named trigger and holds in any repository: the owner's next change to the restated default, limit, pin, or field list leaves the local statement wrong with nothing in the repository recording that it may be, and the first reader who acts on it acts on a fact nobody re-derived. IMPORTANT's stated-rule limb matches too where the rule is adopted: this repository's upstream-drift convention and `.claude/rules/skill-bodies-state-current-rules.md` require a pointer or a whole stamped record for a volatile specific a body depends on. SUGGESTION is never reached. **The fail-safe direction is argued as the copy row argues it.** Admission test 2 guards against an unresolved judgment silently withholding a finding, and this rule's selection does not do that: every non-emitting outcome (a carve-out, a split, a REFUTED, an UNKNOWN) stays on the human report and is counted in `## Surfaces`, so nothing falls toward silence. What separates it from the deterministic rows is that the relay is the narrower surface: the refutation pass defaults to refute and treats an open question as REFUTED, so what reaches the relay is what an adversary tried to break and could not. A carve-out declines a candidate only on evidence the rubric requires to be present (every part of a conforming record, or the distilling surface's own attribution line quoted), so a carve-out whose evidence is absent leaves the candidate with the panel. | IMPORTANT | No, report-only: neither `/attribution:audit fix` nor `sweep` reaches this class, so the producer names no fix. Which disposition applies (a pointer at the point of use, or a whole stamped record with a real observable recheck trigger) turns on whether the surface must work offline and on which event obliges re-derivation, both judgments the relay surfaces rather than applies |
-| docs-hygiene/audit-noise/rule-negation-without-positive | An **imperative** prohibition (`never`, `do not`, `don't`, `avoid`, `must not`, `should not`) opening the sentence, with no positive alternative stated in that sentence. Soft-wrapped sentences are accumulated across paragraph lines before classification; a finding is attributed to the first physical line of the triggering sentence. The imperative-only gate is what keeps the rule usable, and its effect is measured: without it the rule fired 1053 times on an 85-file sample (99% of all findings). Descriptive prose, an already-paired mid-sentence cue, and a table row are all out of scope. **Body-scoped**: `detect.sh` never leaves frontmatter, fenced code, exempt sections or opt-out-marked content, and the writer independently re-fences frontmatter and declines any body line quoting a `'trigger phrase'` that appears in the file's own `description` / `when_to_use`. Selection is per SENTENCE, on the backtick-unwrapped accumulated paragraph, and case-folded (threshold: any occurrence; the fired prohibition travels in the `Finding` cell). The other eight shapes stay line-scoped. **Decline evidence, three classes, each counted per shape in `## Surfaces`:** a body row whose line number falls inside frontmatter the writer re-fenced itself (`reason=frontmatter`); a body row quoting a `'trigger phrase'` present in the file's own `description` or `when_to_use` (`reason=quoted-trigger-phrase`); and a candidate the skill's model judgment lane dismissed on one of the grounds its `SKILL.md` enumerates under "Dismissal grounds the judgment pass may use", which is applied before the writer sees the row (`reason=judgment-lane-dismissal`). The first two are recomputed by the writer over its own input rather than trusted from the caller; the third is the model's and is why this producer is not fully mechanical end to end, only in its scanner. | CRITICAL fails every limb: instruction prose computes nothing, so no concrete input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result. A prohibition without its positive leaves the target under-specified rather than determined wrong. IMPORTANT's **stated-rule** limb then matches directly, and does so without needing the degradation limb: `docs-hygiene:write-for-agents` "Prompt the positive" is a rule this fleet already adopted in writing, "Write what to do, not what to avoid", so a bare prohibition is a surface violating a stated rule rather than one phrasing among several that all work. Official guidance supplies the same mechanism (*"Do not use markdown"* → *"Your response should be composed of smoothly flowing prose paragraphs"*). SUGGESTION's catch-all is therefore never reached. | IMPORTANT | No, contained to `Location`, but the repair rewrites to the positive target the prohibition implies, and recovering that target is a rewrite judgment: the constraint must survive while its framing changes. Matches the disposition of both `audit-instructions` rules for the same reason |
-| docs-hygiene/audit-noise/rule-negation-hard-guardrail | **Non-emitting.** A prohibition whose sentence also carries a safety-critical marker (`secret`, `credential`, `token`, `password`, `api key`, `force-push`, `--force`, `rm -rf`, `destructive`, `irreversible`, `data loss`, `production`, `security`, `vulnerab`, `rewrite history`), a hard guardrail whose constraint a positive form cannot carry, where the prohibition IS the correct shape. | **Boundary ground, not a tier test**: the contract's "Findings that never reach a relay". This disposition is argued from the Boundary because a tier test can only ever return a tier, and the claim here is that the candidate is not a defect at all: the sibling `write-for-agents` rule itself preserves the negation "when the positive form genuinely loses the constraint". Reaching for a tier test to justify the non-emission would look argued while arguing nothing. **Fail-safe direction:** the carve-out requires its marker to be PRESENT on the sentence, so absence of that evidence selects the emitting rule above. An unresolved judgment can never withhold. The same holds for the paired-positive boundary (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`) and the worked-example boundary (a `->` / `→` demonstration): each requires positive evidence, and both were checked rather than only the one easier to argue. | *(never reaches the relay)* | Not applicable, no row, and suppressed from the human report too, so one candidate carries one disposition on every surface this producer emits to |
-| code-metrics/audit-suppressions/rule-no-reason | A lint or type-checker suppression in scope whose line carries no reason text: neither in the directive's own reason slot nor in a further comment on the same line (threshold: no reason; the fired tool, its rule ids or the absence of any, and `no reason` travel in the `Finding` cell). Selection is the shared scanner's deterministic parse with no withholding verdict. The one decline requires its evidence PRESENT: reason text the scanner read off that line, counted in `## Surfaces` as `reason=reason-on-line`. A marker inside a string, a Markdown code span or a fenced block is not a suppression at all, which the scanner decides from the quote, backtick or fence present on the line. A suppression whose path resolves outside the repository root has no repo-relative `Location`, so it is reported in `## Surfaces` as not examined rather than declined. | CRITICAL fails every limb: a directive changes what a checker reports, not what the code computes, so no concrete input, caller, or subsequent otherwise-correct change is made to produce a wrong, unsafe, or absent result by the missing reason. The silenced finding may itself be a real defect, but the scan cannot tell which, and claiming it would let the possibility pick the tier. IMPORTANT's degradation limb matches with a named trigger: the next person who edits that line or upgrades the tool has to decide whether the suppression still holds, and with no recorded reason cannot tell a false positive someone proved from a finding someone silenced to pass a check, so the suppression is kept or dropped blind. Where a project adopts `/implementation:implement`'s rule against suppressing to pass a check, the stated-rule limb matches as well. First match wins at IMPORTANT. | IMPORTANT | No, contained to `Location`, but whether the silenced finding is a false positive (write its reason) or a real one (fix the code and drop the suppression) is a judgment only someone who knows the check can make |
-| code-metrics/audit-suppressions/rule-no-rule-id | A suppression whose line carries a reason but names no rule id, for a tool whose directive syntax can name one, so it silences every rule the tool checks on its span (threshold: no rule id; the fired tool and the stated reason travel in the `Finding` cell). Deterministic selection with no withholding verdict, and both declines require their evidence PRESENT: a rule id the scanner read in the directive (`reason=rule-id-on-line`), or a TypeScript `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck` directive, whose syntax cannot name an error (`reason=tool-names-no-rule`); each is counted in `## Surfaces`. A line with no reason at all selects `rule-no-reason` above instead, so one candidate carries one rule. | CRITICAL fails every limb, on the same walk as `rule-no-reason`: the directive determines no wrong, unsafe, or absent result. IMPORTANT's degradation limb matches with a sharper trigger than the reason rule's: the first later edit on the suppressed span that introduces a different finding the same tool would report ships with no signal, because the blanket directive silences that rule too, though the stated reason only ever covered one. That is a nameable event with a defined cost, so SUGGESTION is never reached. | IMPORTANT | No, contained to `Location`, but which rule the stated reason is about, or whether the reason covers no single rule and the code should change instead, is a judgment the relay surfaces rather than applies |
-
-The map is flat across the emitting rules on purpose: within each producer's set every emitting rule
-makes the same claim, so every emitting row of that producer carries the same tier. A spread would
-have to come from the finding's prose, which is what a rule-keyed map exists to prevent. A spread
-that comes from the RULES is a different thing and is admitted: `ai-slop:audit`'s set carries two
-claims, style preference (SUGGESTION) and reader-visible generation residue (IMPORTANT), and each
-row argues which claim its rule makes, so the tier still never varies per finding.
-
-**Consumer precedence binds the crosswalk, not only the vocabulary.** `severity.md` is the fallback
-baseline and a consuming project's own severity vocabulary overrides it, so the tiers above are
-baseline values a producer maps away from when the project defines its own. This repository's
-[`REVIEW.md`](../../../REVIEW.md) "Severity" is the live instance, and it shows the mapping is not a
-formality: it resolves to the same three names but folds Critical and Important onto a single marker,
-so the tier name alone does not survive. **The row's argued test does.** A reader holding it can
-re-derive which side of the fold a finding sat on. That is the second reason the argument belongs in
-the row rather than in a footnote to it.
-
-## When the remediation is not at `Location`
-
-`Location` names the **detection** site, always, and is never retargeted at the remediation. The key
-that collapses two producers' rows into one is identical `Location` plus identical `Finding`
-(`/review:fanout fix`, at its merge-and-classify step), so retargeting destroys the row's
-identity, and it asserts the detector fired somewhere it did not.
-
-Detectors whose fix site differs from their detection site are ordinary rather than exotic: a
-surviving mutant is fixed in its covering test, a missing test for a changed function is written
-elsewhere, a contract violation detected at a caller may belong to the callee.
-
-- **Producer obligation.** A rule whose remediation can lie outside `Location`'s file says so in its
-  crosswalk row's auto-applicable cell, and every row it emits **names the remediation target in
-  `Action`**. The producer already knows the target; withholding it is pure loss.
-- **Consumer disposition.** `fix-pass-mode.md` "Step 4" surfaces such a row instead of auto-applying
-  it, a named trigger of that step's own escape clause, added there rather than described here.
-
-The trigger is what makes the producer obligation safe. Before it existed, a fixer reaching one of
-these rows had no disposition the contract offered: Step 4 fences each fix to `Location` while the
-`Action` cell named a different file, leaving it to breach its fence or invent a reason to surface.
-Naming the target could not fix that by itself. It turned an ambiguity into an explicit instruction
-to violate the governing rule.
-
-**A remediation-target column was considered and rejected.**
-
-- It changes a shape every producer writes and every consumer parses, to serve a minority of rows.
-- What it would enable is an unattended two-file apply, which is precisely what the fence forbids. A
-  column that made such an apply fenceable would have to carry the edit plan, not a path.
-- The verdict is already reachable without it: Step 4 auto-applies only contained fixes, and a
-  cross-file remediation is not contained by construction. The column would add structure to reach a
-  conclusion the existing criterion already reaches.
+Moved to [this section](../../contracts/detector-findings/README.md#when-the-remediation-is-not-at-location).
 
 ## When the remediation is owned by the producer's own skill
 
-A remediation can sit exactly at `Location` and still not be the consumer's to apply. The rewrite is
-contained to one file and one line, and what makes it safe is a body of discipline the **producer**
-owns: replacement forms, a plain-speech target, a semantic-diff guard. That discipline lives in that
-producer's own reference material and reaches no consumer through the findings file. The relay is not
-withholding that discipline by oversight: nothing in the contract ever told it the discipline exists.
-
-**The off-site disposition above does not reach this case, and neither does `Auto-applicable: No`.**
-Both were checked before this section was written, because a third disposition an existing one
-already covers is pure cost.
-
-- **Off-site is a statement about the SITE.** Its producer obligation binds "a rule whose remediation
-  can lie **outside `Location`'s file**", and the consumer's trigger
-  (`/review:fanout fix`, at its merge-and-classify step) has
-  two limbs that are both site limbs: the `Action` names a different file, or the producing
-  detector's contract declares the rule off-site. A producer-owned rewrite is **at** `Location`, as
-  `testing:audit`'s adopter row says exactly that of its own rules, so claiming off-site to reach
-  the disposition asserts something false about where the fix goes, the same defect as retargeting
-  `Location`.
-- **Off-site's disposition is also the wrong destination.** It routes to surface-only, which is right
-  when nothing in the session can apply the fix and a loss when the producer ships a surface that
-  can. Reaching it would trade a misapply for a non-apply, not close the gap.
-- **`Auto-applicable: No` has no path to the route that actually misapplies these rows.** Step 4's
-  surface-instead-of-auto-applying fence sits under its **correctness-class** heading. A prose-style
-  row classifies as cleanup by content. The cleanup route prefers `/simplify`, which rediscovers
-  cleanups from the working-tree diff and, in Step 4's own words, "does NOT read the findings
-  files", and that route **applies the rows itself, one file at a time, when `/simplify` is
-  absent**. The cell
-  restrains neither branch: on the first no consumer reads it, and on the second the reader is the
-  cleanup route, whose fence is the file, not auto-applicability. That is the mechanical half of the
-  gap: the crosswalk can already say a rule is not auto-applicable and still not stop the apply.
-
-**Producer obligation: one declaration, in the crosswalk row.** A rule whose remediation is
-contained to `Location` but owned by the producer's own remediation surface **leads its
-`Auto-applicable` cell with** ``No, remediated by `<invocation>` ``, before whatever reason it goes
-on to give. `<invocation>` is the skill and action a session can actually run, such as
-`/ai-slop:audit fix`, never a reference-doc path, because a document is not something a relay can
-invoke. **The
-invocation is written as a code span and a consumer strips the delimiters before matching**; that
-convention is stated once, under "Auto-applicability is settled per rule, at contract time" below,
-and binds the corroborating `Action` lead here identically.
-
-**The declaration is per RULE and lives nowhere else, which is this contract's own settle-once rule
-applied rather than restated.** "Auto-applicability is settled per rule, at contract time" (below)
-says a rule's remediation shape does not vary run to run, so a per-finding decision is the same
-decision taken repeatedly with less evidence. Who owns the repair is exactly such a fact. Requiring
-every emitted row to carry a copy of it would be the per-finding restatement that section forbids,
-and it would make conformance a property of a producer's emitter rather than of its rule set.
-
-**How the consumer reads it: through the rule id every row already carries.** Every emitted row leads
-its `Finding` cell with the qualified rule id ("Rule ids and thresholds" above), and this crosswalk
-is the cross-producer registry that id resolves against by exact match, the same resolution the
-Enforceability table's tier check is built on. A consumer holding a row therefore holds the route to
-its declaration without a new column, a new field, or a second copy of a rule-level fact.
-
-**A producer MAY also lead its `Action` cell with** ``Remediate with `<invocation>` ``, under the
-same code-span convention and the same delimiter strip. It **corroborates** the crosswalk
-declaration and never substitutes for it: **the crosswalk row is NECESSARY**, and a rule with no crosswalk declaration is
-not producer-owned however its `Action` reads. Where both are present and name different
-invocations, **the crosswalk row wins** and the row is the defect.
-
-**Why corroboration and not a second route, stated so it cannot be re-liberalized by accident.** The
-crosswalk lives in the consuming repo's own docs, **outside** the artifact being consumed; the
-`Action` cell is **inside** it. Nothing authenticates the writer of a findings file, which is the
-contract's own opening premise, and this is the disposition that hands rows to a skill the consumer
-then does not re-fence. An `Action`-alone route would therefore let any component that can write a
-conforming file name any already-installed skill and hand it arbitrary rows, bounded by neither
-`Location` nor the consumer's own step. **Availability is not authentication**, and a shortcut that
-skipped the out-of-artifact half would not be a convenience but the removal of the only check there
-is.
-`ai-slop:audit` writes a near form of it today (`Guarded rewrite via /ai-slop:audit fix`) on the
-rules whose `Action` has nothing more specific to say, which is a near form precisely because it does
-not lead. That is one more reason the crosswalk path is the one a consumer relies on.
-
-**Consumer disposition.** `fix-pass-mode.md` "Step 2" routes such a row to the named surface instead
-of `/simplify` or the generic fixer, and "Step 4" invokes that surface only when it is **already
-available in the session**. An unavailable, unrecognized, or malformed invocation is **surfaced,
-never resolved, installed, or applied directly.** Applying it directly is exactly what the
-declaration exists to prevent: the consumer would perform the edit without the discipline that makes
-it safe, which is the misapply this section was written for wearing a different label.
-
-**When the contract cannot be resolved, nothing here fires and the row takes the consumer's ordinary
-classification**, and an unreachable crosswalk is the no-declaration case, never a reason to fall
-back to the `Action` cell, which is the trust boundary above read in the direction it matters most.
-That is the status quo rather than a fail-safe worth advertising, and the honest place to say so is
-here. What bounds it in practice is not a rule but a habit every current adopter
-already has: "Many emitters, one statement of each mechanic" below names fetching this contract at
-run time and refusing to write when unreachable as the demonstrated conforming form, and every
-adopter that persists does exactly that. **That is evidence about the PRODUCER's session, not the
-consumer's.** The two run at different times and may be different machines, so a findings file's
-existence makes the contract likely reachable, never certainly, and no consumer may assume it.
-
-**No column, for the reasons the off-site column was rejected, plus one.** All three arguments above
-carry unchanged: a shape every producer writes and every consumer parses, changed for a minority of
-rows, to reach a verdict a leading token already reaches. What is new is that this table's own gate,
-[`check-detector-findings-crosswalk.sh`](../../../scripts/check-detector-findings-crosswalk.sh),
-locates the crosswalk by its exact **five-column** header and fails any row splitting into a
-different field count, so a sixth column is a gate rewrite before it is a contract change.
-
-**Declared dispositions, and a row declares at most one:**
-
-| Remediation | How the row declares it | Consumer route |
-|---|---|---|
-| At `Location`, mechanical and meaning-preserving | `Auto-applicable: Yes, <argument>` | The consumer MAY apply it, and that is all `Yes` buys. There is no dedicated auto-apply path: the row takes its ordinary class, and a cleanup row reaches Step 4's cleanup route, which prefers `/simplify` (which reads no findings file) and applies rows itself only when `/simplify` is absent |
-| At `Location`, owned by the producer's own surface | `Auto-applicable` leads ``No, remediated by `<invocation>` ``, which is necessary and is resolved through the row's rule id; an `Action` lead only corroborates | Routed to that surface; surfaced when it is unavailable |
-| Outside `Location`'s file | The off-site rule above; `Action` names the target file | Surface-only (Step 2) |
-
-A row declaring **none** of them is not in breach. It takes the consumer's own classification, which
-is where every row sat before this section existed. `testing:audit`'s rows are the live instance:
-their repair is at `Location`, no skill owns it, and Step 4's judgment fence surfaces them. This
-section adds a way for a producer to say who owns a repair; it does not make the relay omniscient
-about repairs nobody claims.
+Moved to [this section](../../contracts/detector-findings/README.md#when-the-remediation-is-owned-by-the-producers-own-skill).
 
 ## Auto-applicability is settled per rule, at contract time
 
-`fix-pass-mode.md` "Step 4" owns the criterion, and it binds the **correctness class**: a
-correctness-class fix is auto-applied only when it is contained to its `Location`, high-confidence,
-and not a call for architectural judgment. That scope is not a caveat on the criterion but the whole
-of where it lives: Step 4 states the fence under its correctness-class heading, and the two sections
-above turn on the fact that a cleanup-class row never passes through it. What this contract owns is
-the consequence for a detector author, which is class-independent: **settle it once per rule in the
-crosswalk, not per finding at apply time.** A rule's remediation shape does not vary run to run, so a
-per-finding decision is the same decision taken repeatedly with less evidence.
-
-Three rule shapes are never auto-applicable, and saying so is the contract's intent rather than a
-limitation to route around:
-
-- **Cross-file remediation.** Not contained, by construction (above).
-- **Architectural judgment.** The finding is an argument about where a boundary belongs, and the fix
-  is a design decision. Layering, abstraction, and coupling detectors are the clearest case: they are
-  **designed to inform a human.** Reaching the relay is still the whole point, because it is what
-  gets their findings ranked, merged, and reported beside everything else; being surfaced rather than
-  applied is the correct end of that route, not a failure of it.
-- **Producer-owned remediation.** Contained to `Location`, but safe only under discipline the
-  producer owns (previous section). Not auto-applicable *by the consumer*; the point of the
-  declaration is that it is applicable by the producer's own surface, which is the one route this
-  shape does not reduce to surface-only.
-
-**The cell's grammar carries the disposition.** `Auto-applicable` is read by a consumer, not only by
-a human, so the cell leads with one of four forms and argues after it: `Yes, <argument>`,
-`No, <reason>`, ``No, remediated by `<invocation>`, <reason>`` (previous section), or
-`Not applicable, no row`. A reason that names an owner only in passing prose is not a declaration;
-the lead is.
-
-**The invocation is written as a code span, and a consumer strips the delimiters before matching.**
-The shipped cells read ``No, remediated by `/ai-slop:audit fix`. …``, with backticks, because every
-other code-ish token in this table carries them and an unfenced slash command inside a markdown table
-reads as prose. **This paragraph is the whole of that convention**, and it is stated here rather than
-left to be inferred from the rows because the alternative is the failure mode this grammar exists to
-prevent: a contract showing one byte sequence while every conforming row writes another, so a
-consumer implementing the contract literally matches nothing and the rows only *look* adopted. One
-delimiter to strip is a smaller ask than an unfenced command in a table, and the same convention
-binds the corroborating `Action` lead in the previous section, ``Remediate with `<invocation>` ``, so
-the two readings agree with each other as well as with this table.
-
-**Never shape a rule to look auto-applicable.** Narrowing `Location` to one file the finding does not
-actually describe, or lowering `Confidence` to trip the escape clause, each defeats the criterion it
-appears to satisfy, and the second buries a real finding beneath one nobody reported, per
-`Confidence` above.
+Moved to [this section](../../contracts/detector-findings/README.md#auto-applicability-is-settled-per-rule-at-contract-time).
 
 ## The remedy is pinned by an assertion, in every scope it fires in
 
-A detector's detection is the part its tests are about. Whether a rule fires on a fixture is a value
-a test can compare, so it gets compared, often exhaustively. What the fired row then tells an author
-to **do** leaves the same run as prose nothing reads back. That asymmetry is the shape a
-fixture-built suite falls into by default, and not a law it obeys:
-`harness-config:audit-instructions` pins both of its remedies today, positive and negative, and did
-so before this bar existed, which is what makes the bar reachable rather than aspirational. The four
-tabled producers that do not pin are what the default costs. A remedy can be wrong on the day it is
-written, and can drift into being wrong when the surface it names moves, with a green suite either
-way.
-
-**This contract is where that costs something, because the remedy is the part it hands onward.**
-What a consumer does with it varies by disposition, and this document bounds every one of those
-routes rather than claiming any is automatic: `Yes` buys a MAY and no dedicated auto-apply path, a
-producer-owned row is routed to the named surface when that surface is already available and is
-surfaced when it is not, an off-site row is surfaced with the target the `Action` names, and a
-cleanup-class row reaches a route that reads no `Auto-applicable` cell at all and applies the row
-from the file when `/simplify` is absent. **The bar does not rest on any of them being automatic. It
-rests on what none of them contains: a step that reads a remedy for correctness.** A wrong detection
-costs a row a human dismisses. A wrong remedy is carried by whichever route the row takes, and the
-cleanup route applies it through a reader the cell was never going to restrain.
-
-**Producer obligation: every remedy a rule emits is pinned by at least one assertion, FOR THE SCOPE
-IT FIRES IN.**
-
-**Scope is the bar, and the wording is not.** An assertion that a remedy is present, or that it
-carries some expected token, passes on the defect this bar exists for. The case it is written from
-is a remedy naming a substitution token that resolves in one scope, offered in scopes where that
-same token is inert, so an author following it traded a working rule for a broken one: the exact
-failure the check existed to report, re-emitted as advice. Both that defect and the first fix for it
-were remedies that were present, well formed, and correct somewhere. What separates a correct remedy
-from either of them is the scope it is offered in, so scope is what an assertion has to pin for the
-assertion to tell them apart at all.
-
-**A negative assertion carries the same weight as a positive one**: that the remedy is NOT offered
-where it would not work. A rule whose assertions are all positive is satisfied by a remedy offered
-everywhere, which is the failure above read from the other side, and a suite built out of fixtures
-that fire never has an occasion to add the withheld half. That half was the wrong one in both the
-bug and its first fix.
-
-**This binds an outcome, not a harness**, on the same reading the crosswalk's fall-through criterion
-already states of itself: one remedy, pinned in the scopes it is offered in, by any assertion form
-the producer runs, a test case, an eval case, or a golden file. What must be checkable is the claim;
-the shape of the check is the producer's. **That freedom is over the FORM of the check, and is not a
-claim that a form is already in place.** Two of the six tabled adopters run no assertion reaching a
-remedy at all, a third pins eight of its thirteen (its older five only through an `Action` cell's shape), and a fourth pins two of its fifteen, so
-for three of six this is an assertion to write rather than a harness to reuse, and the Adopters
-table below says which is which and by how much.
-**It is per rule and per scope, never per finding**, which is "Auto-applicability is settled per
-rule, at contract time" above applied rather than restated: a remedy's correctness in a scope does not vary run to run, so a per-run check is the
-same check taken repeatedly with less evidence.
-
-**As stated here the bar is instruction-strength**: nothing computes whether a producer's assertions
-reach the remedies it emits, so the obligation is stated imperatively and is met by an author who
-reads it. Saying so is the point rather than a caveat on it, because a bar claiming more than its
-mechanism delivers would be this section's own defect one level up, a remedy asserted rather than
-pinned. The half a gate can take and the half that stays judgment are split in
-[Enforceability](#enforceability) below, on the same line that section's `Tier` row already draws.
-
-**What this does to producers already tabled, stated here rather than left to the rows to imply.**
-The Adopters table admits a producer only once it conforms, and that rule is written against
-ADMISSION: tabling a planned adopter asserts what a reader cannot rely on. A major bump creates the
-opposite case, an existing adopter that conformed yesterday and carries one new obligation today,
-and reading the admission rule straight onto it would untable four of five rows whose every other
-claim is still true and put nothing in their place. So the rows stay and what their Status cells
-claim narrows instead: **each row states how far that producer's remedies are pinned today**, so no
-row can mean "conforming except the newest obligation" without saying so.
-
-**The grandfathering is narrow, and it is not a waiver.** It reaches only the remedies a producer
-had already shipped when 3.0.0 landed, and what it suspends is the retrofit rather than the
-obligation. Every rule added after it, and every edit to the wording or the scope of a remedy it
-already emits, is held to the bar in full, because that edit is the moment pinning costs one
-assertion instead of a sweep. A grandfathered producer is conforming on everything this contract
-asked of it before 3.0.0 and is carrying a stated debt on the one thing it asks now, which is a
-weaker claim than conformance and is why the table makes it in different words. The event that
-closes the clause is recorded with its siblings in [Enforceability](#enforceability).
+Moved to [this section](../../contracts/detector-findings/README.md#the-remedy-is-pinned-by-an-assertion-in-every-scope-it-fires-in).
 
 ## A candidate that is not a finding
 
-A detector examines more than it reports, and the examined-but-not-reportable outcome needs a home or
-it settles into free prose nothing can read. Three outcomes, three homes; conflating them is the
-failure to avoid:
-
-| Outcome | Determined by | Home |
-|---|---|---|
-| The rule examined a candidate and its own stated evidence shows there is nothing to fix | the producer, per run | a **declined-candidate count** in `## Surfaces` |
-| A real finding an operator has judged and decided to keep | the operator | [`finding-suppression`](../finding-suppression/README.md) |
-| Not-a-defect claimed without the rule's stated evidence | nothing, the claim is unsupported | **a row**, under the rule the crosswalk names for that case |
-
-- **A declined candidate is coverage, not a suppression.** Suppression is operator-authored,
-  consent-gated, and keyed by a `finding_id` the consumer derives from `check`, `claim`, and `sites`.
-  A producer writing an entry there unprompted would launder that consent gate and record an
-  acceptance nobody made. **A producer proposes an entry and shows it to a human; it never writes
-  one**, and a rule whose only remediation is a proposed suppression emits no row either, because
-  handing it to the relay launders the same gate.
-- **Where the count goes.** The returned-no-result limb of `## Surfaces`, in that section's existing
-  line form, as a **count per rule id**, never a per-item rationale. The per-item argument belongs
-  in the producer's human-facing report: a findings file carries the artifact, not the argument for
-  it, which is the same rule that keeps a reviewer's reasoning out of a `Finding` cell. Counts also
-  keep the section short enough to stay one line per surface, and are the form a trend across runs
-  can be read from at all.
-- **No evidence, no decline.** A rule that may decline states in its crosswalk row what evidence a
-  decline requires. A candidate declined without that evidence is not declined. It emits.
-- **No new field, and that is the decision.** A column or section for dispositions would push a
-  per-run judgment into the shape the fix action parses, where every consumer would have to learn to
-  ignore it; a separate file type would be structure with no reader. The disposition belongs to the
-  **rule**, so it is declared once in the crosswalk and only its count is per run.
+Moved to [this section](../../contracts/detector-findings/README.md#a-candidate-that-is-not-a-finding).
 
 ## Coexisting with other producers
 
-Producers share one directory and the consumer merges across all of them.
-`/review:fanout fix` owns how, at its merge-set step. Three obligations fall on a producer:
-
-- **Write your own file. Never append into another producer's.** Appending would need a
-  write-ordering and locking convention that does not exist, and a partial write corrupts a file
-  another producer owns.
-- **Name yourself in `Surface(s)`.** Rows that match exactly are collapsed into one naming every
-  contributor; that collapse is only legible if each producer identified itself.
-- **Expect near-duplicate rows to survive.** Cross-producer matching is deliberately narrow, so do
-  not pre-deduplicate against another producer's output. You would be guessing at a defect you did
-  not detect.
+Moved to [this section](../../contracts/detector-findings/README.md#coexisting-with-other-producers).
 
 ## Emitting more than once
 
-An apply marks the files it consumed and the consumer subtracts them.
-`/review:fanout fix` owns the ledger, at its report-and-record step. What binds a producer is one
-rule: **a detector re-runs and writes what it currently finds; it never replays.** Re-emitting a
-stale file re-injects findings that may already be fixed.
-How the ledger identifies what an apply consumed is that action's to own and may change there; a
-producer owes the rule regardless and never leans on the ledger to catch a replay.
+Moved to [this section](../../contracts/detector-findings/README.md#emitting-more-than-once).
 
 ## What a minimally conforming producer may omit
 
-The admission test is stated by `/review:fanout fix` at its merge-set step. Meet it and you are
-consumed. Beyond it, the coverage fields (`tier:`, `## By dimension`, `## Unparsed`,
-`## Surfaces`) are required of `review:fanout`'s own writer to keep its report honest; a detector
-with no analogue may omit them. **Omit rather than fabricate.** An invented `## Surfaces` line
-asserts coverage that was never attempted, which is the failure that field exists to prevent. `date:`
-is expected of every producer: it is the only record of when the detector actually ran, and a
-consumer weighing findings against a moving tree needs it.
+Moved to [this section](../../contracts/detector-findings/README.md#what-a-minimally-conforming-producer-may-omit).
 
 ## Liveness
 
-A detector that persists findings still owes the
-[liveness-assertion contract](../liveness-assertion/README.md) "Core contract": fail loud, or publish
-to an agent-readable channel. Writing a conforming findings file satisfies the second limb:
-the file *is* the agent-readable channel, and the `fix` action is the agent that reads it. A detector
-that writes nothing, reports green, and had findings satisfies neither.
+Moved to [this section](../../contracts/detector-findings/README.md#liveness).
 
 ## Many emitters, one statement of each mechanic
 
-Emitting a conforming file means resolving the findings home, computing
-the branch sub-path, relativizing paths, escaping cells, and
-formatting a colon-free UTC timestamp. Every adopter in the table above does it, and the next
-detector will do it too. The decision recorded here is **why that is not one copy per adopter of one
-thing**, and what would make it become one.
-
-**The shared-source registry cannot hold this, mechanically.**
-[`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh)
-clusters files by path-within-plugin across `plugins/*/` and compares hashes. Two consequences follow
-and neither is a preference:
-
-- A convention under `docs/` can never be a cluster. It is outside the tree the script walks.
-- Registering a path that is not a live byte-identical cluster in two or more plugins **breaks** the
-  check rather than recording a decision: it reports `REGISTRY STALE` and exits 1. Verified by adding
-  one such line and running `--check`.
-
-And there is no emitter **code** to share. Every existing emitter is prose a model executes, each in
-its own plugin's context file. A byte-identity check has no subject.
-
-**What prevents drift is that each mechanic has exactly one owner, reached by pointer:**
-
-| Mechanic | Owner |
-|---|---|
-| Table shape and cell escaping | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-file shape" |
-| Path relativization and the colon-free timestamp | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-writer contract" |
-| Findings home, branch sub-path, slug rule | `/review:fanout` "Shared inputs" |
-| Which of those a non-fanout producer owes, and the fields it computes | this doc |
-| A rule's threshold, tier argument, disposition, and auto-applicability | this doc's crosswalk |
-
-A third producer adds a third *reader* of those owners, not a third statement of them. The failure
-mode to guard against is a producer restating a mechanic locally, and the conforming form is already
-demonstrated: `mutation-testing:audit`'s persist reference fetches this contract at run time and
-refuses to write when it cannot reach it.
-
-**How drift is caught, stated honestly: nothing mechanical, yet.** The conformance gate this contract
-defers in Enforceability is what closes it, and a gate reading *emitted files* checks every producer
-at once, a property a byte-identity check over source copies would never have had.
-
-**Revisit trigger, and it fires itself, within a stated limit.** The first time a producer ships
-emitter code as a file under `plugins/<x>/` and a second plugin carries a **byte-identical** copy at
-the same path-within-plugin, `check-cross-plugin-source-drift.sh` reports that cluster as
-`UNREGISTERED` until a decision is recorded, so the decision arrives at the gate rather than needing
-to be remembered. The limit is in that word: a second copy that was **edited before it ever landed**
-is not byte-identical, so it clusters as `DIFFERS` and the trigger never fires. Duplication born
-already-drifted is therefore outside what any part of this decision detects, and the answer to it is
-review, not a script.
+Moved to [this section](../../contracts/detector-findings/README.md#many-emitters-one-statement-of-each-mechanic).
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
-
-| Judgment | Tier |
-|---|---|
-| A persisted file conforms to the findings-file shape | **Deterministic when built.** Frontmatter keys and table columns are mechanically checkable. **Buildable now**: the first producer exists, so a gate has something to run against. Still unbuilt. |
-| `Confidence` is `high` or omitted, never `low` | **Deterministic when built.** A literal-value check. Folded into the same gate, and equally buildable now. |
-| `Tier` is looked up from the rule rather than hand-picked | **Detect-then-judge** when built, narrowed by the crosswalk from where it stood. Every emitted row leads with a rule id, so a gate can check that the id has a crosswalk row and that the row's tier matches the row's own. What no gate can check is whether the run selected the RIGHT rule, which for a judgment-based classifier is not a machine question at all. The fail-safe-toward-emitting criterion is what bounds it instead of a check. |
-| Every crosswalk row argues its disposition from a stated test | **Detect-then-judge**, and **BUILT**: [`scripts/check-detector-findings-crosswalk.sh`](../../../scripts/check-detector-findings-crosswalk.sh) `--check` runs in CI, failing an empty or prose-free test cell, an unqualified or duplicated rule id, and a row whose cells an unescaped pipe has shifted. Whether an argument is *sound* stays judgment. That is what the admission test carries, and no gate replaces it. |
-| A row whose remediation is off-site is surfaced, not applied | **Detect-then-judge** when built. The consumption record names every surfaced row, so an off-site row appearing in the applied list is detectable; whether the fixer surfaced for the right reason is judgment. |
-| An `Auto-applicable` cell uses one of the four leading forms | **Deterministic when built.** A literal-prefix read of a cell the crosswalk gate already parses, and the one that matters most is ``No, remediated by `<invocation>` ``, whose invocation must be a runnable `/plugin:skill` form rather than a doc path. **The gate strips the code-span delimiters before matching**, per the grammar paragraph above; a gate written against the bare form would reject every conforming row, which is exactly the contract-versus-rows divergence this row exists to catch. A cell that names an owner only in trailing prose is the other drift it catches. Unbuilt; it is one condition away in that gate. |
-| Every remedy a rule emits is pinned by an assertion for the scope it fires in | **Detect-then-judge** when built, on the same split the `Tier` row draws. The mechanical half is a pairing check inside one producer: where its emit sites and its assertion set both carry the scope, those are two enumerable id-and-scope sets and a remedy no assertion names in the scope it fires in is their difference. Where either side leaves the scope unlabeled the difference is not computable at all, which is a producer-side fact rather than a gate this table can promise. What no gate can compute is whether the pinned remedy is the RIGHT one for that scope, which is the half the originating bug got wrong twice: the defect and its first fix were both remedies that were present, well formed, and correct in some scope. **Unbuilt, and not buildable in the conformance gate's shape**: a producer's assertions live in its own tree rather than in what it emits, so a gate reading emitted files sees every remedy and none of their assertions. |
-| A producer-owned row is routed to its named surface, not to `/simplify` | **Reasoning-only.** The consumption record states what the cleanup route changed, not which skill the fixer invoked, so nothing outside the session can tell a routed row from one `/simplify` silently declined to touch. This is the honest limit of the disposition: the declaration is checkable, the honoring is not. |
-| A declined candidate is reported as a count rather than dropped | **Reasoning-only.** A count in `## Surfaces` is greppable, but nothing outside the producer knows what the run examined, so no gate can tell a declined candidate from one never generated. |
-| A producer's coexistence behavior (own file, self-named surface) | **Detect-then-judge** when built. Appending into another producer's file is detectable; whether a `Surface(s)` value identifies the producer usefully is judgment. |
-
-**Mechanical enforcement is still deferred**, but no longer for want of a subject. Recorded with
-event triggers rather than dates:
-
-- **Recheck trigger (conformance gate): FIRED.** `mutation-testing:audit` is the first detector to
-  reach `main` with a persist path, so a gate now has a real emitter to check rather than a fixture.
-  What that unblocks: the shape and `Confidence` judgments above are both a mechanical read of a file
-  this repository can produce on demand. No gate is written here. Naming the trigger as fired is
-  what stops the deferral from reading as permanent.
-- **Recheck trigger (remedy assertions): two events, and the first has not fired yet. A producer
-  labeling the scope on both sides, then a producer declaring where its assertion set lives.** The
-  row above concedes that where either side leaves the scope unlabeled the difference is not
-  computable at all, and that is the state of every tabled producer: each keys its emit sites on a
-  rule id alone, and the assertions that exist match a remedy's substring rather than a scope. So
-  the pairing check is not writable against any producer today, and saying it was writable "per
-  producer today" would have claimed of the fleet what no row in it supports. The first event is a
-  producer labeling the scope where it emits AND where it asserts, which makes the check writable
-  against that one producer's layout. The second is an adopter row saying where those assertions
-  live, which is what lets one gate reach every producer rather than one. Both arrive at the table
-  rather than needing to be remembered.
-- **Recheck trigger (grandfathered rows): a grandfathered producer's next change to a rule's remedy
-  set**, adding a rule or editing the wording or the scope of a remedy it already emits. That change
-  is held to the bar in full, and the row's annotation narrows to whatever is still unpinned. The
-  clause closes for the fleet when the last annotation goes, which is the event to watch rather than
-  a date to wait out.
-- **Recheck trigger (this doc's depth): MET.** The pilot ran, and both gaps it surfaced are closed
-  here: a producer whose remediation site is not its `Location` now has a disposition, and an
-  examined-but-not-reportable candidate now has a home. This doc is no longer a stub, and what
-  remains deferred is mechanical enforcement, not depth.
+Moved to [this section](../../contracts/detector-findings/README.md#enforceability).
 
 ## Adopters
 
-An **adopter** is a producer outside `review:fanout` that conforms to this contract. A row asserts
-that the producer conforms today, and is **tabled only once it actually does**, because tabling a planned
-adopter asserts what a reader cannot rely on.
-
-**Since 3.0.0 a Status cell also states how far that producer's remedies are pinned**, under the
-grandfather clause in
-[The remedy is pinned by an assertion](#the-remedy-is-pinned-by-an-assertion-in-every-scope-it-fires-in)
-above. Four of the six rows below do not meet that bar today and each says so in its own cell, with
-the count it falls short by wherever its remedies can be counted, so "Conforming" in this table never
-quietly means "conforming except the newest obligation". The annotation is per row because the
-shortfall is: it runs from none of a producer's remedies pinned to eight of thirteen, and one row meets
-the bar in full.
-
-| Producer | Status | Notes |
-|---|---|---|
-| `mutation-testing:audit` | Conforming, opt-in. Remedies NOT pinned (3.0.0, grandfathered) | The first detector pilot. Persists surviving mutants behind `--persist-findings`; bare invocation still reports and stops. Maps each Phase 4 verdict class to one crosswalk rule and emits `Confidence: high` only. **Its rule selection is a fresh-context reviewer's judgment, not a computation**, so it is the worked case for the fail-safe-toward-emitting criterion rather than an exception to it. It has **two** withholding boundaries and both fall through to the emitting `unclassified` rule: an equivalence verdict that cannot cite its demonstration, and an aridity call whose proposed suppression entry does not bind a node kind from its enumerated vocabulary and name the behavior the suite deliberately leaves unasserted. A wavering judgment can therefore add a row but never silently remove one. **Both bars sit at classification rather than at persist time**, which is what makes the fall-through one answer per survivor instead of a report and a findings file that can disagree, and it means the bar binds a run that never persists, where an unevidenced withholding claim is read by a human rather than by the relay. Omits `tier:`, `## By dimension`, and `## Unparsed` as a detector with no analogue for them; keeps `## Surfaces`, which is the whole payload of a run that examined mutants and found nothing, and where its declined-candidate counts go. Its remediation is off-site, the covering test rather than `Location`, so every row it emits names the target in `Action` and the consumer surfaces rather than applies. It declares no remediation owner and is unaffected by that disposition: its `Auto-applicable` cells keep the forms they already had, `No, <reason>` on its two emitting rows and `Not applicable, no row` on the two that emit none, and off-site is decided first in any case. **Remedy assertions (3.0.0): none.** What its eval `expected_output` pins is the off-site `Action` SHAPE, that the cell names the covering test and states the remediation site is not the row's `Location`. That is a claim about where a fix goes, not about the remedy any rule offers in the scope it fires in, and it is a model-graded expectation rather than a check a run fails. Grandfathered, and the debt is one assertion per emitting rule rather than a redesign. |
-
-| `testing:audit` | Conforming, opt-in. Remedies PARTLY pinned, 8 of 13 (3.0.0; three grandfathered, the two config rules owed in full, the eight report-only rules pinned positive and negative in each scope they fire in) | The first static Tier 1 detector, and the contract's first fully mechanical rule set: selection is a deterministic token/structure scan with no execution, so the fail-safe-toward-emitting criterion holds across both of its layers. Its three original test-body rules carry no withholding verdict at all, and the one uncertain case among them (a deliberate interaction-style test matching `rule-mock-only-oracle`) still emits, with `Confidence` omitted per the high-or-omitted rule. Its two Playwright runner-config rules DO withhold, and every boundary is stated-evidence: `spread-undecidable` requires a depth-1 spread token, `variadic-undecidable` a second `defineConfig` argument, `key-below-top-level` the key read below depth 1, `key-set` the guard read as `true` or as an expression, `retries-not-configured` a complete read of an anchored config object carrying no counted `retries` at all or none but literal `0`s, and `cant-fail-ok:` the annotation itself. Each requires a token present in the file, so nothing is withheld on absence alone, and every decline is counted per rule in `## Surfaces`. A config whose object literal cannot be anchored is judged by neither rule: it is reported in the denominator as enumerated and not examined, the same coverage statement the test-file counts already make about a file of another ecosystem. Persists behind `--persist-findings`; bare invocation reports and stops. Leads every `Finding` cell with the qualified rule id and the fired threshold in the run's own values; `Confidence` is `high` on the three deterministic-defect rules (`rule-zero-assertion`, `rule-recomputed-expectation`, `rule-inert-assertion`) and omitted on `rule-mock-only-oracle`, both config rules and the seven other report-only rules, never `low`. `Location` is repo-relative (computed through git's own prefix under a narrowed scan root) and IS the remediation site, since the repair belongs in the flagged test, or in the flagged config for the two config rules, but every row is judgment repair, the oracle a behavior deserves on the test-body rules and the team's flaky-tolerance or `only`-guard policy on the config rules, so none is auto-applicable. It declares **no** remediation owner, and that is correct rather than an omission: no skill owns choosing the assertion a behavior deserves or the runner policy a team wants, so its cells keep the plain `No, <reason>` form and Step 4's judgment fence surfaces the rows, exactly as before. Omits `tier:`, `## By dimension`, and `## Unparsed`; keeps `## Surfaces` with per-rule declined-candidate counts, stating honestly that the recomputed-expectation rule's candidate assertions are not tallied v1 rather than inventing a number. A deliberate case is declined at selection by an in-file `cant-fail-ok: <reason>` annotation, the rules' stated decline evidence, counted in `## Surfaces`, which is a recorded decision at the site it governs (the test for the body rules, the whole file for a Playwright config, on the repo's incumbent test-gate annotation shape), not a suppression of an emitted finding, so the finding-suppression home is not in play. Its `--check` mode is the fail-closed gate the liveness contract's fail-loud limb asks of a gating form: findings exit 1 (the config rules only under `--strict`, one switch that gates them with `rule-mock-only-oracle`, and a tree of configs with no test file reports them without gating or persisting them); an unread input, a dead engine, or a scan that examined nothing exits 2 rather than passing. **Remedy assertions (3.0.0): 8 of 13.** The eight report-only rules added later (`rule-inert-assertion`, whose remedy is scoped per language, `rule-constant-restatement`, `rule-source-text-read`, `rule-conditional-assertion`, whose C# remedy adds the skip routes, `rule-recomputed-derived`, `rule-snapshot-only`, `rule-weak-oracle`, and `rule-throw-only-oracle`, which fires only on C# and is held apart from the weak-oracle remedy there) are pinned positive and negative in every scope they fire in. For the first five, `action_of()` carries five distinct remedy strings and `cant-fail-scan.test.sh` matches none of them as a remedy pinned to the rule and the scope it fires in; its only `Action` assertions are on the consumed table header and on the `1.52` version floor inside the flaky remedy, which is the expected-token match 3.0.0 names as passing on the defect the bar exists for. No negative assertion either, so nothing holds a remedy out of a scope it would not work in, and the `mock-only-oracle` remedy is still the one that most needs it among the three test-body rules, since it is the rule whose defect-hood is uncertain and whose advice is therefore conditional. Those three are grandfathered. The two config rules land after 3.0.0 and are held in full, so their shortfall is a debt recorded here rather than a clause covering them, and it is one assertion per rule per scope rather than a redesign. |
-
-| `ai-slop:audit` | Conforming, default-on for repo-examining runs. Remedies PARTLY pinned, 2 of 15 (3.0.0, grandfathered) | The first prose detector, and the first with a rule-sourced tier spread (twelve SUGGESTION style rules, three IMPORTANT generation-residue rules, each argued in its crosswalk row). Selection is fully mechanical (byte-sequence, phrase-list, and density scans; no withholding verdict), so the fail-safe criterion is met by construction; its decline evidence is the in-file ignore markers, config path exemptions, and code-fence stripping, counted per rule in `## Surfaces` from the detector's own `Summary` rows. The findings file is model-persisted by the skill (the deterministic `detect.sh` emits a parseable report only), per its `context/persist-findings.md` read of this contract: fetch this contract before the first write and refuse to persist when unreachable. Leads every `Finding` cell with the qualified rule id and the fired condition in the run's own values (the zero-tolerance marker or the density/threshold/hits/words tuple); `Confidence` is `high` on every row. Judgment-rubric findings never enter the file: no crosswalk row, no relay. **The first producer to declare producer-owned remediation**, and the case that section was written from: only `rule-utm-params` is auto-applicable, and its other fourteen rows are contained to `Location` yet safe only under the rewrite discipline in this plugin's own `reference/rewrite-guide.md`. Each of those fourteen rows leads its `Auto-applicable` cell with ``No, remediated by `/ai-slop:audit fix` ``, the code-span form the grammar states, which the relay resolves through the qualified rule id every emitted row already leads its `Finding` cell with, so those rows route to that action instead of the cleanup route's `/simplify`, which reads no findings file and loads no rewrite guide. **The declaration required no change to what this producer emits**, which is the point of siting it in the crosswalk: its emitted `Action` cells already describe the repair and already name the fix action on the rules with nothing more specific to say. After that fix runs the skill writes a `fix-pass-record` naming the findings file it consumed, then re-runs the detector and emits a fresh file for what remains. Omits `tier:`, `## By dimension`, and `## Unparsed`. **Remedy assertions (3.0.0): 2 of 15 rules, across the eight branches of `rule_action()`.** `detect.test.sh` pins `rule-filler-phrases` and `rule-stacked-hedging` by substring; the rest are unasserted, `rule-utm-params` among them. That one matters most of the fifteen: it is this producer's only auto-applicable rule, so its remedy is the only one here a consumer may act on without a human between, and it is the one remedy in the fleet whose wrongness costs an edit rather than a read. No negative assertion on any rule. Grandfathered. |
-
-| `harness-config:audit-instructions` | Conforming, opt-in. Remedies pinned, 2 of 2, positive and negative; the four lane-fed rules added in 3.2.0 are pinned positive and negative in their scopes | The first detector whose emitted set is a **strict subset of what its scanner marks**, and the first to carry a structural fence on which findings may reach the relay at all. Its scanner marks ten check families and `restatement-scan.py` marks two more; only the I28 and I29 families have crosswalk rows, so only those are emitted from the scan and the other eight are counted as declined with `reason=no-severity-crosswalk-row`, which is the contract's "no crosswalk row, no relay" rule made visible in `## Surfaces` rather than enforced by silence. Scanner selection is a mechanical byte-sequence and phrase-list scan with no withholding verdict, so the fail-safe criterion is met by construction. **A second intake path, `--from-lane`, admits the four lane-selected rules I30 to I33**, whose rows state every withholding boundary as evidence that must be present, so an unresolved lane judgment falls toward emitting; a row on the wrong path is declined naming the path it belongs to. Every emitted row carries its `audit-pass` finding identity (`finding_id=`) in the `Finding` cell. **The fence is the novel part.** `plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped `'trigger phrase'` versus the base ref, so a remediation editing a `description`, `when_to_use`, or a quoted trigger phrase is an auto-invocation regression rather than a bad suggestion. The producer therefore emits body-scoped rows only: the scanner's `--body-only` flag drops frontmatter hits, and `emit-findings.sh` **recomputes that fence rather than trusting its input**, since a fence living only in the caller is one caller away from being bypassed, and additionally declines any body row quoting a trigger phrase present in the file's own description. Both decline classes are counted per rule. An unclosed leading `---` fences the whole file, the fail-safe direction. Persists behind `--persist-findings`; bare invocation reports and stops, which keeps the skill's report-only contract intact: the findings file is an artifact for a relay the human still gates, never an applied edit. Leads every `Finding` cell with the qualified rule id and the fired marker in the run's own values; `Confidence` is `high` on every scanner-fed row and omitted on every lane-fed one. The two I28 rows are `IMPORTANT` and neither is auto-applicable, because the remediation is a **downgrade, never a deletion**: the directive survives byte-for-byte and only its volume changes. The lane-fed rows spread across tiers (I30 and I31 `IMPORTANT`, I32 `CRITICAL` on its marketplace arm and `IMPORTANT` on its user and project arm, I33 `SUGGESTION`), none is auto-applicable, and I33's remedy is the one deletion, of a spoke's self-describing opener only. Omits `tier:`, `## By dimension`, and `## Unparsed`. **Remedy assertions (3.0.0): 2 of 2, and this is the only row meeting the new bar today.** `emit-findings.test.sh` Case 9 asserts what each `Action` instructs and, negatively, that no `Action` instructs removing the instruction or deleting the line; a second pair asserts that the `Action` names a body cut and never proposes editing `when_to_use`. Case 9b then takes the coercive-emphasis `Action`, applies it by hand at its own `Location`, asserts the directive survived that edit case-insensitively, and re-scans the remediated line to prove it is no longer a candidate, which pins that one remedy to its outcome rather than to its wording. The blanket-default remedy is pinned at the wording level only, and 9b's `frontmatter is untouched` assertion reads the same unmodified fixture twice and so cannot fail. The ratio rests on Case 9, not on those. Both halves predate this version, which is the evidence the section above cites against reading the asymmetry as inevitable. Nothing to grandfather. |
-
-| `docs-hygiene:audit-noise` | Conforming, opt-in. Remedies NOT pinned, 0 of 1 (3.0.0, grandfathered) | The first producer selecting per sentence across soft-wrapped lines rather than per line. Its shape library marks eight shapes per line and classifies a ninth, `negation`, which the scanner drives over an accumulated paragraph; only `negation` carries a crosswalk row, so the other eight are counted in `## Surfaces` as declined with `reason=no-severity-crosswalk-row` rather than dropped in silence. The scanner's selection is mechanical and has no withholding verdict, so the fail-safe-toward-emitting criterion is met by construction: each of its four withholding boundaries, paired positive, the clause naming an alternative, hard guardrail, and worked example, requires its evidence to be PRESENT, so an unresolved judgment selects the emitting rule rather than withholding. **The skill is not mechanical end to end**, and the row would be false if it stopped at the scanner: a model judgment lane sits between the scan and the writer and may dismiss a candidate on the grounds `SKILL.md` enumerates. Those grounds are stated in the crosswalk row as decline evidence, and every dismissal is counted in `## Surfaces` as `reason=judgment-lane-dismissal`, so the lane cannot remove a candidate silently. Its second rule, `rule-negation-hard-guardrail`, is **non-emitting** and states the ground it uses, the Boundary's "findings that never reach a relay" rather than a tier test, because the claim is that the candidate is not a defect at all. Persists behind `--persist-findings`; bare invocation reports and stops, which keeps the skill's read-only contract intact on the distinction that contract now states: target mutation is forbidden unconditionally, and artifact emission is not target mutation. `emit-findings.sh` **recomputes the frontmatter fence over its input rather than trusting the caller**, and additionally declines any body row quoting a trigger phrase present in the file's own `description` or `when_to_use`. It refuses to write at all when no branch resolves, since the consumer admits a candidate only on an exact branch match and a branch-less file is one the relay could never match. Leads every `Finding` cell with the qualified rule id and the fired prohibition in the run's own values; `Confidence` is `high` on every emitted row, and the authorial judgment the repair needs is said in the crosswalk's `Auto-applicable` cell and the `Action` wording rather than spent as a confidence downgrade. `Location` is repo-relative and IS the remediation site, but every row rewrites to the positive target the prohibition implies, so none is auto-applicable and it declares no remediation owner. Omits `tier:`, `## By dimension`, and `## Unparsed`; keeps `## Surfaces` with per-shape declined counts. **Remedy assertions (3.0.0): 0 of 1.** The single remedy string lives in `rule_action()` and neither test file asserts anything about it; the only thing reading it is a model-graded eval rubric line, which grades a run rather than failing one. The smallest debt of the four and the cheapest to clear, being one rule. Grandfathered. |
-
-| `code-metrics:audit-suppressions` | Conforming, opt-in. Remedies pinned, 2 of 2, positive and negative for every reason slot an `Action` can name (held in full: both rules postdate 3.0.0) | A deterministic scanner over lint and type-checker suppressions. Persists behind `--findings`, which asks nothing; a bare run and `--json` report and stop. With no current branch it writes no file and exits 2, since the relay admits a file only on an exact branch match, and a scope holding no file writes none either. Its two rules both emit at IMPORTANT with `Confidence` high, and every withholding boundary needs evidence on the line: a reason read for `rule-no-reason`, a rule id read or a TypeScript directive for `rule-no-rule-id`, each counted per rule in `## Surfaces`. A justified suppression is no row. `Location` is repo-relative and is the remediation site, but neither rule is auto-applicable, because only someone who knows the check can say whether the silenced finding is false. Leads every `Finding` cell with the qualified rule id and the fired tool, rule ids and missing part. Reasons and rule lists are source text that can hold pipes, so cells are escaped. Omits `tier:`, `## By dimension`, and `## Unparsed`. **Remedy assertions: 2 of 2.** The remedy varies with the tool, because each tool keeps its reason in a different place (after ` -- `, in a `Justification` argument, in a trailing comment, in a second HTML comment); `audit-suppressions.test.sh` asserts, per tool, the slot each emitted `Action` names and that the slots of other tools are absent, asks for a rule id only where the line names none, and pins `rule-no-rule-id`'s remedy against asking for a reason the line already has. |
-
-`review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
-writer** whose file format this contract points at, and it sits on the other side of the boundary
-this doc draws.
-
-**`harness-config:audit-permission-grants` is a second absence, recorded here rather than tabled**,
-because a row asserts conformance today and this producer does not conform. It is a detector that
-emits remedies and its sibling `harness-config:audit-instructions` is tabled above, so the line that
-holds it out has to be drawn precisely, and reporting to a human rather than persisting is not that
-line: **five of the six tabled adopters also report and stop on a bare invocation.** What makes
-each of those five a producer is the opt-in persist flag (`--persist-findings`, or `--findings` for `code-metrics:audit-suppressions`) sitting behind that stop, a path a
-run can actually reach, and the sixth reaches one by persisting through the skill itself. This skill has **no persist path at
-all**, no flag, no mode, and no writer, so no run of it arrives at the decision to persist, which is
-where the Boundary places this contract's start and puts it in the "findings that never reach a
-relay" case. Nothing in this contract reaches it, the remedy bar included, and that is the structural
-finding worth recording: its remedies were never held to any bar of this contract's, not because a
-bar excused them but because it is not a producer under it.
-[#4149](https://github.com/melodic-software/claude-code-plugins/issues/4149) holds the adoption
-question and this version does not answer it. **The trigger is that skill gaining a persist path**,
-which is the moment its remedies reach a relay and the Boundary stops holding them out.
+Moved to [this section](../../contracts/detector-findings/README.md#adopters).
 
 ## Versioning
 
-This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). Changing a producer-owned field's rule,
-the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
-adopter row is a minor bump; docs-only clarification is a patch.
+Moved to [this section](../../contracts/detector-findings/README.md#versioning).
 
 ## External authority
 
-- [`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md): the findings-file shape this contract points at and never copies.
-- `/review:fanout fix`: the consumer algorithm, including merge-set construction and consumption marking.
-- [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
-- `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
-- [`docs/conventions/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
-- [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
-- [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its revisit trigger fires at.
-- `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.
-- [`liveness-assertion`](../liveness-assertion/README.md): the fail-loud-or-agent-readable contract a detector satisfies by persisting.
-- [`plugin-philosophy` Convention registry](../../plugin-philosophy.md#convention-registry): one owner doc per shared concern, and the before-a-second-adopter deadline this stub answers.
+Moved to [this section](../../contracts/detector-findings/README.md#external-authority).

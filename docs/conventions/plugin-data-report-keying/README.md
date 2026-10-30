@@ -1,189 +1,48 @@
 # Plugin-data report keying, retention, and overwrite
 
-Version: 1.0.4
-Last updated: 2026-10-02
-
-A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`**:
-the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live
-there; that is `docs/migration-playbook.md`'s seam 4 (`${CLAUDE_PLUGIN_DATA}` for machine state
-only), and this convention sits underneath it.
+This contract moved to [`docs/contracts/plugin-data-report-keying/`](../../contracts/plugin-data-report-keying/README.md). This page keeps its
+headings so links from installed plugin versions still reach each section.
 
 ## The harness fact this exists for
 
-[Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), § *Environment
-variables*, `${CLAUDE_PLUGIN_DATA}` row, fetched 2026-10-07 (recheck when that row changes the
-identifier formula or the uninstall deletion rule):
-
-> `~/.claude/plugins/data/<id>/`, created on first reference and kept across plugin updates. `<id>`
-> is the plugin identifier with every character other than a letter, digit, `_`, or `-` replaced by
-> `-`
-
-**The formula is keyed to the plugin identifier and nothing else.** No project, no checkout, no
-worktree, no session. A plugin that writes a fixed filename there has one such file *per machine*,
-shared by every repository the operator works in.
-
-Same page, on lifetime:
-
-> The data directory is deleted automatically when you uninstall the plugin from the last scope where
-> it is installed. … The CLI deletes by default; pass `--keep-data` to preserve it.
-
-So anything stored there is also **uninstall-fragile**, which is an argument against unbounded
-per-project trees and for a bounded shape.
-
-Upstream is *silent* on naming, not permissive. Reports and audit history are not among the
-documented intended uses ("installed dependencies such as `node_modules` … generated code, and
-caches"). There is nothing to wait for; this is ours to decide.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#the-harness-fact-this-exists-for).
 
 ## The two failure modes, which need different fixes
 
-Distinguish them before choosing a shape. Conflating them is how a fix ships that closes one and
-leaves the other open.
-
-| | **Collision** | **Overwrite** |
-|---|---|---|
-| What happens | Two projects share one path | Two runs of **one** project share one path |
-| Symptom | Project B is served project A's content | Yesterday's artifact is gone |
-| Fixed by | **Keying** the path by project | **Retention**: one file per run, or an appended history |
-| Severity | Higher when the artifact is **read back** | Data loss only |
-
-**Keying is not optional; retention is a judgment.** A non-destructive history closes overwrite and
-does nothing about collision: serving *the newest* report is not the same as serving *this project's*
-report. A writer whose artifact is only ever written (a cache, a scratch file) may key and stop
-there.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#the-two-failure-modes-which-need-different-fixes).
 
 ## Rule 1: key every write by project identity [SPEC]
 
-A plugin writing under `${CLAUDE_PLUGIN_DATA}` puts a **state key** between the plugin's own
-namespace and the filename:
-
-```
-${CLAUDE_PLUGIN_DATA}/<component>/<state-key>/<filename>
-```
-
-**`<state-key>` = `<repo-identity>/<worktree-discriminator>`.** The scheme originated in the
-`harness-config:audit-pass` skill and is specified in full **here**: this doc is the definition every
-adopter derives from, that skill included.
-
-- **`repo-identity`**: the **first configured remote** URL (not necessarily one named `origin`)
-  normalized to `host/owner/repo`, lowercased, scheme/credentials/`.git` stripped. No remote →
-  `local/<sha256 of the canonicalized repo root, 12>`. Not a repository at all →
-  `nonrepo/<sha256 of the physical working directory, 12>` (symlinks resolved, so one directory
-  reached two ways keys once).
-- **`worktree-discriminator`**: `sha256` of the canonicalized worktree root, truncated to 8. Two
-  worktrees of one repository legitimately hold different content and must not share an artifact.
-  Outside a repository, the physical working directory, the same value `repo-identity` hashes.
-
-**Do not mint a second scheme.** A shared implementation ships as `lib/state-key.sh`, byte-identical
-across the plugins that carry it and registered in `scripts/cross-plugin-source-registry.txt`.
-Adopting is one line:
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
-```
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#rule-1-key-every-write-by-project-identity-spec).
 
 ### 1a: derive the key by running commands, never by testing a placeholder [SPEC]
 
-Do **not** write the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set". That placeholder is
-substituted inline in skill and agent content before the model sees the file, so the literal token
-never appears and the condition is not the model's to evaluate. The key comes from commands the run
-actually executes.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#1a-derive-the-key-by-running-commands-never-by-testing-a-placeholder-spec).
 
 ### 1b: a key is a path segment, so validate it like one [SPEC]
 
-A remote URL is arbitrary text that becomes **directory components**. A remote of `../../../etc`
-walks the artifact out of the plugin's namespace. Accept an identity only in the shape the scheme
-means, segments of `[a-z0-9._-]` each starting alphanumeric, and **hash anything else** so it
-still keys deterministically and still stays inside the namespace. This is not hypothetical: an
-unvalidated version of exactly this derivation was caught normalizing a report path outside its
-skill's namespace during review.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#1b-a-key-is-a-path-segment-so-validate-it-like-one-spec).
 
 ### 1c: the "looks scoped but isn't" case, named so it is not repeated
 
-`plugins/bugs/skills/write/SKILL.md` keys on the **kebab-cased basename of the project
-root**:
-
-> `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/` … The plugin data directory is per-plugin, not
-> per-project. Without the slug, Step 2's duplicate scan would match another repository's report on
-> the same symbol.
-
-The line states the hazard correctly and then picks a colliding key. Two same-named checkouts share
-one slug directory, whether a fork, a same-named worktree, or `~/work/api` and `~/oss/api`, and the
-duplicate scan cross-matches between them. It escapes *overwrite* only because its filenames are
-timestamped. `plugins/harness-config/skills/unhobble/SKILL.md` names the same insufficiency in
-prose: "`${CLAUDE_PLUGIN_DATA}` is machine-global, so two checkouts sharing a basename…".
-
-**This is recorded here as the worked example, not filed as a `bugs` defect.** A basename is
-not project identity. Nothing here obliges an immediate migration of an existing keyed-by-basename
-writer; it obliges the next one not to repeat it.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#1c-the-looks-scoped-but-isnt-case-named-so-it-is-not-repeated).
 
 ## Rule 2: choose retention by whether the artifact is read back [SPEC]
 
-| The artifact is… | Shape | Why |
-|---|---|---|
-| Written and never read by the plugin | `<state-key>/<name>`, where a rolling latest is fine | Nothing can be served wrongly |
-| Read back and served to the operator | `<state-key>/<name>` **and** the read must derive the same key | Serving the newest ≠ serving this project's |
-| A trend or a history | one file per run **plus** an appended line | A same-day rerun must not erase the earlier point |
-
-The reference implementation of the third row is `plugins/machine-health/skills/audit/SKILL.md`, where
-its procedure renders the report and then updates state:
-`<OutputBase>/reports/health-<UTC-timestamp>.md`, "one file per run, so a same-day rerun
-does not overwrite the earlier report", plus `<StateBase>/state/latest.json` and one appended line in
-`<StateBase>/state/history.jsonl`, "the trend source of truth". Note it is *not* an adopter of rule 1:
-its roots are passed in explicitly by the caller rather than keyed, for a reason that file states,
-that a subprocess can inherit another plugin's `CLAUDE_PLUGIN_DATA` value. Cited here for retention shape
-only.
-
-**A rolling latest is a legitimate choice, and it must be a stated one.** `harness-memory:audit` keeps
-`last-audit.md` deliberately: the report is a working artifact, not a series. Say so where the path is
-defined, so a reader can tell a decision from an oversight.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#rule-2-choose-retention-by-whether-the-artifact-is-read-back-spec).
 
 ## Rule 3: never serve an artifact you cannot attribute [SPEC]
 
-This is the rule that makes rule 1 worth having, and it governs **migration** as much as reads.
-
-An artifact written under an older unkeyed layout has **no project segment**, so nothing records which
-repository produced it. It therefore cannot be adopted into any project's key. Doing so invents an
-attribution, which is precisely the defect keying removes.
-
-- Missing at the derived key → say *"no artifact for this project"* and offer to produce one. Do not
-  fall back to an unkeyed path to find something.
-- A legacy unkeyed file is present → name its path to the operator as a leftover they may delete.
-  Do not read it, do not move it under a key, do not compute anything from it.
-
-The last clause matters where a writer *derives* from the prior artifact. `audit-instructions`'s
-report header carries a per-surface token delta "versus the previous catalog version"; under a
-colliding path that computation runs against another project's surface set and prints a **number**
-rather than declining. A silently wrong figure is worse than a missing one.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#rule-3-never-serve-an-artifact-you-cannot-attribute-spec).
 
 ## Rule 4: state the uninstall fragility where the artifact is the only copy
 
-Uninstalling from the last scope deletes the whole data directory unless `--keep-data` is passed. A
-component whose sole durable output lives there should say so once, near the path, rather than
-letting an operator discover it. Keying does not change this; it multiplies it, since a keyed tree
-holds every project's artifact under the same deletable root.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#rule-4-state-the-uninstall-fragility-where-the-artifact-is-the-only-copy).
 
 ## Adoption
 
-| Writer | State |
-|---|---|
-| `harness-config:audit-pass` | Keyed since it shipped (`runs/<state-key>/<run-id>/`); this scheme's origin |
-| `harness-config:audit-prompting-postures` | Keyed (#2250) |
-| `harness-config:audit-instructions` | Keyed, plus rule 3 on the delta computation |
-| `harness-memory:audit` | Keyed on write **and** on both read paths (`report`, `fix`), plus rule 3 |
-| `bugs:write` / `bugs:setup` | Keyed by project-root **basename**, rule 1c's worked example; not migrated |
-| `bugs:scan` | Same key, same tree, one timestamped file per run. It reuses `write`'s Step 4 path precedence rather than resolving its own, so it inherits rule 1c's basename collision unmigrated instead of introducing a second scheme (and, like `write`, lands outside this tree entirely when the operator configures `output_dir`). Its reports carry a cursor metadata block the next bare run reads back to pick a lane: a read-back artifact under rule 2, and a rule 3 surface, since the newest report at the derived key is the cursor's only authority and a colliding key would rotate lanes off another checkout's history. Absent at the key is the documented zero state: rotation falls through to the date-derived lane floor, never to an unkeyed path |
-| `harness-config:unhobble` | Different solution, same problem: keys by `<experiment-id>` whose basename is *a label*, and records the canonical checkout identity (absolute worktree path, and the origin URL when one exists) **in the manifest**, verifying it before every later phase. Verification instead of a keyed path; acceptable because the artifact is never *served*: a mismatch aborts and names the conflicting path |
-| `machine-health:audit` | Not keyed: roots are passed in by the caller, deliberately, per that skill's own inherited-variable hazard. Cited above for retention shape only |
-| `harness-ops:observability --write` | Keyed (#3576), `reports/<state-key>/claude-observability-<date>.md`, resolved by running `skills/observability/scripts/report-path.sh` rather than composing a path (rule 1a). One file per project per date is the stated retention shape: the report is a working artifact, and its source, the hook event log inside the checkout, is why the key's worktree split is the behavior it wants. Rule 3 on the leftovers: the script names any unkeyed `reports/claude-observability-<date>.md` on stderr and reads none of them |
-| `harness-ops:known-issues check-all` | Keyed (#3576), `check-all-output/<state-key>/`, obtained by running `scripts/check-all.sh --print-output-dir`. A read-back artifact under rule 2 and a rule 3 surface: the registry is project-relative whenever the `registry_dir` option is set, and the pre-fix unkeyed directory was reproduced serving one project the other's registry rows. Both this writer and the one above fail closed when the key cannot be derived, rather than falling back to the unkeyed path |
-| `code-metrics` (all `audit-*` skills) | Keyed by `lib/state-key.sh`, `reports/<state-key>/<skill>-<stamp>.json`, one timestamped file per run with the newest 20 per skill kept per key. Fails closed when the key cannot be derived: no document is kept and the cap line says to re-run with `--json`. Never read back, so Rule 3 is limited to naming unkeyed leftovers on stderr. `CODE_METRICS_REPORT_DIR` is the explicit override |
-| `session-flow:audit-sessions` | Store not keyed, reports keyed. The session store (`audit-sessions/store/v1/`) is machine-wide on purpose: one collect reads every project's transcripts, so a per-checkout key would split the sweep. Each record attributes itself (project directory, working directory, repository identity from `lib/state-key.sh --root`), which is how Rule 3 holds. Reports go to `reports/machine/` or, for a project-scope sweep, `reports/<state-key>/`, one timestamped pair per run with the newest 20 kept; no `history.jsonl` is written. The SKILL.md states the uninstall fragility beside the path (Rule 4) |
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#adoption).
 
 ## Related
 
-- `docs/migration-playbook.md` seam 4: what may live under `${CLAUDE_PLUGIN_DATA}` at all. This
-  convention governs naming beneath that.
-- #1568: the `${CLAUDE_*}` substitution-scope question. Rule 1a stands on the plugins reference's own
-  substitution table for skill and agent *content*, and deliberately does not depend on the
-  unsettled question of whether that extends to bundled spoke files loaded on demand; a component
-  whose spokes might not substitute derives in `SKILL.md` and passes the resolved path down.
+Moved to [this section](../../contracts/plugin-data-report-keying/README.md#related).

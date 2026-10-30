@@ -1,0 +1,123 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugin/skills/setup/scripts/pointer-line.sh\" check --root . --path .claude/developer-experience.md",
+            "description": "Check the pointer line"
+          }
+        }
+      ],
+      "why": "the read-only helper check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugin/skills/setup/scripts/pointer-line.sh\" apply --root . --path docs/conventions/developer-experience.md --dry-run",
+            "description": "Show the AGENTS.md diff"
+          }
+        }
+      ],
+      "why": "a dry run writes nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short",
+            "description": "Show working tree status"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn -- --yes src 2>/dev/null",
+            "description": "Search the source for a --yes flag"
+          }
+        }
+      ],
+      "why": "a redirect to /dev/null writes nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"=>\" src",
+            "description": "Search the source for lambdas"
+          }
+        }
+      ],
+      "why": "a C# lambda arrow is not a redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn -- \"->\" src",
+            "description": "Search the source for arrows"
+          }
+        }
+      ],
+      "why": "an arrow is not a redirect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugin/skills/setup/scripts/pointer-line.sh\" apply --yes --root . --path docs/conventions/developer-experience.md",
+            "description": "Rewrite the pointer line"
+          }
+        }
+      ],
+      "why": "the helper writing AGENTS.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '@AGENTS.md\\n' > CLAUDE.md",
+            "description": "Add the import"
+          }
+        }
+      ],
+      "why": "a redirect into a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .claude/developer-experience.md",
+            "description": "Remove the old conventions file"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv .claude/developer-experience.md docs/conventions/developer-experience.md",
+            "description": "Move the conventions file"
+          }
+        }
+      ]
+    }
+  ]
+}
