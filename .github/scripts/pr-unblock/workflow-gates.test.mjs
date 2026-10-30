@@ -938,20 +938,15 @@ test("post-verify-notes names a deferred verdict exactly as recoverDeferred read
     for (const [fail, pass, verdict] of [["a".repeat(40), "", "fail"], ["", "b".repeat(40), "pass"]]) {
       const output = join(dir, `output-${verdict}`);
       writeFileSync(output, "");
-      const run = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, TRIGGERING_ACTOR: "github-actions[bot]", FAIL_HEAD: fail, PASS_HEAD: pass, GITHUB_OUTPUT: output, RUNNER_TEMP: dir }, encoding: "utf8" });
+      const run = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, FAIL_HEAD: fail, PASS_HEAD: pass, GITHUB_OUTPUT: output, RUNNER_TEMP: dir }, encoding: "utf8" });
       assert.equal(run.status, 0, run.stdout + run.stderr);
       const name = /^name=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1] ?? "";
       const match = DEFERRED_RECORD.exec(name);
       assert.ok(match, name);
       assert.deepEqual([match[1], match[2]], [fail || pass, verdict]);
     }
-    const bad = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, TRIGGERING_ACTOR: "github-actions[bot]", FAIL_HEAD: "x", PASS_HEAD: "", GITHUB_OUTPUT: join(dir, "bad"), RUNNER_TEMP: dir }, encoding: "utf8" });
+    const bad = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, FAIL_HEAD: "x", PASS_HEAD: "", GITHUB_OUTPUT: join(dir, "bad"), RUNNER_TEMP: dir }, encoding: "utf8" });
     assert.notEqual(bad.status, 0);
-    const person = join(dir, "person");
-    writeFileSync(person, "");
-    const quiet = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, TRIGGERING_ACTOR: "a-person", FAIL_HEAD: "a".repeat(40), PASS_HEAD: "", GITHUB_OUTPUT: person, RUNNER_TEMP: dir }, encoding: "utf8" });
-    assert.equal(quiet.status, 0, quiet.stderr);
-    assert.equal(readFileSync(person, "utf8"), "");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

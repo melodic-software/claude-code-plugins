@@ -217,15 +217,12 @@ jobs:
       - name: Name the deferred verdict
         id: deferred
         if: >-
-          github.run_attempt != '1'
+          github.run_attempt != '1' && github.triggering_actor == 'github-actions[bot]'
           && (steps.post.outputs.head-sha != '' || steps.post.outputs.pass-head-sha != '')
         env:
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           FAIL_HEAD: ${{ steps.post.outputs.head-sha }}
           PASS_HEAD: ${{ steps.post.outputs.pass-head-sha }}
         run: |
-          # Only the reconciler's re-run names a record; a person's re-run does not.
-          [ "$TRIGGERING_ACTOR" = 'github-actions[bot]' ] || exit 0
           head=${FAIL_HEAD:-$PASS_HEAD} verdict=fail
           [ -n "$FAIL_HEAD" ] || verdict=pass
           if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
