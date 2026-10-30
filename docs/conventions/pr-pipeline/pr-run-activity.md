@@ -2211,10 +2211,14 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   pushback is `pushback-means`, which goes back through intake triage once (`intake` route,
   `retries: 1`): intake decides it again on evidence and admits it, unless its own intent,
   security or cost rules stop it. A second `pushback-means` since a listed human added
-  `agent-ready` takes `retry-spent`'s route, unless its reason reads as a security risk (the
-  security reading below, after any code, `blocked-by-pr` included): that one holds as
-  `security-risk`, and its first intake comment states no means framing and no "waits on no
-  decision from a person".
+  `agent-ready` takes `retry-spent`'s route, unless a security reading fired: a `pushback-means`
+  whose words (the reason, else the summary, as its comment shows them) or `cause` read as a
+  security risk (the security reading below, after any code, `blocked-by-pr` included) gets an
+  intake comment with no means framing and no "waits on no decision from a person", whose marker
+  carries `security` (`outcome=intake security`). That mark is sticky: once a counted intake
+  marker carries it, the next intake round past the cap holds as `security-risk` whatever its
+  own stop, a plain `pushback-means` or a `split-required` skip included, and its hand-back says
+  an earlier run named a possible security risk.
   A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,

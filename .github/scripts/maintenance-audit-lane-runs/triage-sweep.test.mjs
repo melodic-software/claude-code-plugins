@@ -441,9 +441,11 @@ const LANES = { login: "melodic-automation-lanes[bot]", id: APP };
 // The issue lane's intake route (a split-required skip, owner Q93) sends an
 // issue back the same way, so its comment starts a new cycle too.
 const intakeBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake run=9 -->\nThe work-resolve-issue lane stopped on this issue (`split-required`).", created_at: at });
+// A pushback that may name a security risk marks its intake comment `security`.
+const securityBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake security run=9 -->\nThe work-resolve-issue lane stopped on this issue (`pushback-means`).", created_at: at });
 
 test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
-  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack]]) {
+  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack], [null, securityBack]]) {
     const gh = fakeGitHub({
       issues: [issue(1)],
       comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), back(LANES, "2026-10-18T08:00:00Z")] },

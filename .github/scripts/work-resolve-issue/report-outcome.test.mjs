@@ -860,6 +860,45 @@ test("a pushback naming a security risk goes to intake unframed once, then reach
   assert.equal(capRetries(means, 1).action, "fail");
 });
 
+// The security reading reads the words the comment shows (the reason, else
+// the summary) and the cause, so neither an empty reason nor a security cause
+// ends the issue with no person.
+test("a pushback whose summary or cause names a security risk goes to intake marked security, then reaches a person", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "123" };
+  for (const [reason, cause, summary] of [
+    ["", "", "the deploy token was printed in the CI log"],
+    ["Which helper?", "security", ""],
+    ["Which helper?", "secret leak", ""],
+  ]) {
+    const label = JSON.stringify([reason, cause, summary]);
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary } });
+    assert.equal(plan.action, "intake", label);
+    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=intake security run=123 -->\n"), plan.comment);
+    assert.equal(parseOutcomeMarker(plan.comment).security, true, label);
+    const spent = capRetries(plan, 1);
+    assert.equal(spent.action, "hand-back", label);
+    assert.equal(spent.stop, "security-risk", label);
+    assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
+    assert.match(spent.comment, /named a possible security risk/, spent.comment);
+    assert.doesNotMatch(spent.comment, /make it clearer first/, spent.comment);
+  }
+  const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", cause: "means", title: "", summary: "" } });
+  assert.ok(means.comment.startsWith("<!-- work-resolve-issue outcome=intake run=123 -->\n"), means.comment);
+  assert.equal(parseOutcomeMarker(means.comment).security, undefined);
+});
+
+// A security marker parses with every other field intact.
+test("parseOutcomeMarker reads the security tag beside run and branch", () => {
+  assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=intake security run=99 branch=resumed -->\nWhy."), {
+    outcome: "intake",
+    resets: null,
+    run: "99",
+    onResumed: true,
+    security: true,
+  });
+  assert.equal(parseOutcomeMarker(`${ESC}<!-- work-resolve-issue outcome=intake security run=99 -->`).run, "99");
+});
+
 // An explicit security-risk code outranks an intent cause.
 test("a pushback with cause intent whose reason opens with security-risk holds as security-risk", () => {
   const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
@@ -1128,6 +1167,42 @@ test("main on a second pushback naming a security risk holds it as security-risk
     assert.ok(comment.includes("work-items:escalation"), comment);
     assert.equal(parseReason(comment).reason, "security", comment);
   });
+});
+
+// A round-one pushback that read as a security risk stays sticky: whatever
+// stops the second intake round (a plain means pushback, a split-required
+// skip), it holds as security-risk. Two plain rounds still fail.
+test("main holds a second intake round as security-risk when an earlier intake marker carries security", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const secure = { user: bot, body: "<!-- work-resolve-issue outcome=intake security run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  const plainEarlier = { user: bot, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  const means = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
+  for (const [name, prior, files, extra, held] of [
+    ["security then means pushback", secure, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}, true],
+    ["security then split-required skip", secure, {}, { DIMENSION_SKIP: "split-required" }, true],
+    ["plain then means pushback", plainEarlier, { "work-outcome.json": means, "lane.json": JSON.stringify({ branch: "" }) }, {}, false],
+  ]) {
+    await withAsyncDir({ ...files, "trusted.json": TRUSTED_LIST }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments/, 200, [prior]],
+        ["GET", /\/issues\/77\/events/, 200, []],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), ...extra }, fetch }), 0, name);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      if (held) {
+        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"], name);
+        assert.ok(comment.includes("work-items:escalation"), comment);
+        assert.equal(parseReason(comment).reason, "security", comment);
+      } else {
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), name);
+        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
+      }
+    });
+  }
 });
 
 // An issue whose author is outside the trusted list stops at the admit job;
