@@ -174,6 +174,114 @@ test("a close, host-run or attended reason that names security holds as security
   assert.equal(runCode("host-only: needs the desktop's GPU"), "host-only", "a host-run that names no security");
 });
 
+// Owner rule: a capability limit routes to host-run or fail, never to a
+// person. Run 41012431399 held #10022 as security because its host-only reason
+// said "tokens" and "model credentials". After an ending code, a secret noun
+// holds unless it is part of a known needs-a-credential capability phrasing.
+test("an ending reason that names a secret noun as a capability keeps its route", () => {
+  for (const reason of [
+    "host-only: the work runs the eval suites against prepaid credit and records pass rate, tokens, advisor call rate and wall time. That needs `claude` eval runs on a host with model credentials; this lane cannot invoke `claude` or spend credit.",
+    "host-only: needs an API key the lane does not hold",
+    "host-only: tokens per completed task need a live run",
+    "host-only: needs a host with model credentials to run the evals",
+    "host-only: printer driver needs a host with credentials",
+    "host-only: the lane lacks the deploy token; run on the desktop",
+  ]) {
+    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(stopRoute(runCode(reason)), "host-run", reason);
+  }
+  for (const reason of [
+    "host-only: the eval would print the API key",
+    "host-only: a token leaks to the run output",
+    "manual-external: rotate the compromised password",
+    "host-only: the secret is exposed in the fixture",
+    "host-only: needs credentials, and the run found a backdoor",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+    assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+// Security review of the capability carve-out: a reason that says where a
+// secret ended up names no risk word, and must still reach a person.
+test("an ending reason that names an exposed secret without a risk word holds", () => {
+  const exposures = [
+    "needs the API key, which a stranger now has",
+    "lacks the token for good: an outsider took it",
+    "requires a password for the account an attacker took over",
+    "an attacker took over the maintainer account",
+    "the API key is in the run log",
+    "found a token committed in config.json",
+    "credentials written to the artifact",
+    "the secret appears in output",
+    "the token was checked into the repo",
+    "the api key is visible in the workflow log",
+    "the secret was pushed to a public branch",
+    "the token was logged by the runner",
+    "the password is shown in the job summary",
+    "the credentials end up in the cache",
+    "the token was dumped into the debug output",
+    "the api key is revealed in the URL",
+    "needs a host with credentials; also the token is in the run log",
+    "the run log holds the API key in plain text",
+    "the job summary holds credentials",
+    "Holds the TOKEN, visible to forks",
+    "the fork PR job holds a token with write scope",
+    "needs the token that leaked into the log",
+    "requires the secret that is committed in config.json",
+    "committed without the secret redacted",
+    "a host with the token printed in its env",
+    "the log holds tokens; needs a host",
+    "tokens used in the public log are real",
+    "needs the token rotated after it showed up in a screenshot",
+    "requires the old password changed since a contractor saw it",
+    "needs the token revoked",
+    "the deploy key sits in the repo history",
+    "needs the token to be rotated",
+    "requires the password to be revoked",
+    "needs the API key, which was shared in Slack",
+    "needs the credentials for the account a contractor still has",
+    "needs an API key, which was emailed to an external contractor",
+    "needs the password to be changed since a contractor saw it",
+    "needs the token to be revoked after the contractor left",
+    "needs the reused token.",
+    "needs an API key. It was emailed to a contractor.",
+    "needs an API key. The run then copies it, with the rest of the state, into the job summary",
+    "tokens per task, from a key shared with a contractor",
+  ];
+  for (const code of ["host-only", "manual-external", "already-done"]) {
+    for (const exposure of exposures) {
+      const reason = `${code}: ${exposure}`;
+      assert.equal(runCode(reason), "security-risk", reason);
+    }
+  }
+  // An exposure word anywhere in the reason holds, even in a clause apart
+  // from the secret noun: the last two exposures above leave the noun's own
+  // sentence, so a check scoped near the noun would release them.
+  const apart = "host-only: needs a host with model credentials; the eval writes its summary to an artifact";
+  assert.equal(runCode(apart), "security-risk", apart);
+  const pasted = "manual-external: the dashboard holds an api key that was pasted publicly";
+  assert.equal(runCode(pasted), "security-risk", pasted);
+});
+
+// Security review: the release takes only an allowlist of capability words
+// beside the secret noun, so an exposure worded with no listed sink word, a
+// pronoun or a bare "key" that points at the secret, or text in another
+// script still reaches a person.
+test("an ending reason that names a secret noun beside any unlisted word holds", () => {
+  for (const reason of [
+    "host-only: needs the API key. It was uploaded to the issue thread.",
+    "host-only: needs the credentials. Someone posted them in the issue.",
+    "host-only: it was uploaded to the thread; needs the API key.",
+    "host-only: needs the API key. The key was uploaded to the issue thread.",
+    "host-only: needs the API key. The eval records that.",
+    "attended: needs the token. It is in a gist.",
+    "already-done: needs the password. \u041e\u043d \u0443\u0442\u0451\u043a.",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+  }
+});
+
 test("a reason with no code that names a security word holds", () => {
   for (const reason of ["credential printed to the log", "a malicious dependency", "the prompt could inject commands", "the TOKEN is in the URL", "a secret in the fixture"]) {
     assert.equal(runCode(reason), "security-risk", reason);
