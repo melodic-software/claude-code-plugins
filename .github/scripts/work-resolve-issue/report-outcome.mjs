@@ -72,7 +72,8 @@
 //   outside  the admit job stopped the run because the issue's author is
 //             neither a listed human nor the lanes App (DIMENSION_SKIP
 //             outside-author): comments that a listed human re-files the work
-//             as a new issue and removes agent-ready, with no label, since a
+//             as a new issue (once: a re-run finds its own comment) and
+//             removes agent-ready, with no label, since a
 //             retry stops again. No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
@@ -1587,8 +1588,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
 // label the issue has, or removing one it lacks (a 404 the catch logs), leaves
 // the same labels, so both are resent; the comment is not.
+// An empty plan.comment posts none: the comment is already on the issue.
 async function applyHandBack(github, repo, plan) {
-  const comment = () => github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
@@ -1658,7 +1660,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
     // A dimension skip or an outside-author stop left no outcome to read: no model ran.
     if (dimensionSkip === OUTSIDE_AUTHOR) {
-      await applyHandBack(github, repo, outsideAuthorPlan({ issueNumber, runUrl, runId }));
+      // A re-run finds the lanes App's own comment and posts none; the marker
+      // from anyone else does not count, since the outside author can write it.
+      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+      const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
+      const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
+      const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan);
       return 0;
     }
     if (dimensionSkip) {
