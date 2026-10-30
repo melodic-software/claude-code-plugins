@@ -3424,6 +3424,10 @@ runs daily and sorts every branch; its rules and tests are in
    or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
    on the issue does not keep the branch once the issue is closed.
 
+While the issue is open, its next lane run deletes a stopped run's lane branch that has no pull
+request in any state (owner decision on #7948,
+[`pr-run-activity.md`](pr-run-activity.md#issue-mode)); this daily rule is unchanged.
+
 Two jobs run it. The plan job, whose token writes nothing (`contents`, `issues` and
 `pull-requests` read), sorts the branches, prints how many it will delete, and hands at most
 `max-deletes-per-run` candidates, in listing order, to the delete job as the run's
