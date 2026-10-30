@@ -101,7 +101,7 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
 
 ## Row schema
 
-Each row is an [upstream-drift](../conventions/upstream-drift/README.md#required-parts) record.
+Each row is an [upstream-drift](../contracts/upstream-drift/README.md#required-parts) record.
 **Topic** names the article's practice in our words; **Ours** and **Verdict** are our decision
 and its reasoning; **Pointer** is the exact docs section, or our own probe where no docs page
 covers the topic; **As of** is when the pointer was last read. No row restates the article or

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/execution-target/execution-target.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/execution-target/execution-target.schema.json",
   "title": "Execution target",
-  "description": "Schema for docs/conventions/execution-target.yaml: which host runs each local-lane stage. Contract: docs/conventions/execution-target/README.md.",
+  "description": "Schema for docs/conventions/execution-target.yaml: which host runs each local-lane stage. Contract: docs/contracts/execution-target/README.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

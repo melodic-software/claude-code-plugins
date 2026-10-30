@@ -47,15 +47,15 @@ page leaving `llms.txt`.
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://code.claude.com/docs/en/plugins/mods/overview> | What a mod is, turning mods on or off and the minimum version, where mods run, the built-in roster, and the comparison with settings hooks. | 2026-10-02 | ADR 0052, go-no-go.md, `docs/conventions/mod-authoring/`, `docs/plugin-philosophy.md`, `harness-ops` inventory skill |
-| <https://code.claude.com/docs/en/plugins/mods/create> | Writing a mod, the per-build types and when they win over a page, `claude plugin validate`, and plugin naming. | 2026-10-02 | `docs/conventions/mod-authoring/` |
-| <https://code.claude.com/docs/en/plugins/mods/events> | Guarding a tool call, the order mods run in and where settings hooks sit in it, and a hook that fails. | 2026-10-02 | ADR 0052, `docs/conventions/mod-authoring/`, go-no-go.md (criterion 4) |
+| <https://code.claude.com/docs/en/plugins/mods/overview> | What a mod is, turning mods on or off and the minimum version, where mods run, the built-in roster, and the comparison with settings hooks. | 2026-10-02 | ADR 0052, go-no-go.md, `docs/contracts/mod-authoring/`, `docs/plugin-philosophy.md`, `harness-ops` inventory skill |
+| <https://code.claude.com/docs/en/plugins/mods/create> | Writing a mod, the per-build types and when they win over a page, `claude plugin validate`, and plugin naming. | 2026-10-02 | `docs/contracts/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/events> | Guarding a tool call, the order mods run in and where settings hooks sit in it, and a hook that fails. | 2026-10-02 | ADR 0052, `docs/contracts/mod-authoring/`, go-no-go.md (criterion 4) |
 | <https://code.claude.com/docs/en/plugins/mods/interface> | Drawing panes and bands; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
-| <https://code.claude.com/docs/en/plugins/mods/api> | Adding a tool, the calls that show text without starting a turn, and reaching files, processes and the network. | 2026-10-02 | `docs/conventions/mod-authoring/` |
-| <https://code.claude.com/docs/en/plugins/mods/test> | `claude plugin test` and the test kit. | 2026-10-02 | `docs/conventions/mod-authoring/`, `scripts/test-plugin-mods.sh` |
-| <https://code.claude.com/docs/en/plugins/mods/troubleshoot> | Why a mod does nothing, the version floor, and a value lost after `/clear`. | 2026-10-02 | `docs/conventions/mod-authoring/`, `docs/conventions/hook-input-rewriting/`, experiments.md (E7) |
-| <https://code.claude.com/docs/en/plugins/mods/admin> | `allowManagedModsOnly` and the other organization controls. | 2026-10-02 | `docs/conventions/mod-authoring/` |
-| <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | `docs/plugin-philosophy.md`, experiments.md (Desktop probe), `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/api> | Adding a tool, the calls that show text without starting a turn, and reaching files, processes and the network. | 2026-10-02 | `docs/contracts/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/test> | `claude plugin test` and the test kit. | 2026-10-02 | `docs/contracts/mod-authoring/`, `scripts/test-plugin-mods.sh` |
+| <https://code.claude.com/docs/en/plugins/mods/troubleshoot> | Why a mod does nothing, the version floor, and a value lost after `/clear`. | 2026-10-02 | `docs/contracts/mod-authoring/`, `docs/contracts/hook-input-rewriting/`, experiments.md (E7) |
+| <https://code.claude.com/docs/en/plugins/mods/admin> | `allowManagedModsOnly` and the other organization controls. | 2026-10-02 | `docs/contracts/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | `docs/plugin-philosophy.md`, experiments.md (Desktop probe), `docs/contracts/mod-authoring/` |
 | <https://code.claude.com/docs/en/plugins/mods/gallery> | The interface elements with samples; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
 
 ## First-party source tree and binary
@@ -96,15 +96,15 @@ re-derived by the greps in [go-no-go.md](go-no-go.md).
 
 ## Reference mods and their licenses
 
-Working examples read for `docs/conventions/mod-authoring/`, each pinned to a commit. Read and
+Working examples read for `docs/contracts/mod-authoring/`, each pinned to a commit. Read and
 cite them; nothing from them is copied into this repository.
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods> | Sample mods (Token Weather, Blast Radius, Replay Theater) as pattern examples. License: Apache-2.0 per the GitHub API (`gh api repos/anthropics/claude-code-playground --jq .license.spdx_id`); reusing its code would need its attribution and NOTICE terms. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
-| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/diff> | The built-in `diff` mod as a pattern example. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
-| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/agents-md> | The built-in `agents-md` mod as a pattern example. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
-| <https://github.com/anthropics/claude-code/blob/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/LICENSE.md> | License of `anthropics/claude-code`, which covers both built-in mods above: "All rights reserved", so read and cite, never copy. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods> | Sample mods (Token Weather, Blast Radius, Replay Theater) as pattern examples. License: Apache-2.0 per the GitHub API (`gh api repos/anthropics/claude-code-playground --jq .license.spdx_id`); reusing its code would need its attribution and NOTICE terms. | 2026-10-17 | `docs/contracts/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/diff> | The built-in `diff` mod as a pattern example. | 2026-10-17 | `docs/contracts/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/agents-md> | The built-in `agents-md` mod as a pattern example. | 2026-10-17 | `docs/contracts/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/blob/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/LICENSE.md> | License of `anthropics/claude-code`, which covers both built-in mods above: "All rights reserved", so read and cite, never copy. | 2026-10-17 | `docs/contracts/mod-authoring/README.md` |
 
 ## Anthropic staff statements
 

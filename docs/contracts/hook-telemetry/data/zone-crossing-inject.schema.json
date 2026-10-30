@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-crossing-inject.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/zone-crossing-inject.schema.json",
   "title": "zone-crossing-inject telemetry data",
   "description": "Per-hook `data` payload for context-guard's zone lines, sent by its mod (hooks/register.tsx). Discovered from the envelope `hook` value \"zone-crossing-inject\"; envelope status \"ok\". The envelope `hook_event` names the mod event that carried the fire: \"tool.call\" or \"prompt.submit\" when lines went to Claude, \"turn.complete\" when an operator-mode suggestion was shown. Emitted only on a fire that sends lines or shows a suggestion; a fire that sends nothing, an improvement included, emits nothing. Records from the settings hook this replaced also carry \"PostToolBatch\" or \"UserPromptSubmit\". Evolves additive-only.",
   "type": "object",

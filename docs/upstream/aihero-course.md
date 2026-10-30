@@ -53,7 +53,7 @@ convention emerged.
 ## Row schema (fixed at creation, per amendment A2)
 
 Each row is a four-part record per
-[docs/conventions/upstream-drift/README.md](../conventions/upstream-drift/README.md): the claim,
+[docs/contracts/upstream-drift/README.md](../contracts/upstream-drift/README.md): the claim,
 the basis it was derived against, the as-of date, and a recheck trigger. Columns:
 
 | Lesson claim | Ours | Verdict | Reasoning, basis, as-of |
@@ -328,12 +328,12 @@ committed, build filed as
 ### Lane 8: invocation mode (issue #2910, closed 2026-08-17)
 
 Interview-first per contract; register gate clean (8/8); user confirmed. Rubric (the doctrine artifact):
-`docs/conventions/invocation-mode/README.md`. Lessons 3, 4 (invocation half), 5. As-of
+`docs/contracts/invocation-mode/README.md`. Lessons 3, 4 (invocation half), 5. As-of
 2026-08-17.
 
 | Claim / concern (lesson) | Verdict | Detail |
 |---|---|---|
-| Invocation choice needs a decision rubric (L3, L4) | ADOPT (adapted — inverted default) | Rubric adopted with model-invoked default + three exception classes (side-effect/manual-timing, setup, maintainer-only) — the inverse of upstream's user-invoked default. Home: `docs/conventions/invocation-mode/README.md` + convention-registry row; cross-linked from PLUGIN-PHILOSOPHY (setup contract, Instruction economy); `playbooks:skill-authoring` pointer filed |
+| Invocation choice needs a decision rubric (L3, L4) | ADOPT (adapted — inverted default) | Rubric adopted with model-invoked default + three exception classes (side-effect/manual-timing, setup, maintainer-only) — the inverse of upstream's user-invoked default. Home: `docs/contracts/invocation-mode/README.md` + convention-registry row; cross-linked from PLUGIN-PHILOSOPHY (setup contract, Instruction economy); `playbooks:skill-authoring` pointer filed |
 | Upstream's user-invoked default (L4) | REJECT | Solo-operator posture; materially weakened by mattpocock/skills#693 (the desktop and web apps hide user-invoked skills) and by this marketplace's multi-repo discoverability need |
 | Splitting by invocation (L4) | ADOPT (routed) | The rubric owns the split axis; `docs-hygiene:write-for-agents` (#2962) when-to-split doctrine points at it (lane 7 decision honored) |
 | Router-skill pattern (L4 / MECHANICS) | REJECT (with reason) | Under the model-invoked default the always-present listing IS the router; `disable-model-invocation: true` skills are deliberately model-invisible. Human-side answer: `docs/skill-cheat-sheet.md` + `harness-ops:inventory`. Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted distinct pattern |
@@ -457,7 +457,7 @@ gives no data; named provenance, bucket ii) that it outperforms bare `/name` pro
 equivalent in part ("invoke `/plugin:skill` via the Skill tool" appears across the verification
 and implementation families) but the practice was mixed — several operative chains hand off
 bare — and codified nowhere; the doctrine now lives in
-`docs/conventions/invocation-mode/README.md` ("Cross-skill invocation phrasing"), added by this
+`docs/contracts/invocation-mode/README.md` ("Cross-skill invocation phrasing"), added by this
 lane and scoped to new/edited text, with the fleet normalization sweep filed as
 [#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002). The sweep landed
 2026-08-21; the scoping note is retired and the rule is now unconditional.
@@ -470,7 +470,7 @@ admission rule. The glossary mirrors the REJECT row.
 
 | Term | Verdict | Basis |
 |---|---|---|
-| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/conventions/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary defines it as agent sessions "started by triggers ... rather than by a human" ([entry](https://www.aihero.dev/ai-coding-dictionary/software-factory)); a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
+| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/contracts/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary defines it as agent sessions "started by triggers ... rather than by a human" ([entry](https://www.aihero.dev/ai-coding-dictionary/software-factory)); a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
 | dark factory | **RECORDED** (definition only) | His [entry](https://www.aihero.dev/ai-coding-dictionary/dark-factory): a software factory that "writes the code and no human reads it", with automated checks and automated review as the only gates. Recorded so the term can be matched when upstream material uses it; no project term adopted. As-of 2026-10-10 |
 
 ## Coverage index (the journey's completion gate)

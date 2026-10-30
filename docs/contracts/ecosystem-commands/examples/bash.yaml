@@ -1,5 +1,5 @@
 # Example .claude/ecosystems/bash.yaml — demonstrates the <files> placeholder (changed-files list).
-# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+# Contract: docs/contracts/ecosystem-commands/README.md (schema: ecosystem.schema.json).
 globs: ["*.sh", "*.bash"]
 build-cmd: null # no build step
 test-cmd: null # no shell-test runner wired in this example repo

@@ -257,8 +257,8 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      repo's tracked files to one plugin's name, and plugin boundaries are the volatile axis across
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
-     `docs/conventions/hook-telemetry/`; first instance:
-     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
+     `docs/contracts/hook-telemetry/`; first instance:
+     [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md)).
    - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
      *audience* or *deployment*, meaning a different framing, ranking lens, or branding per team /
      client / context, add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
@@ -276,7 +276,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      (profile axis), and the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
-     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md).
+     line** are owned by [`docs/contracts/config-cascade/`](contracts/config-cascade/README.md).
      The layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
      for how its layers merge.
@@ -322,7 +322,7 @@ generated into each carrying plugin by `scripts/sync-shared-copies.sh`)
 evaluates every record against the consumer repo. Detection is one fixed step in setup `check`;
 cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
 the model per the record's `successor` prose. No new setup verb. The owner doc
-`docs/conventions/retired-conventions/README.md` carries the schema, the helper contract, and the
+`docs/contracts/retired-conventions/README.md` carries the schema, the helper contract, and the
 two fixed setup lines; this playbook only names the mechanism. Schema is repository-scope only:
 machine-scope files under `~/.claude/` stay outside it (ADR 0018).
 
@@ -1398,7 +1398,7 @@ unknown rather than waved through, and the untrusted-content risk is contained b
 that is labeled advisory.
 
 **Recheck trigger:** a named trigger on an in-repo decision
-([upstream-drift](conventions/upstream-drift/README.md)). Re-introducing a Bash or PowerShell
+([upstream-drift](contracts/upstream-drift/README.md)). Re-introducing a Bash or PowerShell
 pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
 re-opens this review.
 
@@ -1562,7 +1562,7 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
    install rather than an uninstall/reinstall. The verified-version record, which covers a
    same-scope `--scope project` rerun of a `string` option, lives in the
-   [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
+   [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back rather than assuming the write
    landed. For a non-sensitive option, read it
    from the **user** `settings.json` `pluginConfigs` per the storage rule above, not from the project
@@ -1620,7 +1620,7 @@ surface to a published plugin for a single consumer's low-value nicety.
    so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. The
    verified-version record, which covers a same-scope `project` rerun of a `string` option (the
    scope this step uses), lives in the
-   [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
+   [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back before reporting a
    project-scope reconfiguration as applied. For a non-sensitive option, read it from the **user**
    `settings.json` `pluginConfigs`, where such options land regardless of enable scope (seam 1 above

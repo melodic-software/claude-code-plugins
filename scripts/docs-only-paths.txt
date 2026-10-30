@@ -15,7 +15,7 @@
 #      - plugin-gate: hermetic plugins/**/*.test.sh, then manifest + catalog +
 #        cheat-sheet validation (reads docs/catalog.md, docs/plugin-artifact-protocol.md,
 #        docs/catalog-taxonomy.md, docs/skill-cheat-sheet.md,
-#        docs/conventions/config-cascade/README.md — an edit to any of them
+#        docs/contracts/config-cascade/README.md — an edit to any of them
 #        is never docs-only, so the drift gates always run), plus the
 #        native-overlap registry checks, which read docs/native-surfaces/**
 #        and docs/native-surfaces.md, so the store and its generated view are

@@ -465,7 +465,7 @@ add them.
 - **Untrusted input.** Stages that read untrusted input do not run on a cloud host: the lanes
   launcher refuses every cloud host for them, because the no-connector check has no deterministic
   form yet
-  ([Untrusted-input stages](conventions/execution-target/README.md#untrusted-input-stages)).
+  ([Untrusted-input stages](contracts/execution-target/README.md#untrusted-input-stages)).
 - **Local sessions.** The connectors also load in local CLI sessions. A local Context7 server at
   another URL appears beside the connector; the
   [Disable claude.ai connectors](https://code.claude.com/docs/en/mcp#disable-claude-ai-connectors)
