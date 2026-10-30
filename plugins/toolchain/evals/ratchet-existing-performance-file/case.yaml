@@ -6,7 +6,7 @@ expected_outcome: '.performance/ratchets.json keeps import-spawns and gains a co
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/review:ratchet the count of `type: ignore` comments. `bash count-ignores.sh` prints it. Write the proposed files into the working tree; do not commit.'
+  prompt: '/toolchain:ratchet the count of `type: ignore` comments. `bash count-ignores.sh` prints it. Write the proposed files into the working tree; do not commit.'
   allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
   max_turns: 40
   timeout_seconds: 900
@@ -43,5 +43,5 @@ graders:
   - name: skill-fired
     type: tool_used
     tool: Skill
-    input_match: '"skill"\s*:\s*"(?:review:)?ratchet"'
+    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
     arm: with-only

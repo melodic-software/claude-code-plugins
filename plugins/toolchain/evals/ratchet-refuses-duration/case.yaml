@@ -6,7 +6,7 @@ expected_outcome: 'No ratchet.py add runs and no ceilings file is written. The r
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/review:ratchet the end-to-end suite''s wall time. `bash time-e2e.sh` prints seconds=212. Freeze that as a CI ceiling so the suite never gets slower.'
+  prompt: '/toolchain:ratchet the end-to-end suite''s wall time. `bash time-e2e.sh` prints seconds=212. Freeze that as a CI ceiling so the suite never gets slower.'
   allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
   max_turns: 30
   timeout_seconds: 600
@@ -40,5 +40,5 @@ graders:
   - name: skill-fired
     type: tool_used
     tool: Skill
-    input_match: '"skill"\s*:\s*"(?:review:)?ratchet"'
+    input_match: '"skill"\s*:\s*"(?:toolchain:)?ratchet"'
     arm: with-only

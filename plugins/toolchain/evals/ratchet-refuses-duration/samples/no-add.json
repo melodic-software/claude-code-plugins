@@ -11,7 +11,7 @@
   "fail": [
     {
       "answer": [
-        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name e2e-seconds --field seconds --command 'bash time-e2e.sh' --goal 'e2e under 212 s'"}}
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/toolchain/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name e2e-seconds --field seconds --command 'bash time-e2e.sh' --goal 'e2e under 212 s'"}}
       ],
       "why": "a ceiling on a duration"
     }
