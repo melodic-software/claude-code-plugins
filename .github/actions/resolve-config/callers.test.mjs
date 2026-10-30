@@ -6946,6 +6946,7 @@ test("every workflow npm ci step is bounded, unretried, and skips audit and fund
         const env = { ...doc.env, ...job.env };
         assert.equal(env.npm_config_audit, "false", `${where}: npm_config_audit`);
         assert.equal(env.npm_config_fund, "false", `${where}: npm_config_fund`);
+        assert.equal(env.npm_config_fetch_timeout, "60000", `${where}: npm_config_fetch_timeout (#10061 done-when 1; same value as npm-fetch.npmrc)`);
         assert.ok(step["timeout-minutes"] < job["timeout-minutes"], `${where}: step timeout ${step["timeout-minutes"]} not below job ${job["timeout-minutes"]}`);
         assert.doesNotMatch(step.run, /\bretry\b|\buntil\b|npm ci[^\n]*\|\|[^\n]*npm ci/, `${where}: retry wrapper`);
         if (/\bnpm ci\b[^\n]*--loglevel http/.test(step.run)) loglevel += 1;

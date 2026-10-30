@@ -180,6 +180,7 @@ concurrency:
 # read as npm's global config by every npm call here, run-tests.sh's included.
 env:
   npm_config_audit: "false"
+  npm_config_fetch_timeout: "60000"
   npm_config_fund: "false"
   npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
 jobs:
